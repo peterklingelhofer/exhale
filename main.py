@@ -36,14 +36,19 @@ def animate():
 
     # animate line moving up and down
     while True:
-        for i in range(line_height, screen_height):
+        for i in range(0, screen_height):
             canvas.coords(tinted_rect, 0, screen_height - i, screen_width, screen_height)
             overlay.update()
-            time.sleep(duration_up / (screen_height - line_height))
-        for i in range(line_height):
-            canvas.coords(tinted_rect, 0, screen_height - line_height + i, screen_width, screen_height)
+            time.sleep(duration_up / screen_height)
+        for i in range(screen_height - 1, line_height - 1, -1):
+            canvas.coords(tinted_rect, 0, screen_height - i, screen_width, screen_height)
             overlay.update()
-            time.sleep(duration_down / line_height)
+            time.sleep(duration_down / (screen_height - line_height))
+        for i in range(line_height - 1, -1, -1):
+            canvas.coords(tinted_rect, 0, screen_height - i, screen_width, screen_height)
+            overlay.update()
+            time.sleep(duration_up / line_height)
+
 
 
 # Press the green button in the gutter to run the script.
