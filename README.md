@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Research shows that we blink less and breathe more shallowly when we are looking at screens. This app is intended as a friendly indicator and reminder to continue to take full and deep breaths.
+Research indicates we blink less and breathe more shallowly when we are looking at screens. This app is intended as a friendly indicator and reminder to continue to take full and deep breaths.
 
 ## Usage
 
