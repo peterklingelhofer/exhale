@@ -3,7 +3,7 @@ import time
 import tkinter as tk
 
 # set tint color
-tint_color = "#000"
+tint_color = "#F4DFC9"
 use_frame_rate = 30
 
 # get screen dimensions
