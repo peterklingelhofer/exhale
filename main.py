@@ -12,38 +12,37 @@ root.withdraw()
 screen_width = root.winfo_screenwidth()
 screen_height = root.winfo_screenheight()
 
+
 # create windows to hold tint overlays
-overlay_left = tk.Toplevel()
-overlay_right = tk.Toplevel()
+def create_overlay(geometry):
+    overlay = tk.Toplevel()
+    overlay.geometry(geometry)
+    overlay.wm_attributes("-alpha", 0.3)  # set transparency to 30%
+    overlay.attributes("-topmost", True)
+    overlay.overrideredirect(True)
+    overlay.resizable(False, False)
 
-# set geometry of left overlay
-overlay_left.geometry(f"10x{screen_height}+0+0")
-overlay_left.wm_attributes("-alpha", 0.3)  # set transparency to 30%
-overlay_left.attributes("-topmost", True)
-overlay_left.overrideredirect(True)
-overlay_left.resizable(False, False)
+    return overlay
 
-# set geometry of right overlay
-overlay_right = tk.Toplevel()
-overlay_right.geometry(f"10x{screen_height}+{screen_width-10}+0")
-overlay_right.wm_attributes("-alpha", 0.3)  # set transparency to 30%
-overlay_right.attributes("-topmost", True)
-overlay_right.overrideredirect(True)
-overlay_right.resizable(False, False)
 
-# create canvas on left overlay to draw horizontal line on
-canvas_left = tk.Canvas(overlay_left, width=10, height=screen_height, highlightthickness=0)
-canvas_left.pack()
+# create canvas on left/right side to draw horizontal line on
+def create_canvas(overlay):
+    canvas = tk.Canvas(overlay, width=10, height=screen_height, highlightthickness=0)
+    canvas.pack()
+    return canvas
 
-# create canvas on right overlay to draw horizontal line on
-canvas_right = tk.Canvas(overlay_right, width=10, height=screen_height, highlightthickness=0)
-canvas_right.pack()
 
-# draw initial tinted rectangle on left canvas
-tinted_rect_left = canvas_left.create_rectangle(0, screen_height, 10, screen_height // 2, fill=tint_color, outline="")
+def create_rectangle(canvas):
+    return canvas.create_rectangle(0, screen_height, 10, screen_height // 2, fill=tint_color, outline="")
 
-# draw initial tinted rectangle on right canvas
-tinted_rect_right = canvas_right.create_rectangle(0, screen_height, 10, screen_height // 2, fill=tint_color, outline="")
+
+# create windows/canvases/rectangles for tint overlays
+overlay_left = create_overlay(f"10x{screen_height}+0+0")
+overlay_right = create_overlay(f"10x{screen_height}+{screen_width-10}+0")
+canvas_left = create_canvas(overlay_left)
+canvas_right = create_canvas(overlay_right)
+tinted_rect_left = create_rectangle(canvas_left)
+tinted_rect_right = create_rectangle(canvas_right)
 
 
 # define animation function to move the horizontal line up and down
