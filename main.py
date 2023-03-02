@@ -50,9 +50,6 @@ def animate():
     duration_up = int(input("Enter the duration (in seconds) for the line to move up: "))
     duration_down = int(input("Enter the duration (in seconds) for the line to move down: "))
 
-    # calculate height of line
-    line_height = screen_height // 2
-
     # calculate the number of frames to use for each phase of the animation
     frames_up = math.ceil(duration_up * use_frame_rate)
     frames_down = math.ceil(duration_down * use_frame_rate)
