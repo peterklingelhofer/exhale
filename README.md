@@ -1,4 +1,4 @@
-# breath-trainer
+# breath-facilitator
 
 ## Introduction
 
@@ -7,7 +7,7 @@ Research indicates we blink less and breathe more shallowly when we are looking 
 ## Usage
 
 ```sh
-git clone https://github.com/peterklingelhofer/breath-trainer.git
+git clone https://github.com/peterklingelhofer/breath-facilitator.git
 cd breath-trainer
 python main.py
 ```
