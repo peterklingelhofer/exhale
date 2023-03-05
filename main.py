@@ -7,7 +7,7 @@ COLOR = "#000"  # set color, "#F4DFC9" may be congenial for full screen and lowe
 OPACITY = 1  # set transparency (between 0 and 1)
 INHALE_DURATION = 4  # set inhale (up animation) duration in seconds
 EXHALE_DURATION = 8  # set exhale (down animation) duration in seconds
-IS_FULL_SCREEN = False  # toggles full screen mode
+IS_FULL_SCREEN = True  # toggles full screen mode
 SIDE_WIDTH = 20  # set width (only if IS_FULL_SCREEN is False, recommended values between 10 and 20)
 FRAME_RATE = 30  # set frame rate
 
@@ -62,41 +62,36 @@ def create_screen(window_parameters):
     return window, canvas, rectangle
 
 
+def update_screens(canvas_left, canvas_right, rectangle_left, rectangle_right, window_left, window_right, y):
+    canvas_left.coords(rectangle_left, 0, y, animation_width, screen_height)
+    if not IS_FULL_SCREEN:
+        canvas_right.coords(rectangle_right, 0, y, animation_width, screen_height)
+
+    window_left.update()
+    if not IS_FULL_SCREEN:
+        window_right.update()
+
+
 # define animation function to move the horizontal line up and down
 def animate():
     frames_up, frames_down = calculate_frames_per_phase()
     increment_up, increment_down = calculate_increment_per_frame(frames_up, frames_down)
-    window_left, canvas_left, tinted_rect_left = create_screen(f"{animation_width}x{screen_height}+0+0")
-    if not IS_FULL_SCREEN:
-        window_right, canvas_right, tinted_rect_right = create_screen(f"{animation_width}x{screen_height}+{screen_width - animation_width}+0")
+    window_left, canvas_left, rectangle_left = create_screen(f"{animation_width}x{screen_height}+0+0")
+    window_right, canvas_right, rectangle_right = (
+        create_screen(f"{animation_width}x{screen_height}+{screen_width - animation_width}+0")
+        if not IS_FULL_SCREEN
+        else (None, None, None))
 
     # animate line moving up and down on left overlay
     while True:
         for i in range(frames_up):
-            sin_value = math.sin(increment_up * i)
-            height = screen_height - (sin_value * screen_height)
-
-            canvas_left.coords(tinted_rect_left, 0, height, animation_width, screen_height)
-            if not IS_FULL_SCREEN:
-                canvas_right.coords(tinted_rect_right, 0, height, animation_width, screen_height)
-
-            window_left.update()
-            if not IS_FULL_SCREEN:
-                window_right.update()
-
+            y = screen_height - (math.sin(increment_up * i) * screen_height)
+            update_screens(canvas_left, canvas_right, rectangle_left, rectangle_right, window_left, window_right, y)
             time.sleep(INHALE_DURATION / frames_up)
+
         for i in range(frames_down):
-            sin_value = math.sin(increment_down * i)
-            height = (sin_value * screen_height)
-
-            canvas_left.coords(tinted_rect_left, 0, height, animation_width, screen_height)
-            if not IS_FULL_SCREEN:
-                canvas_right.coords(tinted_rect_right, 0, height, animation_width, screen_height)
-
-            window_left.update()
-            if not IS_FULL_SCREEN:
-                window_right.update()
-
+            y = math.sin(increment_down * i) * screen_height
+            update_screens(canvas_left, canvas_right, rectangle_left, rectangle_right, window_left, window_right, y)
             time.sleep(EXHALE_DURATION / frames_down)
 
 
