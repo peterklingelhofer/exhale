@@ -14,13 +14,13 @@ FRAME_RATE = 30  # set frame rate
 # get screen dimensions
 root = tk.Tk()
 root.withdraw()
-screen_height = root.winfo_screenheight()
-screen_width = root.winfo_screenwidth()
-animation_width = (SIDE_WIDTH, screen_width)[IS_FULL_SCREEN]  # use SIDE_WIDTH if we're not in full screen mode
+screenHeight = root.winfo_screenheight()
+screenWidth = root.winfo_screenwidth()
+animationWidth = (SIDE_WIDTH, screenWidth)[IS_FULL_SCREEN]  # use SIDE_WIDTH if we're not in full screen mode
 
 
 # create windows to hold tint overlays
-def create_window(geometry):
+def createWindow(geometry):
     window = tk.Toplevel()
     window.geometry(geometry)
     window.attributes("-topmost", True)
@@ -33,66 +33,66 @@ def create_window(geometry):
 
 
 # create canvas on left/right side to draw horizontal line on
-def create_canvas(overlay):
-    canvas = tk.Canvas(overlay, width=animation_width, height=screen_height, highlightthickness=0)
+def createCanvas(overlay):
+    canvas = tk.Canvas(overlay, width=animationWidth, height=screenHeight, highlightthickness=0)
     canvas.pack()
     return canvas
 
 
-def create_rectangle(canvas):
-    return canvas.create_rectangle(0, screen_height, animation_width, screen_height // 2, fill=COLOR, outline="")
+def createRectangle(canvas):
+    return canvas.create_rectangle(0, screenHeight, animationWidth, screenHeight // 2, fill=COLOR, outline="")
 
 
 # calculate the number of frames to use for each phase of the animation
-def calculate_frames_per_phase():
+def calculateFramesPerPhase():
     return math.ceil(INHALE_DURATION * FRAME_RATE), math.ceil(EXHALE_DURATION * FRAME_RATE)
 
 
 # calculate the increment of frames to use for each phase of the animation
-def calculate_increment_per_frame(up, down):
-    half_pie = math.pi / 2
-    return half_pie / up, half_pie / down
+def calculateIncrementPerFrame(up, down):
+    halfPie = math.pi / 2
+    return halfPie / up, halfPie / down
 
 
 # create windows/canvases/rectangles for tint overlays
-def create_screen(window_parameters):
-    window = create_window(window_parameters)
-    canvas = create_canvas(window)
-    rectangle = create_rectangle(canvas)
+def createScreen(windowParameters):
+    window = createWindow(windowParameters)
+    canvas = createCanvas(window)
+    rectangle = createRectangle(canvas)
     return window, canvas, rectangle
 
 
-def update_screens(canvas_left, canvas_right, rectangle_left, rectangle_right, window_left, window_right, y):
-    canvas_left.coords(rectangle_left, 0, y, animation_width, screen_height)
+def updateScreens(canvasLeft, canvasRight, rectangleLeft, rectangleRight, windowLeft, windowRight, y):
+    canvasLeft.coords(rectangleLeft, 0, y, animationWidth, screenHeight)
     if not IS_FULL_SCREEN:
-        canvas_right.coords(rectangle_right, 0, y, animation_width, screen_height)
+        canvasRight.coords(rectangleRight, 0, y, animationWidth, screenHeight)
 
-    window_left.update()
+    windowLeft.update()
     if not IS_FULL_SCREEN:
-        window_right.update()
+        windowRight.update()
 
 
 # define animation function to move the horizontal line up and down
 def animate():
-    frames_up, frames_down = calculate_frames_per_phase()
-    increment_up, increment_down = calculate_increment_per_frame(frames_up, frames_down)
-    window_left, canvas_left, rectangle_left = create_screen(f"{animation_width}x{screen_height}+0+0")
-    window_right, canvas_right, rectangle_right = (
-        create_screen(f"{animation_width}x{screen_height}+{screen_width - animation_width}+0")
+    framesUp, framesDown = calculateFramesPerPhase()
+    incrementUp, incrementDown = calculateIncrementPerFrame(framesUp, framesDown)
+    windowLeft, canvasLeft, rectangleLeft = createScreen(f"{animationWidth}x{screenHeight}+0+0")
+    windowRight, canvasRight, rectangleRight = (
+        createScreen(f"{animationWidth}x{screenHeight}+{screenWidth - animationWidth}+0")
         if not IS_FULL_SCREEN
         else (None, None, None))
 
-    # animate line moving up and down on left overlay
+    # animate line moving up and down
     while True:
-        for i in range(frames_up):
-            y = screen_height - (math.sin(increment_up * i) * screen_height)
-            update_screens(canvas_left, canvas_right, rectangle_left, rectangle_right, window_left, window_right, y)
-            time.sleep(INHALE_DURATION / frames_up)
+        for i in range(framesUp):
+            y = screenHeight - (math.sin(incrementUp * i) * screenHeight)
+            updateScreens(canvasLeft, canvasRight, rectangleLeft, rectangleRight, windowLeft, windowRight, y)
+            time.sleep(INHALE_DURATION / framesUp)
 
-        for i in range(frames_down):
-            y = math.sin(increment_down * i) * screen_height
-            update_screens(canvas_left, canvas_right, rectangle_left, rectangle_right, window_left, window_right, y)
-            time.sleep(EXHALE_DURATION / frames_down)
+        for i in range(framesDown):
+            y = math.sin(incrementDown * i) * screenHeight
+            updateScreens(canvasLeft, canvasRight, rectangleLeft, rectangleRight, windowLeft, windowRight, y)
+            time.sleep(EXHALE_DURATION / framesDown)
 
 
 # press the green button in the gutter to run the script
