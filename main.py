@@ -7,7 +7,7 @@ COLOR = "#000"  # set color, "#F4DFC9" may be congenial for full screen and lowe
 OPACITY = 1  # set transparency (between 0 and 1)
 INHALE_DURATION = 4  # set inhale (up animation) duration in seconds
 EXHALE_DURATION = 8  # set exhale (down animation) duration in seconds
-IS_FULL_SCREEN = False  # toggles full screen mode
+IS_FULL_SCREEN = True  # toggles full screen mode
 SIDE_WIDTH = 20  # set width (only if IS_FULL_SCREEN is False, recommended values between 10 and 20)
 FRAME_RATE = 30  # set frame rate
 
@@ -25,7 +25,7 @@ def create_window(geometry):
     window.geometry(geometry)
     window.attributes("-topmost", True)
     window.overrideredirect(True)
-    window.resizable(False, False)
+    window.resizable(IS_FULL_SCREEN, IS_FULL_SCREEN)
     if OPACITY < 1:
         window.wm_attributes("-alpha", OPACITY)
 
