@@ -8,7 +8,7 @@ Research indicates we blink less and breathe more shallowly when we are looking 
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
-cd breath-trainer
+cd exhale
 python main.py
 ```
 
