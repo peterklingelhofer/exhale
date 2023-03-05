@@ -44,34 +44,31 @@ def create_rectangle(canvas):
 
 
 # calculate the number of frames to use for each phase of the animation
-def calculate_frames_per_phase(duration):
-    return math.ceil(duration * FRAME_RATE)
+def calculate_frames_per_phase():
+    return math.ceil(INHALE_DURATION * FRAME_RATE), math.ceil(EXHALE_DURATION * FRAME_RATE)
 
 
-# calculate the increment for each frame
-def calculate_increment_per_frame(frames):
-    return (math.pi / 2) / frames
+# calculate the increment of frames to use for each phase of the animation
+def calculate_increment_per_frame(up, down):
+    half_pie = math.pi / 2
+    return half_pie / up, half_pie / down
+
+
+# create windows/canvases/rectangles for tint overlays
+def create_screen(window_parameters):
+    window = create_window(window_parameters)
+    canvas = create_canvas(window)
+    rectangle = create_rectangle(canvas)
+    return window, canvas, rectangle
 
 
 # define animation function to move the horizontal line up and down
 def animate():
-    # calculate the number of frames to use for each phase of the animation
-    frames_up = calculate_frames_per_phase(INHALE_DURATION)
-    frames_down = calculate_frames_per_phase(EXHALE_DURATION)
-
-    # calculate the increment for each frame
-    increment_up = calculate_increment_per_frame(frames_up)
-    increment_down = calculate_increment_per_frame(frames_down)
-
-    # create windows/canvases/rectangles for tint overlays
-    window_left = create_window(f"{animation_width}x{screen_height}+0+0")
-    canvas_left = create_canvas(window_left)
-    tinted_rect_left = create_rectangle(canvas_left)
-
+    frames_up, frames_down = calculate_frames_per_phase()
+    increment_up, increment_down = calculate_increment_per_frame(frames_up, frames_down)
+    window_left, canvas_left, tinted_rect_left = create_screen(f"{animation_width}x{screen_height}+0+0")
     if not IS_FULL_SCREEN:
-        window_right = create_window(f"{animation_width}x{screen_height}+{screen_width - animation_width}+0")
-        canvas_right = create_canvas(window_right)
-        tinted_rect_right = create_rectangle(canvas_right)
+        window_right, canvas_right, tinted_rect_right = create_screen(f"{animation_width}x{screen_height}+{screen_width - animation_width}+0")
 
     # animate line moving up and down on left overlay
     while True:
