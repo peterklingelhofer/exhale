@@ -2,61 +2,76 @@ import math
 import time
 import tkinter as tk
 
-# set tint color
-tint_color = "#F4DFC9"
-use_frame_rate = 30
+# configure parameters and constants
+COLOR = "#000"  # set color, "#F4DFC9" may be congenial for full screen and lower opacity values
+OPACITY = 1  # set transparency (between 0 and 1)
+INHALE_DURATION = 4  # set inhale (up animation) duration in seconds
+EXHALE_DURATION = 8  # set exhale (down animation) duration in seconds
+IS_FULL_SCREEN = False  # toggles full screen mode
+SIDE_WIDTH = 20  # set width (only if IS_FULL_SCREEN is False, recommended values between 10 and 20)
+FRAME_RATE = 30  # set frame rate
 
 # get screen dimensions
 root = tk.Tk()
 root.withdraw()
-screen_width = root.winfo_screenwidth()
 screen_height = root.winfo_screenheight()
+screen_width = root.winfo_screenwidth()
+animation_width = (SIDE_WIDTH, screen_width)[IS_FULL_SCREEN]  # use SIDE_WIDTH if we're not in full screen mode
 
 
 # create windows to hold tint overlays
-def create_overlay(geometry):
-    overlay = tk.Toplevel()
-    overlay.geometry(geometry)
-    overlay.wm_attributes("-alpha", 0.3)  # set transparency to 30%
-    overlay.attributes("-topmost", True)
-    overlay.overrideredirect(True)
-    overlay.resizable(False, False)
+def create_window(geometry):
+    window = tk.Toplevel()
+    window.geometry(geometry)
+    window.attributes("-topmost", True)
+    window.overrideredirect(True)
+    window.resizable(False, False)
+    if OPACITY < 1:
+        window.wm_attributes("-alpha", OPACITY)
 
-    return overlay
+    return window
 
 
 # create canvas on left/right side to draw horizontal line on
 def create_canvas(overlay):
-    canvas = tk.Canvas(overlay, width=10, height=screen_height, highlightthickness=0)
+    canvas = tk.Canvas(overlay, width=animation_width, height=screen_height, highlightthickness=0)
     canvas.pack()
     return canvas
 
 
 def create_rectangle(canvas):
-    return canvas.create_rectangle(0, screen_height, 10, screen_height // 2, fill=tint_color, outline="")
+    return canvas.create_rectangle(0, screen_height, animation_width, screen_height // 2, fill=COLOR, outline="")
 
 
-# create windows/canvases/rectangles for tint overlays
-overlay_left = create_overlay(f"10x{screen_height}+0+0")
-overlay_right = create_overlay(f"10x{screen_height}+{screen_width-10}+0")
-canvas_left = create_canvas(overlay_left)
-canvas_right = create_canvas(overlay_right)
-tinted_rect_left = create_rectangle(canvas_left)
-tinted_rect_right = create_rectangle(canvas_right)
+# calculate the number of frames to use for each phase of the animation
+def calculate_frames_per_phase(duration):
+    return math.ceil(duration * FRAME_RATE)
+
+
+# calculate the increment for each frame
+def calculate_increment_per_frame(frames):
+    return (math.pi / 2) / frames
 
 
 # define animation function to move the horizontal line up and down
 def animate():
-    duration_up = int(input("Enter the duration (in seconds) for the line to move up: "))
-    duration_down = int(input("Enter the duration (in seconds) for the line to move down: "))
-
     # calculate the number of frames to use for each phase of the animation
-    frames_up = math.ceil(duration_up * use_frame_rate)
-    frames_down = math.ceil(duration_down * use_frame_rate)
+    frames_up = calculate_frames_per_phase(INHALE_DURATION)
+    frames_down = calculate_frames_per_phase(EXHALE_DURATION)
 
     # calculate the increment for each frame
-    increment_up = (math.pi / 2) / frames_up
-    increment_down = (math.pi / 2) / frames_down
+    increment_up = calculate_increment_per_frame(frames_up)
+    increment_down = calculate_increment_per_frame(frames_down)
+
+    # create windows/canvases/rectangles for tint overlays
+    window_left = create_window(f"{animation_width}x{screen_height}+0+0")
+    canvas_left = create_canvas(window_left)
+    tinted_rect_left = create_rectangle(canvas_left)
+
+    if not IS_FULL_SCREEN:
+        window_right = create_window(f"{animation_width}x{screen_height}+{screen_width - animation_width}+0")
+        canvas_right = create_canvas(window_right)
+        tinted_rect_right = create_rectangle(canvas_right)
 
     # animate line moving up and down on left overlay
     while True:
@@ -64,24 +79,28 @@ def animate():
             sin_value = math.sin(increment_up * i)
             height = screen_height - (sin_value * screen_height)
 
-            canvas_left.coords(tinted_rect_left, 0, height, 10, screen_height)
-            canvas_right.coords(tinted_rect_right, 0, height, 10, screen_height)
+            canvas_left.coords(tinted_rect_left, 0, height, animation_width, screen_height)
+            if not IS_FULL_SCREEN:
+                canvas_right.coords(tinted_rect_right, 0, height, animation_width, screen_height)
 
-            overlay_left.update()
-            overlay_right.update()
+            window_left.update()
+            if not IS_FULL_SCREEN:
+                window_right.update()
 
-            time.sleep(duration_up / frames_up)
+            time.sleep(INHALE_DURATION / frames_up)
         for i in range(frames_down):
             sin_value = math.sin(increment_down * i)
             height = (sin_value * screen_height)
 
-            canvas_left.coords(tinted_rect_left, 0, height, 10, screen_height)
-            canvas_right.coords(tinted_rect_right, 0, height, 10, screen_height)
+            canvas_left.coords(tinted_rect_left, 0, height, animation_width, screen_height)
+            if not IS_FULL_SCREEN:
+                canvas_right.coords(tinted_rect_right, 0, height, animation_width, screen_height)
 
-            overlay_left.update()
-            overlay_right.update()
+            window_left.update()
+            if not IS_FULL_SCREEN:
+                window_right.update()
 
-            time.sleep(duration_down / frames_down)
+            time.sleep(EXHALE_DURATION / frames_down)
 
 
 # press the green button in the gutter to run the script
