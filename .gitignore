@@ -1,3 +1,7 @@
 node_modules
 dist
 .idea
+exhale-darwin-x64
+exhale-win32-x64
+exhale-macos-x64.zip
+exhale-windows-x64.zip
