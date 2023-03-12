@@ -49,6 +49,15 @@ const storedValues: {
 };
 
 Object.assign(localStorage, storedValues);
+const {
+  durationInhale,
+  durationExhale,
+  durationPostExhale,
+  durationPostInhale,
+  colorExhale,
+  colorInhale,
+  colorPause,
+} = storedValues;
 
 let state = State.INHALE;
 let startFrame = 0;
@@ -56,13 +65,14 @@ let endFrame = 0;
 let radius = 0;
 let color: Color = "black";
 
-function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
+let canvasWidth = window.innerWidth;
+let canvasHeight = window.innerHeight;
 
+function resizeCanvas() {
+  canvasWidth = canvas.width = window.innerWidth;
+  canvasHeight = canvas.height = window.innerHeight;
+}
 window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
 
 function map(
   value: number,
@@ -75,48 +85,39 @@ function map(
 }
 
 function draw() {
-  const {
-    durationInhale,
-    durationExhale,
-    durationPostExhale,
-    durationPostInhale,
-    colorExhale,
-    colorInhale,
-    colorPause,
-  } = storedValues;
   let elapsed = 0;
   ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   switch (state) {
     case State.INHALE:
       color = colorExhale;
       endFrame = startFrame + durationInhale * 60;
       elapsed = (frameCount - startFrame) / 60;
-      radius = map(elapsed, 0, durationInhale, 0, canvas.height / 2);
-      radius = Math.min(radius, canvas.height / 2);
+      radius = map(elapsed, 0, durationInhale, 0, canvasHeight / 2);
+      radius = Math.min(radius, canvasHeight / 2);
       break;
     case State.POST_INHALE:
       color = colorPause;
       endFrame = startFrame + (durationPostInhale + 0.1) * 60;
-      radius = canvas.height / 2;
+      radius = canvasHeight / 2;
       break;
     case State.EXHALE:
       color = colorInhale;
       endFrame = startFrame + durationExhale * 60;
       elapsed = (frameCount - startFrame) / 60;
-      radius = map(elapsed, 0, durationExhale, canvas.height / 2, 0);
+      radius = map(elapsed, 0, durationExhale, canvasHeight / 2, 0);
       radius = Math.max(radius, 0);
       break;
     case State.POST_EXHALE:
       color = colorPause;
       endFrame = startFrame + (durationPostExhale + 0.1) * 60;
-      radius = canvas.height / 2;
+      radius = canvasHeight / 2;
       break;
   }
 
   ctx.fillStyle = color;
-  ctx.fillRect(0, canvas.height - radius * 2, canvas.width, radius * 2);
+  ctx.fillRect(0, canvasHeight - radius * 2, canvasWidth, radius * 2);
   if (frameCount >= endFrame) {
     startFrame = frameCount;
     state = progressState(state);
@@ -124,7 +125,10 @@ function draw() {
 }
 
 let frameCount = 0;
-setInterval(() => {
+function animate() {
   draw();
   frameCount++;
-}, 1000 / 60);
+  requestAnimationFrame(animate);
+}
+
+requestAnimationFrame(animate);
