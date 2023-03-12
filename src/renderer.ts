@@ -14,6 +14,7 @@ enum State {
 const FRAMES_PER_SECOND = 60;
 const BACKDROP_COLOR: Color = "#000";
 const calculateEndFrame = (duration: number) => startFrame + duration * FRAMES_PER_SECOND;
+const calculateElapsed = (frames: number) => (frames - startFrame) / FRAMES_PER_SECOND;
 function map(
   value: number,
   start1: number,
@@ -59,6 +60,7 @@ function progressState(state: State): State {
     case State.INHALE:
       if (durationPostInhale > 0) {
         endFrame = calculateEndFrame(durationPostInhale);
+        radius = halfCanvasHeight;
         return State.POST_INHALE;
       }
       color = colorExhale
@@ -72,6 +74,7 @@ function progressState(state: State): State {
       if (durationPostExhale > 0) {
         color = BACKDROP_COLOR;
         endFrame = calculateEndFrame(durationPostExhale);
+        radius = halfCanvasHeight;
         return State.POST_EXHALE;
       }
       color = colorInhale;
@@ -98,25 +101,20 @@ function draw() {
 
   switch (state) {
     case State.INHALE:
-      elapsed = (frameCount - startFrame) / FRAMES_PER_SECOND;
-      radius = map(elapsed, 0, durationInhale, 0, halfCanvasHeight);
-      radius = Math.min(radius, halfCanvasHeight);
-      break;
-    case State.POST_INHALE:
-      radius = halfCanvasHeight;
+      elapsed = calculateElapsed(frameCount);
+      radius = Math.min(map(elapsed, 0, durationInhale, 0, halfCanvasHeight), halfCanvasHeight);
       break;
     case State.EXHALE:
-      elapsed = (frameCount - startFrame) / FRAMES_PER_SECOND;
-      radius = map(elapsed, 0, durationExhale, halfCanvasHeight, 0);
-      radius = Math.max(radius, 0);
+      elapsed = calculateElapsed(frameCount);
+      radius = Math.max(map(elapsed, 0, durationExhale, halfCanvasHeight, 0), 0);
       break;
-    case State.POST_EXHALE:
-      radius = halfCanvasHeight;
+    default:
       break;
   }
 
+  const twiceRadius = radius * 2;
   ctx.fillStyle = color;
-  ctx.fillRect(0, canvasHeight - radius * 2, canvasWidth, radius * 2);
+  ctx.fillRect(0, canvasHeight - twiceRadius, canvasWidth, twiceRadius);
   if (frameCount >= endFrame) {
     startFrame = frameCount;
     state = progressState(state);
