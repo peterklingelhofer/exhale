@@ -26,7 +26,6 @@ Modify settings by going to **Application** (found in the top right via `>>`) > 
 localStorage = {
   colorExhale: "rgb(0, 221, 255)",
   colorInhale: "rgb(168, 50, 150)",
-  colorPause: "rgb(0, 221, 255)",
   durationExhale: "10",
   durationInhale: "5",
   durationPostExhale: "0",

@@ -28,7 +28,6 @@ const ctx = canvas.getContext("2d");
 
 const colorExhale: Color = localStorage.colorExhale || "rgb(0, 221, 255)";
 const colorInhale: Color = localStorage.colorInhale || "rgb(168, 50, 150)";
-const colorPause: Color = localStorage.colorPause || "rgb(0; 221; 255)";
 const durationExhale = +localStorage.durationExhale || 10;
 const durationInhale = +localStorage.durationInhale || 5;
 const durationPostExhale = +localStorage.durationPostExhale || 0;
@@ -42,7 +41,6 @@ Object.assign(localStorage, {
   durationPostInhale,
   colorExhale,
   colorInhale,
-  colorPause,
   opacity,
 });
 let canvasWidth = 0;
@@ -92,7 +90,6 @@ function draw() {
       radius = Math.min(radius, halfCanvasHeight);
       break;
     case State.POST_INHALE:
-      color = colorPause;
       endFrame = startFrame + (durationPostInhale + 0.1) * FRAMES_PER_SECOND;
       radius = halfCanvasHeight;
       break;
@@ -104,7 +101,7 @@ function draw() {
       radius = Math.max(radius, 0);
       break;
     case State.POST_EXHALE:
-      color = colorPause;
+      color = "black";
       endFrame = startFrame + (durationPostExhale + 0.1) * FRAMES_PER_SECOND;
       radius = halfCanvasHeight;
       break;
