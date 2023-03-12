@@ -19,7 +19,7 @@ To recompile automatically and use [electron-reload](https://github.com/yan-foto
 yarn run watch
 ```
 
-Modify settings by going to **Application** (found in the top right via `>>`) > **Local Storage**. Use <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd> or <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd>to open and close these settings, and <kbd>Ctrl</kbd> + <kbd>R</kbd> or <kbd>Cmd</kbd> + <kbd>R</kbd> to refresh the app to use your newly selected settings.
+Modify settings by going to **Application** (found in the top right via `>>`) > **Local Storage**. Use <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd> or <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd>to open and close these settings, and <kbd>Ctrl</kbd> + <kbd>R</kbd> or <kbd>Cmd</kbd> + <kbd>R</kbd> to refresh the app to use your newly selected settings. If no settings appear on the first run of the application, you can manually add them, following the format of the `storedValues` variable in [`/src/renderer.ts`](https://github.com/peterklingelhofer/exhale/blob/main/src/renderer.ts).
 
 <img width="371" alt="Screen Shot 2023-03-11 at 2 12 30 PM" src="https://user-images.githubusercontent.com/60944077/224511531-c0d615a1-1859-47b6-a78b-7d38276d80be.png">
 
