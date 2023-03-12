@@ -85,7 +85,7 @@ function draw() {
     colorPause,
   } = storedValues;
   let elapsed = 0;
-  ctx.fillStyle = color;
+  ctx.fillStyle = "black";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   switch (state) {
@@ -115,7 +115,7 @@ function draw() {
       break;
   }
 
-  ctx.fillStyle = "black";
+  ctx.fillStyle = color;
   ctx.fillRect(0, canvas.height - radius * 2, canvas.width, radius * 2);
   if (frameCount >= endFrame) {
     startFrame = frameCount;
