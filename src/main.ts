@@ -27,25 +27,25 @@ function createWindow() {
   mainWindow.setFocusable(true);
   mainWindow.setIgnoreMouseEvents(true);
   mainWindow.removeMenu();
+  mainWindow.webContents.on("devtools-focused", () => {
+    mainWindow.setOpacity(1.0);
+    mainWindow.setIgnoreMouseEvents(false);
+  });
 }
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.on("ready", async () => {
   createWindow();
-  mainWindow.webContents
-    .executeJavaScript('localStorage.getItem("opacity");', true)
-    .then((opacity) => {
-      mainWindow.webContents.on("devtools-focused", () => {
-        mainWindow.setOpacity(1.0);
-        mainWindow.setIgnoreMouseEvents(false);
-      });
-      mainWindow.webContents.on("devtools-closed", () => {
-        mainWindow.setOpacity(Number(opacity));
-        mainWindow.setIgnoreMouseEvents(true);
-      });
-    });
+  const opacity: string = await mainWindow.webContents.executeJavaScript(
+    'localStorage.getItem("opacity");',
+    true
+  );
+  mainWindow.webContents.on("devtools-closed", () => {
+    mainWindow.setOpacity(Number(opacity));
+    mainWindow.setIgnoreMouseEvents(true);
+  });
 
   app.on("activate", function () {
     // On macOS it's common to re-create a window in the app when the
