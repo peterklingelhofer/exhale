@@ -45,8 +45,14 @@ Object.assign(localStorage, {
   colorPause,
   opacity,
 });
-let canvasWidth = window.innerWidth;
-let canvasHeight = window.innerHeight;
+let canvasWidth = 0;
+let canvasHeight = 0;
+let halfCanvasHeight = 0;
+let state = State.INHALE;
+let startFrame = 0;
+let endFrame = 0;
+let radius = 0;
+let color: Color = colorInhale;
 
 const stateAfterInhale: State =
   durationPostInhale > 0 ? State.POST_INHALE : State.EXHALE;
@@ -65,15 +71,10 @@ function progressState(state: State): State {
   }
 }
 
-let state = State.INHALE;
-let startFrame = 0;
-let endFrame = 0;
-let radius = 0;
-let color: Color = colorInhale;
-
 function resizeCanvas() {
   canvasWidth = canvas.width = window.innerWidth;
   canvasHeight = canvas.height = window.innerHeight;
+  halfCanvasHeight = canvasHeight / 2;
 }
 window.addEventListener("resize", resizeCanvas);
 
@@ -87,25 +88,25 @@ function draw() {
       color = colorExhale;
       endFrame = startFrame + durationInhale * FRAMES_PER_SECOND;
       elapsed = (frameCount - startFrame) / FRAMES_PER_SECOND;
-      radius = map(elapsed, 0, durationInhale, 0, canvasHeight / 2);
-      radius = Math.min(radius, canvasHeight / 2);
+      radius = map(elapsed, 0, durationInhale, 0, halfCanvasHeight);
+      radius = Math.min(radius, halfCanvasHeight);
       break;
     case State.POST_INHALE:
       color = colorPause;
       endFrame = startFrame + (durationPostInhale + 0.1) * FRAMES_PER_SECOND;
-      radius = canvasHeight / 2;
+      radius = halfCanvasHeight;
       break;
     case State.EXHALE:
       color = colorInhale;
       endFrame = startFrame + durationExhale * FRAMES_PER_SECOND;
       elapsed = (frameCount - startFrame) / FRAMES_PER_SECOND;
-      radius = map(elapsed, 0, durationExhale, canvasHeight / 2, 0);
+      radius = map(elapsed, 0, durationExhale, halfCanvasHeight, 0);
       radius = Math.max(radius, 0);
       break;
     case State.POST_EXHALE:
       color = colorPause;
       endFrame = startFrame + (durationPostExhale + 0.1) * FRAMES_PER_SECOND;
-      radius = canvasHeight / 2;
+      radius = halfCanvasHeight;
       break;
   }
 
