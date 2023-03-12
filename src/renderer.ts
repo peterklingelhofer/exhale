@@ -12,32 +12,30 @@ enum State {
   EXHALE,
   POST_EXHALE,
 }
+function map(
+  value: number,
+  start1: number,
+  stop1: number,
+  start2: number,
+  stop2: number
+): number {
+  return ((value - start1) / (stop1 - start1)) * (stop2 - start2) + start2;
+}
+
 const canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 
-const storedValues: {
-  colorExhale: Color;
-  colorInhale: Color;
-  colorPause: Color;
-  durationExhale: number;
-  durationInhale: number;
-  durationPostExhale: number;
-  durationPostInhale: number;
-  opacity: number;
-} = {
-  colorExhale: localStorage.colorExhale || "rgb(168, 50, 150)",
-  colorInhale: localStorage.colorInhale || "rgb(0, 221, 255)",
-  colorPause: localStorage.colorPause || "rgb(0, 221, 255)",
-  durationExhale: +localStorage.durationExhale || 10,
-  durationInhale: +localStorage.durationInhale || 5,
-  durationPostExhale: +localStorage.durationPostExhale || 0,
-  durationPostInhale: +localStorage.durationPostInhale || 0,
-  opacity: +localStorage.opacity || 0.1,
-};
+const colorExhale: Color = localStorage.colorExhale || "rgb(168, 50, 150)";
+const colorInhale: Color = localStorage.colorInhale || "rgb(0, 221, 255)";
+const colorPause: Color = localStorage.colorPause || "rgb(0; 221; 255)";
+const durationExhale = +localStorage.durationExhale || 10;
+const durationInhale = +localStorage.durationInhale || 5;
+const durationPostExhale = +localStorage.durationPostExhale || 0;
+const durationPostInhale = +localStorage.durationPostInhale || 0;
+const opacity = +localStorage.opacity || 0.1;
 
-Object.assign(localStorage, storedValues);
-const {
+Object.assign(localStorage, {
   durationInhale,
   durationExhale,
   durationPostExhale,
@@ -45,7 +43,10 @@ const {
   colorExhale,
   colorInhale,
   colorPause,
-} = storedValues;
+  opacity,
+});
+let canvasWidth = window.innerWidth;
+let canvasHeight = window.innerHeight;
 
 const stateAfterInhale: State =
   durationPostInhale > 0 ? State.POST_INHALE : State.EXHALE;
@@ -70,24 +71,11 @@ let endFrame = 0;
 let radius = 0;
 let color: Color = colorInhale;
 
-let canvasWidth = window.innerWidth;
-let canvasHeight = window.innerHeight;
-
 function resizeCanvas() {
   canvasWidth = canvas.width = window.innerWidth;
   canvasHeight = canvas.height = window.innerHeight;
 }
 window.addEventListener("resize", resizeCanvas);
-
-function map(
-  value: number,
-  start1: number,
-  stop1: number,
-  start2: number,
-  stop2: number
-) {
-  return ((value - start1) / (stop1 - start1)) * (stop2 - start2) + start2;
-}
 
 function draw() {
   let elapsed = 0;
