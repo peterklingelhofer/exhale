@@ -13,8 +13,8 @@ function createWindow() {
     show: true,
     titleBarStyle: "hidden",
     webPreferences: {
-      nodeIntegration: true,
-      preload: path.join(__dirname, "preload.js"),
+      nodeIntegration: false,
+      // preload: path.join(__dirname, "preload.js"),
     },
     width: 800,
   });
