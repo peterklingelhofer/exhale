@@ -59,44 +59,40 @@ let endFrame = 0;
 let radius = 0;
 let color: Color = colorInhale;
 
-function progressState(state: State): State {
-  color =
-    state === State.POST_INHALE || state === State.EXHALE
-      ? colorExhale
-      : colorInhale;
-  switch (state) {
-    case State.INHALE:
-      if (durationPostInhale > 0) {
-        endFrame = calculateEndFrame(durationPostInhale);
-        radius = halfCanvasHeight;
-        return State.POST_INHALE;
-      }
-      endFrame = calculateEndFrame(durationExhale);
-      return State.EXHALE;
-    case State.POST_INHALE:
-      endFrame = calculateEndFrame(durationExhale);
-      return State.EXHALE;
-    case State.EXHALE:
-      if (durationPostExhale > 0) {
-        color = BACKDROP_COLOR;
-        endFrame = calculateEndFrame(durationPostExhale);
-        radius = halfCanvasHeight;
-        return State.POST_EXHALE;
-      }
-      endFrame = calculateEndFrame(durationInhale);
-      return State.INHALE;
-    case State.POST_EXHALE:
-      endFrame = calculateEndFrame(durationInhale);
-      return State.INHALE;
-  }
-}
-
 function resizeCanvas(): void {
   canvasWidth = canvas.width = window.innerWidth;
   canvasHeight = canvas.height = window.innerHeight;
   halfCanvasHeight = canvasHeight / 2;
 }
 window.addEventListener("resize", resizeCanvas);
+
+function progressState(state: State): State {
+  color =
+    state === State.POST_INHALE || state === State.EXHALE
+      ? colorExhale
+      : colorInhale;
+
+  switch (state) {
+    case State.INHALE:
+      endFrame =
+        durationPostInhale > 0
+          ? calculateEndFrame(durationPostInhale)
+          : calculateEndFrame(durationExhale);
+      return durationPostInhale > 0 ? State.POST_INHALE : State.EXHALE;
+    case State.POST_INHALE:
+      endFrame = calculateEndFrame(durationExhale);
+      return State.EXHALE;
+    case State.EXHALE:
+      endFrame =
+        durationPostExhale > 0
+          ? calculateEndFrame(durationPostExhale)
+          : calculateEndFrame(durationInhale);
+      return durationPostExhale > 0 ? State.POST_EXHALE : State.INHALE;
+    case State.POST_EXHALE:
+      endFrame = calculateEndFrame(durationInhale);
+      return State.INHALE;
+  }
+}
 
 function draw(): void {
   let elapsed = 0;
