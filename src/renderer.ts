@@ -95,22 +95,31 @@ function progressState(state: State): State {
 }
 
 function draw(): void {
-  let elapsed = 0;
   ctx.fillStyle = BACKDROP_COLOR;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   switch (state) {
     case State.INHALE:
-      elapsed = calculateElapsed(frameCount);
       radius = Math.min(
-        map(elapsed, 0, durationInhale, 0, halfCanvasHeight),
+        map(
+          calculateElapsed(frameCount),
+          0,
+          durationInhale,
+          0,
+          halfCanvasHeight
+        ),
         halfCanvasHeight
       );
       break;
     case State.EXHALE:
-      elapsed = calculateElapsed(frameCount);
       radius = Math.max(
-        map(elapsed, 0, durationExhale, halfCanvasHeight, 0),
+        map(
+          calculateElapsed(frameCount),
+          0,
+          durationExhale,
+          halfCanvasHeight,
+          0
+        ),
         0
       );
       break;
@@ -119,8 +128,12 @@ function draw(): void {
   }
 
   const twiceRadius = radius * 2;
-  ctx.fillStyle = color;
+
+  if (color !== ctx.fillStyle) {
+    ctx.fillStyle = color;
+  }
   ctx.fillRect(0, canvasHeight - twiceRadius, canvasWidth, twiceRadius);
+
   if (frameCount >= endFrame) {
     startFrame = frameCount;
     state = progressState(state);
