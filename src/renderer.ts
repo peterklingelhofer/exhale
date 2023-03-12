@@ -26,8 +26,8 @@ const canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 
-const colorExhale: Color = localStorage.colorExhale || "rgb(168, 50, 150)";
-const colorInhale: Color = localStorage.colorInhale || "rgb(0, 221, 255)";
+const colorExhale: Color = localStorage.colorExhale || "rgb(0, 221, 255)";
+const colorInhale: Color = localStorage.colorInhale || "rgb(168, 50, 150)";
 const colorPause: Color = localStorage.colorPause || "rgb(0; 221; 255)";
 const durationExhale = +localStorage.durationExhale || 10;
 const durationInhale = +localStorage.durationInhale || 5;
@@ -85,7 +85,7 @@ function draw() {
 
   switch (state) {
     case State.INHALE:
-      color = colorExhale;
+      color = colorInhale;
       endFrame = startFrame + durationInhale * FRAMES_PER_SECOND;
       elapsed = (frameCount - startFrame) / FRAMES_PER_SECOND;
       radius = map(elapsed, 0, durationInhale, 0, halfCanvasHeight);
@@ -97,7 +97,7 @@ function draw() {
       radius = halfCanvasHeight;
       break;
     case State.EXHALE:
-      color = colorInhale;
+      color = colorExhale;
       endFrame = startFrame + durationExhale * FRAMES_PER_SECOND;
       elapsed = (frameCount - startFrame) / FRAMES_PER_SECOND;
       radius = map(elapsed, 0, durationExhale, halfCanvasHeight, 0);
