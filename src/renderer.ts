@@ -13,6 +13,7 @@ enum State {
 }
 const FRAMES_PER_SECOND = 60;
 const BACKDROP_COLOR: Color = "#000";
+const calculateEndFrame = (duration: number) => startFrame + duration * FRAMES_PER_SECOND;
 function map(
   value: number,
   start1: number,
@@ -47,7 +48,7 @@ Object.assign(localStorage, {
 let canvasWidth = 0;
 let canvasHeight = 0;
 let halfCanvasHeight = 0;
-let state = State.INHALE;
+let state = State.POST_EXHALE;
 let startFrame = 0;
 let endFrame = 0;
 let radius = 0;
@@ -57,22 +58,28 @@ function progressState(state: State): State {
   switch (state) {
     case State.INHALE:
       if (durationPostInhale > 0) {
+        endFrame = calculateEndFrame(durationPostInhale);
         return State.POST_INHALE;
       }
       color = colorExhale
+      endFrame = calculateEndFrame(durationExhale);
       return State.EXHALE;
     case State.POST_INHALE:
       color = colorExhale
+      endFrame = calculateEndFrame(durationExhale);
       return State.EXHALE;
     case State.EXHALE:
       if (durationPostExhale > 0) {
         color = BACKDROP_COLOR;
+        endFrame = calculateEndFrame(durationPostExhale);
         return State.POST_EXHALE;
       }
       color = colorInhale;
+      endFrame = calculateEndFrame(durationInhale);
       return State.INHALE;
     case State.POST_EXHALE:
       color = colorInhale;
+      endFrame = calculateEndFrame(durationInhale);
       return State.INHALE;
   }
 }
@@ -91,23 +98,19 @@ function draw() {
 
   switch (state) {
     case State.INHALE:
-      endFrame = startFrame + durationInhale * FRAMES_PER_SECOND;
       elapsed = (frameCount - startFrame) / FRAMES_PER_SECOND;
       radius = map(elapsed, 0, durationInhale, 0, halfCanvasHeight);
       radius = Math.min(radius, halfCanvasHeight);
       break;
     case State.POST_INHALE:
-      endFrame = startFrame + durationPostInhale * FRAMES_PER_SECOND;
       radius = halfCanvasHeight;
       break;
     case State.EXHALE:
-      endFrame = startFrame + durationExhale * FRAMES_PER_SECOND;
       elapsed = (frameCount - startFrame) / FRAMES_PER_SECOND;
       radius = map(elapsed, 0, durationExhale, halfCanvasHeight, 0);
       radius = Math.max(radius, 0);
       break;
     case State.POST_EXHALE:
-      endFrame = startFrame + durationPostExhale * FRAMES_PER_SECOND;
       radius = halfCanvasHeight;
       break;
   }
