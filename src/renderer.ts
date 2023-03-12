@@ -60,6 +60,10 @@ let radius = 0;
 let color: Color = colorInhale;
 
 function progressState(state: State): State {
+  color =
+    state === State.POST_INHALE || state === State.EXHALE
+      ? colorExhale
+      : colorInhale;
   switch (state) {
     case State.INHALE:
       if (durationPostInhale > 0) {
@@ -67,11 +71,9 @@ function progressState(state: State): State {
         radius = halfCanvasHeight;
         return State.POST_INHALE;
       }
-      color = colorExhale;
       endFrame = calculateEndFrame(durationExhale);
       return State.EXHALE;
     case State.POST_INHALE:
-      color = colorExhale;
       endFrame = calculateEndFrame(durationExhale);
       return State.EXHALE;
     case State.EXHALE:
@@ -81,11 +83,9 @@ function progressState(state: State): State {
         radius = halfCanvasHeight;
         return State.POST_EXHALE;
       }
-      color = colorInhale;
       endFrame = calculateEndFrame(durationInhale);
       return State.INHALE;
     case State.POST_EXHALE:
-      color = colorInhale;
       endFrame = calculateEndFrame(durationInhale);
       return State.INHALE;
   }
