@@ -4,7 +4,6 @@
 // nodeIntegration is set to true in webPreferences.
 // Use preload.js to selectively enable features
 // needed in the renderer process.
-const FRAMES_PER_SECOND = 60;
 type Color = string | CanvasGradient | CanvasPattern;
 enum State {
   INHALE,
@@ -12,6 +11,8 @@ enum State {
   EXHALE,
   POST_EXHALE,
 }
+const FRAMES_PER_SECOND = 60;
+const BACKDROP_COLOR: Color = "#000";
 function map(
   value: number,
   start1: number,
@@ -52,19 +53,26 @@ let endFrame = 0;
 let radius = 0;
 let color: Color = colorInhale;
 
-const stateAfterInhale: State =
-  durationPostInhale > 0 ? State.POST_INHALE : State.EXHALE;
-const stateAfterExhale: State =
-  durationPostExhale > 0 ? State.POST_EXHALE : State.INHALE;
 function progressState(state: State): State {
   switch (state) {
     case State.INHALE:
-      return stateAfterInhale;
+      if (durationPostInhale > 0) {
+        return State.POST_INHALE;
+      }
+      color = colorExhale
+      return State.EXHALE;
     case State.POST_INHALE:
+      color = colorExhale
       return State.EXHALE;
     case State.EXHALE:
-      return stateAfterExhale;
+      if (durationPostExhale > 0) {
+        color = BACKDROP_COLOR;
+        return State.POST_EXHALE;
+      }
+      color = colorInhale;
+      return State.INHALE;
     case State.POST_EXHALE:
+      color = colorInhale;
       return State.INHALE;
   }
 }
@@ -78,31 +86,28 @@ window.addEventListener("resize", resizeCanvas);
 
 function draw() {
   let elapsed = 0;
-  ctx.fillStyle = "black";
+  ctx.fillStyle = BACKDROP_COLOR;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   switch (state) {
     case State.INHALE:
-      color = colorInhale;
       endFrame = startFrame + durationInhale * FRAMES_PER_SECOND;
       elapsed = (frameCount - startFrame) / FRAMES_PER_SECOND;
       radius = map(elapsed, 0, durationInhale, 0, halfCanvasHeight);
       radius = Math.min(radius, halfCanvasHeight);
       break;
     case State.POST_INHALE:
-      endFrame = startFrame + (durationPostInhale + 0.1) * FRAMES_PER_SECOND;
+      endFrame = startFrame + durationPostInhale * FRAMES_PER_SECOND;
       radius = halfCanvasHeight;
       break;
     case State.EXHALE:
-      color = colorExhale;
       endFrame = startFrame + durationExhale * FRAMES_PER_SECOND;
       elapsed = (frameCount - startFrame) / FRAMES_PER_SECOND;
       radius = map(elapsed, 0, durationExhale, halfCanvasHeight, 0);
       radius = Math.max(radius, 0);
       break;
     case State.POST_EXHALE:
-      color = "black";
-      endFrame = startFrame + (durationPostExhale + 0.1) * FRAMES_PER_SECOND;
+      endFrame = startFrame + durationPostExhale * FRAMES_PER_SECOND;
       radius = halfCanvasHeight;
       break;
   }
