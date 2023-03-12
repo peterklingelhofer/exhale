@@ -91,14 +91,14 @@ function progressState(state: State): State {
   }
 }
 
-function resizeCanvas() {
+function resizeCanvas(): void {
   canvasWidth = canvas.width = window.innerWidth;
   canvasHeight = canvas.height = window.innerHeight;
   halfCanvasHeight = canvasHeight / 2;
 }
 window.addEventListener("resize", resizeCanvas);
 
-function draw() {
+function draw(): void {
   let elapsed = 0;
   ctx.fillStyle = BACKDROP_COLOR;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
@@ -132,7 +132,7 @@ function draw() {
 }
 
 let frameCount = 0;
-function animate() {
+function animate(): void {
   draw();
   frameCount++;
   requestAnimationFrame(animate);
