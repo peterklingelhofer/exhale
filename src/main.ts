@@ -1,9 +1,11 @@
 import { app, BrowserWindow } from "electron";
 import * as path from "path";
 
+let mainWindow: BrowserWindow;
+
 function createWindow() {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     alwaysOnTop: true,
     height: 600,
     movable: false,
@@ -25,15 +27,6 @@ function createWindow() {
   mainWindow.setFocusable(true);
   mainWindow.setIgnoreMouseEvents(true);
   mainWindow.removeMenu();
-
-  mainWindow.webContents.on('devtools-focused', () => {
-    mainWindow.setOpacity(1.0)
-    mainWindow.setIgnoreMouseEvents(false);
-  })
-  mainWindow.webContents.on('devtools-closed', () => {
-    mainWindow.setOpacity(0.1)
-    mainWindow.setIgnoreMouseEvents(true);
-  })
 }
 
 // This method will be called when Electron has finished
@@ -41,6 +34,18 @@ function createWindow() {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   createWindow();
+  mainWindow.webContents
+    .executeJavaScript('localStorage.getItem("opacity");', true)
+    .then((opacity) => {
+      mainWindow.webContents.on("devtools-focused", () => {
+        mainWindow.setOpacity(1.0);
+        mainWindow.setIgnoreMouseEvents(false);
+      });
+      mainWindow.webContents.on("devtools-closed", () => {
+        mainWindow.setOpacity(Number(opacity));
+        mainWindow.setIgnoreMouseEvents(true);
+      });
+    });
 
   app.on("activate", function () {
     // On macOS it's common to re-create a window in the app when the

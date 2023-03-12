@@ -1,20 +1,26 @@
 {
   "name": "exhale",
   "version": "1.0.0",
-  "description": "A minimal Electron application written with Typescript",
+  "description": "A customizable visual indicator to remind you to breathe and facilitate breathwork practice",
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
     "lint": "eslint -c .eslintrc --ext .ts ./src",
-    "start": "npm run build && electron ./dist/main.js"
+    "start": "yarn run build && electron ./dist/main.js",
+    "package": "npx electron-packager . ",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder -mwl"
   },
-  "repository": "https://github.com/electron/electron-quick-start-typescript",
+  "build": {
+    "appId": "exhale",
+    "mac": {
+      "category": "utility"
+    }
+  },
+  "main": "./dist/main.js",
+  "repository": "https://github.com/peterklingelhofer/exhale",
   "keywords": [
     "Electron",
-    "quick",
-    "start",
-    "tutorial",
-    "demo",
     "typescript"
   ],
   "author": "peterklingelhofer",
@@ -23,6 +29,8 @@
     "@typescript-eslint/eslint-plugin": "^4.33.0",
     "@typescript-eslint/parser": "^4.33.0",
     "electron": "^23.1.3",
+    "electron-builder": "^23.6.0",
+    "electron-packager": "^17.1.1",
     "eslint": "^7.32.0",
     "typescript": "^4.9.5"
   },
