@@ -4,7 +4,7 @@
 // nodeIntegration is set to true in webPreferences.
 // Use preload.js to selectively enable features
 // needed in the renderer process.
-
+const FRAMES_PER_SECOND = 60;
 type Color = string | CanvasGradient | CanvasPattern;
 enum State {
   INHALE,
@@ -97,26 +97,26 @@ function draw() {
   switch (state) {
     case State.INHALE:
       color = colorExhale;
-      endFrame = startFrame + durationInhale * 60;
-      elapsed = (frameCount - startFrame) / 60;
+      endFrame = startFrame + durationInhale * FRAMES_PER_SECOND;
+      elapsed = (frameCount - startFrame) / FRAMES_PER_SECOND;
       radius = map(elapsed, 0, durationInhale, 0, canvasHeight / 2);
       radius = Math.min(radius, canvasHeight / 2);
       break;
     case State.POST_INHALE:
       color = colorPause;
-      endFrame = startFrame + (durationPostInhale + 0.1) * 60;
+      endFrame = startFrame + (durationPostInhale + 0.1) * FRAMES_PER_SECOND;
       radius = canvasHeight / 2;
       break;
     case State.EXHALE:
       color = colorInhale;
-      endFrame = startFrame + durationExhale * 60;
-      elapsed = (frameCount - startFrame) / 60;
+      endFrame = startFrame + durationExhale * FRAMES_PER_SECOND;
+      elapsed = (frameCount - startFrame) / FRAMES_PER_SECOND;
       radius = map(elapsed, 0, durationExhale, canvasHeight / 2, 0);
       radius = Math.max(radius, 0);
       break;
     case State.POST_EXHALE:
       color = colorPause;
-      endFrame = startFrame + (durationPostExhale + 0.1) * 60;
+      endFrame = startFrame + (durationPostExhale + 0.1) * FRAMES_PER_SECOND;
       radius = canvasHeight / 2;
       break;
   }
