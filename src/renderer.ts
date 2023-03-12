@@ -13,8 +13,10 @@ enum State {
 }
 const FRAMES_PER_SECOND = 60;
 const BACKDROP_COLOR: Color = "#000";
-const calculateEndFrame = (duration: number) => startFrame + duration * FRAMES_PER_SECOND;
-const calculateElapsed = (frames: number) => (frames - startFrame) / FRAMES_PER_SECOND;
+const calculateEndFrame = (duration: number) =>
+  startFrame + duration * FRAMES_PER_SECOND;
+const calculateElapsed = (frames: number) =>
+  (frames - startFrame) / FRAMES_PER_SECOND;
 function map(
   value: number,
   start1: number,
@@ -29,13 +31,15 @@ const canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 
-const colorExhale: Color = localStorage.colorExhale || "rgb(0, 221, 255)";
-const colorInhale: Color = localStorage.colorInhale || "rgb(168, 50, 150)";
-const durationExhale = +localStorage.durationExhale || 10;
-const durationInhale = +localStorage.durationInhale || 5;
-const durationPostExhale = +localStorage.durationPostExhale || 0;
-const durationPostInhale = +localStorage.durationPostInhale || 0;
-const opacity = +localStorage.opacity || 0.1;
+const {
+  colorExhale = "rgb(0, 221, 255)",
+  colorInhale = "rgb(168, 50, 150)",
+  durationExhale = 10,
+  durationInhale = 5,
+  durationPostExhale = 0,
+  durationPostInhale = 0,
+  opacity = 0.1,
+} = localStorage;
 
 Object.assign(localStorage, {
   durationInhale,
@@ -63,11 +67,11 @@ function progressState(state: State): State {
         radius = halfCanvasHeight;
         return State.POST_INHALE;
       }
-      color = colorExhale
+      color = colorExhale;
       endFrame = calculateEndFrame(durationExhale);
       return State.EXHALE;
     case State.POST_INHALE:
-      color = colorExhale
+      color = colorExhale;
       endFrame = calculateEndFrame(durationExhale);
       return State.EXHALE;
     case State.EXHALE:
@@ -102,11 +106,17 @@ function draw() {
   switch (state) {
     case State.INHALE:
       elapsed = calculateElapsed(frameCount);
-      radius = Math.min(map(elapsed, 0, durationInhale, 0, halfCanvasHeight), halfCanvasHeight);
+      radius = Math.min(
+        map(elapsed, 0, durationInhale, 0, halfCanvasHeight),
+        halfCanvasHeight
+      );
       break;
     case State.EXHALE:
       elapsed = calculateElapsed(frameCount);
-      radius = Math.max(map(elapsed, 0, durationExhale, halfCanvasHeight, 0), 0);
+      radius = Math.max(
+        map(elapsed, 0, durationExhale, halfCanvasHeight, 0),
+        0
+      );
       break;
     default:
       break;
