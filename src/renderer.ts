@@ -38,9 +38,9 @@ const storedValues: {
   durationPostInhale: number;
   opacity: number;
 } = {
-  colorExhale: localStorage.colorExhale || "rgba(168,50,150,1)",
-  colorInhale: localStorage.colorInhale || "rgba(0,221,255,1)",
-  colorPause: localStorage.colorPause || "rgba(0,221,255,1)",
+  colorExhale: localStorage.colorExhale || "rgb(168, 50, 150)",
+  colorInhale: localStorage.colorInhale || "rgb(0, 221, 255)",
+  colorPause: localStorage.colorPause || "rgb(0, 221, 255)",
   durationExhale: +localStorage.durationExhale || 10,
   durationInhale: +localStorage.durationInhale || 5,
   durationPostExhale: +localStorage.durationPostExhale || 0,
@@ -63,7 +63,7 @@ let state = State.INHALE;
 let startFrame = 0;
 let endFrame = 0;
 let radius = 0;
-let color: Color = "black";
+let color: Color = colorInhale;
 
 let canvasWidth = window.innerWidth;
 let canvasHeight = window.innerHeight;
