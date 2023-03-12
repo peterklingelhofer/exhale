@@ -12,18 +12,6 @@ enum State {
   EXHALE,
   POST_EXHALE,
 }
-function progressState(state: State): State {
-  switch (state) {
-    case State.INHALE:
-      return State.POST_INHALE;
-    case State.POST_INHALE:
-      return State.EXHALE;
-    case State.EXHALE:
-      return State.POST_EXHALE;
-    case State.POST_EXHALE:
-      return State.INHALE;
-  }
-}
 const canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
@@ -58,6 +46,23 @@ const {
   colorInhale,
   colorPause,
 } = storedValues;
+
+const stateAfterInhale: State =
+  durationPostInhale > 0 ? State.POST_INHALE : State.EXHALE;
+const stateAfterExhale: State =
+  durationPostExhale > 0 ? State.POST_EXHALE : State.INHALE;
+function progressState(state: State): State {
+  switch (state) {
+    case State.INHALE:
+      return stateAfterInhale;
+    case State.POST_INHALE:
+      return State.EXHALE;
+    case State.EXHALE:
+      return stateAfterExhale;
+    case State.POST_EXHALE:
+      return State.INHALE;
+  }
+}
 
 let state = State.INHALE;
 let startFrame = 0;
