@@ -13,6 +13,7 @@ enum State {
 }
 const FRAMES_PER_SECOND = 60;
 const BACKDROP_COLOR: Color = "#000";
+const IS_CIRCULAR = true;
 const calculateEndFrame = (duration: number) =>
   startFrame + duration * FRAMES_PER_SECOND;
 const calculateElapsed = (frames: number) =>
@@ -127,12 +128,23 @@ function draw(): void {
       break;
   }
 
-  const twiceRadius = radius * 2;
-
   if (color !== ctx.fillStyle) {
     ctx.fillStyle = color;
   }
-  ctx.fillRect(0, canvasHeight - twiceRadius, canvasWidth, twiceRadius);
+
+  if (IS_CIRCULAR) {
+    const centerX = canvasWidth / 2;
+    const centerY = canvasHeight / 2;
+    const startAngle = 0;
+    const endAngle = 2 * Math.PI;
+    const isCounterClockwise = false;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, startAngle, endAngle, isCounterClockwise);
+    ctx.fill();
+  } else {
+    const twiceRadius = radius * 2;
+    ctx.fillRect(0, canvasHeight - twiceRadius, canvasWidth, twiceRadius);
+  }
 
   if (frameCount >= endFrame) {
     startFrame = frameCount;
