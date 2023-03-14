@@ -164,4 +164,5 @@ function animate(): void {
   requestAnimationFrame(animate);
 }
 
+resizeCanvas();
 requestAnimationFrame(animate);
