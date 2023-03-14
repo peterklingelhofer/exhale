@@ -11,9 +11,12 @@ enum State {
   EXHALE,
   POST_EXHALE,
 }
+enum Shape {
+  CIRCLE = "circle",
+  RECTANGLE = "rectangle",
+}
 const FRAMES_PER_SECOND = 60;
 const BACKDROP_COLOR: Color = "#000";
-const IS_CIRCULAR = true;
 const calculateEndFrame = (duration: number) =>
   startFrame + duration * FRAMES_PER_SECOND;
 const calculateElapsed = (frames: number) =>
@@ -35,6 +38,7 @@ const ctx = canvas.getContext("2d");
 const {
   colorExhale = "rgb(0, 221, 255)",
   colorInhale = "rgb(168, 50, 150)",
+  circleOrRectangle = Shape.CIRCLE,
   durationExhale = 10,
   durationInhale = 5,
   durationPostExhale = 0,
@@ -43,6 +47,7 @@ const {
 } = localStorage;
 
 Object.assign(localStorage, {
+  circleOrRectangle,
   durationInhale,
   durationExhale,
   durationPostExhale,
@@ -132,7 +137,7 @@ function draw(): void {
     ctx.fillStyle = color;
   }
 
-  if (IS_CIRCULAR) {
+  if (circleOrRectangle === Shape.CIRCLE) {
     const centerX = canvasWidth / 2;
     const centerY = canvasHeight / 2;
     const startAngle = 0;
