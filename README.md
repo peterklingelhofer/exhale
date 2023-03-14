@@ -7,6 +7,8 @@ Research indicates we blink less and breathe more shallowly when we are looking 
 ## Electron Usage
 
 ![exhaleElectron](https://user-images.githubusercontent.com/60944077/224524962-56da25cc-e3d9-4d4b-9171-f185be9d709c.gif)
+![exhaleElectronCircular](https://user-images.githubusercontent.com/60944077/224865780-0e61721e-2345-49aa-830d-0e157b6f4366.gif)
+
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
