@@ -1,3 +1,9 @@
+// This file is required by the index.html file and will
+// be executed in the renderer process for that window.
+// No Node.js APIs are available in this process unless
+// nodeIntegration is set to true in webPreferences.
+// Use preload.js to selectively enable features
+// needed in the renderer process.
 type Color = string | CanvasGradient | CanvasPattern;
 enum State {
   INHALE,
@@ -32,7 +38,7 @@ const ctx = canvas.getContext("2d");
 const {
   colorExhale = "rgb(0, 221, 255)",
   colorInhale = "rgb(168, 50, 150)",
-  circleOrRectangle = Shape.CIRCLE,
+  circleOrRectangle = Shape.RECTANGLE,
   durationExhale = 10,
   durationInhale = 5,
   durationPostExhale = 0,
@@ -50,16 +56,14 @@ Object.assign(localStorage, {
   colorInhale,
   opacity,
 });
-let canvasWidth = 1;
-let canvasHeight = 1;
+let canvasWidth = 0;
+let canvasHeight = 0;
 let halfCanvasHeight = 0;
 let state = State.POST_EXHALE;
 let startFrame = 0;
 let endFrame = 0;
 let radius = 0;
 let color: Color = colorInhale;
-const recordedAnimation: ImageData[] = [];
-let recording = true;
 
 function resizeCanvas(): void {
   canvasWidth = canvas.width = window.innerWidth;
@@ -96,14 +100,9 @@ function progressState(state: State): State {
   }
 }
 
-const offscreenCanvas = document.createElement("canvas");
-offscreenCanvas.width = canvasWidth;
-offscreenCanvas.height = canvasHeight;
-const offscreenCtx = offscreenCanvas.getContext("2d");
-
-function drawOffscreen(): void {
-  offscreenCtx.fillStyle = BACKDROP_COLOR;
-  offscreenCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+function draw(): void {
+  ctx.fillStyle = BACKDROP_COLOR;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   switch (state) {
     case State.INHALE:
@@ -134,8 +133,8 @@ function drawOffscreen(): void {
       break;
   }
 
-  if (color !== offscreenCtx.fillStyle) {
-    offscreenCtx.fillStyle = color;
+  if (color !== ctx.fillStyle) {
+    ctx.fillStyle = color;
   }
 
   if (circleOrRectangle === Shape.CIRCLE) {
@@ -144,52 +143,25 @@ function drawOffscreen(): void {
     const startAngle = 0;
     const endAngle = 2 * Math.PI;
     const isCounterClockwise = false;
-    offscreenCtx.beginPath();
-    offscreenCtx.arc(centerX, centerY, radius, startAngle, endAngle, isCounterClockwise);
-    offscreenCtx.fill();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, startAngle, endAngle, isCounterClockwise);
+    ctx.fill();
   } else {
     const twiceRadius = radius * 2;
-    offscreenCtx.fillRect(0, canvasHeight - twiceRadius, canvasWidth, twiceRadius);
+    ctx.fillRect(0, canvasHeight - twiceRadius, canvasWidth, twiceRadius);
   }
 
   if (frameCount >= endFrame) {
     startFrame = frameCount;
     state = progressState(state);
-    if (state === State.POST_EXHALE && recording) {
-      recording = false;
-      totalFrames = frameCount + 1;
-    }
   }
 }
 
-// function playRecordedAnimation(): void {
-//   if (frameCount >= totalFrames) {
-//     frameCount = 0;
-//   }
-//   ctx.drawImage(offscreenCanvas, 0, 0, canvasWidth, canvasHeight);
-//   frameCount++;
-// }
-
 let frameCount = 0;
-let totalFrames = 0;
-const FRAME_INTERVAL = Math.floor(1000 / FRAMES_PER_SECOND);
-function playRecordedAnimation(): void {
-  ctx.drawImage(offscreenCanvas, 0, 0, canvasWidth, canvasHeight);
-}
-
 function animate(): void {
-  setTimeout(() => {
-    if (recording) {
-      drawOffscreen();
-      frameCount++;
-      if (frameCount >= totalFrames) {
-        recording = false;
-      }
-    } else {
-      playRecordedAnimation();
-    }
-    requestAnimationFrame(animate);
-  }, FRAME_INTERVAL);
+  draw();
+  frameCount++;
+  requestAnimationFrame(animate);
 }
 
 resizeCanvas();
