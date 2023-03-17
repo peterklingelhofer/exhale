@@ -4,7 +4,6 @@ import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
-    var settingsModel: SettingsModel!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let screenSize = NSScreen.main?.frame.size ?? CGSize(width: 800, height: 600)
@@ -20,7 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.contentView = NSHostingView(rootView: contentView)
         window.makeKeyAndOrderFront(nil)
         window.level = .floating
-        window.alphaValue = CGFloat(settingsModel.overlayOpacity)
+        window.alphaValue = CGFloat(0.1) // opacity
         window.isOpaque = false
         window.ignoresMouseEvents = true
     }

@@ -2,14 +2,17 @@
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject var settingsModel: SettingsModel
     @State private var animationProgress: CGFloat = 0
     @State private var breathingPhase: BreathingPhase = .inhale
     @State private var inhaleDuration: TimeInterval = 5
     @State private var postInhaleHoldDuration: TimeInterval = 0
     @State private var exhaleDuration: TimeInterval = 10
     @State private var postExhaleHoldDuration: TimeInterval = 0
-    @State private var overlayColor = Color(red: 0.658823529411765, green: 0.196078431372549, blue: 0.588235294117647)
+    @State private var overlayColor = Color(
+        red: 0.658823529411765,
+        green: 0.196078431372549,
+        blue: 0.588235294117647
+    )
     @State private var backgroundColor = Color.white
     @State private var overlayOpacity: Double = 0.1
     @State private var showSettings = false
@@ -31,33 +34,6 @@ struct ContentView: View {
                 }
             }
             .edgesIgnoringSafeArea(.all)
-            
-            VStack {
-                HStack {
-                    Spacer()
-                    Button(action: {
-                        showSettings.toggle()
-                    }) {
-                        Image(systemName: "gearshape")
-                            .resizable()
-                            .frame(width: 30, height: 30)
-                            .foregroundColor(.gray)
-                    }
-                    .padding()
-                }
-                Spacer()
-            }
-            
-            if showSettings {
-                SettingsView(
-                    showSettings: $showSettings,
-                    overlayColor: $overlayColor, inhaleDuration: $inhaleDuration,
-                    postInhaleHoldDuration: $postInhaleHoldDuration,
-                    exhaleDuration: $exhaleDuration,
-                    postExhaleHoldDuration: $postExhaleHoldDuration,
-                    overlayOpacity: $overlayOpacity
-                )
-            }
         }
     }
     
