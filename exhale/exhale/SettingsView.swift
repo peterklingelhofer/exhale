@@ -46,7 +46,7 @@ struct SettingsView: View {
                     Form {
                         VStack(alignment: .leading, spacing: 10) {
                             ColorPicker("Overlay Color", selection: $overlayColor, supportsOpacity: true)
-
+                            
                             HStack {
                                 Text("Inhale Duration (s)")
                                 Spacer()
@@ -54,7 +54,7 @@ struct SettingsView: View {
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
                             }
-
+                            
                             HStack {
                                 Text("Post-Inhale Hold (s)")
                                 Spacer()
@@ -62,7 +62,7 @@ struct SettingsView: View {
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
                             }
-
+                            
                             HStack {
                                 Text("Exhale Duration (s)")
                                 Spacer()
@@ -70,7 +70,7 @@ struct SettingsView: View {
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
                             }
-
+                            
                             HStack {
                                 Text("Post-Exhale Hold (s)")
                                 Spacer()
@@ -78,7 +78,7 @@ struct SettingsView: View {
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
                             }
-
+                            
                             HStack {
                                 Text("Overlay Opacity")
                                 Spacer()
@@ -86,7 +86,6 @@ struct SettingsView: View {
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
                             }
-
                         }
                         .foregroundColor(.black)
                         .padding(.horizontal)
