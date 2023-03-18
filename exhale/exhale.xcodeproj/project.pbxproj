@@ -17,6 +17,7 @@
 		020C89FA29C2B59A00720231 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C89F929C2B59A00720231 /* AppDelegate.swift */; };
 		020C8A0229C3307100720231 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C8A0129C3307100720231 /* SettingsView.swift */; };
 		020C8A0429C3323F00720231 /* SettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C8A0329C3323F00720231 /* SettingsModel.swift */; };
+		02775BB629C6311E00584F4B /* CustomMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02775BB529C6311E00584F4B /* CustomMenu.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,6 +52,7 @@
 		020C89F929C2B59A00720231 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		020C8A0129C3307100720231 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		020C8A0329C3323F00720231 /* SettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModel.swift; sourceTree = "<group>"; };
+		02775BB529C6311E00584F4B /* CustomMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomMenu.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -109,6 +111,7 @@
 				020C89F929C2B59A00720231 /* AppDelegate.swift */,
 				020C8A0129C3307100720231 /* SettingsView.swift */,
 				020C8A0329C3323F00720231 /* SettingsModel.swift */,
+				02775BB529C6311E00584F4B /* CustomMenu.swift */,
 			);
 			path = exhale;
 			sourceTree = "<group>";
@@ -271,6 +274,7 @@
 				020C89FA29C2B59A00720231 /* AppDelegate.swift in Sources */,
 				020C8A0429C3323F00720231 /* SettingsModel.swift in Sources */,
 				020C8A0229C3307100720231 /* SettingsView.swift in Sources */,
+				02775BB629C6311E00584F4B /* CustomMenu.swift in Sources */,
 				020C89CF29C2B05500720231 /* ContentView.swift in Sources */,
 				020C89CD29C2B05500720231 /* exhaleApp.swift in Sources */,
 			);

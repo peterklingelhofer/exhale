@@ -10,6 +10,15 @@ struct SettingsView: View {
     @Binding var postExhaleHoldDuration: Double
     @Binding var overlayOpacity: Double
     
+    let positiveNumberFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 2
+        formatter.minimum = 0
+        formatter.usesGroupingSeparator = false
+        return formatter
+    }()
+    
     var body: some View {
         VStack {
             Spacer()
@@ -18,41 +27,59 @@ struct SettingsView: View {
                 Spacer()
                 
                 VStack {
-                    Button(action: {
-                        withAnimation {
-                            showSettings.toggle()
+                    Form {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ColorPicker("Overlay Color", selection: $overlayColor, supportsOpacity: true)
+                            
+                            HStack {
+                                Text("Inhale Duration (s)")
+                                Spacer()
+                                TextField("", value: $inhaleDuration, formatter: positiveNumberFormatter)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .frame(width: 100)
+                            }
+                            
+                            HStack {
+                                Text("Post-Inhale Hold (s)")
+                                Spacer()
+                                TextField("", value: $postInhaleHoldDuration, formatter: positiveNumberFormatter)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .frame(width: 100)
+                            }
+                            
+                            HStack {
+                                Text("Exhale Duration (s)")
+                                Spacer()
+                                TextField("", value: $exhaleDuration, formatter: positiveNumberFormatter)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .frame(width: 100)
+                            }
+                            
+                            HStack {
+                                Text("Post-Exhale Hold (s)")
+                                Spacer()
+                                TextField("", value: $postExhaleHoldDuration, formatter: positiveNumberFormatter)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .frame(width: 100)
+                            }
+                            
+                            HStack {
+                                Text("Overlay Opacity")
+                                Spacer()
+                                TextField("", value: $overlayOpacity, formatter: positiveNumberFormatter)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .frame(width: 100)
+                            }
                         }
-                    }) {
-                        Image(systemName: "gear")
-                            .font(.system(size: 24))
-                            .foregroundColor(.black)
+                        .foregroundColor(.black)
+                        .padding(.horizontal)
                     }
-                    .padding(.bottom)
-                    
-                    VStack(alignment: .leading, spacing: 10) {
-                        ColorPicker("Overlay Color", selection: $overlayColor, supportsOpacity: true)
-                        
-                        Text("Inhale Duration (s)")
-                        Slider(value: $inhaleDuration, in: 1...10)
-                        
-                        Text("Post-Inhale Hold Duration (s)")
-                        Slider(value: $postInhaleHoldDuration, in: 1...10)
-                        
-                        Text("Exhale Duration (s)")
-                        Slider(value: $exhaleDuration, in: 1...10)
-                        
-                        Text("Post-Exhale Hold Duration (s)")
-                        Slider(value: $postExhaleHoldDuration, in: 1...10)
-                        
-
-                        Slider(value: $overlayOpacity, in: 0...1)
-                    }
-                    .padding(.horizontal)
                 }
                 .padding()
                 .background(Color.white.opacity(0.9))
                 .cornerRadius(10)
                 .shadow(radius: 10)
+                .frame(width: 300)
                 
                 Spacer()
             }

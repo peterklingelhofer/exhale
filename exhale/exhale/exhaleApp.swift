@@ -1,4 +1,3 @@
-// exhaleApp.swift
 import SwiftUI
 
 @main
@@ -11,9 +10,15 @@ struct exhaleApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .environmentObject(settingsModel)
+        Settings {
+            EmptyView()
+        }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Preferences...") {
+                    appDelegate.showSettings(nil)
+                }.keyboardShortcut(",", modifiers: .command)
+            }
         }
     }
 }

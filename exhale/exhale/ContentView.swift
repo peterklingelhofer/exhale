@@ -5,16 +5,9 @@ struct ContentView: View {
     @EnvironmentObject var settingsModel: SettingsModel
     @State private var animationProgress: CGFloat = 0
     @State private var breathingPhase: BreathingPhase = .inhale
-    @State private var inhaleDuration: TimeInterval = 5
-    @State private var postInhaleHoldDuration: TimeInterval = 0
-    @State private var exhaleDuration: TimeInterval = 10
-    @State private var postExhaleHoldDuration: TimeInterval = 0
-    @State private var overlayColor = Color(red: 0.658823529411765, green: 0.196078431372549, blue: 0.588235294117647)
-    @State private var backgroundColor = Color.white
+    @State private var backgroundColor = Color.black
     @State private var overlayOpacity: Double = 0.1
     @State private var showSettings = false
-    
-    let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
     
     var body: some View {
         ZStack {
@@ -22,82 +15,81 @@ struct ContentView: View {
                 ZStack {
                     backgroundColor.edgesIgnoringSafeArea(.all)
                     Rectangle()
-                        .fill(overlayColor)
+                        .fill(settingsModel.overlayColor) // Use settingsModel.overlayColor instead of overlayColor
                         .frame(height: animationProgress * geometry.size.height)
                         .position(x: geometry.size.width / 2, y: geometry.size.height - (animationProgress * geometry.size.height) / 2)
-                        .onReceive(timer) { _ in
-                            updateAnimation()
-                        }
                 }
             }
             .edgesIgnoringSafeArea(.all)
-            
-            VStack {
-                HStack {
-                    Spacer()
-                    Button(action: {
-                        showSettings.toggle()
-                    }) {
-                        Image(systemName: "gearshape")
-                            .resizable()
-                            .frame(width: 30, height: 30)
-                            .foregroundColor(.gray)
-                    }
-                    .padding()
-                }
-                Spacer()
-            }
-            
+
             if showSettings {
                 SettingsView(
                     showSettings: $showSettings,
-                    overlayColor: $overlayColor, inhaleDuration: $inhaleDuration,
-                    postInhaleHoldDuration: $postInhaleHoldDuration,
-                    exhaleDuration: $exhaleDuration,
-                    postExhaleHoldDuration: $postExhaleHoldDuration,
+                    overlayColor: $settingsModel.overlayColor,
+                    inhaleDuration: $settingsModel.inhaleDuration,
+                    postInhaleHoldDuration: $settingsModel.postInhaleHoldDuration,
+                    exhaleDuration: $settingsModel.exhaleDuration,
+                    postExhaleHoldDuration: $settingsModel.postExhaleHoldDuration,
                     overlayOpacity: $overlayOpacity
                 )
             }
         }
+        .onAppear(perform: startBreathingCycle)
     }
     
-    func updateAnimation() {
-        let increment = CGFloat(0.1 / breathingPhase.duration)
-        
-        switch breathingPhase {
-        case .inhale:
-            animationProgress += increment
-            if animationProgress >= 1.0 {
-                breathingPhase = .holdAfterInhale
-                animationProgress = 1.0
-            }
-        case .holdAfterInhale:
-            // TODO: Implement a hold after inhale
-            breathingPhase = .exhale
-        case .exhale:
-            animationProgress -= increment
-            if animationProgress <= 0.0 {
-                breathingPhase = .holdAfterExhale
-                animationProgress = 0.0
-            }
-        case .holdAfterExhale:
-            // TODO: Implement a hold after exhale
+    func startBreathingCycle() {
+        inhale()
+    }
+    
+    func inhale() {
+        withAnimation(.linear(duration: settingsModel.inhaleDuration)) {
             breathingPhase = .inhale
+            animationProgress = 1.0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + settingsModel.inhaleDuration) {
+            holdAfterInhale()
+        }
+    }
+    
+    func holdAfterInhale() {
+        breathingPhase = .holdAfterInhale
+        DispatchQueue.main.asyncAfter(deadline: .now() + settingsModel.postInhaleHoldDuration) {
+            exhale()
+        }
+    }
+    
+    func exhale() {
+        withAnimation(.linear(duration: settingsModel.exhaleDuration)) {
+            breathingPhase = .exhale
+            animationProgress = 0.0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + settingsModel.exhaleDuration) {
+            holdAfterExhale()
+        }
+    }
+    
+    func holdAfterExhale() {
+        breathingPhase = .holdAfterExhale
+        DispatchQueue.main.asyncAfter(deadline: .now() + settingsModel.postExhaleHoldDuration) {
+            inhale()
         }
     }
 }
 
+
 enum BreathingPhase {
     case inhale, holdAfterInhale, exhale, holdAfterExhale
     
-    var duration: TimeInterval {
+    func duration(settingsModel: SettingsModel) -> TimeInterval {
         switch self {
         case .inhale:
-            return 5
+            return settingsModel.inhaleDuration
+        case .holdAfterInhale:
+            return settingsModel.postInhaleHoldDuration
         case .exhale:
-            return 10
-        default:
-            return 0
+            return settingsModel.exhaleDuration
+        case .holdAfterExhale:
+            return settingsModel.postExhaleHoldDuration
         }
     }
 }
