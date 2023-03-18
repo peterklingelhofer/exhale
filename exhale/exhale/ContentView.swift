@@ -5,7 +5,6 @@ struct ContentView: View {
     @EnvironmentObject var settingsModel: SettingsModel
     @State private var animationProgress: CGFloat = 0
     @State private var breathingPhase: BreathingPhase = .inhale
-    @State private var overlayColor = Color(red: 0.658823529411765, green: 0.196078431372549, blue: 0.588235294117647)
     @State private var backgroundColor = Color.black
     @State private var overlayOpacity: Double = 0.1
     @State private var showSettings = false
@@ -16,7 +15,7 @@ struct ContentView: View {
                 ZStack {
                     backgroundColor.edgesIgnoringSafeArea(.all)
                     Rectangle()
-                        .fill(overlayColor)
+                        .fill(settingsModel.overlayColor) // Use settingsModel.overlayColor instead of overlayColor
                         .frame(height: animationProgress * geometry.size.height)
                         .position(x: geometry.size.width / 2, y: geometry.size.height - (animationProgress * geometry.size.height) / 2)
                 }
@@ -26,7 +25,7 @@ struct ContentView: View {
             if showSettings {
                 SettingsView(
                     showSettings: $showSettings,
-                    overlayColor: $overlayColor,
+                    overlayColor: $settingsModel.overlayColor,
                     inhaleDuration: $settingsModel.inhaleDuration,
                     postInhaleHoldDuration: $settingsModel.postInhaleHoldDuration,
                     exhaleDuration: $settingsModel.exhaleDuration,
