@@ -5,8 +5,8 @@ import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
-    var previewWindow: NSWindow!
-    var settingsModel: SettingsModel!
+    var settingsWindow: NSWindow!
+    var settingsModel = SettingsModel()
     var overlayColorSubscription: AnyCancellable?
     var overlayOpacitySubscription: AnyCancellable?
     var subscriptions = Set<AnyCancellable>()
@@ -21,12 +21,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        previewWindow = NSWindow(
-            contentRect: NSRect(x: screenSize.width / 2 - 300, y: screenSize.height / 2 - 200, width: 600, height: 400),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
 
         window.contentView = NSHostingView(rootView: ContentView().environmentObject(settingsModel))
         window.makeKeyAndOrderFront(nil)
@@ -35,9 +29,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.isOpaque = false
         window.ignoresMouseEvents = true
 
-        previewWindow.contentView = NSHostingView(rootView: ContentView().environmentObject(settingsModel))
-        previewWindow.makeKeyAndOrderFront(nil)
-        
         overlayColorSubscription = settingsModel.$overlayColor.sink { newColor in
             self.window.backgroundColor = NSColor(newColor)
         }
@@ -53,15 +44,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Call reloadContentView() after initializing window and previewWindow
         reloadContentView()
+        
+        settingsWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 400),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        settingsWindow.contentView = NSHostingView(rootView: SettingsView(
+            showSettings: .constant(false),
+            overlayColor: Binding(get: { self.settingsModel.overlayColor }, set: { self.settingsModel.overlayColor = $0 }),
+            inhaleDuration: Binding(get: { self.settingsModel.inhaleDuration }, set: { self.settingsModel.inhaleDuration = $0 }),
+            postInhaleHoldDuration: Binding(get: { self.settingsModel.postInhaleHoldDuration }, set: { self.settingsModel.postInhaleHoldDuration = $0 }),
+            exhaleDuration: Binding(get: { self.settingsModel.exhaleDuration }, set: { self.settingsModel.exhaleDuration = $0 }),
+            postExhaleHoldDuration: Binding(get: { self.settingsModel.postExhaleHoldDuration }, set: { self.settingsModel.postExhaleHoldDuration = $0 }),
+            overlayOpacity: Binding(get: { self.settingsModel.overlayOpacity }, set: { self.settingsModel.overlayOpacity = $0 })
+        ).environmentObject(settingsModel))
+
+        settingsWindow.title = "Preferences"
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         // Insert code here to tear down your application
     }
     
+    func showSettings(_ sender: Any?) {
+        settingsWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
     func reloadContentView() {
         let contentView = ContentView().environmentObject(settingsModel)
         self.window.contentView = NSHostingView(rootView: contentView)
-        self.previewWindow.contentView = NSHostingView(rootView: contentView)
     }
 }

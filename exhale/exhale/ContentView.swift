@@ -6,7 +6,7 @@ struct ContentView: View {
     @State private var animationProgress: CGFloat = 0
     @State private var breathingPhase: BreathingPhase = .inhale
     @State private var overlayColor = Color(red: 0.658823529411765, green: 0.196078431372549, blue: 0.588235294117647)
-    @State private var backgroundColor = Color.white
+    @State private var backgroundColor = Color.black
     @State private var overlayOpacity: Double = 0.1
     @State private var showSettings = false
     
@@ -22,27 +22,12 @@ struct ContentView: View {
                 }
             }
             .edgesIgnoringSafeArea(.all)
-            
-            VStack {
-                HStack {
-                    Spacer()
-                    Button(action: {
-                        showSettings.toggle()
-                    }) {
-                        Image(systemName: "gearshape")
-                            .resizable()
-                            .frame(width: 30, height: 30)
-                            .foregroundColor(.gray)
-                    }
-                    .padding()
-                }
-                Spacer()
-            }
-            
+
             if showSettings {
                 SettingsView(
                     showSettings: $showSettings,
-                    overlayColor: $overlayColor, inhaleDuration: $settingsModel.inhaleDuration,
+                    overlayColor: $overlayColor,
+                    inhaleDuration: $settingsModel.inhaleDuration,
                     postInhaleHoldDuration: $settingsModel.postInhaleHoldDuration,
                     exhaleDuration: $settingsModel.exhaleDuration,
                     postExhaleHoldDuration: $settingsModel.postExhaleHoldDuration,
