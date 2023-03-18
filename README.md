@@ -9,9 +9,11 @@ Research indicates we blink less and breathe more shallowly when we are looking 
 ![exhaleElectron](https://user-images.githubusercontent.com/60944077/224524962-56da25cc-e3d9-4d4b-9171-f185be9d709c.gif)
 ![exhaleElectronCircular](https://user-images.githubusercontent.com/60944077/224865780-0e61721e-2345-49aa-830d-0e157b6f4366.gif)
 
+Note: Electron is more performant on Linux and Windows that on macOS. For the macOS, using the Swift implementation is recommended for optimal CPU performance.
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
+cd electron
 cd exhale
 yarn
 yarn start
@@ -41,12 +43,27 @@ Once added, you can modify all values from the **Local Storage** pane. Or, if yo
 <img width="371" alt="Screen Shot 2023-03-11 at 2 12 30 PM" src="https://user-images.githubusercontent.com/60944077/224511531-c0d615a1-1859-47b6-a78b-7d38276d80be.png">
 
 
+## Swift Usage
+
+Note: This is macOS only.
+
+```sh
+git clone https://github.com/peterklingelhofer/exhale.git
+cd swift
+cd exhale
+xed .
+```
+
+Use the menu in the top left to open Preferences, or use <kbd>Cmd</kbd> + <kbd>,</kbd>.
+
+
 ## Python Script Usage
 
 ![exhalePython](https://user-images.githubusercontent.com/60944077/222979803-c88ebc65-b799-4ca7-b265-54beb27fcb00.gif)
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
+cd python
 cd exhale
 python main.py
 ```

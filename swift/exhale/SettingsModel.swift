@@ -12,4 +12,5 @@ class SettingsModel: ObservableObject {
     @Published var exhaleDuration: TimeInterval = 10
     @Published var postExhaleHoldDuration: TimeInterval = 0
     @Published var overlayOpacity: Double = 0.1
+    @Published var drift: Double = 0
 }

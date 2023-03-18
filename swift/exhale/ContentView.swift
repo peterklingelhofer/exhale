@@ -30,7 +30,8 @@ struct ContentView: View {
                     postInhaleHoldDuration: $settingsModel.postInhaleHoldDuration,
                     exhaleDuration: $settingsModel.exhaleDuration,
                     postExhaleHoldDuration: $settingsModel.postExhaleHoldDuration,
-                    overlayOpacity: $overlayOpacity
+                    overlayOpacity: $overlayOpacity,
+                    drift: $settingsModel.drift
                 )
             }
         }
@@ -42,6 +43,7 @@ struct ContentView: View {
     }
     
     func inhale() {
+        settingsModel.inhaleDuration += settingsModel.drift
         withAnimation(.linear(duration: settingsModel.inhaleDuration)) {
             breathingPhase = .inhale
             animationProgress = 1.0
@@ -59,6 +61,7 @@ struct ContentView: View {
     }
     
     func exhale() {
+        settingsModel.exhaleDuration += settingsModel.drift
         withAnimation(.linear(duration: settingsModel.exhaleDuration)) {
             breathingPhase = .exhale
             animationProgress = 0.0
