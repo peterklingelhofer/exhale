@@ -27,22 +27,6 @@ struct SettingsView: View {
                 Spacer()
                 
                 VStack {
-                    Button(action: {
-                        withAnimation {
-                            showSettings.toggle()
-                        }
-                    }) {
-                        Image(systemName: "gear")
-                            .font(.system(size: 24))
-                            .foregroundColor(.black)
-                    }
-                    .frame(width: 60, height: 60)
-                    .background(Color.white.opacity(0.9))
-                    .clipShape(Circle())
-                    .padding(.bottom, 10)
-                    .padding(.top, 20)
-                    
-                    
                     Form {
                         VStack(alignment: .leading, spacing: 10) {
                             ColorPicker("Overlay Color", selection: $overlayColor, supportsOpacity: true)
