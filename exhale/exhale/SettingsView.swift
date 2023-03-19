@@ -22,19 +22,21 @@ struct SettingsView: View {
         return formatter
     }()
     
-    let driftNumberFormatter: NumberFormatter = {
+    func createNumberFormatter(minimumValue: Double, maximumValue: Double? = nil) -> NumberFormatter {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 2
-        formatter.minimum = 0.5
+        formatter.minimum = NSNumber(value: minimumValue)
+        if let max = maximumValue {
+            formatter.maximum = NSNumber(value: max)
+        }
         formatter.usesGroupingSeparator = false
         return formatter
-    }()
+    }
     
-    private func validate(value: inout Double, formatter: NumberFormatter) {
-        if let minimum = formatter.minimum?.doubleValue,
-           value < minimum {
-            value = minimum
+    private func validate(value: inout Double, formatter: NumberFormatter, minimumValue: Double) {
+        if value < minimumValue {
+            value = minimumValue
         }
         if let maximum = formatter.maximum?.doubleValue,
            value > maximum {
@@ -59,7 +61,10 @@ struct SettingsView: View {
                             HStack {
                                 Text("Inhale Duration (s)")
                                 Spacer()
-                                TextField("", value: $inhaleDuration, formatter: positiveNumberFormatter)
+                                TextField("", value: $inhaleDuration, formatter: createNumberFormatter(minimumValue: 0.5))
+                                    .onChange(of: inhaleDuration) { newValue in
+                                        validate(value: &inhaleDuration, formatter: createNumberFormatter(minimumValue: 0.5), minimumValue: 0.5)
+                                    }
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
                             }
@@ -68,6 +73,9 @@ struct SettingsView: View {
                                 Text("Post-Inhale Hold (s)")
                                 Spacer()
                                 TextField("", value: $postInhaleHoldDuration, formatter: positiveNumberFormatter)
+                                    .onChange(of: postInhaleHoldDuration) { newValue in
+                                        validate(value: &postInhaleHoldDuration, formatter: positiveNumberFormatter, minimumValue: 0)
+                                    }
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
                             }
@@ -75,7 +83,10 @@ struct SettingsView: View {
                             HStack {
                                 Text("Exhale Duration (s)")
                                 Spacer()
-                                TextField("", value: $exhaleDuration, formatter: positiveNumberFormatter)
+                                TextField("", value: $exhaleDuration, formatter: createNumberFormatter(minimumValue: 0.5))
+                                    .onChange(of: exhaleDuration) { newValue in
+                                        validate(value: &exhaleDuration, formatter: createNumberFormatter(minimumValue: 0.5), minimumValue: 0.5)
+                                    }
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
                             }
@@ -84,16 +95,20 @@ struct SettingsView: View {
                                 Text("Post-Exhale Hold (s)")
                                 Spacer()
                                 TextField("", value: $postExhaleHoldDuration, formatter: positiveNumberFormatter)
+                                    .onChange(of: postExhaleHoldDuration) { newValue in
+                                        validate(value: &postExhaleHoldDuration, formatter: positiveNumberFormatter, minimumValue: 0)
+                                    }
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
                             }
                             
+                            
                             HStack {
                                 Text("Drift")
                                 Spacer()
-                                TextField("", value: $drift, formatter: driftNumberFormatter)
+                                TextField("", value: $drift, formatter: createNumberFormatter(minimumValue: 0.5))
                                     .onChange(of: drift) { newValue in
-                                        validate(value: &drift, formatter: driftNumberFormatter)
+                                        validate(value: &drift, formatter: createNumberFormatter(minimumValue: 0.5), minimumValue: 0.5)
                                     }
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
@@ -102,9 +117,9 @@ struct SettingsView: View {
                             HStack {
                                 Text("Overlay Opacity")
                                 Spacer()
-                                TextField("", value: $overlayOpacity, formatter: positiveNumberFormatter)
+                                TextField("", value: $overlayOpacity, formatter: createNumberFormatter(minimumValue: 0, maximumValue: 1))
                                     .onChange(of: overlayOpacity) { newValue in
-                                        validate(value: &overlayOpacity, formatter: positiveNumberFormatter)
+                                        validate(value: &overlayOpacity, formatter: createNumberFormatter(minimumValue: 0, maximumValue: 1), minimumValue: 0)
                                     }
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
