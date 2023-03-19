@@ -5,7 +5,6 @@ struct ContentView: View {
     @EnvironmentObject var settingsModel: SettingsModel
     @State private var animationProgress: CGFloat = 0
     @State private var breathingPhase: BreathingPhase = .inhale
-    @State private var backgroundColor = Color.black
     @State private var overlayOpacity: Double = 0.1
     @State private var showSettings = false
     @State private var cycleCount: Int = 0
@@ -14,7 +13,7 @@ struct ContentView: View {
         ZStack {
             GeometryReader { geometry in
                 ZStack {
-                    backgroundColor.edgesIgnoringSafeArea(.all)
+                    settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
                     Rectangle()
                         .fill(settingsModel.overlayColor)
                         .frame(height: animationProgress * geometry.size.height)
@@ -27,6 +26,7 @@ struct ContentView: View {
                 SettingsView(
                     showSettings: $showSettings,
                     overlayColor: $settingsModel.overlayColor,
+                    backgroundColor: $settingsModel.backgroundColor,
                     inhaleDuration: $settingsModel.inhaleDuration,
                     postInhaleHoldDuration: $settingsModel.postInhaleHoldDuration,
                     exhaleDuration: $settingsModel.exhaleDuration,

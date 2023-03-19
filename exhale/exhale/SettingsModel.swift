@@ -13,4 +13,5 @@ class SettingsModel: ObservableObject {
     @Published var postExhaleHoldDuration: TimeInterval = 0
     @Published var drift: Double = 1.0
     @Published var overlayOpacity: Double = 0.1
+    @Published var backgroundColor: Color = Color.black
 }

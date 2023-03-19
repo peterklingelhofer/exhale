@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @Binding var showSettings: Bool
     @Binding var overlayColor: Color
+    @Binding var backgroundColor: Color
     @Binding var inhaleDuration: Double
     @Binding var postInhaleHoldDuration: Double
     @Binding var exhaleDuration: Double
@@ -31,6 +32,8 @@ struct SettingsView: View {
                     Form {
                         VStack(alignment: .leading, spacing: 10) {
                             ColorPicker("Overlay Color", selection: $overlayColor, supportsOpacity: true)
+                            
+                            ColorPicker("Background Color", selection: $backgroundColor, supportsOpacity: true)
                             
                             HStack {
                                 Text("Inhale Duration (s)")

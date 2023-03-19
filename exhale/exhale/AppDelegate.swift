@@ -55,6 +55,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindow.contentView = NSHostingView(rootView: SettingsView(
             showSettings: .constant(false),
             overlayColor: Binding(get: { self.settingsModel.overlayColor }, set: { self.settingsModel.overlayColor = $0 }),
+            backgroundColor: Binding(get: { self.settingsModel.backgroundColor }, set: { self.settingsModel.backgroundColor = $0 }),
             inhaleDuration: Binding(get: { self.settingsModel.inhaleDuration }, set: { self.settingsModel.inhaleDuration = $0 }),
             postInhaleHoldDuration: Binding(get: { self.settingsModel.postInhaleHoldDuration }, set: { self.settingsModel.postInhaleHoldDuration = $0 }),
             exhaleDuration: Binding(get: { self.settingsModel.exhaleDuration }, set: { self.settingsModel.exhaleDuration = $0 }),
