@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var backgroundColor = Color.black
     @State private var overlayOpacity: Double = 0.1
     @State private var showSettings = false
+    @State private var cycleCount: Int = 0
     
     var body: some View {
         ZStack {
@@ -15,13 +16,13 @@ struct ContentView: View {
                 ZStack {
                     backgroundColor.edgesIgnoringSafeArea(.all)
                     Rectangle()
-                        .fill(settingsModel.overlayColor) // Use settingsModel.overlayColor instead of overlayColor
+                        .fill(settingsModel.overlayColor)
                         .frame(height: animationProgress * geometry.size.height)
                         .position(x: geometry.size.width / 2, y: geometry.size.height - (animationProgress * geometry.size.height) / 2)
                 }
             }
             .edgesIgnoringSafeArea(.all)
-
+            
             if showSettings {
                 SettingsView(
                     showSettings: $showSettings,
@@ -30,6 +31,7 @@ struct ContentView: View {
                     postInhaleHoldDuration: $settingsModel.postInhaleHoldDuration,
                     exhaleDuration: $settingsModel.exhaleDuration,
                     postExhaleHoldDuration: $settingsModel.postExhaleHoldDuration,
+                    drift: $settingsModel.drift,
                     overlayOpacity: $overlayOpacity
                 )
             }
@@ -38,44 +40,49 @@ struct ContentView: View {
     }
     
     func startBreathingCycle() {
+        cycleCount = 0
         inhale()
     }
     
     func inhale() {
-        withAnimation(.linear(duration: settingsModel.inhaleDuration)) {
+        let duration = settingsModel.inhaleDuration * pow(settingsModel.drift, Double(cycleCount))
+        withAnimation(.linear(duration: duration)) {
             breathingPhase = .inhale
             animationProgress = 1.0
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + settingsModel.inhaleDuration) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             holdAfterInhale()
         }
     }
     
     func holdAfterInhale() {
+        let duration = settingsModel.postInhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
         breathingPhase = .holdAfterInhale
-        DispatchQueue.main.asyncAfter(deadline: .now() + settingsModel.postInhaleHoldDuration) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             exhale()
         }
     }
     
     func exhale() {
-        withAnimation(.linear(duration: settingsModel.exhaleDuration)) {
+        let duration = settingsModel.exhaleDuration * pow(settingsModel.drift, Double(cycleCount))
+        withAnimation(.linear(duration: duration)) {
             breathingPhase = .exhale
             animationProgress = 0.0
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + settingsModel.exhaleDuration) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             holdAfterExhale()
         }
     }
     
     func holdAfterExhale() {
+        let duration = settingsModel.postExhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
         breathingPhase = .holdAfterExhale
-        DispatchQueue.main.asyncAfter(deadline: .now() + settingsModel.postExhaleHoldDuration) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            cycleCount += 1
             inhale()
         }
     }
 }
-
 
 enum BreathingPhase {
     case inhale, holdAfterInhale, exhale, holdAfterExhale

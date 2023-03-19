@@ -8,6 +8,7 @@ struct SettingsView: View {
     @Binding var postInhaleHoldDuration: Double
     @Binding var exhaleDuration: Double
     @Binding var postExhaleHoldDuration: Double
+    @Binding var drift: Double
     @Binding var overlayOpacity: Double
     
     let positiveNumberFormatter: NumberFormatter = {
@@ -59,6 +60,14 @@ struct SettingsView: View {
                                 Text("Post-Exhale Hold (s)")
                                 Spacer()
                                 TextField("", value: $postExhaleHoldDuration, formatter: positiveNumberFormatter)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .frame(width: 100)
+                            }
+                            
+                            HStack {
+                                Text("Drift (s)")
+                                Spacer()
+                                TextField("", value: $drift, formatter: positiveNumberFormatter)
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
                             }
