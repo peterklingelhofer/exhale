@@ -66,6 +66,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ).environmentObject(settingsModel))
 
         settingsWindow.title = "Preferences"
+        showSettings(nil)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
