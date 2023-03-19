@@ -67,9 +67,9 @@ struct SettingsView: View {
                 VStack {
                     Form {
                         VStack(alignment: .leading, spacing: 10) {
-                            ColorPicker("Overlay Color", selection: $overlayColor, supportsOpacity: true)
+                            ColorPicker("Overlay Color", selection: $overlayColor, supportsOpacity: false)
                             
-                            ColorPicker("Background Color", selection: $backgroundColor, supportsOpacity: true)
+                            ColorPicker("Background Color", selection: $backgroundColor, supportsOpacity: false)
                             
                             TextFieldWithValidation(title: "Inhale Duration (s)", value: $inhaleDuration, formatter: createNumberFormatter(minimumValue: 0.5), minimumValue: 0.5)
                             
