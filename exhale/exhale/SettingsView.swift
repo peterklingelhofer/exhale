@@ -83,12 +83,12 @@ struct SettingsView: View {
                                     .frame(width: 100)
                             }
                         }
-                        .foregroundColor(.black)
+                        .foregroundColor(.white)
                         .padding(.horizontal)
                     }
                 }
                 .padding()
-                .background(Color.white.opacity(0.9))
+                .background(Color.black.opacity(0.9))
                 .cornerRadius(10)
                 .shadow(radius: 10)
                 .frame(width: 300)

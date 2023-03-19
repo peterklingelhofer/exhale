@@ -1,4 +1,4 @@
-//  CustomMenu.swift
+// CustomMenu.swift
 import Cocoa
 
 class CustomMenu: NSMenu {
@@ -14,5 +14,9 @@ class CustomMenu: NSMenu {
 
     @objc func showSettings(_ sender: AnyObject?) {
         appDelegate?.showSettings(sender)
+    }
+
+    @objc func quitApp(_ sender: AnyObject?) {
+        NSApp.terminate(sender)
     }
 }

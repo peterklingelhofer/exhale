@@ -46,7 +46,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         reloadContentView()
         
         settingsWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 300),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -74,6 +74,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func showSettings(_ sender: Any?) {
         settingsWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        settingsWindow.level = .floating
     }
     
     func reloadContentView() {
