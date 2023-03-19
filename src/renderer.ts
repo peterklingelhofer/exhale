@@ -4,7 +4,12 @@
 // nodeIntegration is set to true in webPreferences.
 // Use preload.js to selectively enable features
 // needed in the renderer process.
-type Color = string | CanvasGradient | CanvasPattern;
+// renderer.ts
+type Color = string;
+enum ColorStyle {
+  CONSTANT = "constant",
+  LINEAR = "linear",
+}
 enum State {
   INHALE,
   POST_INHALE,
@@ -38,6 +43,7 @@ const ctx = canvas.getContext("2d");
 const {
   colorExhale = "rgb(0, 221, 255)",
   colorInhale = "rgb(168, 50, 150)",
+  colorStyle = ColorStyle.LINEAR,
   circleOrRectangle = Shape.RECTANGLE,
   durationExhale = 10,
   durationInhale = 5,
@@ -48,12 +54,13 @@ const {
 
 Object.assign(localStorage, {
   circleOrRectangle,
-  durationInhale,
-  durationExhale,
-  durationPostExhale,
-  durationPostInhale,
   colorExhale,
   colorInhale,
+  colorStyle,
+  durationExhale,
+  durationInhale,
+  durationPostExhale,
+  durationPostInhale,
   opacity,
 });
 let canvasWidth = 0;
@@ -104,6 +111,8 @@ function draw(): void {
   ctx.fillStyle = BACKDROP_COLOR;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
+  let gradient;
+
   switch (state) {
     case State.INHALE:
       radius = Math.min(
@@ -133,21 +142,37 @@ function draw(): void {
       break;
   }
 
-  if (color !== ctx.fillStyle) {
-    ctx.fillStyle = color;
-  }
-
   if (circleOrRectangle === Shape.CIRCLE) {
     const centerX = canvasWidth / 2;
     const centerY = canvasHeight / 2;
     const startAngle = 0;
     const endAngle = 2 * Math.PI;
     const isCounterClockwise = false;
+
+    if (colorStyle === ColorStyle.LINEAR) {
+      gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+      gradient.addColorStop(0, BACKDROP_COLOR);
+      gradient.addColorStop(1, color);
+      ctx.fillStyle = gradient;
+    } else {
+      ctx.fillStyle = color;
+    }
+
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, startAngle, endAngle, isCounterClockwise);
     ctx.fill();
   } else {
     const twiceRadius = radius * 2;
+
+    if (colorStyle === ColorStyle.LINEAR) {
+      gradient = ctx.createLinearGradient(0, canvasHeight - twiceRadius, 0, canvasHeight);
+      gradient.addColorStop(0, color);
+      gradient.addColorStop(1, BACKDROP_COLOR);
+      ctx.fillStyle = gradient;
+    } else {
+      ctx.fillStyle = color;
+    }
+
     ctx.fillRect(0, canvasHeight - twiceRadius, canvasWidth, twiceRadius);
   }
 

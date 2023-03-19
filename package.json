@@ -1,6 +1,6 @@
 {
   "name": "exhale",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "A customizable visual indicator to remind you to breathe and facilitate breathwork practice",
   "scripts": {
     "build": "tsc",
