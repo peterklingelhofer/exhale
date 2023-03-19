@@ -61,7 +61,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             exhaleDuration: Binding(get: { self.settingsModel.exhaleDuration }, set: { self.settingsModel.exhaleDuration = $0 }),
             postExhaleHoldDuration: Binding(get: { self.settingsModel.postExhaleHoldDuration }, set: { self.settingsModel.postExhaleHoldDuration = $0 }),
             drift: Binding(get: { self.settingsModel.drift }, set: { self.settingsModel.drift = $0 }),
-            overlayOpacity: Binding(get: { self.settingsModel.overlayOpacity }, set: { self.settingsModel.overlayOpacity = $0 })
+            overlayOpacity: Binding(get: { self.settingsModel.overlayOpacity }, set: { self.settingsModel.overlayOpacity = $0 }),
+            shape: Binding<AnimationShape>(get: { self.settingsModel.shape }, set: { self.settingsModel.shape = $0 })
         ).environmentObject(settingsModel))
 
         settingsWindow.title = "Preferences"

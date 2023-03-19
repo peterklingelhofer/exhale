@@ -43,6 +43,7 @@ struct SettingsView: View {
     @Binding var postExhaleHoldDuration: Double
     @Binding var drift: Double
     @Binding var overlayOpacity: Double
+    @Binding var shape: AnimationShape
     
     func createNumberFormatter(minimumValue: Double, maximumValue: Double? = nil) -> NumberFormatter {
         let formatter = NumberFormatter()
@@ -81,6 +82,13 @@ struct SettingsView: View {
                             TextFieldWithValidation(title: "Drift", value: $drift, formatter: createNumberFormatter(minimumValue: 0.5), minimumValue: 0.5)
                             
                             TextFieldWithValidation(title: "Overlay Opacity", value: $overlayOpacity, formatter: createNumberFormatter(minimumValue: 0, maximumValue: 1), minimumValue: 0)
+                            
+                            Picker("Shape", selection: $shape) {
+                                ForEach(AnimationShape.allCases, id: \.self) { shape in
+                                    Text(shape.rawValue).tag(shape)
+                                }
+                            }
+                            .pickerStyle(MenuPickerStyle())
                         }
                         .foregroundColor(.white)
                         .padding(.horizontal)

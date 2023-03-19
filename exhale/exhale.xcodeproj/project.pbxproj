@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0208F33B29C75C0900CC6FAC /* types.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0208F33A29C75C0900CC6FAC /* types.swift */; };
 		020C89CD29C2B05500720231 /* exhaleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C89CC29C2B05500720231 /* exhaleApp.swift */; };
 		020C89CF29C2B05500720231 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C89CE29C2B05500720231 /* ContentView.swift */; };
 		020C89D129C2B05700720231 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 020C89D029C2B05700720231 /* Assets.xcassets */; };
@@ -38,6 +39,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0208F33A29C75C0900CC6FAC /* types.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = types.swift; sourceTree = "<group>"; };
 		020C89C929C2B05500720231 /* exhale.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = exhale.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		020C89CC29C2B05500720231 /* exhaleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = exhaleApp.swift; sourceTree = "<group>"; };
 		020C89CE29C2B05500720231 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -112,6 +114,7 @@
 				020C8A0129C3307100720231 /* SettingsView.swift */,
 				020C8A0329C3323F00720231 /* SettingsModel.swift */,
 				02775BB529C6311E00584F4B /* CustomMenu.swift */,
+				0208F33A29C75C0900CC6FAC /* types.swift */,
 			);
 			path = exhale;
 			sourceTree = "<group>";
@@ -277,6 +280,7 @@
 				02775BB629C6311E00584F4B /* CustomMenu.swift in Sources */,
 				020C89CF29C2B05500720231 /* ContentView.swift in Sources */,
 				020C89CD29C2B05500720231 /* exhaleApp.swift in Sources */,
+				0208F33B29C75C0900CC6FAC /* types.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

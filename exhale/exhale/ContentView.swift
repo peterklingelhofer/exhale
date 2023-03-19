@@ -9,15 +9,31 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var cycleCount: Int = 0
     
+    var maxCircleScale: CGFloat {
+        guard let screen = NSScreen.main else { return 1.0 }
+        let screenWidth = screen.frame.width
+        let screenHeight = screen.frame.height
+        let maxDimension = max(screenWidth, screenHeight)
+        return maxDimension / min(screenWidth, screenHeight)
+    }
+    
     var body: some View {
         ZStack {
             GeometryReader { geometry in
                 ZStack {
                     settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
-                    Rectangle()
-                        .fill(settingsModel.overlayColor)
-                        .frame(height: animationProgress * geometry.size.height)
-                        .position(x: geometry.size.width / 2, y: geometry.size.height - (animationProgress * geometry.size.height) / 2)
+                    
+                    if settingsModel.shape == .rectangle {
+                        Rectangle()
+                            .fill(settingsModel.overlayColor)
+                            .frame(height: animationProgress * geometry.size.height)
+                            .position(x: geometry.size.width / 2, y: geometry.size.height - (animationProgress * geometry.size.height) / 2)
+                    } else {
+                        Circle()
+                            .fill(settingsModel.overlayColor)
+                            .frame(width: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale, height: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale)
+                            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                    }
                 }
             }
             .edgesIgnoringSafeArea(.all)
@@ -32,7 +48,8 @@ struct ContentView: View {
                     exhaleDuration: $settingsModel.exhaleDuration,
                     postExhaleHoldDuration: $settingsModel.postExhaleHoldDuration,
                     drift: $settingsModel.drift,
-                    overlayOpacity: $overlayOpacity
+                    overlayOpacity: $overlayOpacity,
+                    shape: Binding<AnimationShape>(get: { self.settingsModel.shape }, set: { self.settingsModel.shape = $0 })
                 )
             }
         }
@@ -51,6 +68,9 @@ struct ContentView: View {
         withAnimation(.linear(duration: duration)) {
             breathingPhase = .inhale
             animationProgress = 1.0
+            if settingsModel.shape == .circle {
+                animationProgress = 1
+            }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             holdAfterInhale()
@@ -84,23 +104,6 @@ struct ContentView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             cycleCount += 1
             inhale()
-        }
-    }
-}
-
-enum BreathingPhase {
-    case inhale, holdAfterInhale, exhale, holdAfterExhale
-    
-    func duration(settingsModel: SettingsModel) -> TimeInterval {
-        switch self {
-        case .inhale:
-            return settingsModel.inhaleDuration
-        case .holdAfterInhale:
-            return settingsModel.postInhaleHoldDuration
-        case .exhale:
-            return settingsModel.exhaleDuration
-        case .holdAfterExhale:
-            return settingsModel.postExhaleHoldDuration
         }
     }
 }
