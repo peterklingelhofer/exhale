@@ -17,9 +17,30 @@ struct SettingsView: View {
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 2
         formatter.minimum = 0
+        formatter.maximum = 1
         formatter.usesGroupingSeparator = false
         return formatter
     }()
+    
+    let driftNumberFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 2
+        formatter.minimum = 0.5
+        formatter.usesGroupingSeparator = false
+        return formatter
+    }()
+    
+    private func validate(value: inout Double, formatter: NumberFormatter) {
+        if let minimum = formatter.minimum?.doubleValue,
+           value < minimum {
+            value = minimum
+        }
+        if let maximum = formatter.maximum?.doubleValue,
+           value > maximum {
+            value = maximum
+        }
+    }
     
     var body: some View {
         VStack {
@@ -68,9 +89,12 @@ struct SettingsView: View {
                             }
                             
                             HStack {
-                                Text("Drift (s)")
+                                Text("Drift")
                                 Spacer()
-                                TextField("", value: $drift, formatter: positiveNumberFormatter)
+                                TextField("", value: $drift, formatter: driftNumberFormatter)
+                                    .onChange(of: drift) { newValue in
+                                        validate(value: &drift, formatter: driftNumberFormatter)
+                                    }
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
                             }
@@ -79,6 +103,9 @@ struct SettingsView: View {
                                 Text("Overlay Opacity")
                                 Spacer()
                                 TextField("", value: $overlayOpacity, formatter: positiveNumberFormatter)
+                                    .onChange(of: overlayOpacity) { newValue in
+                                        validate(value: &overlayOpacity, formatter: positiveNumberFormatter)
+                                    }
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                                     .frame(width: 100)
                             }

@@ -45,7 +45,9 @@ struct ContentView: View {
     }
     
     func inhale() {
-        let duration = settingsModel.inhaleDuration * pow(settingsModel.drift, Double(cycleCount))
+        var duration = settingsModel.inhaleDuration * pow(settingsModel.drift, Double(cycleCount))
+        duration = max(duration, 0.5)
+        
         withAnimation(.linear(duration: duration)) {
             breathingPhase = .inhale
             animationProgress = 1.0
@@ -64,7 +66,9 @@ struct ContentView: View {
     }
     
     func exhale() {
-        let duration = settingsModel.exhaleDuration * pow(settingsModel.drift, Double(cycleCount))
+        var duration = settingsModel.exhaleDuration * pow(settingsModel.drift, Double(cycleCount))
+        duration = max(duration, 0.5)
+        
         withAnimation(.linear(duration: duration)) {
             breathingPhase = .exhale
             animationProgress = 0.0
