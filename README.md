@@ -9,6 +9,7 @@ Research indicates we blink less and breathe more shallowly when we are looking 
 ![exhaleElectron](https://user-images.githubusercontent.com/60944077/224524962-56da25cc-e3d9-4d4b-9171-f185be9d709c.gif)
 ![exhaleElectronCircular](https://user-images.githubusercontent.com/60944077/224865780-0e61721e-2345-49aa-830d-0e157b6f4366.gif)
 
+Note: This is the Linux and Windows implementation. macOS will build but it is not very performant and is far more CPU-intensive than the native Swift build.
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
@@ -41,9 +42,25 @@ Once added, you can modify all values from the **Local Storage** pane. Or, if yo
 <img width="371" alt="Screen Shot 2023-03-11 at 2 12 30 PM" src="https://user-images.githubusercontent.com/60944077/224511531-c0d615a1-1859-47b6-a78b-7d38276d80be.png">
 
 
+## Swift App Usage
+
+![circle-swift](https://user-images.githubusercontent.com/60944077/226204981-f390facc-4f6c-4bec-8784-23203aa64efc.gif)
+![rectangle-swift](https://user-images.githubusercontent.com/60944077/226204986-7522cb4d-7df1-4d65-96de-e629197e9854.gif)
+
+Note: This is the macOS implementation.
+
+```sh
+git clone https://github.com/peterklingelhofer/exhale.git
+cd exhale/exhale
+xed .
+```
+
+
 ## Python Script Usage
 
 ![exhalePython](https://user-images.githubusercontent.com/60944077/222979803-c88ebc65-b799-4ca7-b265-54beb27fcb00.gif)
+
+Note: This implementation seems to work well on Windows and macOS, but not Linux for some reason.
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
