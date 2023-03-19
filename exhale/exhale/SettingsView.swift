@@ -1,25 +1,31 @@
 //  SettingsView.swift
 import SwiftUI
 
+func validateValue(value: Double, minimumValue: Double, formatter: NumberFormatter) -> Double {
+    var updatedValue = value
+    if updatedValue < minimumValue {
+        updatedValue = minimumValue
+    }
+    if let maximum = formatter.maximum?.doubleValue,
+       updatedValue > maximum {
+        updatedValue = maximum
+    }
+    return updatedValue
+}
+
 struct TextFieldWithValidation: View {
     var title: String
     @Binding var value: Double
     var formatter: NumberFormatter
     var minimumValue: Double
-
+    
     var body: some View {
         HStack {
             Text(title)
             Spacer()
             TextField("", value: $value, formatter: formatter)
                 .onChange(of: value) { newValue in
-                    if value < minimumValue {
-                        value = minimumValue
-                    }
-                    if let maximum = formatter.maximum?.doubleValue,
-                       value > maximum {
-                        value = maximum
-                    }
+                    value = validateValue(value: newValue, minimumValue: minimumValue, formatter: formatter)
                 }
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .frame(width: 100)
