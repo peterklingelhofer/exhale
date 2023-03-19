@@ -24,13 +24,15 @@ struct ContentView: View {
                     settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
                     
                     if settingsModel.shape == .rectangle {
+                        let gradient = LinearGradient(gradient: Gradient(colors: [settingsModel.overlayColor, settingsModel.backgroundColor]), startPoint: .top, endPoint: .bottom)
                         Rectangle()
-                            .fill(settingsModel.overlayColor)
+                            .fill(gradient)
                             .frame(height: animationProgress * geometry.size.height)
                             .position(x: geometry.size.width / 2, y: geometry.size.height - (animationProgress * geometry.size.height) / 2)
                     } else {
+                        let gradient = RadialGradient(gradient: Gradient(colors: [settingsModel.backgroundColor, settingsModel.overlayColor]), center: .center, startRadius: 0, endRadius: (min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale) / 2)
                         Circle()
-                            .fill(settingsModel.overlayColor)
+                            .fill(gradient)
                             .frame(width: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale, height: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale)
                             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
                     }
