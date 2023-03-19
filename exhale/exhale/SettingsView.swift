@@ -37,6 +37,7 @@ struct SettingsView: View {
     @Binding var showSettings: Bool
     @Binding var overlayColor: Color
     @Binding var backgroundColor: Color
+    @Binding var colorFillType: ColorFillType
     @Binding var inhaleDuration: Double
     @Binding var postInhaleHoldDuration: Double
     @Binding var exhaleDuration: Double
@@ -71,6 +72,20 @@ struct SettingsView: View {
                             
                             ColorPicker("Background Color", selection: $backgroundColor, supportsOpacity: false)
                             
+                            Picker("Gradient Type", selection: $colorFillType) {
+                                ForEach(ColorFillType.allCases) { type in
+                                    Text(type.rawValue).tag(type)
+                                }
+                            }
+                            .pickerStyle(MenuPickerStyle())
+                            
+                            Picker("Shape", selection: $shape) {
+                                ForEach(AnimationShape.allCases, id: \.self) { shape in
+                                    Text(shape.rawValue).tag(shape)
+                                }
+                            }
+                            .pickerStyle(MenuPickerStyle())
+                            
                             TextFieldWithValidation(title: "Inhale Duration (s)", value: $inhaleDuration, formatter: createNumberFormatter(minimumValue: 0.5), minimumValue: 0.5)
                             
                             TextFieldWithValidation(title: "Post-Inhale Hold (s)", value: $postInhaleHoldDuration, formatter: createNumberFormatter(minimumValue: 0), minimumValue: 0)
@@ -82,13 +97,6 @@ struct SettingsView: View {
                             TextFieldWithValidation(title: "Drift", value: $drift, formatter: createNumberFormatter(minimumValue: 0.5), minimumValue: 0.5)
                             
                             TextFieldWithValidation(title: "Overlay Opacity", value: $overlayOpacity, formatter: createNumberFormatter(minimumValue: 0, maximumValue: 1), minimumValue: 0)
-                            
-                            Picker("Shape", selection: $shape) {
-                                ForEach(AnimationShape.allCases, id: \.self) { shape in
-                                    Text(shape.rawValue).tag(shape)
-                                }
-                            }
-                            .pickerStyle(MenuPickerStyle())
                         }
                         .foregroundColor(.white)
                         .padding(.horizontal)

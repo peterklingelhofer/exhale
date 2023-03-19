@@ -24,3 +24,10 @@ enum AnimationShape: String, CaseIterable, Identifiable {
     
     var id: String { self.rawValue }
 }
+
+enum ColorFillType: String, CaseIterable, Identifiable {
+    case linear = "Linear Gradient"
+    case constant = "Constant"
+
+    var id: String { rawValue }
+}

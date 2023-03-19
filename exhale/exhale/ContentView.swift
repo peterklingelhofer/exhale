@@ -1,6 +1,18 @@
 // ContentView.swift
 import SwiftUI
 
+extension Shape {
+    func conditionalFill<S1: ShapeStyle, S2: ShapeStyle>(_ condition: Bool, ifTrue: S1, ifFalse: S2) -> some View {
+        Group {
+            if condition {
+                self.fill(ifTrue)
+            } else {
+                self.fill(ifFalse)
+            }
+        }
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject var settingsModel: SettingsModel
     @State private var animationProgress: CGFloat = 0
@@ -22,17 +34,16 @@ struct ContentView: View {
             GeometryReader { geometry in
                 ZStack {
                     settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
-                    
                     if settingsModel.shape == .rectangle {
                         let gradient = LinearGradient(gradient: Gradient(colors: [settingsModel.overlayColor, settingsModel.backgroundColor]), startPoint: .top, endPoint: .bottom)
                         Rectangle()
-                            .fill(gradient)
+                            .conditionalFill(settingsModel.colorFillType == .linear, ifTrue: gradient, ifFalse: settingsModel.overlayColor) // Fixed line
                             .frame(height: animationProgress * geometry.size.height)
                             .position(x: geometry.size.width / 2, y: geometry.size.height - (animationProgress * geometry.size.height) / 2)
                     } else {
                         let gradient = RadialGradient(gradient: Gradient(colors: [settingsModel.backgroundColor, settingsModel.overlayColor]), center: .center, startRadius: 0, endRadius: (min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale) / 2)
                         Circle()
-                            .fill(gradient)
+                            .conditionalFill(settingsModel.colorFillType == .linear, ifTrue: gradient, ifFalse: settingsModel.overlayColor) // Fixed line
                             .frame(width: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale, height: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale)
                             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
                     }
@@ -45,6 +56,7 @@ struct ContentView: View {
                     showSettings: $showSettings,
                     overlayColor: $settingsModel.overlayColor,
                     backgroundColor: $settingsModel.backgroundColor,
+                    colorFillType: $settingsModel.colorFillType,
                     inhaleDuration: $settingsModel.inhaleDuration,
                     postInhaleHoldDuration: $settingsModel.postInhaleHoldDuration,
                     exhaleDuration: $settingsModel.exhaleDuration,
