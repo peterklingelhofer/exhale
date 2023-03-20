@@ -1,6 +1,21 @@
 //  types.swift
 import SwiftUI
 
+
+enum AnimationMode: String, CaseIterable, Identifiable {
+    case linear = "Linear"
+    case sinusoidal = "Sinusoidal"
+    
+    var id: String { self.rawValue }
+}
+
+enum AnimationShape: String, CaseIterable, Identifiable {
+    case rectangle = "Rectangle"
+    case circle = "Circle"
+    
+    var id: String { self.rawValue }
+}
+
 enum BreathingPhase {
     case inhale, holdAfterInhale, exhale, holdAfterExhale
     
@@ -16,13 +31,6 @@ enum BreathingPhase {
             return settingsModel.postExhaleHoldDuration
         }
     }
-}
-
-enum AnimationShape: String, CaseIterable, Identifiable {
-    case rectangle = "Rectangle"
-    case circle = "Circle"
-    
-    var id: String { self.rawValue }
 }
 
 enum ColorFillType: String, CaseIterable, Identifiable {

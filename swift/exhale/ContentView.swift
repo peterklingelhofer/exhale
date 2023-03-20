@@ -63,7 +63,7 @@ struct ContentView: View {
                     postExhaleHoldDuration: $settingsModel.postExhaleHoldDuration,
                     drift: $settingsModel.drift,
                     overlayOpacity: $overlayOpacity,
-                    shape: Binding<AnimationShape>(get: { self.settingsModel.shape }, set: { self.settingsModel.shape = $0 })
+                    shape: Binding<AnimationShape>(get: { self.settingsModel.shape }, set: { self.settingsModel.shape = $0 }), animationMode: Binding<AnimationMode>(get: { self.settingsModel.animationMode }, set: { self.settingsModel.animationMode = $0 })
                 )
             }
         }
@@ -78,8 +78,10 @@ struct ContentView: View {
     func inhale() {
         var duration = settingsModel.inhaleDuration * pow(settingsModel.drift, Double(cycleCount))
         duration = max(duration, 0.5)
-        
-        withAnimation(.linear(duration: duration)) {
+
+        let animation: Animation = settingsModel.animationMode == .linear ? .linear(duration: duration) : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
+
+        withAnimation(animation) {
             breathingPhase = .inhale
             animationProgress = 1.0
             if settingsModel.shape == .circle {
@@ -98,12 +100,14 @@ struct ContentView: View {
             exhale()
         }
     }
-    
+
     func exhale() {
         var duration = settingsModel.exhaleDuration * pow(settingsModel.drift, Double(cycleCount))
         duration = max(duration, 0.5)
-        
-        withAnimation(.linear(duration: duration)) {
+
+        let animation: Animation = settingsModel.animationMode == .linear ? .linear(duration: duration) : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
+
+        withAnimation(animation) {
             breathingPhase = .exhale
             animationProgress = 0.0
         }
@@ -111,6 +115,7 @@ struct ContentView: View {
             holdAfterExhale()
         }
     }
+
     
     func holdAfterExhale() {
         let duration = settingsModel.postExhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))

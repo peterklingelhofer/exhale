@@ -10,7 +10,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var overlayColorSubscription: AnyCancellable?
     var overlayOpacitySubscription: AnyCancellable?
     var subscriptions = Set<AnyCancellable>()
-
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         let screenSize = NSScreen.main?.frame.size ?? CGSize(width: 800, height: 600)
         settingsModel = SettingsModel()
@@ -21,14 +21,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-
+        
         window.contentView = NSHostingView(rootView: ContentView().environmentObject(settingsModel))
         window.makeKeyAndOrderFront(nil)
         window.level = .floating
         window.alphaValue = CGFloat(settingsModel.overlayOpacity)
         window.isOpaque = false
         window.ignoresMouseEvents = true
-
+        
         overlayColorSubscription = settingsModel.$overlayColor.sink { newColor in
             self.window.backgroundColor = NSColor(newColor)
         }
@@ -41,7 +41,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         settingsModel.objectWillChange.sink {
             self.reloadContentView()
         }.store(in: &subscriptions)
-
+        
         reloadContentView()
         
         settingsWindow = NSWindow(
@@ -50,7 +50,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-
+        
         settingsWindow.contentView = NSHostingView(rootView: SettingsView(
             showSettings: .constant(false),
             overlayColor: Binding(get: { self.settingsModel.overlayColor }, set: { self.settingsModel.overlayColor = $0 }),
@@ -62,13 +62,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             postExhaleHoldDuration: Binding(get: { self.settingsModel.postExhaleHoldDuration }, set: { self.settingsModel.postExhaleHoldDuration = $0 }),
             drift: Binding(get: { self.settingsModel.drift }, set: { self.settingsModel.drift = $0 }),
             overlayOpacity: Binding(get: { self.settingsModel.overlayOpacity }, set: { self.settingsModel.overlayOpacity = $0 }),
-            shape: Binding<AnimationShape>(get: { self.settingsModel.shape }, set: { self.settingsModel.shape = $0 })
+            shape: Binding<AnimationShape>(get: { self.settingsModel.shape }, set: { self.settingsModel.shape = $0 }),
+            animationMode: Binding<AnimationMode>(get: { self.settingsModel.animationMode }, set: { self.settingsModel.animationMode = $0 })
         ).environmentObject(settingsModel))
-
+        
         settingsWindow.title = "Preferences"
         showSettings(nil)
     }
-
+    
     func applicationWillTerminate(_ notification: Notification) {
         // Insert code here to tear down your application
     }
