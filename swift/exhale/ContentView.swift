@@ -35,15 +35,17 @@ struct ContentView: View {
                 ZStack {
                     settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
                     if settingsModel.shape == .rectangle {
-                        let gradient = LinearGradient(gradient: Gradient(colors: [settingsModel.overlayColor, settingsModel.backgroundColor]), startPoint: .top, endPoint: .bottom)
+                        let fillColor = breathingPhase == .inhale || breathingPhase == .holdAfterInhale ? settingsModel.inhaleColor : settingsModel.exhaleColor
+                        let gradient = LinearGradient(gradient: Gradient(colors: [fillColor, settingsModel.backgroundColor]), startPoint: .top, endPoint: .bottom)
                         Rectangle()
-                            .conditionalFill(settingsModel.colorFillType == .linear, ifTrue: gradient, ifFalse: settingsModel.overlayColor) // Fixed line
+                            .conditionalFill(settingsModel.colorFillType == .linear, ifTrue: gradient, ifFalse: fillColor)
                             .frame(height: animationProgress * geometry.size.height)
                             .position(x: geometry.size.width / 2, y: geometry.size.height - (animationProgress * geometry.size.height) / 2)
                     } else {
-                        let gradient = RadialGradient(gradient: Gradient(colors: [settingsModel.backgroundColor, settingsModel.overlayColor]), center: .center, startRadius: 0, endRadius: (min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale) / 2)
+                        let fillColor = breathingPhase == .inhale || breathingPhase == .holdAfterInhale ? settingsModel.inhaleColor : settingsModel.exhaleColor
+                        let gradient = RadialGradient(gradient: Gradient(colors: [settingsModel.backgroundColor, fillColor]), center: .center, startRadius: 0, endRadius: (min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale) / 2)
                         Circle()
-                            .conditionalFill(settingsModel.colorFillType == .linear, ifTrue: gradient, ifFalse: settingsModel.overlayColor) // Fixed line
+                            .conditionalFill(settingsModel.colorFillType == .linear, ifTrue: gradient, ifFalse: fillColor)
                             .frame(width: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale, height: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale)
                             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
                     }
@@ -54,7 +56,8 @@ struct ContentView: View {
             if showSettings {
                 SettingsView(
                     showSettings: $showSettings,
-                    overlayColor: $settingsModel.overlayColor,
+                    inhaleColor: $settingsModel.inhaleColor,
+                    exhaleColor: $settingsModel.exhaleColor,
                     backgroundColor: $settingsModel.backgroundColor,
                     colorFillType: $settingsModel.colorFillType,
                     inhaleDuration: $settingsModel.inhaleDuration,

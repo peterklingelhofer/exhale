@@ -47,7 +47,8 @@ func createNumberFormatter(limits: (min: Double, max: Double?)) -> NumberFormatt
 
 struct SettingsView: View {
     @Binding var showSettings: Bool
-    @Binding var overlayColor: Color
+    @Binding var inhaleColor: Color
+    @Binding var exhaleColor: Color
     @Binding var backgroundColor: Color
     @Binding var colorFillType: ColorFillType
     @Binding var inhaleDuration: Double
@@ -70,7 +71,9 @@ struct SettingsView: View {
                     Form {
                         HStack {
                             VStack {
-                                ColorPicker("Overlay Color", selection: $overlayColor, supportsOpacity: false)
+                                ColorPicker("Inhale Color", selection: $inhaleColor, supportsOpacity: false)
+                                
+                                ColorPicker("Exhale Color", selection: $exhaleColor, supportsOpacity: false)
                                 
                                 ColorPicker("Background Color", selection: $backgroundColor, supportsOpacity: false)
                                 

@@ -3,11 +3,8 @@ import SwiftUI
 
 class SettingsModel: ObservableObject {
     @Published var backgroundColor: Color = Color.black
-    @Published var overlayColor: Color = Color(
-        red: 1,
-        green: 0,
-        blue: 0
-    )
+    @Published var inhaleColor: Color = Color(red: 1, green: 0, blue: 0)
+    @Published var exhaleColor: Color = Color(red: 0, green: 0, blue: 1)
     @Published var colorFillType: ColorFillType = .linear
     @Published var inhaleDuration: TimeInterval = 5
     @Published var postInhaleHoldDuration: TimeInterval = 0

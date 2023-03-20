@@ -7,7 +7,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     var settingsWindow: NSWindow!
     var settingsModel = SettingsModel()
-    var overlayColorSubscription: AnyCancellable?
+    var inhaleColorSubscription: AnyCancellable?
+    var exhaleColorSubscription: AnyCancellable?
     var overlayOpacitySubscription: AnyCancellable?
     var subscriptions = Set<AnyCancellable>()
     
@@ -29,7 +30,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.isOpaque = false
         window.ignoresMouseEvents = true
         
-        overlayColorSubscription = settingsModel.$overlayColor.sink { newColor in
+        inhaleColorSubscription = settingsModel.$inhaleColor.sink { newColor in
+            self.window.backgroundColor = NSColor(newColor)
+        }
+        
+        exhaleColorSubscription = settingsModel.$exhaleColor.sink { newColor in
             self.window.backgroundColor = NSColor(newColor)
         }
         
@@ -53,7 +58,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         settingsWindow.contentView = NSHostingView(rootView: SettingsView(
             showSettings: .constant(false),
-            overlayColor: Binding(get: { self.settingsModel.overlayColor }, set: { self.settingsModel.overlayColor = $0 }),
+            inhaleColor: Binding(get: { self.settingsModel.inhaleColor }, set: { self.settingsModel.inhaleColor = $0 }),
+            exhaleColor: Binding(get: { self.settingsModel.exhaleColor }, set: { self.settingsModel.exhaleColor = $0 }),
             backgroundColor: Binding(get: { self.settingsModel.backgroundColor }, set: { self.settingsModel.backgroundColor = $0 }),
             colorFillType: Binding(get: { self.settingsModel.colorFillType }, set: { self.settingsModel.colorFillType = $0 }),
             inhaleDuration: Binding(get: { self.settingsModel.inhaleDuration }, set: { self.settingsModel.inhaleDuration = $0 }),
