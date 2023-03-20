@@ -14,6 +14,7 @@ Note: This is the Linux and Windows implementation. macOS will build but it is n
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
 cd exhale
+cd electron
 yarn
 yarn start
 ```
@@ -25,7 +26,7 @@ yarn run watch
 ```
 
 Modify settings by going to **Application** (found in the top right via `>>`) > **Local Storage**. Use <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd> or <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd>to open and close these Developer Tools to [access and modify these settings](https://developer.chrome.com/docs/devtools/storage/localstorage/#edit), and <kbd>Ctrl</kbd> + <kbd>R</kbd> or <kbd>Cmd</kbd> + <kbd>R</kbd> to refresh the app to use your newly selected settings. If no settings appear on the first run of the application, you can manually add them), following the format of the `storedValues` variable in [`/src/renderer.ts`](https://github.com/peterklingelhofer/exhale/blob/main/src/renderer.ts). To add them manually, go to the **Console** and copy paste the following code into the console and press <kbd>Enter</kbd> or <kbd>Return</kbd> to populate your `localStorage` (these are the defaults as of the time of writing):
-```js
+```ts
 localStorage = {
   colorExhale = "rgb(0, 221, 255)",
   colorInhale = "rgb(168, 50, 150)",
@@ -53,7 +54,8 @@ Note: This is the macOS implementation.
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
-cd exhale/exhale
+cd exhale
+cd swift
 xed .
 ```
 
@@ -67,6 +69,7 @@ Note: This implementation seems to work well on Windows and macOS, but not Linux
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
 cd exhale
+cd python
 python main.py
 ```
 
