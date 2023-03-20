@@ -7,7 +7,7 @@
     "watch": "tsc -w",
     "lint": "eslint -c .eslintrc --ext .ts ./src",
     "start": "yarn run build && electron ./dist/main.js",
-    "dist": "npx electron-packager . --platform=darwin,win32",
+    "dist": "npx electron-packager . --platform=darwin,linux,win32",
     "dist:linux": "npx electron-packager . --platform=linux",
     "dist:mac": "npx electron-packager . --platform=darwin",
     "dist:windows": "npx electron-packager . --platform=win32"
