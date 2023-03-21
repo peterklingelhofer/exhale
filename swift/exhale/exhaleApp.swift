@@ -3,7 +3,7 @@ import SwiftUI
 
 @main
 struct exhaleApp: App {
-    @StateObject private var settingsModel = SettingsModel()
+    @ObservedObject private var settingsModel = SettingsModel()
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     init() {
