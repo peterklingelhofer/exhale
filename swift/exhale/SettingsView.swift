@@ -36,7 +36,7 @@ struct TextFieldWithValidation: View {
 func createNumberFormatter(limits: (min: Double, max: Double?)) -> NumberFormatter {
     let formatter = NumberFormatter()
     formatter.numberStyle = .decimal
-    formatter.maximumFractionDigits = 2
+    formatter.maximumFractionDigits = 3
     formatter.minimum = NSNumber(value: limits.min)
     if let max = limits.max {
         formatter.maximum = NSNumber(value: max)
@@ -59,6 +59,8 @@ struct SettingsView: View {
     @Binding var overlayOpacity: Double
     @Binding var shape: AnimationShape
     @Binding var animationMode: AnimationMode
+    private let labelWidth: CGFloat = 130
+    private let controlWidth: CGFloat = 150
     
     var body: some View {
         VStack {
@@ -70,33 +72,75 @@ struct SettingsView: View {
                 VStack {
                     Form {
                         HStack {
-                            VStack {
-                                ColorPicker("Inhale Color", selection: $inhaleColor, supportsOpacity: false)
-                                
-                                ColorPicker("Exhale Color", selection: $exhaleColor, supportsOpacity: false)
-                                
-                                ColorPicker("Background Color", selection: $backgroundColor, supportsOpacity: false)
-                                
-                                Picker("Gradient Type", selection: $colorFillType) {
-                                    ForEach(ColorFillType.allCases) { type in
-                                        Text(type.rawValue).tag(type)
-                                    }
+                            VStack(alignment: .leading) {
+                                HStack {
+                                    Text("Inhale Color")
+                                        .frame(width: labelWidth, alignment: .leading)
+                                    
+                                    ColorPicker("", selection: $inhaleColor, supportsOpacity: false)
+                                        .labelsHidden()
+                                        .frame(alignment: .trailing)
                                 }
-                                .pickerStyle(MenuPickerStyle())
                                 
-                                Picker("Shape", selection: $shape) {
-                                    ForEach(AnimationShape.allCases, id: \.self) { shape in
-                                        Text(shape.rawValue).tag(shape)
-                                    }
+                                HStack {
+                                    Text("Exhale Color")
+                                        .frame(width: labelWidth, alignment: .leading)
+                                    
+                                    ColorPicker("", selection: $exhaleColor, supportsOpacity: false)
+                                        .labelsHidden()
+                                        .frame(alignment: .trailing)
                                 }
-                                .pickerStyle(MenuPickerStyle())
                                 
-                                Picker("Animation Mode", selection: $animationMode) {
-                                    ForEach(AnimationMode.allCases) { mode in
-                                        Text(mode.rawValue).tag(mode)
-                                    }
+                                HStack {
+                                    Text("Background Color")
+                                        .frame(width: labelWidth, alignment: .leading)
+                                    
+                                    ColorPicker("", selection: $backgroundColor, supportsOpacity: false)
+                                        .labelsHidden()
+                                        .frame(alignment: .trailing)
                                 }
-                                .pickerStyle(MenuPickerStyle())
+                                
+                                HStack {
+                                    Text("Gradient Type")
+                                        .frame(width: labelWidth, alignment: .leading)
+                                    
+                                    Picker("", selection: $colorFillType) {
+                                        ForEach(ColorFillType.allCases) { type in
+                                            Text(type.rawValue).tag(type)
+                                        }
+                                    }
+                                    .pickerStyle(MenuPickerStyle())
+                                    .frame(width: controlWidth)
+                                    .labelsHidden()
+                                }
+                                
+                                HStack {
+                                    Text("Shape")
+                                        .frame(width: labelWidth, alignment: .leading)
+                                    
+                                    Picker("", selection: $shape) {
+                                        ForEach(AnimationShape.allCases, id: \.self) { shape in
+                                            Text(shape.rawValue).tag(shape)
+                                        }
+                                    }
+                                    .pickerStyle(MenuPickerStyle())
+                                    .frame(width: controlWidth)
+                                    .labelsHidden()
+                                }
+                                
+                                HStack {
+                                    Text("Animation Mode")
+                                        .frame(width: labelWidth, alignment: .leading)
+                                    
+                                    Picker("", selection: $animationMode) {
+                                        ForEach(AnimationMode.allCases) { mode in
+                                            Text(mode.rawValue).tag(mode)
+                                        }
+                                    }
+                                    .pickerStyle(MenuPickerStyle())
+                                    .frame(width: controlWidth)
+                                    .labelsHidden()
+                                }
                             }
                             
                             VStack {
@@ -115,18 +159,12 @@ struct SettingsView: View {
                         }
                     }
                 }
-                .foregroundColor(.white)
                 .padding()
-                .background(Color.black.opacity(0.9))
-                .cornerRadius(10)
-                .shadow(radius: 10)
-                .frame(width: 600)
                 
                 Spacer()
             }
             
             Spacer()
         }
-        .padding(.top)
     }
 }

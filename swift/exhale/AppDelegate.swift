@@ -25,7 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         window.contentView = NSHostingView(rootView: ContentView().environmentObject(settingsModel))
         window.makeKeyAndOrderFront(nil)
-        window.level = .floating
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 1) // Window level in front of the menu bar
         window.alphaValue = CGFloat(settingsModel.overlayOpacity)
         window.isOpaque = false
         window.ignoresMouseEvents = true
@@ -50,8 +50,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         reloadContentView()
         
         settingsWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 300),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 200),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -73,7 +73,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             animationMode: Binding<AnimationMode>(get: { self.settingsModel.animationMode }, set: { self.settingsModel.animationMode = $0 })
         ).environmentObject(settingsModel))
         
-        settingsWindow.title = "Preferences"
+        settingsWindow.title = "exhale"
         showSettings(nil)
     }
     
