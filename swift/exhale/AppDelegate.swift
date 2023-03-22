@@ -3,7 +3,7 @@ import Cocoa
 import Combine
 import SwiftUI
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var window: NSWindow!
     var settingsWindow: NSWindow!
     var settingsModel = SettingsModel()
@@ -56,6 +56,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         
+        settingsWindow.delegate = self
         settingsWindow.contentView = NSHostingView(rootView: SettingsView(
             showSettings: .constant(false),
             inhaleColor: Binding(get: { self.settingsModel.inhaleColor }, set: { self.settingsModel.inhaleColor = $0 }),
@@ -89,5 +90,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func reloadContentView() {
         let contentView = ContentView().environmentObject(settingsModel)
         self.window.contentView = NSHostingView(rootView: contentView)
+    }
+    
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if sender == settingsWindow {
+            settingsWindow.orderOut(sender)
+            return false
+        }
+        return true
     }
 }
