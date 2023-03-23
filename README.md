@@ -49,6 +49,8 @@ Once added, you can modify all values from the **Local Storage** pane. Or, if yo
 
 ![circle-swift](https://user-images.githubusercontent.com/60944077/226204981-f390facc-4f6c-4bec-8784-23203aa64efc.gif)
 ![rectangle-swift](https://user-images.githubusercontent.com/60944077/226204986-7522cb4d-7df1-4d65-96de-e629197e9854.gif)
+<img width="600" alt="Screen Shot 2023-03-22 at 8 54 17 PM" src="https://user-images.githubusercontent.com/60944077/227079185-fb5d5fc3-e966-4488-a68b-8dc799651a02.png">
+
 
 Note: This is the macOS implementation.
 
