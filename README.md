@@ -4,7 +4,7 @@
 
 Research indicates we blink less and breathe more shallowly when we are looking at screens. This app is intended as a friendly indicator and reminder to continue to take full and deep breaths.
 
-## Electron Usage
+## TypeScript / Electron Usage
 
 ![exhaleElectron](https://user-images.githubusercontent.com/60944077/224524962-56da25cc-e3d9-4d4b-9171-f185be9d709c.gif)
 ![exhaleElectronCircular](https://user-images.githubusercontent.com/60944077/224865780-0e61721e-2345-49aa-830d-0e157b6f4366.gif)
@@ -14,7 +14,7 @@ Note: This is the Linux and Windows implementation. macOS will build but it is n
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
 cd exhale
-cd electron
+cd typescript
 yarn
 yarn start
 ```
