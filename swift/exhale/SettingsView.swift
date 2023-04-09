@@ -46,6 +46,7 @@ func createNumberFormatter(limits: (min: Double, max: Double?)) -> NumberFormatt
 }
 
 struct SettingsView: View {
+    @EnvironmentObject var settingsModel: SettingsModel
     @Binding var showSettings: Bool
     @Binding var inhaleColor: Color
     @Binding var exhaleColor: Color
@@ -104,7 +105,7 @@ struct SettingsView: View {
                                     Text("Gradient Type")
                                         .frame(width: labelWidth, alignment: .leading)
                                     
-                                    Picker("", selection: $colorFillType) {
+                                    Picker("Gradient Type", selection: $colorFillType) {
                                         ForEach(ColorFillType.allCases) { type in
                                             Text(type.rawValue).tag(type)
                                         }
@@ -118,7 +119,7 @@ struct SettingsView: View {
                                     Text("Shape")
                                         .frame(width: labelWidth, alignment: .leading)
                                     
-                                    Picker("", selection: $shape) {
+                                    Picker("Shape", selection: $shape) {
                                         ForEach(AnimationShape.allCases, id: \.self) { shape in
                                             Text(shape.rawValue).tag(shape)
                                         }
@@ -132,7 +133,7 @@ struct SettingsView: View {
                                     Text("Animation Mode")
                                         .frame(width: labelWidth, alignment: .leading)
                                     
-                                    Picker("", selection: $animationMode) {
+                                    Picker("Animation Mode", selection: $animationMode) {
                                         ForEach(AnimationMode.allCases) { mode in
                                             Text(mode.rawValue).tag(mode)
                                         }
