@@ -18,10 +18,13 @@ struct exhaleApp: App {
             CommandGroup(replacing: .appSettings) {
                 Button("Preferences...") {
                     appDelegate.showSettings(nil)
-                }.keyboardShortcut(",", modifiers: .command)
+                }
+                .environmentObject(settingsModel)
+                .keyboardShortcut(",", modifiers: .command)
                 Button("Quit exhale") {
                     NSApp.terminate(nil)
-                }.keyboardShortcut("q", modifiers: .command)
+                }
+                .keyboardShortcut("q", modifiers: .command)
             }
         }
     }
