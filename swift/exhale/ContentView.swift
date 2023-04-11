@@ -5,12 +5,12 @@ extension Color {
     func interpolate(to color: Color, fraction: Double) -> Color {
         let fromComponents = self.cgColor?.components ?? [0, 0, 0, 0]
         let toComponents = color.cgColor?.components ?? [0, 0, 0, 0]
-
+        
         let red = CGFloat(fromComponents[0] + (toComponents[0] - fromComponents[0]) * CGFloat(fraction))
         let green = CGFloat(fromComponents[1] + (toComponents[1] - fromComponents[1]) * CGFloat(fraction))
         let blue = CGFloat(fromComponents[2] + (toComponents[2] - fromComponents[2]) * CGFloat(fraction))
         let alpha = CGFloat(fromComponents[3] + (toComponents[3] - fromComponents[3]) * CGFloat(fraction))
-
+        
         return Color(red: red, green: green, blue: blue, opacity: alpha)
     }
 }
@@ -48,7 +48,6 @@ extension Shape {
     }
 }
 
-
 struct ContentView: View {
     @EnvironmentObject var settingsModel: SettingsModel
     @State private var animationProgress: CGFloat = 0
@@ -66,26 +65,30 @@ struct ContentView: View {
     }
     
     var body: some View {
-            ZStack {
-                GeometryReader { geometry in
-                    ZStack {
-                        settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
-                        
-                        if settingsModel.shape == .rectangle {
-                            Rectangle()
-                                .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase)
-                                .frame(height: geometry.size.height)
-                                .scaleEffect(y: animationProgress, anchor: .bottom)
-                                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                        } else {
-                            Circle()
-                                .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase, endRadius: (min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale) / 2)
-                                .frame(width: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale, height: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale)
-                                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                        }
+        ZStack {
+            GeometryReader { geometry in
+                ZStack {
+                    settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
+                    
+                    if settingsModel.shape == .rectangle {
+                        Rectangle()
+                            .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase)
+                            .frame(height: geometry.size.height)
+                            .scaleEffect(y: animationProgress, anchor: .bottom)
+                            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                    } else if settingsModel.shape == .circle {
+                        Circle()
+                            .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase, endRadius: (min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale) / 2)
+                            .frame(width: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale, height: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale)
+                            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                    } else if settingsModel.shape == .fullscreen {
+                        Rectangle()
+                            .fill(settingsModel.colorTransitionEnabled ? settingsModel.inhaleColor.interpolate(to: settingsModel.exhaleColor, fraction: Double(animationProgress)) : (breathingPhase == .inhale || breathingPhase == .holdAfterInhale) ? settingsModel.inhaleColor : settingsModel.exhaleColor)
+                            .edgesIgnoringSafeArea(.all)
                     }
                 }
-                .edgesIgnoringSafeArea(.all)
+            }
+            .edgesIgnoringSafeArea(.all)
             
             if showSettings {
                 SettingsView(
@@ -115,9 +118,9 @@ struct ContentView: View {
     func inhale() {
         var duration = settingsModel.inhaleDuration * pow(settingsModel.drift, Double(cycleCount))
         duration = max(duration, 0.5)
-
+        
         let animation: Animation = settingsModel.animationMode == .linear ? .linear(duration: duration) : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
-
+        
         withAnimation(animation) {
             breathingPhase = .inhale
             animationProgress = 1.0
@@ -137,13 +140,13 @@ struct ContentView: View {
             exhale()
         }
     }
-
+    
     func exhale() {
         var duration = settingsModel.exhaleDuration * pow(settingsModel.drift, Double(cycleCount))
         duration = max(duration, 0.5)
-
+        
         let animation: Animation = settingsModel.animationMode == .linear ? .linear(duration: duration) : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
-
+        
         withAnimation(animation) {
             breathingPhase = .exhale
             animationProgress = 0.0
@@ -152,7 +155,7 @@ struct ContentView: View {
             holdAfterExhale()
         }
     }
-
+    
     
     func holdAfterExhale() {
         let duration = settingsModel.postExhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))

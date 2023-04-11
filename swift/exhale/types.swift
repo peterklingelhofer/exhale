@@ -12,6 +12,7 @@ enum AnimationMode: String, CaseIterable, Identifiable {
 enum AnimationShape: String, CaseIterable, Identifiable {
     case rectangle = "Rectangle"
     case circle = "Circle"
+    case fullscreen = "Fullscreen"
     
     var id: String { self.rawValue }
 }
