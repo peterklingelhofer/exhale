@@ -1,17 +1,53 @@
 // ContentView.swift
 import SwiftUI
 
+extension Color {
+    func interpolate(to color: Color, fraction: Double) -> Color {
+        let fromComponents = self.cgColor?.components ?? [0, 0, 0, 0]
+        let toComponents = color.cgColor?.components ?? [0, 0, 0, 0]
+
+        let red = CGFloat(fromComponents[0] + (toComponents[0] - fromComponents[0]) * CGFloat(fraction))
+        let green = CGFloat(fromComponents[1] + (toComponents[1] - fromComponents[1]) * CGFloat(fraction))
+        let blue = CGFloat(fromComponents[2] + (toComponents[2] - fromComponents[2]) * CGFloat(fraction))
+        let alpha = CGFloat(fromComponents[3] + (toComponents[3] - fromComponents[3]) * CGFloat(fraction))
+
+        return Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+}
+
 extension Shape {
-    func conditionalFill<S1: ShapeStyle, S2: ShapeStyle>(_ condition: Bool, ifTrue: S1, ifFalse: S2) -> some View {
-        Group {
-            if condition {
-                self.fill(ifTrue)
+    @ViewBuilder
+    func colorTransitionFill(settingsModel: SettingsModel, animationProgress: CGFloat, breathingPhase: BreathingPhase, endRadius: CGFloat = 0) -> some View {
+        let isInhalePhase = breathingPhase == .inhale || breathingPhase == .holdAfterInhale
+        let lastColor = isInhalePhase ? settingsModel.inhaleColor : settingsModel.exhaleColor
+        let nextColor = isInhalePhase ? settingsModel.exhaleColor : settingsModel.inhaleColor
+        let startingColor = isInhalePhase ? settingsModel.exhaleColor : settingsModel.inhaleColor
+        let transitionFraction = breathingPhase == .exhale ? Double(1 - animationProgress) : Double(animationProgress)
+        let finalColor = settingsModel.colorTransitionEnabled ? startingColor.interpolate(to: nextColor, fraction: transitionFraction) : lastColor
+        
+        if settingsModel.colorFillType != .constant {
+            if settingsModel.shape == .rectangle {
+                let gradient = LinearGradient(
+                    gradient: Gradient(colors: [finalColor, settingsModel.backgroundColor]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                self.fill(gradient)
             } else {
-                self.fill(ifFalse)
+                let gradient = RadialGradient(
+                    gradient: Gradient(colors: [settingsModel.backgroundColor, finalColor]),
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: endRadius
+                )
+                self.fill(gradient)
             }
+        } else {
+            self.fill(finalColor)
         }
     }
 }
+
 
 struct ContentView: View {
     @EnvironmentObject var settingsModel: SettingsModel
@@ -30,28 +66,26 @@ struct ContentView: View {
     }
     
     var body: some View {
-        ZStack {
-            GeometryReader { geometry in
-                ZStack {
-                    settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
-                    if settingsModel.shape == .rectangle {
-                        let fillColor = breathingPhase == .inhale || breathingPhase == .holdAfterInhale ? settingsModel.inhaleColor : settingsModel.exhaleColor
-                        let gradient = LinearGradient(gradient: Gradient(colors: [fillColor, settingsModel.backgroundColor]), startPoint: .top, endPoint: .bottom)
-                        Rectangle()
-                            .conditionalFill(settingsModel.colorFillType == .linear, ifTrue: gradient, ifFalse: fillColor)
-                            .frame(height: animationProgress * geometry.size.height)
-                            .position(x: geometry.size.width / 2, y: geometry.size.height - (animationProgress * geometry.size.height) / 2)
-                    } else {
-                        let fillColor = breathingPhase == .inhale || breathingPhase == .holdAfterInhale ? settingsModel.inhaleColor : settingsModel.exhaleColor
-                        let gradient = RadialGradient(gradient: Gradient(colors: [settingsModel.backgroundColor, fillColor]), center: .center, startRadius: 0, endRadius: (min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale) / 2)
-                        Circle()
-                            .conditionalFill(settingsModel.colorFillType == .linear, ifTrue: gradient, ifFalse: fillColor)
-                            .frame(width: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale, height: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale)
-                            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+            ZStack {
+                GeometryReader { geometry in
+                    ZStack {
+                        settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
+                        
+                        if settingsModel.shape == .rectangle {
+                            Rectangle()
+                                .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase)
+                                .frame(height: geometry.size.height)
+                                .scaleEffect(y: animationProgress, anchor: .bottom)
+                                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                        } else {
+                            Circle()
+                                .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase, endRadius: (min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale) / 2)
+                                .frame(width: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale, height: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale)
+                                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                        }
                     }
                 }
-            }
-            .edgesIgnoringSafeArea(.all)
+                .edgesIgnoringSafeArea(.all)
             
             if showSettings {
                 SettingsView(

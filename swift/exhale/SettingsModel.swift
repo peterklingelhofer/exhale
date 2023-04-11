@@ -13,5 +13,6 @@ class SettingsModel: ObservableObject {
     @Published var drift: Double = 1.0
     @Published var overlayOpacity: Double = 0.1
     @Published var shape: AnimationShape = .rectangle
-    @Published var animationMode: AnimationMode = .linear
+    @Published var animationMode: AnimationMode = .sinusoidal
+    @Published var colorTransitionEnabled: Bool = false
 }

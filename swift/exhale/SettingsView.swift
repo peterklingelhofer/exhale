@@ -102,10 +102,20 @@ struct SettingsView: View {
                                 }
                                 
                                 HStack {
+                                    Text("Color Transition")
+                                        .frame(width: labelWidth, alignment: .leading)
+                                    
+                                    Toggle(isOn: $settingsModel.colorTransitionEnabled) {
+                                        Text("")
+                                            .frame(alignment: .trailing)
+                                    }
+                                }
+                                
+                                HStack {
                                     Text("Gradient Type")
                                         .frame(width: labelWidth, alignment: .leading)
                                     
-                                    Picker("Gradient Type", selection: $colorFillType) {
+                                    Picker("", selection: $colorFillType) {
                                         ForEach(ColorFillType.allCases) { type in
                                             Text(type.rawValue).tag(type)
                                         }
@@ -119,7 +129,7 @@ struct SettingsView: View {
                                     Text("Shape")
                                         .frame(width: labelWidth, alignment: .leading)
                                     
-                                    Picker("Shape", selection: $shape) {
+                                    Picker("", selection: $shape) {
                                         ForEach(AnimationShape.allCases, id: \.self) { shape in
                                             Text(shape.rawValue).tag(shape)
                                         }
@@ -133,7 +143,7 @@ struct SettingsView: View {
                                     Text("Animation Mode")
                                         .frame(width: labelWidth, alignment: .leading)
                                     
-                                    Picker("Animation Mode", selection: $animationMode) {
+                                    Picker("", selection: $animationMode) {
                                         ForEach(AnimationMode.allCases) { mode in
                                             Text(mode.rawValue).tag(mode)
                                         }
