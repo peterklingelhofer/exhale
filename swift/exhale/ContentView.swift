@@ -19,22 +19,19 @@ extension Shape {
     @ViewBuilder
     func colorTransitionFill(settingsModel: SettingsModel, animationProgress: CGFloat, breathingPhase: BreathingPhase, radius: CGFloat = 0) -> some View {
         let isInhalePhase = breathingPhase == .inhale || breathingPhase == .holdAfterInhale
-        let initialColor = isInhalePhase ? settingsModel.inhaleColor : settingsModel.exhaleColor
-        let secondaryColor = isInhalePhase ? settingsModel.exhaleColor : settingsModel.inhaleColor
-        let transitionFraction = !isInhalePhase ? Double(1 - animationProgress) : Double(animationProgress)
-        let finalColor = settingsModel.colorTransitionEnabled ? secondaryColor.interpolate(to: initialColor, fraction: transitionFraction) : initialColor
+        let color = isInhalePhase ? settingsModel.inhaleColor : settingsModel.exhaleColor
 
         if settingsModel.colorFillType != .constant {
             if settingsModel.shape == .rectangle {
                 let gradient = LinearGradient(
-                    gradient: Gradient(colors: [finalColor, settingsModel.backgroundColor]),
+                    gradient: Gradient(colors: [color, settingsModel.backgroundColor]),
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 self.fill(gradient)
             } else {
                 let gradient = RadialGradient(
-                    gradient: Gradient(colors: [settingsModel.backgroundColor, finalColor]),
+                    gradient: Gradient(colors: [settingsModel.backgroundColor, color]),
                     center: .center,
                     startRadius: 0,
                     endRadius: radius
@@ -42,7 +39,7 @@ extension Shape {
                 self.fill(gradient)
             }
         } else {
-            self.fill(finalColor)
+            self.fill(color)
         }
     }
 }
