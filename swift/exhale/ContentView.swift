@@ -17,13 +17,12 @@ extension Color {
 
 extension Shape {
     @ViewBuilder
-    func colorTransitionFill(settingsModel: SettingsModel, animationProgress: CGFloat, breathingPhase: BreathingPhase, endRadius: CGFloat = 0) -> some View {
+    func colorTransitionFill(settingsModel: SettingsModel, animationProgress: CGFloat, breathingPhase: BreathingPhase, radius: CGFloat = 0) -> some View {
         let isInhalePhase = breathingPhase == .inhale || breathingPhase == .holdAfterInhale
         let lastColor = isInhalePhase ? settingsModel.inhaleColor : settingsModel.exhaleColor
-        let nextColor = isInhalePhase ? settingsModel.exhaleColor : settingsModel.inhaleColor
         let startingColor = isInhalePhase ? settingsModel.exhaleColor : settingsModel.inhaleColor
         let transitionFraction = breathingPhase == .exhale ? Double(1 - animationProgress) : Double(animationProgress)
-        let finalColor = settingsModel.colorTransitionEnabled ? startingColor.interpolate(to: nextColor, fraction: transitionFraction) : lastColor
+        let finalColor = settingsModel.colorTransitionEnabled ? startingColor.interpolate(to: startingColor, fraction: transitionFraction) : lastColor
         
         if settingsModel.colorFillType != .constant {
             if settingsModel.shape == .rectangle {
@@ -38,7 +37,7 @@ extension Shape {
                     gradient: Gradient(colors: [settingsModel.backgroundColor, finalColor]),
                     center: .center,
                     startRadius: 0,
-                    endRadius: endRadius
+                    endRadius: radius
                 )
                 self.fill(gradient)
             }
@@ -69,22 +68,20 @@ struct ContentView: View {
             GeometryReader { geometry in
                 ZStack {
                     settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
-                    
-                    if settingsModel.shape == .rectangle {
+                    let width = geometry.size.width
+                    let height = geometry.size.height
+                    if settingsModel.shape == .circle {
+                        let radius = min(width, height) * animationProgress * maxCircleScale
+                        Circle()
+                            .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase, radius: radius / 2)
+                            .frame(width: radius, height: radius)
+                            .position(x: width / 2, y: height / 2)
+                    } else {
                         Rectangle()
                             .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase)
-                            .frame(height: geometry.size.height)
-                            .scaleEffect(y: animationProgress, anchor: .bottom)
-                            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                    } else if settingsModel.shape == .circle {
-                        Circle()
-                            .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase, endRadius: (min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale) / 2)
-                            .frame(width: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale, height: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale)
-                            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                    } else if settingsModel.shape == .fullscreen {
-                        Rectangle()
-                            .fill(settingsModel.colorTransitionEnabled ? settingsModel.inhaleColor.interpolate(to: settingsModel.exhaleColor, fraction: Double(animationProgress)) : (breathingPhase == .inhale || breathingPhase == .holdAfterInhale) ? settingsModel.inhaleColor : settingsModel.exhaleColor)
-                            .edgesIgnoringSafeArea(.all)
+                            .frame(height: height)
+                            .scaleEffect(y: settingsModel.shape == .rectangle ? animationProgress : height, anchor: .bottom)
+                            .position(x: width / 2, y: height / 2)
                     }
                 }
             }
@@ -103,7 +100,8 @@ struct ContentView: View {
                     postExhaleHoldDuration: $settingsModel.postExhaleHoldDuration,
                     drift: $settingsModel.drift,
                     overlayOpacity: $overlayOpacity,
-                    shape: Binding<AnimationShape>(get: { self.settingsModel.shape }, set: { self.settingsModel.shape = $0 }), animationMode: Binding<AnimationMode>(get: { self.settingsModel.animationMode }, set: { self.settingsModel.animationMode = $0 })
+                    shape: Binding<AnimationShape>(get: { self.settingsModel.shape }, set: { self.settingsModel.shape = $0 }),
+                    animationMode: Binding<AnimationMode>(get: { self.settingsModel.animationMode }, set: { self.settingsModel.animationMode = $0 })
                 )
             }
         }
