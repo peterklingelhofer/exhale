@@ -10,8 +10,8 @@ class SettingsModel: ObservableObject {
     @Published var postInhaleHoldDuration: TimeInterval = 0
     @Published var exhaleDuration: TimeInterval = 10
     @Published var postExhaleHoldDuration: TimeInterval = 0
-    @Published var drift: Double = 1.0
-    @Published var overlayOpacity: Double = 0.1
+    @Published var drift: Double = 1.01
+    @Published var overlayOpacity: Double = 0.25
     @Published var shape: AnimationShape = .fullscreen
     @Published var animationMode: AnimationMode = .sinusoidal
     @Published var colorTransitionEnabled: Bool = true
