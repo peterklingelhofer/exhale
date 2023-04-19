@@ -41,13 +41,13 @@
       "size" : "256x256"
     },
     {
-      "filename" : "exhaleTree512.png",
+      "filename" : "exhaleColorGradient512.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "512x512"
     },
     {
-      "filename" : "exhaleTree1024.png",
+      "filename" : "exhaleColorGradient1024.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "512x512"
