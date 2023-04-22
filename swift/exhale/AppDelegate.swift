@@ -4,7 +4,7 @@ import Combine
 import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    var window: NSWindow!
+    var windows: [NSWindow] = []
     var settingsWindow: NSWindow!
     var settingsModel = SettingsModel()
     var inhaleColorSubscription: AnyCancellable?
@@ -13,37 +13,48 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var subscriptions = Set<AnyCancellable>()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let screenSize = NSScreen.main?.frame.size ?? CGSize(width: 800, height: 600)
         settingsModel = SettingsModel()
         
-        window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: screenSize.width, height: screenSize.height),
-            styleMask: [.borderless, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        
-        window.contentView = NSHostingView(rootView: ContentView().environmentObject(settingsModel))
-        window.makeKeyAndOrderFront(nil)
-        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 1) // Window level in front of the menu bar
-        window.alphaValue = CGFloat(settingsModel.overlayOpacity)
-        window.isOpaque = false
-        window.ignoresMouseEvents = true
-        
-        inhaleColorSubscription = settingsModel.$inhaleColor.sink { newColor in
-            self.window.backgroundColor = NSColor(newColor)
+        for screen in NSScreen.screens {
+            let screenSize = screen.frame.size
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: screenSize.width, height: screenSize.height),
+                styleMask: [.borderless, .fullSizeContentView],
+                backing: .buffered,
+                defer: false
+            )
+            
+            window.contentView = NSHostingView(rootView: ContentView().environmentObject(settingsModel))
+            window.makeKeyAndOrderFront(nil)
+            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 1) // Window level in front of the menu bar
+            window.alphaValue = CGFloat(settingsModel.overlayOpacity)
+            window.isOpaque = false
+            window.ignoresMouseEvents = true
+            window.setFrame(screen.frame, display: true)
+            
+            windows.append(window)
+        }
+
+        inhaleColorSubscription = settingsModel.$inhaleColor.sink { [unowned self] newColor in
+            for window in self.windows {
+                window.backgroundColor = NSColor(newColor)
+            }
         }
         
-        exhaleColorSubscription = settingsModel.$exhaleColor.sink { newColor in
-            self.window.backgroundColor = NSColor(newColor)
+        exhaleColorSubscription = settingsModel.$exhaleColor.sink { [unowned self] newColor in
+            for window in self.windows {
+                window.backgroundColor = NSColor(newColor)
+            }
         }
         
-        overlayOpacitySubscription = settingsModel.$overlayOpacity.sink { newOpacity in
-            self.window.alphaValue = CGFloat(newOpacity)
+        overlayOpacitySubscription = settingsModel.$overlayOpacity.sink { [unowned self] newOpacity in
+            for window in self.windows {
+                window.alphaValue = CGFloat(newOpacity)
+            }
         }
         
         // Reload content view when any setting changes
-        settingsModel.objectWillChange.sink {
+        settingsModel.objectWillChange.sink { [unowned self] in
             self.reloadContentView()
         }.store(in: &subscriptions)
         
@@ -89,7 +100,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     func reloadContentView() {
         let contentView = ContentView().environmentObject(settingsModel)
-        self.window.contentView = NSHostingView(rootView: contentView)
+        for window in windows {
+            window.contentView = NSHostingView(rootView: contentView)
+        }
     }
     
     func windowShouldClose(_ sender: NSWindow) -> Bool {
