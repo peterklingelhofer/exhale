@@ -12,6 +12,7 @@ enum ColorStyle {
 }
 enum Shape {
   CIRCLE = "circle",
+  FULLSCREEN = "fullscreen",
   RECTANGLE = "rectangle",
 }
 const FRAMES_PER_SECOND = 60;
@@ -21,20 +22,21 @@ const canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 
+console.warn('Adjust these parameters to your liking (e.g. localStorage.opacity = "0.3"):', localStorage);
 const {
-  colorExhale = "rgb(0, 221, 255)",
-  colorInhale = "rgb(168, 50, 150)",
+  colorExhale = "rgb(0, 0, 255)",
+  colorInhale = "rgb(255, 0, 0)",
   colorStyle = ColorStyle.LINEAR,
-  circleOrRectangle = Shape.RECTANGLE,
-  durationInhale = 2,
-  durationIn2Out = 2.5,
-  durationExhale = 2.5,
-  durationOut2In = 2,
-  opacity = 0.1,
+  shape = Shape.FULLSCREEN,
+  durationInhale = 5,
+  durationIn2Out = 0,
+  durationExhale = 10,
+  durationOut2In = 0,
+  opacity = 0.25,
 } = localStorage;
 
 Object.assign(localStorage, {
-  circleOrRectangle,
+  shape,
   colorExhale,
   colorInhale,
   colorStyle,
@@ -111,8 +113,8 @@ for (let i = 0; i < timeO2I.length; i++) {
 }
 const totalFrames = indices.length;
 
-let totalFrameInd;
-let transitionValue;
+let totalFrameInd: number;
+let transitionValue: number;
 
 function draw(): void {
   ctx.fillStyle = BACKDROP_COLOR;
@@ -131,7 +133,16 @@ function draw(): void {
   // radius is a function of transitionValue
   radius = transitionValue * halfCanvasHeight;
 
-  if (circleOrRectangle === Shape.CIRCLE) {
+  if (shape === Shape.FULLSCREEN) {
+    const inhaleColorComponents = colorInhale.match(/\d+/g).map(Number);
+    const exhaleColorComponents = colorExhale.match(/\d+/g).map(Number);
+    const interpolatedColor = inhaleColorComponents.map((comp: number, index: string | number) => {
+      return comp + (exhaleColorComponents[index] - comp) * transitionValue;
+    });
+
+    ctx.fillStyle = `rgb(${interpolatedColor[0]}, ${interpolatedColor[1]}, ${interpolatedColor[2]})`;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  } else if (shape === Shape.CIRCLE) {
     const centerX = canvasWidth / 2;
     const centerY = canvasHeight / 2;
     const startAngle = 0;
@@ -157,7 +168,7 @@ function draw(): void {
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, startAngle, endAngle, isCounterClockwise);
     ctx.fill();
-  } else {
+  } else { // Shape.RECTANGLE
     const twiceRadius = radius * 2;
 
     if (colorStyle === ColorStyle.LINEAR) {
