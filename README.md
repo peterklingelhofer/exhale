@@ -43,13 +43,13 @@ To recompile automatically and use [electron-reload](https://github.com/yan-foto
 yarn run watch
 ```
 
-Modify settings by going to **Application** (found in the top right via `>>`) > **Local Storage**. Use <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd> or <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd>to open and close these Developer Tools to [access and modify these settings](https://developer.chrome.com/docs/devtools/storage/localstorage/#edit), and <kbd>Ctrl</kbd> + <kbd>R</kbd> or <kbd>Cmd</kbd> + <kbd>R</kbd> to refresh the app to use your newly selected settings. If no settings appear on the first run of the application, you can manually add them), following the format of the `storedValues` variable in [`/src/renderer.ts`](https://github.com/peterklingelhofer/exhale/blob/main/src/renderer.ts). To add them manually, go to the **Console** and copy paste the following code into the console and press <kbd>Enter</kbd> or <kbd>Return</kbd> to populate your `localStorage` (these are the defaults as of the time of writing):
+Modify settings by going to **Application** (found in the top right via `>>`) > **Local Storage**. While the Developer Tools are open, you can resize the window, and opacity values are ignored, so you can position the window and change settings to your liking, and then close the Dev Tools window by clicking the `x` in the top right, or use <kbd>F12</kbd> (Linux/Windows) or <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd> (macOS) to toggle Developer Tools to [access and modify these settings](https://developer.chrome.com/docs/devtools/storage/localstorage/#edit), and <kbd>Ctrl</kbd> + <kbd>R</kbd> (Linux/Windows) or <kbd>Cmd</kbd> + <kbd>R</kbd> (macOS) to refresh the app to use your newly selected settings. If no settings appear on the first run of the application, you can manually add them), following the format of the `storedValues` variable in [`/src/renderer.ts`](https://github.com/peterklingelhofer/exhale/blob/main/src/renderer.ts). To add them manually, go to the **Console** and copy paste the following code into the console and press <kbd>Enter</kbd> or <kbd>Return</kbd> to populate your `localStorage` (these are the defaults as of the time of writing):
 ```ts
 localStorage = {
   colorExhale = "rgb(0, 0, 255)",
   colorInhale = "rgb(255, 0, 0)",
   colorStyle = "linear", // can be "linear" or "constant"
-  shape = "fullscreen", // can be "circle" or "rectangle"
+  shape = "fullscreen", // can be "circle" or "rectangle" or "fullscreen"
   durationInhale = 5,
   durationIn2Out = 0,
   durationExhale = 10,
