@@ -1,20 +1,6 @@
 // ContentView.swift
 import SwiftUI
 
-extension Color {
-    func interpolate(to color: Color, fraction: Double) -> Color {
-        let fromComponents = self.cgColor?.components ?? [0, 0, 0, 0]
-        let toComponents = color.cgColor?.components ?? [0, 0, 0, 0]
-        
-        let red = CGFloat(fromComponents[0] + (toComponents[0] - fromComponents[0]) * CGFloat(fraction))
-        let green = CGFloat(fromComponents[1] + (toComponents[1] - fromComponents[1]) * CGFloat(fraction))
-        let blue = CGFloat(fromComponents[2] + (toComponents[2] - fromComponents[2]) * CGFloat(fraction))
-        let alpha = CGFloat(fromComponents[3] + (toComponents[3] - fromComponents[3]) * CGFloat(fraction))
-        
-        return Color(red: red, green: green, blue: blue, opacity: alpha)
-    }
-}
-
 extension Shape {
     @ViewBuilder
     func colorTransitionFill(settingsModel: SettingsModel, animationProgress: CGFloat, breathingPhase: BreathingPhase, endRadius: CGFloat = 0) -> some View {
