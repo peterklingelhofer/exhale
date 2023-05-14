@@ -102,16 +102,6 @@ struct SettingsView: View {
                                 }
                                 
                                 HStack {
-                                    Text("Color Transition")
-                                        .frame(width: labelWidth, alignment: .leading)
-                                    
-                                    Toggle(isOn: $settingsModel.colorTransitionEnabled) {
-                                        Text("")
-                                            .frame(alignment: .trailing)
-                                    }
-                                }
-                                
-                                HStack {
                                     Text("Gradient Type")
                                         .frame(width: labelWidth, alignment: .leading)
                                     

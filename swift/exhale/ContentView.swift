@@ -23,19 +23,18 @@ extension Shape {
         let nextColor = isInhalePhase ? settingsModel.exhaleColor : settingsModel.inhaleColor
         let startingColor = isInhalePhase ? settingsModel.exhaleColor : settingsModel.inhaleColor
         let transitionFraction = breathingPhase == .exhale ? Double(1 - animationProgress) : Double(animationProgress)
-        let finalColor = settingsModel.colorTransitionEnabled ? startingColor.interpolate(to: nextColor, fraction: transitionFraction) : lastColor
         
         if settingsModel.colorFillType != .constant {
             if settingsModel.shape == .rectangle {
                 let gradient = LinearGradient(
-                    gradient: Gradient(colors: [finalColor, settingsModel.backgroundColor]),
+                    gradient: Gradient(colors: [lastColor, settingsModel.backgroundColor]),
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 self.fill(gradient)
             } else {
                 let gradient = RadialGradient(
-                    gradient: Gradient(colors: [settingsModel.backgroundColor, finalColor]),
+                    gradient: Gradient(colors: [settingsModel.backgroundColor, lastColor]),
                     center: .center,
                     startRadius: 0,
                     endRadius: endRadius
@@ -43,7 +42,7 @@ extension Shape {
                 self.fill(gradient)
             }
         } else {
-            self.fill(finalColor)
+            self.fill(lastColor)
         }
     }
 }
@@ -83,7 +82,9 @@ struct ContentView: View {
                             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
                     } else if settingsModel.shape == .fullscreen {
                         Rectangle()
-                            .fill(settingsModel.colorTransitionEnabled ? settingsModel.inhaleColor.interpolate(to: settingsModel.exhaleColor, fraction: Double(animationProgress)) : (breathingPhase == .inhale || breathingPhase == .holdAfterInhale) ? settingsModel.inhaleColor : settingsModel.exhaleColor)
+                            .fill(breathingPhase == .inhale || breathingPhase == .holdAfterInhale
+                                  ? settingsModel.inhaleColor
+                                  : settingsModel.exhaleColor)
                             .edgesIgnoringSafeArea(.all)
                     }
                 }

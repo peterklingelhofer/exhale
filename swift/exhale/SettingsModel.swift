@@ -14,5 +14,4 @@ class SettingsModel: ObservableObject {
     @Published var overlayOpacity: Double = 0.25
     @Published var shape: AnimationShape = .fullscreen
     @Published var animationMode: AnimationMode = .sinusoidal
-    @Published var colorTransitionEnabled: Bool = true
 }
