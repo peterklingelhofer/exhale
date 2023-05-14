@@ -20,9 +20,6 @@ extension Shape {
     func colorTransitionFill(settingsModel: SettingsModel, animationProgress: CGFloat, breathingPhase: BreathingPhase, endRadius: CGFloat = 0) -> some View {
         let isInhalePhase = breathingPhase == .inhale || breathingPhase == .holdAfterInhale
         let lastColor = isInhalePhase ? settingsModel.inhaleColor : settingsModel.exhaleColor
-        let nextColor = isInhalePhase ? settingsModel.exhaleColor : settingsModel.inhaleColor
-        let startingColor = isInhalePhase ? settingsModel.exhaleColor : settingsModel.inhaleColor
-        let transitionFraction = breathingPhase == .exhale ? Double(1 - animationProgress) : Double(animationProgress)
         
         if settingsModel.colorFillType != .constant {
             if settingsModel.shape == .rectangle {
