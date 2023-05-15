@@ -14,4 +14,8 @@ class SettingsModel: ObservableObject {
     @Published var overlayOpacity: Double = 0.25
     @Published var shape: AnimationShape = .fullscreen
     @Published var animationMode: AnimationMode = .sinusoidal
+    @Published var randomizedTimingInhale: Double = 0
+    @Published var randomizedTimingPostInhaleHold: Double = 0
+    @Published var randomizedTimingExhale: Double = 0
+    @Published var randomizedTimingPostExhaleHold: Double = 0
 }

@@ -87,7 +87,18 @@ struct ContentView: View {
                     postExhaleHoldDuration: $settingsModel.postExhaleHoldDuration,
                     drift: $settingsModel.drift,
                     overlayOpacity: $overlayOpacity,
-                    shape: Binding<AnimationShape>(get: { self.settingsModel.shape }, set: { self.settingsModel.shape = $0 }), animationMode: Binding<AnimationMode>(get: { self.settingsModel.animationMode }, set: { self.settingsModel.animationMode = $0 })
+                    shape: Binding<AnimationShape>(
+                        get: { self.settingsModel.shape },
+                        set: { self.settingsModel.shape = $0 }
+                    ),
+                    animationMode: Binding<AnimationMode>(
+                        get: { self.settingsModel.animationMode },
+                        set: { self.settingsModel.animationMode = $0 }
+                    ),
+                    randomizedTimingInhale: $settingsModel.randomizedTimingInhale,
+                    randomizedTimingPostInhaleHold: $settingsModel.randomizedTimingPostInhaleHold,
+                    randomizedTimingExhale: $settingsModel.randomizedTimingExhale,
+                    randomizedTimingPostExhaleHold: $settingsModel.randomizedTimingPostExhaleHold
                 )
             }
         }
@@ -101,10 +112,13 @@ struct ContentView: View {
     
     func inhale() {
         var duration = settingsModel.inhaleDuration * pow(settingsModel.drift, Double(cycleCount))
-        duration = max(duration, 0.5)
-        
+        if settingsModel.randomizedTimingInhale > 0 {
+            duration += Double.random(in: -settingsModel.randomizedTimingInhale...settingsModel.randomizedTimingInhale)
+        }
+        duration = max(duration, 0.1)
+
         let animation: Animation = settingsModel.animationMode == .linear ? .linear(duration: duration) : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
-        
+
         withAnimation(animation) {
             breathingPhase = .inhale
             animationProgress = 1.0
@@ -118,7 +132,11 @@ struct ContentView: View {
     }
     
     func holdAfterInhale() {
-        let duration = settingsModel.postInhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
+        var duration = settingsModel.postInhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
+        if settingsModel.randomizedTimingPostInhaleHold > 0 {
+            duration += Double.random(in: -settingsModel.randomizedTimingPostInhaleHold...settingsModel.randomizedTimingPostInhaleHold)
+        }
+        duration = max(duration, 0.1)
         breathingPhase = .holdAfterInhale
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             exhale()
@@ -127,10 +145,13 @@ struct ContentView: View {
     
     func exhale() {
         var duration = settingsModel.exhaleDuration * pow(settingsModel.drift, Double(cycleCount))
-        duration = max(duration, 0.5)
-        
+        if settingsModel.randomizedTimingExhale > 0 {
+            duration += Double.random(in: -settingsModel.randomizedTimingExhale...settingsModel.randomizedTimingExhale)
+        }
+        duration = max(duration, 0.1)
+
         let animation: Animation = settingsModel.animationMode == .linear ? .linear(duration: duration) : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
-        
+
         withAnimation(animation) {
             breathingPhase = .exhale
             animationProgress = 0.0
@@ -140,9 +161,12 @@ struct ContentView: View {
         }
     }
     
-    
     func holdAfterExhale() {
-        let duration = settingsModel.postExhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
+        var duration = settingsModel.postExhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
+        if settingsModel.randomizedTimingPostExhaleHold > 0 {
+            duration += Double.random(in: -settingsModel.randomizedTimingPostExhaleHold...settingsModel.randomizedTimingPostExhaleHold)
+        }
+        duration = max(duration, 0.1)
         breathingPhase = .holdAfterExhale
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             cycleCount += 1

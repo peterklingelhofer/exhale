@@ -60,6 +60,10 @@ struct SettingsView: View {
     @Binding var overlayOpacity: Double
     @Binding var shape: AnimationShape
     @Binding var animationMode: AnimationMode
+    @Binding var randomizedTimingInhale: Double
+    @Binding var randomizedTimingPostInhaleHold: Double
+    @Binding var randomizedTimingExhale: Double
+    @Binding var randomizedTimingPostExhaleHold: Double
     private let labelWidth: CGFloat = 130
     private let controlWidth: CGFloat = 150
     
@@ -145,15 +149,23 @@ struct SettingsView: View {
                             }
                             
                             VStack {
-                                TextFieldWithValidation(title: "Inhale Duration (s)", value: $inhaleDuration, formatter: createNumberFormatter(limits: (min: 0.5, max: nil)), minimumValue: 0.5)
+                                TextFieldWithValidation(title: "Inhale Duration (s)", value: $inhaleDuration, formatter: createNumberFormatter(limits: (min: 0.1, max: nil)), minimumValue: 0.1)
                                 
                                 TextFieldWithValidation(title: "Post-Inhale Hold (s)", value: $postInhaleHoldDuration, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0)
                                 
-                                TextFieldWithValidation(title: "Exhale Duration (s)", value: $exhaleDuration, formatter: createNumberFormatter(limits: (min: 0.5, max: nil)), minimumValue: 0.5)
+                                TextFieldWithValidation(title: "Exhale Duration (s)", value: $exhaleDuration, formatter: createNumberFormatter(limits: (min: 0.1, max: nil)), minimumValue: 0.1)
                                 
                                 TextFieldWithValidation(title: "Post-Exhale Hold (s)", value: $postExhaleHoldDuration, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0)
                                 
-                                TextFieldWithValidation(title: "Drift", value: $drift, formatter: createNumberFormatter(limits: (min: 0.5, max: nil)), minimumValue: 0.5)
+                                TextFieldWithValidation(title: "Inhale Randomization", value: $randomizedTimingInhale, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
+                                
+                                TextFieldWithValidation(title: "Post-Inhale Hold Randomization", value: $randomizedTimingPostInhaleHold, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
+                                
+                                TextFieldWithValidation(title: "Exhale Randomization", value: $randomizedTimingExhale, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
+                                
+                                TextFieldWithValidation(title: "Post-Exhale Hold Randomization", value: $randomizedTimingPostExhaleHold, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
+                                
+                                TextFieldWithValidation(title: "Drift", value: $drift, formatter: createNumberFormatter(limits: (min: 0.0, max: nil)), minimumValue: 0.0)
                                 
                                 TextFieldWithValidation(title: "Overlay Opacity", value: $overlayOpacity, formatter: createNumberFormatter(limits: (min: 0, max: 1)), minimumValue: 0.0)
                             }
