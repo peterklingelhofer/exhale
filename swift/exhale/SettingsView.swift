@@ -28,7 +28,7 @@ struct TextFieldWithValidation: View {
                     value = validateValue(value: newValue, minimumValue: minimumValue, formatter: formatter)
                 }
                 .textFieldStyle(RoundedBorderTextFieldStyle())
-                .frame(width: 100)
+                .frame(width: 65)
         }
     }
 }
@@ -65,7 +65,7 @@ struct SettingsView: View {
     @Binding var randomizedTimingExhale: Double
     @Binding var randomizedTimingPostExhaleHold: Double
     private let labelWidth: CGFloat = 130
-    private let controlWidth: CGFloat = 150
+    private let controlWidth: CGFloat = 90
     
     var body: some View {
         VStack {
@@ -163,6 +163,11 @@ struct SettingsView: View {
                                 TextFieldWithValidation(title: "Post-Exhale Hold (s)", value: $postExhaleHoldDuration, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0)
                                     .help("Choose the duration of the hold/pause that occurs at the end of the exhale phase, in seconds.")
                                 
+                                TextFieldWithValidation(title: "Overlay Opacity", value: $overlayOpacity, formatter: createNumberFormatter(limits: (min: 0, max: 1)), minimumValue: 0.0)
+                                    .help("Choose the transparency of the overlay colors, with lower values being more transparent and higher values being more visible.")
+                            }.padding()
+                            
+                            VStack {
                                 TextFieldWithValidation(title: "Inhale Randomization", value: $randomizedTimingInhale, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
                                     .help("Choose the extent to which the duration of the inhale phase should be randomized, in seconds.")
                                 
@@ -177,15 +182,10 @@ struct SettingsView: View {
                                 
                                 TextFieldWithValidation(title: "Drift", value: $drift, formatter: createNumberFormatter(limits: (min: 0.0, max: nil)), minimumValue: 0.0)
                                     .help("Choose the extent to which the duration of the every inhale and exhale phase (as well as the end-of-phase hold if Post-Inhale Hold or Post-Exhale Hold are set to non-zero values) lengthens or shortens in duration over time. Drift is multiplicative, so a value of 1.01 will gradually lengthen the duration (by 1% each cycle), allowing you to extend the duration of your breath over time, whereas a value of 0.75 would shorten the duration of each phase (by 25%) each cycle. Values of 1.01 - 1.05 are recommended for working on slowly elongating one's breath cycle.")
-                                
-                                
-                                TextFieldWithValidation(title: "Overlay Opacity", value: $overlayOpacity, formatter: createNumberFormatter(limits: (min: 0, max: 1)), minimumValue: 0.0)
-                                    .help("Choose the transparency of the overlay colors, with lower values being more transparent and higher values being more visible.")
                             }
-                        }
+                        }.lineLimit(1)
                     }
-                }
-                .padding()
+                }.frame(width: 724)
                 
                 Spacer()
             }
