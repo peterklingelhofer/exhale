@@ -34,8 +34,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
         settingsModel = SettingsModel()
-        
+
         for screen in NSScreen.screens {
             let screenSize = screen.frame.size
             let window = NSWindow(
