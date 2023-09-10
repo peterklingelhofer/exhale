@@ -13,7 +13,7 @@ class CustomMenu: NSMenu {
     }
 
     @objc func showSettings(_ sender: AnyObject?) {
-        appDelegate?.showSettings(sender)
+        appDelegate?.toggleSettings(sender)
     }
 
     @objc func quitApp(_ sender: AnyObject?) {

@@ -11,10 +11,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var exhaleColorSubscription: AnyCancellable?
     var overlayOpacitySubscription: AnyCancellable?
     var subscriptions = Set<AnyCancellable>()
+    var statusItem: NSStatusItem!
+    
+    func setUpStatusItem() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = statusItem.button {
+            button.image = NSImage(named: "StatusBarIcon")
+            button.action = #selector(statusBarButtonClicked(sender:))
+        }
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Preferences...", action: #selector(toggleSettings(_:)), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "Quit exhale", action: #selector(terminateApp(_:)), keyEquivalent: "q"))
+        statusItem.menu = menu
+    }
+
+    @objc func statusBarButtonClicked(sender: NSStatusBarButton) {
+        statusItem.menu?.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    @objc func terminateApp(_ sender: Any?) {
+        NSApp.terminate(nil)
+    }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
         settingsModel = SettingsModel()
-        
+
         for screen in NSScreen.screens {
             let screenSize = screen.frame.size
             let window = NSWindow(
@@ -89,17 +111,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ).environmentObject(settingsModel))
         
         settingsWindow.title = "exhale"
-        showSettings(nil)
+        toggleSettings(nil)
+        setUpStatusItem()
     }
     
     func applicationWillTerminate(_ notification: Notification) {
         // Insert code here to tear down your application
     }
     
-    func showSettings(_ sender: Any?) {
-        settingsWindow.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow.level = .floating
+    @objc func toggleSettings(_ sender: Any?) {
+        if settingsWindow.isVisible {
+            settingsWindow.orderOut(nil)
+        } else {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            settingsWindow.level = .floating
+        }
     }
     
     func reloadContentView() {
