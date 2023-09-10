@@ -20,7 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             button.action = #selector(statusBarButtonClicked(sender:))
         }
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Preferences...", action: #selector(showSettings(_:)), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "Preferences...", action: #selector(toggleSettings(_:)), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Quit exhale", action: #selector(terminateApp(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
     }
@@ -111,7 +111,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ).environmentObject(settingsModel))
         
         settingsWindow.title = "exhale"
-        showSettings(nil)
+        toggleSettings(nil)
         setUpStatusItem()
     }
     
@@ -119,10 +119,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Insert code here to tear down your application
     }
     
-    @objc func showSettings(_ sender: Any?) {
-        settingsWindow.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow.level = .floating
+    @objc func toggleSettings(_ sender: Any?) {
+        if settingsWindow.isVisible {
+            settingsWindow.orderOut(nil)
+        } else {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            settingsWindow.level = .floating
+        }
     }
     
     func reloadContentView() {

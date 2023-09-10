@@ -17,7 +17,7 @@ struct exhaleApp: App {
         .commands {
             CommandGroup(replacing: .appSettings) {
                 Button("Preferences...") {
-                    appDelegate.showSettings(nil)
+                    appDelegate.toggleSettings(nil)
                 }
                 .environmentObject(settingsModel)
                 .keyboardShortcut(",", modifiers: .command)
