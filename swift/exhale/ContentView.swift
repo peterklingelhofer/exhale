@@ -9,10 +9,10 @@ extension Shape {
 
         let colorSequence: [Color] = [settingsModel.backgroundColor, lastColor, settingsModel.backgroundColor]
 
-        switch settingsModel.colorFillType {
-        case .constant:
+        switch settingsModel.colorFillGradient {
+        case .off:
             self.fill(lastColor)
-        case .linear:
+        case .inner:
             if settingsModel.shape == .rectangle {
                 let gradient = LinearGradient(
                     gradient: Gradient(colors: [lastColor, settingsModel.backgroundColor]),
@@ -29,7 +29,7 @@ extension Shape {
                 )
                 self.fill(gradient)
             }
-        case .gradual:
+        case .on:
             if settingsModel.shape == .rectangle {
                 let gradient = LinearGradient(
                     gradient: Gradient(colors: colorSequence),
@@ -59,7 +59,7 @@ struct ContentView: View {
     @State private var cycleCount: Int = 0
     
     var maxCircleScale: CGFloat {
-        guard let screen = NSScreen.main else { return settingsModel.colorFillType == .gradual ? 2.0 : 1.0 }
+        guard let screen = NSScreen.main else { return settingsModel.colorFillGradient == .on ? 2.0 : 1.0 }
         let screenWidth = screen.frame.width
         let screenHeight = screen.frame.height
         let maxDimension = max(screenWidth, screenHeight)
@@ -76,7 +76,7 @@ struct ContentView: View {
                         Rectangle()
                             .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase)
                             .frame(height: geometry.size.height)
-                            .scaleEffect(x: 1, y: animationProgress * (settingsModel.colorFillType == .gradual ? 2 : 1), anchor: .bottom)
+                            .scaleEffect(x: 1, y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1), anchor: .bottom)
                             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
                     } else if settingsModel.shape == .circle {
                         Circle()
@@ -100,7 +100,7 @@ struct ContentView: View {
                     inhaleColor: $settingsModel.inhaleColor,
                     exhaleColor: $settingsModel.exhaleColor,
                     backgroundColor: $settingsModel.backgroundColor,
-                    colorFillType: $settingsModel.colorFillType,
+                    colorFillType: $settingsModel.colorFillGradient,
                     inhaleDuration: $settingsModel.inhaleDuration,
                     postInhaleHoldDuration: $settingsModel.postInhaleHoldDuration,
                     exhaleDuration: $settingsModel.exhaleDuration,
