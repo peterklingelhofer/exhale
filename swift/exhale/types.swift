@@ -35,8 +35,9 @@ enum BreathingPhase {
 }
 
 enum ColorFillType: String, CaseIterable, Identifiable {
-    case linear = "Linear Gradient"
+    case linear = "Linear Gradient" // change this to inside gradient
     case constant = "Constant"
-
+    case gradual = "Gradual Gradient" // gradient
+    
     var id: String { rawValue }
 }

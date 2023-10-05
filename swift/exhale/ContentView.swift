@@ -6,8 +6,13 @@ extension Shape {
     func colorTransitionFill(settingsModel: SettingsModel, animationProgress: CGFloat, breathingPhase: BreathingPhase, endRadius: CGFloat = 0) -> some View {
         let isInhalePhase = breathingPhase == .inhale || breathingPhase == .holdAfterInhale
         let lastColor = isInhalePhase ? settingsModel.inhaleColor : settingsModel.exhaleColor
-        
-        if settingsModel.colorFillType != .constant {
+
+        let colorSequence: [Color] = [settingsModel.backgroundColor, lastColor, settingsModel.backgroundColor]
+
+        switch settingsModel.colorFillType {
+        case .constant:
+            self.fill(lastColor)
+        case .linear:
             if settingsModel.shape == .rectangle {
                 let gradient = LinearGradient(
                     gradient: Gradient(colors: [lastColor, settingsModel.backgroundColor]),
@@ -17,15 +22,30 @@ extension Shape {
                 self.fill(gradient)
             } else {
                 let gradient = RadialGradient(
-                    gradient: Gradient(colors: [settingsModel.backgroundColor, lastColor]),
+                    gradient: Gradient(colors: colorSequence),
                     center: .center,
                     startRadius: 0,
                     endRadius: endRadius
                 )
                 self.fill(gradient)
             }
-        } else {
-            self.fill(lastColor)
+        case .gradual:
+            if settingsModel.shape == .rectangle {
+                let gradient = LinearGradient(
+                    gradient: Gradient(colors: colorSequence),
+                    startPoint: .bottom,
+                    endPoint: .top
+                )
+                self.fill(gradient)
+            } else {
+                let gradient = RadialGradient(
+                    gradient: Gradient(colors: colorSequence),
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: endRadius
+                )
+                self.fill(gradient)
+            }
         }
     }
 }
@@ -39,7 +59,7 @@ struct ContentView: View {
     @State private var cycleCount: Int = 0
     
     var maxCircleScale: CGFloat {
-        guard let screen = NSScreen.main else { return 1.0 }
+        guard let screen = NSScreen.main else { return settingsModel.colorFillType == .gradual ? 2.0 : 1.0 }
         let screenWidth = screen.frame.width
         let screenHeight = screen.frame.height
         let maxDimension = max(screenWidth, screenHeight)
@@ -56,7 +76,7 @@ struct ContentView: View {
                         Rectangle()
                             .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase)
                             .frame(height: geometry.size.height)
-                            .scaleEffect(y: animationProgress, anchor: .bottom)
+                            .scaleEffect(x: 1, y: animationProgress * (settingsModel.colorFillType == .gradual ? 2 : 1), anchor: .bottom)
                             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
                     } else if settingsModel.shape == .circle {
                         Circle()
