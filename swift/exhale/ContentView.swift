@@ -22,7 +22,7 @@ extension Shape {
                 self.fill(gradient)
             } else {
                 let gradient = RadialGradient(
-                    gradient: Gradient(colors: colorSequence),
+                    gradient: Gradient(colors: [settingsModel.backgroundColor, lastColor]),
                     center: .center,
                     startRadius: 0,
                     endRadius: endRadius
@@ -59,7 +59,7 @@ struct ContentView: View {
     @State private var cycleCount: Int = 0
     
     var maxCircleScale: CGFloat {
-        guard let screen = NSScreen.main else { return settingsModel.colorFillGradient == .on ? 2.0 : 1.0 }
+        guard let screen = NSScreen.main else { return settingsModel.colorFillGradient == .on ? 2 : 1 }
         let screenWidth = screen.frame.width
         let screenHeight = screen.frame.height
         let maxDimension = max(screenWidth, screenHeight)
@@ -82,6 +82,7 @@ struct ContentView: View {
                         Circle()
                             .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase, endRadius: (min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale) / 2)
                             .frame(width: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale, height: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale)
+                            .scaleEffect(x: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1), y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1), anchor: .center)
                             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
                     } else if settingsModel.shape == .fullscreen {
                         Rectangle()
