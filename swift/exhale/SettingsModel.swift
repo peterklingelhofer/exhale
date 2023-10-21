@@ -192,7 +192,7 @@ class SettingsModel: ObservableObject {
         }
         return nil
     }
-
+    
     func resetToDefaults() {
         self.backgroundColor = Color.black
         self.inhaleColor = Color.red

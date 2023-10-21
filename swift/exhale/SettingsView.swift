@@ -165,6 +165,10 @@ struct SettingsView: View {
                                 
                                 TextFieldWithValidation(title: "Overlay Opacity", value: $overlayOpacity, formatter: createNumberFormatter(limits: (min: 0, max: 1)), minimumValue: 0.0)
                                     .help("Choose the transparency of the overlay colors, with lower values being more transparent and higher values being more visible.")
+                                
+                                Button("Reset to Defaults") {
+                                    settingsModel.resetToDefaults()
+                                }
                             }.padding()
                             
                             VStack {
