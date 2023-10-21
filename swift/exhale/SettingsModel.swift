@@ -174,16 +174,23 @@ class SettingsModel: ObservableObject {
     
     private func saveColor(_ color: Color, forKey key: String) {
         let nsColor = NSColor(cgColor: color.cgColor!)
-        let data = try? NSKeyedArchiver.archivedData(withRootObject: nsColor, requiringSecureCoding: false)
+        guard let unwrappedColor = nsColor else { return }
+        let data = try? NSKeyedArchiver.archivedData(withRootObject: unwrappedColor, requiringSecureCoding: false)
         defaults.set(data, forKey: key)
     }
         
     private func loadColor(forKey key: String) -> Color? {
-        guard let data = defaults.object(forKey: key) as? Data,
-              let nsColor = try? NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(data) as? NSColor else {
+        guard let data = defaults.object(forKey: key) as? Data else {
             return nil
         }
-        return Color(nsColor)
+        do {
+            if let nsColor = try NSKeyedUnarchiver.unarchivedObject(ofClasses: [NSColor.self], from: data) as? NSColor {
+                return Color(nsColor)
+            }
+        } catch {
+            print("Couldn't read file.")
+        }
+        return nil
     }
 
     func resetToDefaults() {
