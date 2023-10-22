@@ -115,11 +115,16 @@ class SettingsModel: ObservableObject {
         }
     }
     
+    @Published var isAnimating: Bool {
+        didSet {
+            defaults.set(isAnimating, forKey: "isAnimating")
+        }
+    }
+    
     init() {
         self.backgroundColor = Color.black
         self.inhaleColor = Color.red
         self.exhaleColor = Color.blue
-        
         self.colorFillGradient = .on
         self.inhaleDuration = 5
         self.postInhaleHoldDuration = 0
@@ -133,6 +138,7 @@ class SettingsModel: ObservableObject {
         self.randomizedTimingPostInhaleHold = 0
         self.randomizedTimingExhale = 0
         self.randomizedTimingPostExhaleHold = 0
+        self.isAnimating = true
         
         self.backgroundColor = loadColor(forKey: "backgroundColor") ?? Color.black
         self.inhaleColor = loadColor(forKey: "inhaleColor") ?? Color(red: 1, green: 0, blue: 0)
@@ -210,6 +216,7 @@ class SettingsModel: ObservableObject {
         self.randomizedTimingPostInhaleHold = 0
         self.randomizedTimingExhale = 0
         self.randomizedTimingPostExhaleHold = 0
+        self.isAnimating = true
         
         let keys = ["backgroundColor", "inhaleColor", "exhaleColor", "inhaleDuration", "postInhaleHoldDuration", "exhaleDuration", "postExhaleHoldDuration", "drift", "overlayOpacity", "colorFillGradient", "shape", "animationMode", "randomizedTimingInhale", "randomizedTimingPostInhaleHold", "randomizedTimingExhale", "randomizedTimingPostExhaleHold"]
         for key in keys {

@@ -10,6 +10,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var inhaleColorSubscription: AnyCancellable?
     var exhaleColorSubscription: AnyCancellable?
     var overlayOpacitySubscription: AnyCancellable?
+    var isAnimatingSubscription: AnyCancellable?
     var subscriptions = Set<AnyCancellable>()
     var statusItem: NSStatusItem!
     
@@ -107,12 +108,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             randomizedTimingInhale: Binding(get: { self.settingsModel.randomizedTimingInhale }, set: { self.settingsModel.randomizedTimingInhale = $0 }),
             randomizedTimingPostInhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostInhaleHold }, set: { self.settingsModel.randomizedTimingPostInhaleHold = $0 }),
             randomizedTimingExhale: Binding(get: { self.settingsModel.randomizedTimingExhale }, set: { self.settingsModel.randomizedTimingExhale = $0 }),
-            randomizedTimingPostExhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostExhaleHold }, set: { self.settingsModel.randomizedTimingPostExhaleHold = $0 })
+            randomizedTimingPostExhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostExhaleHold }, set: { self.settingsModel.randomizedTimingPostExhaleHold = $0 }),
+            isAnimating: Binding(get: { self.settingsModel.isAnimating }, set: { self.settingsModel.isAnimating = $0 })
         ).environmentObject(settingsModel))
         
         settingsWindow.title = "exhale"
         toggleSettings(nil)
         setUpStatusItem()
+        
+        isAnimatingSubscription = settingsModel.$isAnimating.sink { [unowned self] isAnimating in
+            if !isAnimating {
+                for window in self.windows {
+                    window.backgroundColor = NSColor.clear
+                }
+            }
+        }
     }
     
     func applicationWillTerminate(_ notification: Notification) {

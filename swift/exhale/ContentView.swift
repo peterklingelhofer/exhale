@@ -9,42 +9,46 @@ extension Shape {
 
         let colorSequence: [Color] = [settingsModel.backgroundColor, lastColor, settingsModel.backgroundColor]
 
-        switch settingsModel.colorFillGradient {
-        case .off:
-            self.fill(lastColor)
-        case .inner:
-            if settingsModel.shape == .rectangle {
-                let gradient = LinearGradient(
-                    gradient: Gradient(colors: [lastColor, settingsModel.backgroundColor]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                self.fill(gradient)
-            } else {
-                let gradient = RadialGradient(
-                    gradient: Gradient(colors: [settingsModel.backgroundColor, lastColor]),
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: endRadius
-                )
-                self.fill(gradient)
-            }
-        case .on:
-            if settingsModel.shape == .rectangle {
-                let gradient = LinearGradient(
-                    gradient: Gradient(colors: colorSequence),
-                    startPoint: .bottom,
-                    endPoint: .top
-                )
-                self.fill(gradient)
-            } else {
-                let gradient = RadialGradient(
-                    gradient: Gradient(colors: colorSequence),
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: endRadius
-                )
-                self.fill(gradient)
+        if !settingsModel.isAnimating {
+            self.fill(Color.clear)
+        } else {
+            switch settingsModel.colorFillGradient {
+            case .off:
+                self.fill(lastColor)
+            case .inner:
+                if settingsModel.shape == .rectangle {
+                    let gradient = LinearGradient(
+                        gradient: Gradient(colors: [lastColor, settingsModel.backgroundColor]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    self.fill(gradient)
+                } else {
+                    let gradient = RadialGradient(
+                        gradient: Gradient(colors: [settingsModel.backgroundColor, lastColor]),
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: endRadius
+                    )
+                    self.fill(gradient)
+                }
+            case .on:
+                if settingsModel.shape == .rectangle {
+                    let gradient = LinearGradient(
+                        gradient: Gradient(colors: colorSequence),
+                        startPoint: .bottom,
+                        endPoint: .top
+                    )
+                    self.fill(gradient)
+                } else {
+                    let gradient = RadialGradient(
+                        gradient: Gradient(colors: colorSequence),
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: endRadius
+                    )
+                    self.fill(gradient)
+                }
             }
         }
     }
@@ -70,26 +74,30 @@ struct ContentView: View {
         ZStack {
             GeometryReader { geometry in
                 ZStack {
-                    settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
-                    
-                    if settingsModel.shape == .rectangle {
-                        Rectangle()
-                            .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase)
-                            .frame(height: geometry.size.height)
-                            .scaleEffect(x: 1, y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1), anchor: .bottom)
-                            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                    } else if settingsModel.shape == .circle {
-                        Circle()
-                            .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase, endRadius: (min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale) / 2)
-                            .frame(width: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale, height: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale)
-                            .scaleEffect(x: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1), y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1), anchor: .center)
-                            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                    } else if settingsModel.shape == .fullscreen {
-                        Rectangle()
-                            .fill(breathingPhase == .inhale || breathingPhase == .holdAfterInhale
-                                  ? settingsModel.inhaleColor
-                                  : settingsModel.exhaleColor)
-                            .edgesIgnoringSafeArea(.all)
+                    if !settingsModel.isAnimating {
+                       Color.clear.edgesIgnoringSafeArea(.all)
+                    } else {
+                        settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
+                        
+                        if settingsModel.shape == .rectangle {
+                            Rectangle()
+                                .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase)
+                                .frame(height: geometry.size.height)
+                                .scaleEffect(x: 1, y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1), anchor: .bottom)
+                                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                        } else if settingsModel.shape == .circle {
+                            Circle()
+                                .colorTransitionFill(settingsModel: settingsModel, animationProgress: animationProgress, breathingPhase: breathingPhase, endRadius: (min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale) / 2)
+                                .frame(width: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale, height: min(geometry.size.width, geometry.size.height) * animationProgress * maxCircleScale)
+                                .scaleEffect(x: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1), y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1), anchor: .center)
+                                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                        } else if settingsModel.shape == .fullscreen {
+                            Rectangle()
+                                .fill(breathingPhase == .inhale || breathingPhase == .holdAfterInhale
+                                      ? settingsModel.inhaleColor
+                                      : settingsModel.exhaleColor)
+                                .edgesIgnoringSafeArea(.all)
+                        }
                     }
                 }
             }
@@ -119,11 +127,17 @@ struct ContentView: View {
                     randomizedTimingInhale: $settingsModel.randomizedTimingInhale,
                     randomizedTimingPostInhaleHold: $settingsModel.randomizedTimingPostInhaleHold,
                     randomizedTimingExhale: $settingsModel.randomizedTimingExhale,
-                    randomizedTimingPostExhaleHold: $settingsModel.randomizedTimingPostExhaleHold
+                    randomizedTimingPostExhaleHold: $settingsModel.randomizedTimingPostExhaleHold,
+                    isAnimating: $settingsModel.isAnimating
                 )
             }
         }
         .onAppear(perform: startBreathingCycle)
+        .onChange(of: settingsModel.isAnimating) { newValue in
+            if !newValue {
+                resetAnimation()
+            }
+        }
     }
     
     func startBreathingCycle() {
@@ -132,6 +146,7 @@ struct ContentView: View {
     }
     
     func inhale() {
+        guard settingsModel.isAnimating else { return resetAnimation() }
         var duration = settingsModel.inhaleDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingInhale > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingInhale...settingsModel.randomizedTimingInhale)
@@ -153,6 +168,7 @@ struct ContentView: View {
     }
     
     func holdAfterInhale() {
+        guard settingsModel.isAnimating else { return resetAnimation() }
         var duration = settingsModel.postInhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingPostInhaleHold > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingPostInhaleHold...settingsModel.randomizedTimingPostInhaleHold)
@@ -165,6 +181,7 @@ struct ContentView: View {
     }
     
     func exhale() {
+        guard settingsModel.isAnimating else { return resetAnimation() }
         var duration = settingsModel.exhaleDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingExhale > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingExhale...settingsModel.randomizedTimingExhale)
@@ -183,16 +200,25 @@ struct ContentView: View {
     }
     
     func holdAfterExhale() {
+        guard settingsModel.isAnimating else { return resetAnimation() }
         var duration = settingsModel.postExhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingPostExhaleHold > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingPostExhaleHold...settingsModel.randomizedTimingPostExhaleHold)
         }
         duration = max(duration, 0.1)
         breathingPhase = .holdAfterExhale
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            cycleCount += 1
-            inhale()
+            guard self.settingsModel.isAnimating else { return self.resetAnimation() }
+            self.cycleCount += 1
+            self.inhale()
         }
+    }
+    
+    func resetAnimation() {
+        cycleCount = 0
+        animationProgress = 0.0
+        breathingPhase = .inhale
     }
 }
 
