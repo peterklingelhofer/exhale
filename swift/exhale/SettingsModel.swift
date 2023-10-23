@@ -223,31 +223,4 @@ class SettingsModel: ObservableObject {
             defaults.removeObject(forKey: key)
         }
     }
-
-}
-
-extension SettingsModel {
-    func convertToAppType(_ type: SettingsModelTypes.ColorFillGradient) -> ColorFillGradient {
-        return ColorFillGradient(rawValue: type.rawValue) ?? .on
-    }
-    
-    func convertToSettingsModelType(_ type: ColorFillGradient) -> SettingsModelTypes.ColorFillGradient {
-        return SettingsModelTypes.ColorFillGradient(rawValue: type.rawValue) ?? .on
-    }
-    
-    func convertToAppType(_ type: SettingsModelTypes.AnimationShape) -> AnimationShape {
-        return AnimationShape(rawValue: type.rawValue) ?? .fullscreen
-    }
-    
-    func convertToSettingsModelType(_ type: AnimationShape) -> SettingsModelTypes.AnimationShape {
-        return SettingsModelTypes.AnimationShape(rawValue: type.rawValue) ?? .fullscreen
-    }
-    
-    func convertToAppType(_ type: SettingsModelTypes.AnimationMode) -> AnimationMode {
-        return AnimationMode(rawValue: type.rawValue) ?? .sinusoidal
-    }
-    
-    func convertToSettingsModelType(_ type: AnimationMode) -> SettingsModelTypes.AnimationMode {
-        return SettingsModelTypes.AnimationMode(rawValue: type.rawValue) ?? .sinusoidal
-    }
 }
