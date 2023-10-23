@@ -21,9 +21,13 @@ struct exhaleApp: App {
                 }
                 .environmentObject(settingsModel)
                 .keyboardShortcut(",", modifiers: .command)
+                
                 Button(settingsModel.isAnimating ? "Stop" : "Start") {
                     settingsModel.isAnimating.toggle()
                 }
+                .environmentObject(settingsModel)
+                .keyboardShortcut("s", modifiers: .command)
+                
                 Button("Quit exhale") {
                     NSApp.terminate(nil)
                 }
