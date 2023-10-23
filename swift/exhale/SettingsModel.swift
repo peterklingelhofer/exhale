@@ -179,10 +179,10 @@ class SettingsModel: ObservableObject {
     }
     
     private func saveColor(_ color: Color, forKey key: String) {
-        let nsColor = NSColor(cgColor: color.cgColor!)
-        guard let unwrappedColor = nsColor else { return }
-        let data = try? NSKeyedArchiver.archivedData(withRootObject: unwrappedColor, requiringSecureCoding: false)
-        defaults.set(data, forKey: key)
+        if let cgColor = color.cgColor, let nsColor = NSColor(cgColor: cgColor) {
+            let data = try? NSKeyedArchiver.archivedData(withRootObject: nsColor, requiringSecureCoding: false)
+            defaults.set(data, forKey: key)
+        }
     }
         
     private func loadColor(forKey key: String) -> Color? {
@@ -218,36 +218,9 @@ class SettingsModel: ObservableObject {
         self.randomizedTimingPostExhaleHold = 0
         self.isAnimating = true
         
-        let keys = ["backgroundColor", "inhaleColor", "exhaleColor", "inhaleDuration", "postInhaleHoldDuration", "exhaleDuration", "postExhaleHoldDuration", "drift", "overlayOpacity", "colorFillGradient", "shape", "animationMode", "randomizedTimingInhale", "randomizedTimingPostInhaleHold", "randomizedTimingExhale", "randomizedTimingPostExhaleHold"]
+        let keys = ["backgroundColor", "inhaleColor", "exhaleColor", "inhaleDuration", "postInhaleHoldDuration", "exhaleDuration", "postExhaleHoldDuration", "drift", "overlayOpacity", "colorFillGradient", "shape", "animationMode", "randomizedTimingInhale", "randomizedTimingPostInhaleHold", "randomizedTimingExhale", "randomizedTimingPostExhaleHold", "isAnimating"]
         for key in keys {
             defaults.removeObject(forKey: key)
         }
-    }
-
-}
-
-extension SettingsModel {
-    func convertToAppType(_ type: SettingsModelTypes.ColorFillGradient) -> ColorFillGradient {
-        return ColorFillGradient(rawValue: type.rawValue) ?? .on
-    }
-    
-    func convertToSettingsModelType(_ type: ColorFillGradient) -> SettingsModelTypes.ColorFillGradient {
-        return SettingsModelTypes.ColorFillGradient(rawValue: type.rawValue) ?? .on
-    }
-    
-    func convertToAppType(_ type: SettingsModelTypes.AnimationShape) -> AnimationShape {
-        return AnimationShape(rawValue: type.rawValue) ?? .fullscreen
-    }
-    
-    func convertToSettingsModelType(_ type: AnimationShape) -> SettingsModelTypes.AnimationShape {
-        return SettingsModelTypes.AnimationShape(rawValue: type.rawValue) ?? .fullscreen
-    }
-    
-    func convertToAppType(_ type: SettingsModelTypes.AnimationMode) -> AnimationMode {
-        return AnimationMode(rawValue: type.rawValue) ?? .sinusoidal
-    }
-    
-    func convertToSettingsModelType(_ type: AnimationMode) -> SettingsModelTypes.AnimationMode {
-        return SettingsModelTypes.AnimationMode(rawValue: type.rawValue) ?? .sinusoidal
     }
 }

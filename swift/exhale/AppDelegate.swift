@@ -20,10 +20,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             button.image = NSImage(named: "StatusBarIcon")
             button.action = #selector(statusBarButtonClicked(sender:))
         }
+        
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Preferences...", action: #selector(toggleSettings(_:)), keyEquivalent: ","))
+        
+        let startStopMenuItem = NSMenuItem(title: settingsModel.isAnimating ? "Stop" : "Start", action: #selector(toggleAnimating(_:)), keyEquivalent: "s")
+        menu.addItem(startStopMenuItem)
+        
         menu.addItem(NSMenuItem(title: "Quit exhale", action: #selector(terminateApp(_:)), keyEquivalent: "q"))
+        
+        settingsModel.$isAnimating
+            .sink { isAnimating in
+                startStopMenuItem.title = isAnimating ? "Stop" : "Start"
+            }
+            .store(in: &subscriptions)
+        
         statusItem.menu = menu
+    }
+
+    @objc func toggleAnimating(_ sender: Any?) {
+        settingsModel.isAnimating.toggle()
     }
 
     @objc func statusBarButtonClicked(sender: NSStatusBarButton) {
