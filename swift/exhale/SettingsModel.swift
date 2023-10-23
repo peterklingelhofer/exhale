@@ -144,12 +144,29 @@ class SettingsModel: ObservableObject {
         self.inhaleColor = loadColor(forKey: "inhaleColor") ?? Color(red: 1, green: 0, blue: 0)
         self.exhaleColor = loadColor(forKey: "exhaleColor") ?? Color(red: 0, green: 0, blue: 1)
         
-        self.inhaleDuration = defaults.double(forKey: "inhaleDuration")
-        self.postInhaleHoldDuration = defaults.double(forKey: "postInhaleHoldDuration")
-        self.exhaleDuration = defaults.double(forKey: "exhaleDuration")
-        self.postExhaleHoldDuration = defaults.double(forKey: "postExhaleHoldDuration")
-        self.drift = defaults.double(forKey: "drift")
-        self.overlayOpacity = defaults.double(forKey: "overlayOpacity")
+        if defaults.object(forKey: "inhaleDuration") != nil {
+            self.inhaleDuration = defaults.double(forKey: "inhaleDuration")
+        }
+
+        if defaults.object(forKey: "postInhaleHoldDuration") != nil {
+            self.postInhaleHoldDuration = defaults.double(forKey: "postInhaleHoldDuration")
+        }
+
+        if defaults.object(forKey: "exhaleDuration") != nil {
+            self.exhaleDuration = defaults.double(forKey: "exhaleDuration")
+        }
+
+        if defaults.object(forKey: "postExhaleHoldDuration") != nil {
+            self.postExhaleHoldDuration = defaults.double(forKey: "postExhaleHoldDuration")
+        }
+
+        if defaults.object(forKey: "drift") != nil {
+            self.drift = defaults.double(forKey: "drift")
+        }
+        
+        if defaults.object(forKey: "overlayOpacity") != nil {
+            self.overlayOpacity = defaults.double(forKey: "overlayOpacity")
+        }
         
         if let savedGradient = defaults.string(forKey: "colorFillGradient"),
            let gradient = ColorFillGradient(rawValue: savedGradient) {
@@ -172,10 +189,21 @@ class SettingsModel: ObservableObject {
            self.animationMode = .sinusoidal
        }
 
-        self.randomizedTimingInhale = defaults.double(forKey: "randomizedTimingInhale")
-        self.randomizedTimingPostInhaleHold = defaults.double(forKey: "randomizedTimingPostInhaleHold")
-        self.randomizedTimingExhale = defaults.double(forKey: "randomizedTimingExhale")
-        self.randomizedTimingPostExhaleHold = defaults.double(forKey: "randomizedTimingPostExhaleHold")
+        if defaults.object(forKey: "randomizedTimingInhale") != nil {
+            self.randomizedTimingInhale = defaults.double(forKey: "randomizedTimingInhale")
+        }
+
+        if defaults.object(forKey: "randomizedTimingPostInhaleHold") != nil {
+            self.randomizedTimingPostInhaleHold = defaults.double(forKey: "randomizedTimingPostInhaleHold")
+        }
+
+        if defaults.object(forKey: "randomizedTimingExhale") != nil {
+            self.randomizedTimingExhale = defaults.double(forKey: "randomizedTimingExhale")
+        }
+
+        if defaults.object(forKey: "randomizedTimingPostExhaleHold") != nil {
+            self.randomizedTimingPostExhaleHold = defaults.double(forKey: "randomizedTimingPostExhaleHold")
+        }
     }
     
     private func saveColor(_ color: Color, forKey key: String) {
@@ -216,9 +244,8 @@ class SettingsModel: ObservableObject {
         self.randomizedTimingPostInhaleHold = 0
         self.randomizedTimingExhale = 0
         self.randomizedTimingPostExhaleHold = 0
-        self.isAnimating = true
         
-        let keys = ["backgroundColor", "inhaleColor", "exhaleColor", "inhaleDuration", "postInhaleHoldDuration", "exhaleDuration", "postExhaleHoldDuration", "drift", "overlayOpacity", "colorFillGradient", "shape", "animationMode", "randomizedTimingInhale", "randomizedTimingPostInhaleHold", "randomizedTimingExhale", "randomizedTimingPostExhaleHold", "isAnimating"]
+        let keys = ["backgroundColor", "inhaleColor", "exhaleColor", "inhaleDuration", "postInhaleHoldDuration", "exhaleDuration", "postExhaleHoldDuration", "drift", "overlayOpacity", "colorFillGradient", "shape", "animationMode", "randomizedTimingInhale", "randomizedTimingPostInhaleHold", "randomizedTimingExhale", "randomizedTimingPostExhaleHold"]
         for key in keys {
             defaults.removeObject(forKey: key)
         }
