@@ -9,46 +9,42 @@ extension Shape {
 
         let colorSequence: [Color] = [settingsModel.backgroundColor, lastColor, settingsModel.backgroundColor]
 
-        if !settingsModel.isAnimating {
-            self.fill(Color.clear)
-        } else {
-            switch settingsModel.colorFillGradient {
-            case .off:
-                self.fill(lastColor)
-            case .inner:
-                if settingsModel.shape == .rectangle {
-                    let gradient = LinearGradient(
-                        gradient: Gradient(colors: [lastColor, settingsModel.backgroundColor]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    self.fill(gradient)
-                } else {
-                    let gradient = RadialGradient(
-                        gradient: Gradient(colors: [settingsModel.backgroundColor, lastColor]),
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: endRadius
-                    )
-                    self.fill(gradient)
-                }
-            case .on:
-                if settingsModel.shape == .rectangle {
-                    let gradient = LinearGradient(
-                        gradient: Gradient(colors: colorSequence),
-                        startPoint: .bottom,
-                        endPoint: .top
-                    )
-                    self.fill(gradient)
-                } else {
-                    let gradient = RadialGradient(
-                        gradient: Gradient(colors: colorSequence),
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: endRadius
-                    )
-                    self.fill(gradient)
-                }
+        switch settingsModel.colorFillGradient {
+        case .off:
+            self.fill(lastColor)
+        case .inner:
+            if settingsModel.shape == .rectangle {
+                let gradient = LinearGradient(
+                    gradient: Gradient(colors: [lastColor, settingsModel.backgroundColor]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                self.fill(gradient)
+            } else {
+                let gradient = RadialGradient(
+                    gradient: Gradient(colors: [settingsModel.backgroundColor, lastColor]),
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: endRadius
+                )
+                self.fill(gradient)
+            }
+        case .on:
+            if settingsModel.shape == .rectangle {
+                let gradient = LinearGradient(
+                    gradient: Gradient(colors: colorSequence),
+                    startPoint: .bottom,
+                    endPoint: .top
+                )
+                self.fill(gradient)
+            } else {
+                let gradient = RadialGradient(
+                    gradient: Gradient(colors: colorSequence),
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: endRadius
+                )
+                self.fill(gradient)
             }
         }
     }
