@@ -78,6 +78,7 @@ struct SettingsView: View {
                 .onTapGesture {
                     isAnimating.toggle()
                 }
+                .keyboardShortcut("s", modifiers: .command)
                 .help(isAnimating ? "Stop the animation, remove all screen tints, and put the app into idle mode." : "Start the app and re-initialize animation.")
                 
                 Spacer().frame(width: 16)
