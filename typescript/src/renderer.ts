@@ -27,6 +27,10 @@ const canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 
+if (!ctx) {
+  throw new Error("Unable to get canvas rendering context");
+}
+
 console.log(
   "%cTo toggle the options terminal (dev tools), use %cCtrl+Shift+I%c (Windows/Linux) or %cCmd+Option+I%c (macOS)",
   "color: lightblue; font-weight: bold;",
@@ -74,7 +78,17 @@ const {
   durationExhale = 10,
   durationPostExhalePause = 0,
   opacity = 0.25,
-} = localStorage;
+} = localStorage as {
+  colorExhale?: Color;
+  colorInhale?: Color;
+  colorStyle?: ColorStyle;
+  shape?: Shape;
+  durationInhale?: number;
+  durationPostInhalePause?: number;
+  durationExhale?: number;
+  durationPostExhalePause?: number;
+  opacity?: number;
+};
 
 Object.assign(localStorage, {
   shape,
@@ -101,16 +115,17 @@ function resizeCanvas(): void {
 }
 window.addEventListener("resize", resizeCanvas);
 
-function linspace(start: number, stop: number, num: number, endpoint = true) {
+function linspace(
+  start: number,
+  stop: number,
+  num: number,
+  endpoint = true
+): number[] {
   const div = endpoint ? num - 1 : num;
   const step = (stop - start) / div;
-  return Array.from(
-    {
-      length: num,
-    },
-    (_, i) => start + step * i
-  );
+  return Array.from({ length: num }, (_, i) => start + step * i);
 }
+
 const timeInn = linspace(
   (7 * Math.PI) / 4,
   (9 * Math.PI) / 4,
@@ -162,9 +177,7 @@ function draw(): void {
   ctx.fillStyle = BACKDROP_COLOR;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-  let gradient;
-
-  // calculate radius
+  let gradient: CanvasGradient | undefined;
 
   // convert the frameCount (special variable) to its position in our totalFrames
   totalFrameInd = frameCount % totalFrames;
@@ -176,8 +189,8 @@ function draw(): void {
   radius = transitionValue * halfCanvasHeight;
 
   if (shape === Shape.FULLSCREEN) {
-    const inhaleColorComponents = colorInhale.match(/\d+/g).map(Number);
-    const exhaleColorComponents = colorExhale.match(/\d+/g).map(Number);
+    const inhaleColorComponents = colorInhale.match(/\d+/g)!.map(Number);
+    const exhaleColorComponents = colorExhale.match(/\d+/g)!.map(Number);
     const interpolatedColor = inhaleColorComponents.map(
       (comp: number, index: number) => {
         return comp + (exhaleColorComponents[index] - comp) * transitionValue;
