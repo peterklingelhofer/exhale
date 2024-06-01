@@ -6,15 +6,19 @@
 // needed in the renderer process.
 // renderer.ts
 type Color = string;
-enum ColorStyle {
-  CONSTANT = "constant",
-  LINEAR = "linear",
-}
-enum Shape {
-  CIRCLE = "circle",
-  FULLSCREEN = "fullscreen",
-  RECTANGLE = "rectangle",
-}
+const ColorStyle = {
+  CONSTANT: "constant",
+  LINEAR: "linear",
+} as const;
+type ColorStyle = (typeof ColorStyle)[keyof typeof ColorStyle];
+
+const Shape = {
+  CIRCLE: "circle",
+  FULLSCREEN: "fullscreen",
+  RECTANGLE: "rectangle",
+} as const;
+type Shape = (typeof Shape)[keyof typeof Shape];
+
 const FRAMES_PER_SECOND = 60;
 const BACKDROP_COLOR: Color = "#000";
 
@@ -23,16 +27,16 @@ document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 
 console.warn(
-  'Adjust these parameters to your liking (e.g. localStorage.opacity = "0.3"):',
-  localStorage
-);
-console.warn(
   "To toggle the options terminal (dev tools), use ctrl + shift + I (Windows/Linux) or cmd + option + I (macOS)"
 );
-console.warn("Full options:");
-console.warn(JSON.stringify(localStorage));
-console.log("Valid values for colorStyle: 'constant' | 'linear'");
-console.log("Valid values for shape: 'circle' | 'fullscreen' | 'rectangle'");
+console.warn(
+  'Adjust these parameters to your liking (e.g. localStorage.opacity = "0.3"), click the ▸ Storage to view full locally stored options:',
+  localStorage
+);
+console.log(
+  `Valid values for colorStyle: ${Object.values(ColorStyle).join(" | ")}`
+);
+console.log(`Valid values for shape: ${Object.values(Shape).join(" | ")}`);
 
 const {
   colorExhale = "rgb(0, 0, 255)",
@@ -148,7 +152,7 @@ function draw(): void {
     const inhaleColorComponents = colorInhale.match(/\d+/g).map(Number);
     const exhaleColorComponents = colorExhale.match(/\d+/g).map(Number);
     const interpolatedColor = inhaleColorComponents.map(
-      (comp: number, index: string | number) => {
+      (comp: number, index: number) => {
         return comp + (exhaleColorComponents[index] - comp) * transitionValue;
       }
     );
