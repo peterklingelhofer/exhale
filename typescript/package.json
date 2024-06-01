@@ -1,13 +1,13 @@
 {
   "name": "exhale",
-  "version": "1.2.9",
+  "version": "1.4.7",
   "description": "A customizable visual indicator to remind you to breathe and facilitate breathwork practice",
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
     "lint": "eslint -c .eslintrc --ext .ts ./src",
     "start": "yarn run build && electron ./dist/main.js",
-    "dist": "npx electron-packager . --platform=darwin,linux,win32",
+    "dist": "npx electron-packager . --platform=linux,win32",
     "dist:linux": "npx electron-packager . --platform=linux",
     "dist:mac": "npx electron-packager . --platform=darwin",
     "dist:windows": "npx electron-packager . --platform=win32"
