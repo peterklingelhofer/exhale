@@ -5,6 +5,7 @@
 // Use preload.js to selectively enable features
 // needed in the renderer process.
 // renderer.ts
+
 type Color = string;
 const ColorStyle = {
   CONSTANT: "constant",
@@ -27,19 +28,41 @@ document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 
 console.log(
-  "To toggle the options terminal (dev tools), use ctrl + shift + I (Windows/Linux) or cmd + option + I (macOS)"
+  "%cTo toggle the options terminal (dev tools), use %cCtrl+Shift+I%c (Windows/Linux) or %cCmd+Option+I%c (macOS)",
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;",
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;",
+  "color: lightblue; font-weight: bold;"
 );
 console.log(
-  "You can adjust options using UI by navigating at the top to\n>> Application > Local storage > file://"
+  "%cYou can adjust options using the UI by navigating at the top to\n%c>> Application > Local storage > file://",
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;"
 );
 console.log(
-  'Alternatively can adjust these parameters via here in the Console (e.g. localStorage.opacity = "0.3"), click the ▸ Storage to view full options:\n',
+  '%cAlternatively, you can adjust these parameters via the Console (e.g. %clocalStorage.opacity = "0.3"%c). Click the %c▸ Storage%c to view full options:\n',
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;",
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;",
+  "color: lightblue; font-weight: bold;",
   localStorage
 );
 console.log(
-  `Valid values for colorStyle: ${Object.values(ColorStyle).join(" | ")}`
+  `%cValid values for colorStyle: %c${Object.values(ColorStyle)
+    .map((value) => `"${value}"`)
+    .join(" | ")}`,
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;"
 );
-console.log(`Valid values for shape: ${Object.values(Shape).join(" | ")}`);
+console.log(
+  `%cValid values for shape: %c${Object.values(Shape)
+    .map((value) => `"${value}"`)
+    .join(" | ")}`,
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;"
+);
 
 const {
   colorExhale = "rgb(0, 0, 255)",
@@ -64,6 +87,7 @@ Object.assign(localStorage, {
   durationPostExhalePause,
   opacity,
 });
+
 let canvasWidth = 0;
 let canvasHeight = 0;
 let halfCanvasHeight = 0;
