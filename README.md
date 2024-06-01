@@ -18,8 +18,6 @@ The information and guidance provided by this breathing app are intended for gen
 ![rectangle-swift](https://user-images.githubusercontent.com/60944077/226204986-7522cb4d-7df1-4d65-96de-e629197e9854.gif)
 <img width="738" alt="settings-swift" src="https://github.com/peterklingelhofer/exhale/assets/60944077/431af8a9-7ba9-481b-8d58-71d4bfa0074e">
 
-
-
 Note: This is the macOS implementation.
 
 ```sh
@@ -51,6 +49,7 @@ yarn run watch
 ```
 
 Modify settings by going to **Application** (found in the top right via `>>`) > **Local Storage**. While the Developer Tools are open, you can resize the window, and opacity values are ignored, so you can position the window and change settings to your liking, and then close the Dev Tools window by clicking the `x` in the top right, or use <kbd>F12</kbd> (Linux/Windows) or <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd> (macOS) to toggle Developer Tools to [access and modify these settings](https://developer.chrome.com/docs/devtools/storage/localstorage/#edit), and <kbd>Ctrl</kbd> + <kbd>R</kbd> (Linux/Windows) or <kbd>Cmd</kbd> + <kbd>R</kbd> (macOS) to refresh the app to use your newly selected settings. If no settings appear on the first run of the application, you can manually add them), following the format of the `storedValues` variable in [`/src/renderer.ts`](https://github.com/peterklingelhofer/exhale/blob/main/src/renderer.ts). To add them manually, go to the **Console** and copy paste the following code into the console and press <kbd>Enter</kbd> or <kbd>Return</kbd> to populate your `localStorage` (these are the defaults as of the time of writing):
+
 ```ts
 localStorage = {
   colorExhale = "rgb(0, 0, 255)",
@@ -58,11 +57,11 @@ localStorage = {
   colorStyle = "linear", // can be "linear" or "constant"
   shape = "fullscreen", // can be "circle" or "rectangle" or "fullscreen"
   durationInhale = 5,
-  durationIn2Out = 0,
+  durationPostInhalePause = 0,
   durationExhale = 10,
-  durationOut2In = 0,
+  durationPostExhalePause = 0,
   opacity = 0.25,
-}
+};
 ```
 
 Once added, you can modify all values from the **Local Storage** pane. Or, if you prefer the terminal, in the **Console** you can write `localStorage.opacity = "0.15"` for example.

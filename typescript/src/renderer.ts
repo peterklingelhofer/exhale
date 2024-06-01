@@ -44,9 +44,9 @@ const {
   colorStyle = ColorStyle.LINEAR,
   shape = Shape.FULLSCREEN,
   durationInhale = 5,
-  durationIn2Out = 0,
+  durationPostInhalePause = 0,
   durationExhale = 10,
-  durationOut2In = 0,
+  durationPostExhalePause = 0,
   opacity = 0.25,
 } = localStorage;
 
@@ -56,9 +56,9 @@ Object.assign(localStorage, {
   colorInhale,
   colorStyle,
   durationExhale,
-  durationIn2Out,
+  durationPostInhalePause,
   durationInhale,
-  durationOut2In,
+  durationPostExhalePause,
   opacity,
 });
 let canvasWidth = 0;
@@ -92,7 +92,7 @@ const timeInn = linspace(
 const timeI2O = linspace(
   (1 * Math.PI) / 4,
   (3 * Math.PI) / 4,
-  Math.ceil(durationIn2Out * FRAMES_PER_SECOND) + 1
+  Math.ceil(durationPostInhalePause * FRAMES_PER_SECOND) + 1
 );
 const timeOut = linspace(
   (3 * Math.PI) / 4,
@@ -102,7 +102,7 @@ const timeOut = linspace(
 const timeO2I = linspace(
   (5 * Math.PI) / 4,
   (7 * Math.PI) / 4,
-  Math.ceil(durationOut2In * FRAMES_PER_SECOND) + 1
+  Math.ceil(durationPostExhalePause * FRAMES_PER_SECOND) + 1
 );
 
 timeInn.pop();
