@@ -22,7 +22,18 @@ const canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 
-console.warn('Adjust these parameters to your liking (e.g. localStorage.opacity = "0.3"):', localStorage);
+console.warn(
+  'Adjust these parameters to your liking (e.g. localStorage.opacity = "0.3"):',
+  localStorage
+);
+console.warn(
+  "To toggle the options terminal (dev tools), use ctrl + shift + I (Windows/Linux) or cmd + option + I (macOS)"
+);
+console.warn("Full options:");
+console.warn(JSON.stringify(localStorage));
+console.log("Valid values for colorStyle: 'constant' | 'linear'");
+console.log("Valid values for shape: 'circle' | 'fullscreen' | 'rectangle'");
+
 const {
   colorExhale = "rgb(0, 0, 255)",
   colorInhale = "rgb(255, 0, 0)",
@@ -136,9 +147,11 @@ function draw(): void {
   if (shape === Shape.FULLSCREEN) {
     const inhaleColorComponents = colorInhale.match(/\d+/g).map(Number);
     const exhaleColorComponents = colorExhale.match(/\d+/g).map(Number);
-    const interpolatedColor = inhaleColorComponents.map((comp: number, index: string | number) => {
-      return comp + (exhaleColorComponents[index] - comp) * transitionValue;
-    });
+    const interpolatedColor = inhaleColorComponents.map(
+      (comp: number, index: string | number) => {
+        return comp + (exhaleColorComponents[index] - comp) * transitionValue;
+      }
+    );
 
     ctx.fillStyle = `rgb(${interpolatedColor[0]}, ${interpolatedColor[1]}, ${interpolatedColor[2]})`;
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
@@ -168,7 +181,8 @@ function draw(): void {
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, startAngle, endAngle, isCounterClockwise);
     ctx.fill();
-  } else { // Shape.RECTANGLE
+  } else {
+    // Shape.RECTANGLE
     const twiceRadius = radius * 2;
 
     if (colorStyle === ColorStyle.LINEAR) {
