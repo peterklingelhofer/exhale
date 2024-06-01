@@ -31,6 +31,8 @@ xed .
 
 ![exhaleElectron](https://user-images.githubusercontent.com/60944077/224524962-56da25cc-e3d9-4d4b-9171-f185be9d709c.gif)
 ![exhaleElectronCircular](https://user-images.githubusercontent.com/60944077/224865780-0e61721e-2345-49aa-830d-0e157b6f4366.gif)
+<img width="912" alt="Screenshot 2024-06-01 at 1 35 36 PM" src="https://github.com/peterklingelhofer/exhale/assets/60944077/b2eb9450-8dcf-4934-b6c9-08328ef6a167">
+
 
 Note: This is the Linux and Windows implementation. macOS will build but it is not very performant and is far more CPU-intensive than the native Swift build.
 
