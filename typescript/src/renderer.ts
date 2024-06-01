@@ -26,11 +26,14 @@ const canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 
-console.warn(
+console.log(
   "To toggle the options terminal (dev tools), use ctrl + shift + I (Windows/Linux) or cmd + option + I (macOS)"
 );
-console.warn(
-  'Adjust these parameters to your liking (e.g. localStorage.opacity = "0.3"), click the ▸ Storage to view full locally stored options:',
+console.log(
+  "You can adjust options using UI by navigating at the top to\n>> Application > Local storage > file://"
+);
+console.log(
+  'Alternatively can adjust these parameters via here in the Console (e.g. localStorage.opacity = "0.3"), click the ▸ Storage to view full options:\n',
   localStorage
 );
 console.log(
