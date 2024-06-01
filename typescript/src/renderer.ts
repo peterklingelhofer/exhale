@@ -5,16 +5,21 @@
 // Use preload.js to selectively enable features
 // needed in the renderer process.
 // renderer.ts
+
 type Color = string;
-enum ColorStyle {
-  CONSTANT = "constant",
-  LINEAR = "linear",
-}
-enum Shape {
-  CIRCLE = "circle",
-  FULLSCREEN = "fullscreen",
-  RECTANGLE = "rectangle",
-}
+const ColorStyle = {
+  CONSTANT: "constant",
+  LINEAR: "linear",
+} as const;
+type ColorStyle = (typeof ColorStyle)[keyof typeof ColorStyle];
+
+const Shape = {
+  CIRCLE: "circle",
+  FULLSCREEN: "fullscreen",
+  RECTANGLE: "rectangle",
+} as const;
+type Shape = (typeof Shape)[keyof typeof Shape];
+
 const FRAMES_PER_SECOND = 60;
 const BACKDROP_COLOR: Color = "#000";
 
@@ -22,18 +27,68 @@ const canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 
-console.warn('Adjust these parameters to your liking (e.g. localStorage.opacity = "0.3"):', localStorage);
+if (!ctx) {
+  throw new Error("Unable to get canvas rendering context");
+}
+
+console.log(
+  "%cTo toggle the options terminal (dev tools), use %cCtrl+Shift+I%c (Windows/Linux) or %cCmd+Option+I%c (macOS)",
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;",
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;",
+  "color: lightblue; font-weight: bold;"
+);
+console.log(
+  "%cYou can adjust options using the UI by navigating at the top to\n%c>> Application > Local storage > file://",
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;"
+);
+console.log(
+  '%cAlternatively, you can adjust these parameters via the Console (e.g. %clocalStorage.opacity = "0.3"%c). Click the %c▸ Storage%c to view full options:\n',
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;",
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;",
+  "color: lightblue; font-weight: bold;",
+  localStorage
+);
+console.log(
+  `%cValid values for colorStyle: %c${Object.values(ColorStyle)
+    .map((value) => `"${value}"`)
+    .join(" | ")}`,
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;"
+);
+console.log(
+  `%cValid values for shape: %c${Object.values(Shape)
+    .map((value) => `"${value}"`)
+    .join(" | ")}`,
+  "color: lightblue; font-weight: bold;",
+  "color: yellow; font-weight: bold;"
+);
+
 const {
   colorExhale = "rgb(0, 0, 255)",
   colorInhale = "rgb(255, 0, 0)",
   colorStyle = ColorStyle.LINEAR,
   shape = Shape.FULLSCREEN,
   durationInhale = 5,
-  durationIn2Out = 0,
+  durationPostInhalePause = 0,
   durationExhale = 10,
-  durationOut2In = 0,
+  durationPostExhalePause = 0,
   opacity = 0.25,
-} = localStorage;
+} = localStorage as {
+  colorExhale?: Color;
+  colorInhale?: Color;
+  colorStyle?: ColorStyle;
+  shape?: Shape;
+  durationInhale?: number;
+  durationPostInhalePause?: number;
+  durationExhale?: number;
+  durationPostExhalePause?: number;
+  opacity?: number;
+};
 
 Object.assign(localStorage, {
   shape,
@@ -41,11 +96,12 @@ Object.assign(localStorage, {
   colorInhale,
   colorStyle,
   durationExhale,
-  durationIn2Out,
+  durationPostInhalePause,
   durationInhale,
-  durationOut2In,
+  durationPostExhalePause,
   opacity,
 });
+
 let canvasWidth = 0;
 let canvasHeight = 0;
 let halfCanvasHeight = 0;
@@ -59,16 +115,17 @@ function resizeCanvas(): void {
 }
 window.addEventListener("resize", resizeCanvas);
 
-function linspace(start: number, stop: number, num: number, endpoint = true) {
+function linspace(
+  start: number,
+  stop: number,
+  num: number,
+  endpoint = true
+): number[] {
   const div = endpoint ? num - 1 : num;
   const step = (stop - start) / div;
-  return Array.from(
-    {
-      length: num,
-    },
-    (_, i) => start + step * i
-  );
+  return Array.from({ length: num }, (_, i) => start + step * i);
 }
+
 const timeInn = linspace(
   (7 * Math.PI) / 4,
   (9 * Math.PI) / 4,
@@ -77,7 +134,7 @@ const timeInn = linspace(
 const timeI2O = linspace(
   (1 * Math.PI) / 4,
   (3 * Math.PI) / 4,
-  Math.ceil(durationIn2Out * FRAMES_PER_SECOND) + 1
+  Math.ceil(durationPostInhalePause * FRAMES_PER_SECOND) + 1
 );
 const timeOut = linspace(
   (3 * Math.PI) / 4,
@@ -87,7 +144,7 @@ const timeOut = linspace(
 const timeO2I = linspace(
   (5 * Math.PI) / 4,
   (7 * Math.PI) / 4,
-  Math.ceil(durationOut2In * FRAMES_PER_SECOND) + 1
+  Math.ceil(durationPostExhalePause * FRAMES_PER_SECOND) + 1
 );
 
 timeInn.pop();
@@ -120,9 +177,7 @@ function draw(): void {
   ctx.fillStyle = BACKDROP_COLOR;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-  let gradient;
-
-  // calculate radius
+  let gradient: CanvasGradient | undefined;
 
   // convert the frameCount (special variable) to its position in our totalFrames
   totalFrameInd = frameCount % totalFrames;
@@ -134,11 +189,13 @@ function draw(): void {
   radius = transitionValue * halfCanvasHeight;
 
   if (shape === Shape.FULLSCREEN) {
-    const inhaleColorComponents = colorInhale.match(/\d+/g).map(Number);
-    const exhaleColorComponents = colorExhale.match(/\d+/g).map(Number);
-    const interpolatedColor = inhaleColorComponents.map((comp: number, index: string | number) => {
-      return comp + (exhaleColorComponents[index] - comp) * transitionValue;
-    });
+    const inhaleColorComponents = colorInhale.match(/\d+/g)!.map(Number);
+    const exhaleColorComponents = colorExhale.match(/\d+/g)!.map(Number);
+    const interpolatedColor = inhaleColorComponents.map(
+      (comp: number, index: number) => {
+        return comp + (exhaleColorComponents[index] - comp) * transitionValue;
+      }
+    );
 
     ctx.fillStyle = `rgb(${interpolatedColor[0]}, ${interpolatedColor[1]}, ${interpolatedColor[2]})`;
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
@@ -168,7 +225,8 @@ function draw(): void {
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, startAngle, endAngle, isCounterClockwise);
     ctx.fill();
-  } else { // Shape.RECTANGLE
+  } else {
+    // Shape.RECTANGLE
     const twiceRadius = radius * 2;
 
     if (colorStyle === ColorStyle.LINEAR) {
