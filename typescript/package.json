@@ -7,10 +7,10 @@
     "watch": "tsc -w",
     "lint": "eslint -c .eslintrc --ext .ts ./src",
     "start": "yarn run build && electron ./dist/main.js",
-    "dist": "npx electron-packager . --platform=linux,win32,darwin",
-    "dist:linux": "npx electron-packager . --platform=linux",
-    "dist:mac": "npx electron-packager . --platform=darwin",
-    "dist:windows": "npx electron-packager . --platform=win32"
+    "dist": "npx electron-packager . --platform=linux,win32,darwin --overwrite",
+    "dist:linux": "npx electron-packager . --platform=linux --overwrite",
+    "dist:mac": "npx electron-packager . --platform=darwin --overwrite",
+    "dist:windows": "npx electron-packager . --platform=win32 --overwrite"
   },
   "build": {
     "appId": "exhale",
