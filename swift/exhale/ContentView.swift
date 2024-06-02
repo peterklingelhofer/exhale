@@ -134,6 +134,12 @@ struct ContentView: View {
                 resetAnimation()
             }
         }
+        .onChange(of: settingsModel.resetAnimation) { newValue in
+            if newValue {
+                resetAnimation()
+                startBreathingCycle()
+            }
+        }
     }
     
     func startBreathingCycle() {

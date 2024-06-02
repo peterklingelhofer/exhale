@@ -106,9 +106,12 @@ struct SettingsView: View {
                                     Text("Inhale Color")
                                         .frame(width: labelWidth, alignment: .leading)
                                     
-                                    ColorPicker("", selection: $inhaleColor, supportsOpacity: false)
+                                    ColorPicker("", selection: $inhaleColor)
                                         .labelsHidden()
                                         .frame(alignment: .trailing)
+                                        .onChange(of: inhaleColor) { _ in
+                                            settingsModel.triggerAnimationReset()
+                                        }
                                 }
                                 .help("Choose the color for the inhale phase.")
                                 
@@ -116,9 +119,12 @@ struct SettingsView: View {
                                     Text("Exhale Color")
                                         .frame(width: labelWidth, alignment: .leading)
                                     
-                                    ColorPicker("", selection: $exhaleColor, supportsOpacity: false)
+                                    ColorPicker("", selection: $exhaleColor)
                                         .labelsHidden()
                                         .frame(alignment: .trailing)
+                                        .onChange(of: exhaleColor) { _ in
+                                            settingsModel.triggerAnimationReset()
+                                        }
                                 }
                                 .help("Choose the color for the exhale phase.")
                                 
@@ -126,27 +132,45 @@ struct SettingsView: View {
                                     Text("Background Color")
                                         .frame(width: labelWidth, alignment: .leading)
                                     
-                                    ColorPicker("", selection: $backgroundColor, supportsOpacity: false)
+                                    ColorPicker("", selection: $backgroundColor)
                                         .labelsHidden()
                                         .frame(alignment: .trailing)
                                         .disabled(shape == .fullscreen)
+                                        .onChange(of: backgroundColor) { _ in
+                                            settingsModel.triggerAnimationReset()
+                                        }
                                 }
                                 .help("Choose the background color, or the color outside of the animation shape. This parameter has no effect if the Shape parameter is set to Fullscreen.")
                                 
                                 TextFieldWithValidation(title: "Inhale Duration (s)", value: $inhaleDuration, formatter: createNumberFormatter(limits: (min: 0.1, max: nil)), minimumValue: 0.1)
                                     .help("Choose the duration of the inhale phase, in seconds.")
+                                    .onChange(of: inhaleDuration) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                                 
                                 TextFieldWithValidation(title: "Post-Inhale Hold (s)", value: $postInhaleHoldDuration, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0)
                                     .help("Choose the duration of the hold/pause that occurs at the end of the inhale phase, in seconds.")
+                                    .onChange(of: postInhaleHoldDuration) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                                 
                                 TextFieldWithValidation(title: "Exhale Duration (s)", value: $exhaleDuration, formatter: createNumberFormatter(limits: (min: 0.1, max: nil)), minimumValue: 0.1)
                                     .help("Choose the duration of the exhale phase, in seconds.")
+                                    .onChange(of: exhaleDuration) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                                 
                                 TextFieldWithValidation(title: "Post-Exhale Hold (s)", value: $postExhaleHoldDuration, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0)
                                     .help("Choose the duration of the hold/pause that occurs at the end of the exhale phase, in seconds.")
+                                    .onChange(of: postExhaleHoldDuration) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                                 
                                 TextFieldWithValidation(title: "Overlay Opacity", value: $overlayOpacity, formatter: createNumberFormatter(limits: (min: 0, max: 1)), minimumValue: 0.0)
                                     .help("Choose the transparency of the overlay colors, with lower values being more transparent and higher values being more visible.")
+                                    .onChange(of: overlayOpacity) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                             }.padding()
                             
                             VStack(alignment: .leading) {
@@ -162,6 +186,9 @@ struct SettingsView: View {
                                     .pickerStyle(SegmentedPickerStyle())
                                     .frame(width: controlWidth)
                                     .labelsHidden()
+                                    .onChange(of: shape) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                                 }
                                 .help("Choose the Shape of the animation. Fullscreen changes the color of every pixel on the screen, starting with the Inhale Color at the beginning of the inhale phase and transitioning to the Exhale Color, then for the exhale phase transitioning back from the Exhale Color to the Inhale Color (Fullscreen uses Gradient Type Constant, setting it to Linear Gradient has no effect). Rectangle rises vertically from the bottom of the screen to the top for the inhale phase, and then lowers back down from the top to the bottom for the exhale phase. Circle grows outwards starting from a single point in the center of the screen to the outer edges of the screen for the inhale phase, and then shrinks back to the center again for the exhale phase.")
                                 
@@ -178,6 +205,9 @@ struct SettingsView: View {
                                     .frame(width: controlWidth)
                                     .disabled(shape == .fullscreen)
                                     .labelsHidden()
+                                    .onChange(of: colorFillType) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                                 }
                                 .help("Choose the gradient color effect. Off allows the change the color to transition over time between the Inhale Color and Exhale Color and back. Inner and On causes abrupt color transitions at the end of the inhale and exhale phases (which can make it easier to notice when it is time to reverse the direction of your breathing), and enables a color gradient from the Background Color to the Inhale Color or Exhale Color (depending on the current phase). When the Shape is Circle the Inner gradient color transition is from the innermost center point of the Circle to the diameter, whereas with the Rectangle shape the Inner gradient color transition is from the bottom of the Rectangle to the top. On has similar behavior to Inner, but includes a gradient on the exterior of shape in addition to the interior. This parameter has no effect if the Shape parameter is set to Fullscreen.")
                                 
@@ -193,22 +223,40 @@ struct SettingsView: View {
                                     .pickerStyle(SegmentedPickerStyle())
                                     .frame(width: controlWidth)
                                     .labelsHidden()
+                                    .onChange(of: animationMode) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                                 }
                                 .help("Choose the animation speed's acceleration curve. Sinusoidal begins slowly, speeds up during the middle point, and slows down again near the end, creating a natural and organic feel to the transition. Linear provides a constant animation speed and acceleration rate throughout the duration of the animation.")
                                 TextFieldWithValidation(title: "Inhale Randomization", value: $randomizedTimingInhale, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
                                     .help("Choose the extent to which the duration of the inhale phase should be randomized, in seconds.")
+                                    .onChange(of: randomizedTimingInhale) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                                 
                                 TextFieldWithValidation(title: "Post-Inhale Hold Randomization", value: $randomizedTimingPostInhaleHold, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
                                     .help("Choose the extent to which the duration of the of the hold/pause that occurs at the end of the inhale phase should be randomized, in seconds.")
+                                    .onChange(of: randomizedTimingPostInhaleHold) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                                 
                                 TextFieldWithValidation(title: "Exhale Randomization", value: $randomizedTimingExhale, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
                                     .help("Choose the extent to which the duration of the exhale phase should be randomized, in seconds.")
+                                    .onChange(of: randomizedTimingExhale) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                                 
                                 TextFieldWithValidation(title: "Post-Exhale Hold Randomization", value: $randomizedTimingPostExhaleHold, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
                                     .help("Choose the extent to which the duration of the of the hold/pause that occurs at the end of the exhale phase should be randomized, in seconds.")
+                                    .onChange(of: randomizedTimingPostExhaleHold) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                                 
                                 TextFieldWithValidation(title: "Drift", value: $drift, formatter: createNumberFormatter(limits: (min: 0.0, max: nil)), minimumValue: 0.0)
                                     .help("Choose the extent to which the duration of the every inhale and exhale phase (as well as the end-of-phase hold if Post-Inhale Hold or Post-Exhale Hold are set to non-zero values) lengthens or shortens in duration over time. Drift is multiplicative, so a value of 1.01 will gradually lengthen the duration (by 1% each cycle), allowing you to extend the duration of your breath over time, whereas a value of 0.75 would shorten the duration of each phase (by 25%) each cycle. Values of 1.01 - 1.05 are recommended for working on slowly elongating one's breath cycle.")
+                                    .onChange(of: drift) { _ in
+                                        settingsModel.triggerAnimationReset()
+                                    }
                             }
                         }.lineLimit(1)
                     }.frame(width: 724)

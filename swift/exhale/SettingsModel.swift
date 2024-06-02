@@ -120,7 +120,14 @@ class SettingsModel: ObservableObject {
             defaults.set(isAnimating, forKey: "isAnimating")
         }
     }
+
+    @Published var resetAnimation: Bool = false
     
+    func triggerAnimationReset() {
+        resetAnimation = true
+        resetAnimation = false
+    }
+
     init() {
         self.backgroundColor = Color.black
         self.inhaleColor = Color.red
