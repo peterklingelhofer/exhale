@@ -24,6 +24,8 @@ You can download the build for your respective operating system on the [Releases
 
 Note: This is built natively in Swift.
 
+You can use <kbd>Ctrl</kbd> + <kbd>,</kbd> to toggle settings open and closed. The **Pause** feature can be used to tint your screen or make your screen darker than otherwise possible for nighttime work (which can compound with both [Night Shift](https://support.apple.com/en-us/102191) and [f.lux](https://justgetflux.com/).
+
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
 cd exhale
