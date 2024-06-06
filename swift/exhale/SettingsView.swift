@@ -45,6 +45,14 @@ func createNumberFormatter(limits: (min: Double, max: Double?)) -> NumberFormatt
     return formatter
 }
 
+func getAppVersion() -> String {
+    if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+       let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
+        return "Version \(version) (Build \(build))"
+    }
+    return "Unknown"
+}
+
 struct SettingsView: View {
     @EnvironmentObject var settingsModel: SettingsModel
     @Binding var showSettings: Bool
@@ -69,31 +77,40 @@ struct SettingsView: View {
     private let controlWidth: CGFloat = 90
     
     var body: some View {
-        VStack {
-            HStack {
-                VStack {
-                    Image(systemName: isAnimating ? "stop.circle.fill" : "play.circle.fill")
-                    Text(isAnimating ? "Stop" : "Start")
-                }
-                .onTapGesture {
-                    isAnimating.toggle()
-                }
-                .keyboardShortcut("s", modifiers: .command)
-                .help(isAnimating ? "Stop the animation, remove all screen tints, and put the app into idle mode." : "Start the app and re-initialize animation.")
-                
-                Spacer().frame(width: 16)
-                
-                VStack {
-                    Spacer().frame(height: 2)
-                    Image(systemName: "eraser")
-                    Text("Reset")
-                }
-                .onTapGesture {
-                    settingsModel.resetToDefaults()
-                }
-                .help("Reset all settings to their default values.")
-            }
-            .padding(.top)
+         VStack {
+             HStack {
+                 Spacer()
+                 Text("Build: \(getAppVersion())")
+                     .font(.footnote)
+                     .padding([.trailing, .top], 20)
+             }
+
+             HStack {
+                 VStack {
+                     Image(systemName: isAnimating ? "stop.circle.fill" : "play.circle.fill")
+                     Text(isAnimating ? "Stop" : "Start")
+                 }
+                 .onTapGesture {
+                     isAnimating.toggle()
+                 }
+                 .keyboardShortcut("s", modifiers: .command)
+                 .help(isAnimating ? "Stop the animation, remove all screen tints, and put the app into idle mode." : "Start the app and re-initialize animation.")
+                 
+                 Spacer().frame(width: 16)
+                 
+                 VStack {
+                     Spacer().frame(height: 2)
+                     Image(systemName: "eraser")
+                     Text("Reset")
+                 }
+                 .onTapGesture {
+                     settingsModel.resetToDefaults()
+                 }
+                 .help("Reset all settings to their default values.")
+                 
+                 Spacer()
+             }
+             .padding(.leading, 25)
             
             HStack {
                 Spacer()

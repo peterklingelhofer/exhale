@@ -1,4 +1,3 @@
-//  exhaleApp.swift
 import SwiftUI
 
 @main
