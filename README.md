@@ -12,7 +12,7 @@ Each of these implementations allows users to set an inhale, inhale hold, exhale
 
 The information and guidance provided by this breathing app are intended for general informational purposes only and should not be construed as medical advice, diagnosis, or treatment. The creator of this app is not a medical professional, and the app is not a substitute for professional medical advice or consultation with a qualified healthcare provider. Always seek the advice of a physician or other qualified healthcare provider with any questions you may have regarding a medical condition or health objectives. Do not disregard or delay seeking professional medical advice because of the information or suggestions provided by this app. In the event of a medical emergency, call your doctor or dial your local emergency number immediately. Use of this app is at your own risk, and the creator assumes no responsibility for any adverse effects or consequences resulting from its use.
 
-## Download 
+## Download
 
 You can download the build for your respective operating system on the [Releases](https://github.com/peterklingelhofer/exhale/releases) page. Using the latest release is recommended, but if you run into issues you could try a previous release to see if that yields better results. If you do encounter a problem, please [document the issue you encountered](https://github.com/peterklingelhofer/exhale/issues/new).
 
@@ -24,9 +24,9 @@ You can download the build for your respective operating system on the [Releases
 
 Note: This is built natively in Swift.
 
-To launch the app on Catalina or newer, you may have to right click and select "Open" instead of double clicking on it. That's Apple's take on "security" for non-notarized binaries, or if you are not connected to the Internet.
+To launch the app on Catalina or newer for the first time, you may have to right click and select "Open" instead of double clicking on it, and you may need to do this twice. That's Apple's take on "security" for non-notarized binaries, or if you are not connected to the Internet.
 
-You can use <kbd>Ctrl</kbd> + <kbd>,</kbd> to toggle settings open and closed. The **Pause** feature can be used to tint your screen or make your screen darker than otherwise possible for nighttime work (which can compound with both [Night Shift](https://support.apple.com/en-us/102191) and [f.lux](https://justgetflux.com/).
+You can use <kbd>Ctrl</kbd> + <kbd>,</kbd> to toggle settings open and closed. The **Tint** feature can be used to tint your screen the color of your selected background color, or make your screen darker than otherwise possible for nighttime work (which can compound with both [Night Shift](https://support.apple.com/en-us/102191) and [f.lux](https://justgetflux.com/).
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
@@ -40,7 +40,6 @@ xed .
 ![exhaleElectron](https://user-images.githubusercontent.com/60944077/224524962-56da25cc-e3d9-4d4b-9171-f185be9d709c.gif)
 ![exhaleElectronCircular](https://user-images.githubusercontent.com/60944077/224865780-0e61721e-2345-49aa-830d-0e157b6f4366.gif)
 <img width="912" alt="Screenshot 2024-06-01 at 1 35 36 PM" src="https://github.com/peterklingelhofer/exhale/assets/60944077/b2eb9450-8dcf-4934-b6c9-08328ef6a167">
-
 
 Note: This implementation is built with TypeScript & Electron. The macOS will build but it is not very performant and is far more CPU-intensive than the native Swift build, and as a result the Swift build is recommended for macOS users.
 
