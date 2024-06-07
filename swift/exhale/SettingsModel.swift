@@ -1,3 +1,4 @@
+// SettingsModel.swift
 import SwiftUI
 import Combine
 
@@ -123,10 +124,30 @@ class SettingsModel: ObservableObject {
 
     @Published var resetAnimation: Bool = false
     
-    func triggerAnimationReset() {
-        resetAnimation = true
-        resetAnimation = false
-    }
+    @Published var isPaused: Bool = false
+
+     func triggerAnimationReset() {
+         resetAnimation = true
+         resetAnimation = false
+     }
+
+     func start() {
+         isAnimating = true
+         isPaused = false
+     }
+
+     func stop() {
+         isAnimating = false
+         isPaused = false
+     }
+
+     func pause() {
+         isPaused = true
+     }
+
+     func unpause() {
+         isPaused = false
+     }
 
     init() {
         self.backgroundColor = Color.black
@@ -258,3 +279,4 @@ class SettingsModel: ObservableObject {
         }
     }
 }
+

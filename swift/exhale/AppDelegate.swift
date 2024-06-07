@@ -13,33 +13,59 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var isAnimatingSubscription: AnyCancellable?
     var subscriptions = Set<AnyCancellable>()
     var statusItem: NSStatusItem!
-    
+
     func setUpStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.image = NSImage(named: "StatusBarIcon")
             button.action = #selector(statusBarButtonClicked(sender:))
         }
-        
+
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Preferences...", action: #selector(toggleSettings(_:)), keyEquivalent: ","))
         
-        let startStopMenuItem = NSMenuItem(title: settingsModel.isAnimating ? "Stop" : "Start", action: #selector(toggleAnimating(_:)), keyEquivalent: "s")
-        menu.addItem(startStopMenuItem)
+        let startMenuItem = NSMenuItem(title: "Start", action: #selector(startAnimating(_:)), keyEquivalent: "s")
+        let tintMenuItem = NSMenuItem(title: "Tint", action: #selector(pauseAnimating(_:)), keyEquivalent: "p")
+        let stopMenuItem = NSMenuItem(title: "Stop", action: #selector(stopAnimating(_:)), keyEquivalent: "x")
         
+        menu.addItem(startMenuItem)
+        menu.addItem(stopMenuItem)
+        menu.addItem(tintMenuItem)
         menu.addItem(NSMenuItem(title: "Quit exhale", action: #selector(terminateApp(_:)), keyEquivalent: "q"))
-        
+
         settingsModel.$isAnimating
-            .sink { isAnimating in
-                startStopMenuItem.title = isAnimating ? "Stop" : "Start"
+            .sink { [weak self] isAnimating in
+                guard let self = self else { return }
+                startMenuItem.isEnabled = !isAnimating
+                stopMenuItem.isEnabled = isAnimating || self.settingsModel.isPaused
+                tintMenuItem.isEnabled = !isAnimating && !self.settingsModel.isPaused
+            }
+            .store(in: &subscriptions)
+
+        settingsModel.$isPaused
+            .sink { [weak self] isPaused in
+                guard let self = self else { return }
+                tintMenuItem.isEnabled = !self.settingsModel.isAnimating && !isPaused
             }
             .store(in: &subscriptions)
         
         statusItem.menu = menu
     }
 
-    @objc func toggleAnimating(_ sender: Any?) {
-        settingsModel.isAnimating.toggle()
+    @objc func startAnimating(_ sender: Any?) {
+        settingsModel.start()
+    }
+
+    @objc func stopAnimating(_ sender: Any?) {
+        settingsModel.stop()
+    }
+
+    @objc func pauseAnimating(_ sender: Any?) {
+        if settingsModel.isPaused {
+            settingsModel.unpause()
+        } else {
+            settingsModel.pause()
+        }
     }
 
     @objc func statusBarButtonClicked(sender: NSStatusBarButton) {
@@ -49,7 +75,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func terminateApp(_ sender: Any?) {
         NSApp.terminate(nil)
     }
-    
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         settingsModel = SettingsModel()
@@ -62,7 +88,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 backing: .buffered,
                 defer: false
             )
-            
+
             window.contentView = NSHostingView(rootView: ContentView().environmentObject(settingsModel))
             window.makeKeyAndOrderFront(nil)
             window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 1) // Window level in front of the menu bar
@@ -70,7 +96,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.isOpaque = false
             window.ignoresMouseEvents = true
             window.setFrame(screen.frame, display: true)
-            
+
             windows.append(window)
         }
 
@@ -79,33 +105,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 window.backgroundColor = NSColor(newColor)
             }
         }
-        
+
         exhaleColorSubscription = settingsModel.$exhaleColor.sink { [unowned self] newColor in
             for window in self.windows {
                 window.backgroundColor = NSColor(newColor)
             }
         }
-        
+
         overlayOpacitySubscription = settingsModel.$overlayOpacity.sink { [unowned self] newOpacity in
             for window in self.windows {
                 window.alphaValue = CGFloat(newOpacity)
             }
         }
-        
+
         // Reload content view when any setting changes
         settingsModel.objectWillChange.sink { [unowned self] in
             self.reloadContentView()
         }.store(in: &subscriptions)
-        
+
         reloadContentView()
-        
+
         settingsWindow = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 600, height: 200),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        
+
         settingsWindow.delegate = self
         settingsWindow.contentView = NSHostingView(rootView: SettingsView(
             showSettings: .constant(false),
@@ -120,31 +146,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             drift: Binding(get: { self.settingsModel.drift }, set: { self.settingsModel.drift = $0 }),
             overlayOpacity: Binding(get: { self.settingsModel.overlayOpacity }, set: { self.settingsModel.overlayOpacity = $0 }),
             shape: Binding<AnimationShape>(get: { self.settingsModel.shape }, set: { self.settingsModel.shape = $0 }),
-            animationMode: Binding<AnimationMode>(get: { self.settingsModel.animationMode }, set: { self.settingsModel.animationMode = $0 }),
+            animationMode: Binding(get: { self.settingsModel.animationMode }, set: { self.settingsModel.animationMode = $0 }),
             randomizedTimingInhale: Binding(get: { self.settingsModel.randomizedTimingInhale }, set: { self.settingsModel.randomizedTimingInhale = $0 }),
             randomizedTimingPostInhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostInhaleHold }, set: { self.settingsModel.randomizedTimingPostInhaleHold = $0 }),
             randomizedTimingExhale: Binding(get: { self.settingsModel.randomizedTimingExhale }, set: { self.settingsModel.randomizedTimingExhale = $0 }),
             randomizedTimingPostExhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostExhaleHold }, set: { self.settingsModel.randomizedTimingPostExhaleHold = $0 }),
             isAnimating: Binding(get: { self.settingsModel.isAnimating }, set: { self.settingsModel.isAnimating = $0 })
         ).environmentObject(settingsModel))
-        
+
         settingsWindow.title = "exhale"
         toggleSettings(nil)
         setUpStatusItem()
-        
+
         isAnimatingSubscription = settingsModel.$isAnimating.sink { [unowned self] isAnimating in
-            if !isAnimating {
+            if !isAnimating && !self.settingsModel.isPaused {
                 for window in self.windows {
                     window.backgroundColor = NSColor.clear
                 }
             }
         }
     }
-    
+
     func applicationWillTerminate(_ notification: Notification) {
         // Insert code here to tear down your application
     }
-    
+
     @objc func toggleSettings(_ sender: Any?) {
         if settingsWindow.isVisible {
             settingsWindow.orderOut(nil)
@@ -154,14 +180,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             settingsWindow.level = .floating
         }
     }
-    
+
     func reloadContentView() {
         let contentView = ContentView().environmentObject(settingsModel)
         for window in windows {
             window.contentView = NSHostingView(rootView: contentView)
         }
     }
-    
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if sender == settingsWindow {
             settingsWindow.orderOut(sender)

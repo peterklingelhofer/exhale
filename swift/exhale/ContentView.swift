@@ -57,7 +57,7 @@ struct ContentView: View {
     @State private var overlayOpacity: Double = 0.1
     @State private var showSettings = false
     @State private var cycleCount: Int = 0
-    
+
     var maxCircleScale: CGFloat {
         guard let screen = NSScreen.main else { return settingsModel.colorFillGradient == .on ? 2 : 1 }
         let screenWidth = screen.frame.width
@@ -65,13 +65,13 @@ struct ContentView: View {
         let maxDimension = max(screenWidth, screenHeight)
         return maxDimension / min(screenWidth, screenHeight)
     }
-    
+
     var body: some View {
         ZStack {
             GeometryReader { geometry in
                 ZStack {
-                    if !settingsModel.isAnimating {
-                       Color.clear.edgesIgnoringSafeArea(.all)
+                    if !settingsModel.isAnimating && !settingsModel.isPaused {
+                        Color.clear.edgesIgnoringSafeArea(.all)
                     } else {
                         settingsModel.backgroundColor.edgesIgnoringSafeArea(.all)
                         
@@ -134,6 +134,13 @@ struct ContentView: View {
                 resetAnimation()
             }
         }
+        .onChange(of: settingsModel.isPaused) { newValue in
+            if newValue {
+                stopCurrentAnimation()
+            } else if settingsModel.isAnimating {
+                resumeBreathingCycle()
+            }
+        }
         .onChange(of: settingsModel.resetAnimation) { newValue in
             if newValue {
                 resetAnimation()
@@ -141,14 +148,14 @@ struct ContentView: View {
             }
         }
     }
-    
+
     func startBreathingCycle() {
         cycleCount = 0
         inhale()
     }
-    
+
     func inhale() {
-        guard settingsModel.isAnimating else { return resetAnimation() }
+        guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         var duration = settingsModel.inhaleDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingInhale > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingInhale...settingsModel.randomizedTimingInhale)
@@ -168,9 +175,9 @@ struct ContentView: View {
             holdAfterInhale()
         }
     }
-    
+
     func holdAfterInhale() {
-        guard settingsModel.isAnimating else { return resetAnimation() }
+        guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         var duration = settingsModel.postInhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingPostInhaleHold > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingPostInhaleHold...settingsModel.randomizedTimingPostInhaleHold)
@@ -181,9 +188,9 @@ struct ContentView: View {
             exhale()
         }
     }
-    
+
     func exhale() {
-        guard settingsModel.isAnimating else { return resetAnimation() }
+        guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         var duration = settingsModel.exhaleDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingExhale > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingExhale...settingsModel.randomizedTimingExhale)
@@ -200,9 +207,9 @@ struct ContentView: View {
             holdAfterExhale()
         }
     }
-    
+
     func holdAfterExhale() {
-        guard settingsModel.isAnimating else { return resetAnimation() }
+        guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         var duration = settingsModel.postExhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingPostExhaleHold > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingPostExhaleHold...settingsModel.randomizedTimingPostExhaleHold)
@@ -216,11 +223,31 @@ struct ContentView: View {
             self.inhale()
         }
     }
-    
+
     func resetAnimation() {
         cycleCount = 0
         animationProgress = 0.0
         breathingPhase = .inhale
+    }
+
+    func stopCurrentAnimation() {
+        // Stop the current animation
+        cycleCount = 0
+        animationProgress = 0.0
+    }
+
+    func resumeBreathingCycle() {
+        // Resume the breathing cycle
+        switch breathingPhase {
+        case .inhale:
+            inhale()
+        case .holdAfterInhale:
+            holdAfterInhale()
+        case .exhale:
+            exhale()
+        case .holdAfterExhale:
+            holdAfterExhale()
+        }
     }
 }
 
