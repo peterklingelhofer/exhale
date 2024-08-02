@@ -4,7 +4,7 @@
 
 ## Introduction
 
-Research indicates we blink less and breathe more shallowly when we are looking at screens. This app is intended as a friendly indicator and reminder to continue to take full and deep breaths. As looking at screens for long periods of time is typically less than ideal, this tool is intended as a means to potentially help soften the blow.
+Research indicates we blink less and breathe more shallowly when we are looking at screens. This minimal app is intended as a friendly indicator and reminder to continue to take full and deep breaths. As looking at screens for long periods of time is typically less than ideal, this tool is intended as a means to potentially ameliorate those negative impacts.
 
 Each of these implementations allows users to set an inhale, inhale hold, exhale, and exhale hold duration, in seconds, to fit their needs. For beginners who might be curious what a good starting value might be for these, I recommend keeping it simple, using `4` for the in duration and `4` for the out duration. Eventually you can work your way up to `6` and `8`, and set the out duration to be twice that of the in duration to facilitate activation of the parasympathetic nervous system. Some users might like to start out with box breathing, which is inhale `4`, inhale hold `4`, exhale `4`, exhale hold `4`. Remember, if intense feelings arise while practicing, taking a break is encouraged - it's important to not overdo it.
 
@@ -95,3 +95,9 @@ python main.py
 Modify variables at the top of the file for preferred in and out duration, in seconds.
 
 For the full-screen resizable version, use, `IS_FULL_SCREEN = True` which makes the window entirely resizable by clicking and dragging from the corners.
+
+## Sponsorship
+
+This app is free and will always be free, but if you want to support me or want a more rapid response time on feature requests, feel free to buy me a coffee:
+
+<a href="https://www.buymeacoffee.com/peterklingelhofer" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
