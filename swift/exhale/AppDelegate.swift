@@ -96,10 +96,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.isOpaque = false
             window.ignoresMouseEvents = true
             window.setFrame(screen.frame, display: true)
-            window.collectionBehavior = [
-                .canJoinAllSpaces,
-                .fullScreenAuxiliary,
-            ]  // Ensures window appears in all spaces
+//            window.collectionBehavior = [.canJoinAllSpaces]  // Ensures window appears in all spaces
 
             windows.append(window)
         }
