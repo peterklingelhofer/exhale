@@ -11,9 +11,7 @@ struct exhaleApp: App {
     }
     
     var body: some Scene {
-        Settings {
-            EmptyView()
-        }
+        Settings {}
         .commands {
             CommandGroup(replacing: .appSettings) {
                 Button("Preferences...") {
