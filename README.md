@@ -1,6 +1,6 @@
 # exhale
 
-![exhale](https://github.com/peterklingelhofer/exhale/assets/60944077/8c2ec6cd-d725-4b26-840e-9bf31f0796b5)
+![exhale](https://github.com/user-attachments/assets/cc35cf4c-f7ab-4abf-aa87-e10273343f3f)
 
 ## Introduction
 
