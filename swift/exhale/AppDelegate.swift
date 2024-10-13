@@ -58,6 +58,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func stopAnimating(_ sender: Any?) {
         settingsModel.stop()
+
+        for window in windows {
+            window.close()
+        }
+        windows.removeAll()
     }
 
     @objc func pauseAnimating(_ sender: Any?) {
