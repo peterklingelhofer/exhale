@@ -80,7 +80,7 @@ struct SettingsView: View {
         VStack {
             HStack {
                 Spacer()
-                Text("Build: \(getAppVersion())")
+                Text("\(getAppVersion())")
                     .font(.footnote)
                     .padding([.trailing, .top], 20)
             }
