@@ -11,7 +11,7 @@ struct exhaleApp: App {
     }
     
     var body: some Scene {
-        WindowGroup {
+        Settings {
             EmptyClosingView()
         }
         .commands {
