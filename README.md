@@ -96,6 +96,12 @@ Modify variables at the top of the file for preferred in and out duration, in se
 
 For the full-screen resizable version, use, `IS_FULL_SCREEN = True` which makes the window entirely resizable by clicking and dragging from the corners.
 
+
+## Perl Script
+
+Companion repository made in Perl can be found [here](https://github.com/franco3445/Breathing)
+
+
 ## Sponsorship
 
 This app is free and will always be free, but if you want to support me or want a more rapid response time on feature requests, feel free to buy me a coffee:
