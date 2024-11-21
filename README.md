@@ -99,7 +99,7 @@ For the full-screen resizable version, use, `IS_FULL_SCREEN = True` which makes 
 
 ## Perl Script
 
-Companion repository made in Perl can be found [here](https://github.com/franco3445/Breathing)
+Companion repository made in Perl can be found [here](https://github.com/franco3445/Breathing).
 
 
 ## Sponsorship
