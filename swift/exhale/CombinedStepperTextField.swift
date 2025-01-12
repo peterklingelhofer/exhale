@@ -9,7 +9,6 @@ struct CombinedStepperTextField: View {
     var limits: (min: Double?, max: Double?)
     var step: Double = 1.0
 
-    // MARK: - Number Formatter
     private var formatter: NumberFormatter {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -29,7 +28,6 @@ struct CombinedStepperTextField: View {
 
             Spacer()
 
-            // TextField for manual input
             TextField("", value: $value, formatter: formatter)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .frame(width: 60)
@@ -41,10 +39,9 @@ struct CombinedStepperTextField: View {
                     )
                 }
 
-            // Stepper for increment/decrement
             Stepper("", value: $value, in: (limits.min ?? defaultMin)...(limits.max ?? Double.infinity), step: step)
                 .labelsHidden()
-                .frame(width: 16, alignment: .leading)
+                .frame(width: 0)
         }
     }
 }
