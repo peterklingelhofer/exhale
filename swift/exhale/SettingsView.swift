@@ -233,11 +233,9 @@ struct SettingsView: View {
                                         // Validate the new value
                                         let validatedValue = validateValue(value: newValue, minimumValue: 0.0, formatter: createNumberFormatter(limits: (min: 0, max: 1)))
                                         
-                                        if validatedValue > 0.9 && validatedValue != previousOverlayOpacity {
-                                            // Show warning if new value exceeds 0.9
+                                        if validatedValue > 0.5 && validatedValue != previousOverlayOpacity {
                                             showOpacityWarning = true
                                         } else {
-                                            // Update immediately if valid and <= 0.9
                                             overlayOpacity = validatedValue
                                             previousOverlayOpacity = validatedValue
                                             settingsModel.triggerAnimationReset()
@@ -385,7 +383,7 @@ struct SettingsView: View {
             Alert(
                 title: Text("High Opacity Warning"),
                 message: Text("""
-                    You've set the overlay opacity to a very high value (>\(String(format: "%.2f", "90%"))).
+                    You've set the overlay opacity to a very high value (>\(String(format: "%.2f", "50%"))).
                     
                     To change this value back:
                     1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
