@@ -1,3 +1,4 @@
+// SettingsView.swift
 import SwiftUI
 
 func getAppVersion() -> String {
