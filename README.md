@@ -22,13 +22,22 @@ You can download the build for your respective operating system on the [Releases
 
 ![circle-swift](https://user-images.githubusercontent.com/60944077/226204981-f390facc-4f6c-4bec-8784-23203aa64efc.gif)
 ![rectangle-swift](https://user-images.githubusercontent.com/60944077/226204986-7522cb4d-7df1-4d65-96de-e629197e9854.gif)
-<img width="738" alt="settings-swift" src="https://github.com/peterklingelhofer/exhale/assets/60944077/431af8a9-7ba9-481b-8d58-71d4bfa0074e">
+<img width="792" alt="Settings macOS app" src="https://github.com/user-attachments/assets/6375b105-cd84-44c8-ad5a-eff4d87aceff" />
 
 Note: This is built natively in Swift.
 
 To launch the app on Catalina or newer for the first time, you may have to right click and select "Open" instead of double clicking on it, and you may need to do this twice. That's Apple's take on "security" for non-notarized binaries, or if you are not connected to the Internet.
 
 You can use <kbd>Cmd</kbd> + <kbd>,</kbd> to toggle settings open and closed. The **Tint** feature can be used to tint your screen the color of your selected background color, or make your screen darker than otherwise possible for nighttime work (which can compound with both [Night Shift](https://support.apple.com/en-us/102191) and [f.lux](https://justgetflux.com/).
+
+**Notice:** A high opacity value can obscure the Preferences pane in the current workspace.
+To change this value back:
+1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
+2. From the top bar menu, click Preferences to close the Preferences pane in the previous workspace.
+3. Access the top bar menu again, click Preferences to open the Preferences pane in the current workspace, and adjust your Opacity value accordingly.
+4. Switch back to the original workspace.
+
+                                        
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
