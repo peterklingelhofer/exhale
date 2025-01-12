@@ -1,4 +1,4 @@
-//  SettingsView.swift
+// SettingsView.swift
 import SwiftUI
 
 func validateValue(value: Double, minimumValue: Double, formatter: NumberFormatter) -> Double {
@@ -73,8 +73,14 @@ struct SettingsView: View {
     @Binding var randomizedTimingExhale: Double
     @Binding var randomizedTimingPostExhaleHold: Double
     @Binding var isAnimating: Bool
+    
     private let labelWidth: CGFloat = 130
     private let controlWidth: CGFloat = 90
+    
+    // State variables for managing opacity change
+    @State private var tempOverlayOpacity: Double = 0.0
+    @State private var showOpacityWarning: Bool = false
+    @State private var previousOverlayOpacity: Double = 0.0
     
     var body: some View {
         VStack {
@@ -208,12 +214,30 @@ struct SettingsView: View {
                                         settingsModel.triggerAnimationReset()
                                     }
                                 
-                                TextFieldWithValidation(title: "Overlay Opacity", value: $overlayOpacity, formatter: createNumberFormatter(limits: (min: 0, max: 1)), minimumValue: 0.0)
-                                    .help("Choose the transparency of the overlay colors, with lower values being more transparent and higher values being more visible.")
-                                    .onChange(of: overlayOpacity) { _ in
-                                        settingsModel.triggerAnimationReset()
+                            // Binding to a temporary state variable
+                            TextFieldWithValidation(title: "Overlay Opacity", value: $tempOverlayOpacity, formatter: createNumberFormatter(limits: (min: 0, max: 1)), minimumValue: 0)
+                                    .onAppear {
+                                        // Initialize tempOverlayOpacity with the current overlayOpacity
+                                        tempOverlayOpacity = overlayOpacity
+                                        previousOverlayOpacity = overlayOpacity
                                     }
-                            }.padding()
+                                    .onChange(of: tempOverlayOpacity) { newValue in
+                                        // Validate the new value
+                                        let validatedValue = validateValue(value: newValue, minimumValue: 0.0, formatter: createNumberFormatter(limits: (min: 0, max: 1)))
+                                        
+                                        if validatedValue > 0.9 && validatedValue != previousOverlayOpacity {
+                                            // Show warning if new value exceeds 0.9
+                                            showOpacityWarning = true
+                                        } else {
+                                            // Update immediately if valid and <= 0.9
+                                            overlayOpacity = validatedValue
+                                            previousOverlayOpacity = validatedValue
+                                            settingsModel.triggerAnimationReset()
+                                        }
+                                    }
+                                    .help("Choose the transparency of the overlay colors, with lower values being more transparent and higher values being more visible.")
+                            }
+                            .padding()
                             
                             VStack(alignment: .leading) {
                                 HStack {
@@ -277,7 +301,7 @@ struct SettingsView: View {
                                     }
                                 
                                 TextFieldWithValidation(title: "Post-Inhale Hold Randomization", value: $randomizedTimingPostInhaleHold, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
-                                    .help("Choose the extent to which the duration of the of the hold/pause that occurs at the end of the inhale phase should be randomized, in seconds.")
+                                    .help("Choose the extent to which the duration of the hold/pause that occurs at the end of the inhale phase should be randomized, in seconds.")
                                     .onChange(of: randomizedTimingPostInhaleHold) { _ in
                                         settingsModel.triggerAnimationReset()
                                     }
@@ -289,25 +313,50 @@ struct SettingsView: View {
                                     }
                                 
                                 TextFieldWithValidation(title: "Post-Exhale Hold Randomization", value: $randomizedTimingPostExhaleHold, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
-                                    .help("Choose the extent to which the duration of the of the hold/pause that occurs at the end of the exhale phase should be randomized, in seconds.")
+                                    .help("Choose the extent to which the duration of the hold/pause that occurs at the end of the exhale phase should be randomized, in seconds.")
                                     .onChange(of: randomizedTimingPostExhaleHold) { _ in
                                         settingsModel.triggerAnimationReset()
                                     }
                                 
                                 TextFieldWithValidation(title: "Drift", value: $drift, formatter: createNumberFormatter(limits: (min: 0.0, max: nil)), minimumValue: 0.0)
-                                    .help("Choose the extent to which the duration of the every inhale and exhale phase (as well as the end-of-phase hold if Post-Inhale Hold or Post-Exhale Hold are set to non-zero values) lengthens or shortens in duration over time. Drift is multiplicative, so a value of 1.01 will gradually lengthen the duration (by 1% each cycle), allowing you to extend the duration of your breath over time, whereas a value of 0.75 would shorten the duration of each phase (by 25%) each cycle. Values of 1.01 - 1.05 are recommended for working on slowly elongating one's breath cycle.")
+                                    .help("Choose the extent to which the duration of every inhale and exhale phase (as well as the end-of-phase hold if Post-Inhale Hold or Post-Exhale Hold are set to non-zero values) lengthens or shortens in duration over time. Drift is multiplicative, so a value of 1.01 will gradually lengthen the duration (by 1% each cycle), allowing you to extend the duration of your breath over time, whereas a value of 0.75 would shorten the duration of each phase (by 25%) each cycle. Values of 1.01 - 1.05 are recommended for working on slowly elongating one's breath cycle.")
                                     .onChange(of: drift) { _ in
                                         settingsModel.triggerAnimationReset()
                                     }
                             }
-                        }.lineLimit(1)
-                    }.frame(width: 724)
-                    
-                    Spacer()
+                        }
+                        .frame(width: 724)
+                        
+                        Spacer()
+                    }
                 }
-                
-                Spacer()
             }
+        }
+        .alert(isPresented: $showOpacityWarning) {
+            Alert(
+                title: Text("High Opacity Warning"),
+                message: Text("""
+                    You've set the overlay opacity to a very high value (>\(String(format: "%.2f", 0.9))).
+                    
+                    To change this value back:
+                    1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
+                    2. From the top bar menu, close the Preferences pane.
+                    3. Switch back to the original workspace.
+                    4. Re-open the Preferences pane in the new workspace to adjust the opacity.
+                    
+                    **Note:** A high opacity value can obscure the Preferences pane in the current workspace.
+                    """),
+                primaryButton: .default(Text("OK")) {
+                    // Commit the new opacity value
+                    overlayOpacity = tempOverlayOpacity
+                    previousOverlayOpacity = tempOverlayOpacity
+                    settingsModel.triggerAnimationReset()
+                },
+                secondaryButton: .cancel() {
+                    // Revert to the previous opacity value
+                    tempOverlayOpacity = previousOverlayOpacity
+                }
+            )
         }
     }
 }
