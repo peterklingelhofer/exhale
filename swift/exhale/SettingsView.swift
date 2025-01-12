@@ -238,9 +238,9 @@ struct SettingsView: View {
 
                                         To change this value back:
                                         1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
-                                        2. From the top bar menu, close the Preferences pane.
-                                        3. Switch back to the original workspace.
-                                        4. Re-open the Preferences pane in the new workspace to adjust the opacity.
+                                        2. From the top bar menu, click Preferences to close the Preferences pane in the previous workspace.
+                                        3. Access the top bar menu again, click Preferences to open the Preferences pane in the current workspace, and adjust your Opacity value accordingly.
+                                        4. Switch back to the original workspace.
 
                                         **Note:** A high opacity value can obscure the Preferences pane in the current workspace.
                                         """),
