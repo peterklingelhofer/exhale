@@ -22,7 +22,8 @@ You can download the build for your respective operating system on the [Releases
 
 ![circle-swift](https://user-images.githubusercontent.com/60944077/226204981-f390facc-4f6c-4bec-8784-23203aa64efc.gif)
 ![rectangle-swift](https://user-images.githubusercontent.com/60944077/226204986-7522cb4d-7df1-4d65-96de-e629197e9854.gif)
-<img width="792" alt="Settings macOS app" src="https://github.com/user-attachments/assets/6375b105-cd84-44c8-ad5a-eff4d87aceff" />
+<img width="677" alt="Settings macOS app" src="https://github.com/user-attachments/assets/76920109-a53b-4959-b556-359ddc14ffe3" />
+
 
 Note: This is built natively in Swift.
 
