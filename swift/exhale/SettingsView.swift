@@ -215,7 +215,15 @@ struct SettingsView: View {
                                     }
                                 
                             // Binding to a temporary state variable
-                            TextFieldWithValidation(title: "Overlay Opacity", value: $tempOverlayOpacity, formatter: createNumberFormatter(limits: (min: 0, max: 1)), minimumValue: 0)
+                            TextFieldWithValidation(
+                                title: "Overlay Opacity (%)",
+                                value: Binding(
+                                    get: { self.tempOverlayOpacity * 100 },
+                                    set: { self.tempOverlayOpacity = ($0) / 100 }
+                                ),
+                                formatter: createNumberFormatter(limits: (min: 0, max: 100)),
+                                minimumValue: 0
+                            )
                                     .onAppear {
                                         // Initialize tempOverlayOpacity with the current overlayOpacity
                                         tempOverlayOpacity = overlayOpacity
@@ -294,35 +302,76 @@ struct SettingsView: View {
                                     }
                                 }
                                 .help("Choose the animation speed's acceleration curve. Sinusoidal begins slowly, speeds up during the middle point, and slows down again near the end, creating a natural and organic feel to the transition. Linear provides a constant animation speed and acceleration rate throughout the duration of the animation.")
-                                TextFieldWithValidation(title: "Inhale Randomization", value: $randomizedTimingInhale, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
+                                
+                                TextFieldWithValidation(
+                                    title: "Inhale Randomization (%)",
+                                    value: Binding(
+                                        get: { self.randomizedTimingInhale * 100 },
+                                        set: { self.randomizedTimingInhale = $0 / 100 }
+                                    ),
+                                    formatter: createNumberFormatter(limits: (min: 0, max: nil)),
+                                    minimumValue: 0.0
+                                )
                                     .help("Choose the extent to which the duration of the inhale phase should be randomized, in seconds.")
                                     .onChange(of: randomizedTimingInhale) { _ in
                                         settingsModel.triggerAnimationReset()
                                     }
                                 
-                                TextFieldWithValidation(title: "Post-Inhale Hold Randomization", value: $randomizedTimingPostInhaleHold, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
+                                TextFieldWithValidation(
+                                    title: "Post-Inhale Hold Randomization (%)",
+                                    value: Binding(
+                                        get: { self.randomizedTimingPostInhaleHold * 100 },
+                                        set: { self.randomizedTimingPostInhaleHold = $0 / 100 }
+                                    ),
+                                    formatter: createNumberFormatter(limits: (min: 0, max: nil)),
+                                    minimumValue: 0.0
+                                )
                                     .help("Choose the extent to which the duration of the hold/pause that occurs at the end of the inhale phase should be randomized, in seconds.")
                                     .onChange(of: randomizedTimingPostInhaleHold) { _ in
                                         settingsModel.triggerAnimationReset()
                                     }
                                 
-                                TextFieldWithValidation(title: "Exhale Randomization", value: $randomizedTimingExhale, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
+                                TextFieldWithValidation(
+                                    title: "Exhale Randomization (%)",
+                                    value: Binding(
+                                        get: { self.randomizedTimingExhale * 100 },
+                                        set: { self.randomizedTimingExhale = $0 / 100 }
+                                    ),
+                                    formatter: createNumberFormatter(limits: (min: 0, max: nil)),
+                                    minimumValue: 0.0
+                                )
                                     .help("Choose the extent to which the duration of the exhale phase should be randomized, in seconds.")
                                     .onChange(of: randomizedTimingExhale) { _ in
                                         settingsModel.triggerAnimationReset()
                                     }
                                 
-                                TextFieldWithValidation(title: "Post-Exhale Hold Randomization", value: $randomizedTimingPostExhaleHold, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0.0)
+                                TextFieldWithValidation(
+                                    title: "Post-Exhale Hold Randomization (%)",
+                                    value: Binding(
+                                        get: { self.randomizedTimingPostExhaleHold * 100 },
+                                        set: { self.randomizedTimingPostExhaleHold = $0 / 100 }
+                                    ),
+                                    formatter: createNumberFormatter(limits: (min: 0, max: nil)),
+                                    minimumValue: 0.0
+                                )
                                     .help("Choose the extent to which the duration of the hold/pause that occurs at the end of the exhale phase should be randomized, in seconds.")
                                     .onChange(of: randomizedTimingPostExhaleHold) { _ in
                                         settingsModel.triggerAnimationReset()
                                     }
                                 
-                                TextFieldWithValidation(title: "Drift", value: $drift, formatter: createNumberFormatter(limits: (min: 0.0, max: nil)), minimumValue: 0.0)
-                                    .help("Choose the extent to which the duration of every inhale and exhale phase (as well as the end-of-phase hold if Post-Inhale Hold or Post-Exhale Hold are set to non-zero values) lengthens or shortens in duration over time. Drift is multiplicative, so a value of 1.01 will gradually lengthen the duration (by 1% each cycle), allowing you to extend the duration of your breath over time, whereas a value of 0.75 would shorten the duration of each phase (by 25%) each cycle. Values of 1.01 - 1.05 are recommended for working on slowly elongating one's breath cycle.")
-                                    .onChange(of: drift) { _ in
-                                        settingsModel.triggerAnimationReset()
-                                    }
+                                TextFieldWithValidation(
+                                    title: "Drift (%)",
+                                    value: Binding(
+                                        get: { self.drift * 100 - 100 },
+                                        set: { self.drift = ($0 + 100) / 100 }
+                                    ),
+                                    formatter: createNumberFormatter(limits: (min: 0, max: nil)),
+                                    minimumValue: 0.0
+                                )
+                                .help("Choose the extent to which the duration of every inhale and exhale phase (as well as the end-of-phase hold if Post-Inhale Hold or Post-Exhale Hold are set to non-zero values) lengthens or shortens in duration over time. Drift is multiplicative, so a value of 1% will gradually lengthen the duration (by 1% each cycle), allowing you to extend the duration of your breath over time, whereas a value of -25% would shorten the duration of each phase (by 25%) each cycle. Values of 1% - 5% are recommended for working on slowly elongating one's breath cycle.")
+                                .onChange(of: drift) { _ in
+                                    settingsModel.triggerAnimationReset()
+                                }
                             }
                         }
                         .frame(width: 724)
@@ -336,7 +385,7 @@ struct SettingsView: View {
             Alert(
                 title: Text("High Opacity Warning"),
                 message: Text("""
-                    You've set the overlay opacity to a very high value (>\(String(format: "%.2f", 0.9))).
+                    You've set the overlay opacity to a very high value (>\(String(format: "%.2f", "90%"))).
                     
                     To change this value back:
                     1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
