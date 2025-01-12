@@ -8,7 +8,6 @@ func getAppVersion() -> String {
     }
     return "Unknown"
 }
-
 struct SettingsView: View {
     @EnvironmentObject var settingsModel: SettingsModel
     @Binding var showSettings: Bool
@@ -37,6 +36,9 @@ struct SettingsView: View {
     @State private var tempOverlayOpacity: Double = 0.0
     @State private var showOpacityWarning: Bool = false
     @State private var previousOverlayOpacity: Double = 0.0
+
+    // UserDefaults key for tracking if the alert has been shown
+    private let opacityAlertShownKey = "hasShownOverlayOpacityAlert"
 
     var body: some View {
         VStack {
@@ -198,7 +200,7 @@ struct SettingsView: View {
                                     settingsModel.triggerAnimationReset()
                                 }
 
-                                // Overlay Opacity
+                                // Overlay Opacity Control
                                 CombinedStepperTextField(
                                     title: "Overlay Opacity (%)",
                                     value: Binding(
@@ -218,7 +220,7 @@ struct SettingsView: View {
                                         maximumValue: 1.0
                                     )
 
-                                    if validatedValue > 0.6 && validatedValue != previousOverlayOpacity {
+                                    if validatedValue > 0.6 && !UserDefaults.standard.bool(forKey: opacityAlertShownKey) {
                                         showOpacityWarning = true
                                     } else {
                                         overlayOpacity = validatedValue
@@ -227,6 +229,35 @@ struct SettingsView: View {
                                     }
                                 }
                                 .help("Choose the transparency of the overlay colors, with lower values being more transparent and higher values being more visible.")
+                            }
+                            .alert(isPresented: $showOpacityWarning) {
+                                Alert(
+                                    title: Text("High Opacity Warning"),
+                                    message: Text("""
+                                        You've attempted to set the overlay opacity to a very high value (>60%).
+
+                                        To change this value back:
+                                        1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
+                                        2. From the top bar menu, close the Preferences pane.
+                                        3. Switch back to the original workspace.
+                                        4. Re-open the Preferences pane in the new workspace to adjust the opacity.
+
+                                        **Note:** A high opacity value can obscure the Preferences pane in the current workspace.
+                                        """),
+                                    primaryButton: .default(Text("OK")) {
+                                        // Commit the new opacity value
+                                        overlayOpacity = tempOverlayOpacity
+                                        previousOverlayOpacity = tempOverlayOpacity
+                                        settingsModel.triggerAnimationReset()
+
+                                        // Set the flag to true to indicate the alert has been shown
+                                        UserDefaults.standard.set(true, forKey: opacityAlertShownKey)
+                                    },
+                                    secondaryButton: .cancel() {
+                                        // Revert to the previous opacity value
+                                        tempOverlayOpacity = previousOverlayOpacity
+                                    }
+                                )
                             }
                             .padding()
 
@@ -360,32 +391,6 @@ struct SettingsView: View {
                     }
                 }
             }
-        }
-        .alert(isPresented: $showOpacityWarning) {
-            Alert(
-                title: Text("High Opacity Warning"),
-                message: Text("""
-                    You've attempted to set the overlay opacity to a very high value (>60%).
-
-                    To change this value back:
-                    1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
-                    2. From the top bar menu, close the Preferences pane.
-                    3. Switch back to the original workspace.
-                    4. Re-open the Preferences pane in the new workspace to adjust the opacity.
-
-                    **Note:** A high opacity value can obscure the Preferences pane in the current workspace.
-                    """),
-                primaryButton: .default(Text("OK")) {
-                    // Commit the new opacity value
-                    overlayOpacity = tempOverlayOpacity
-                    previousOverlayOpacity = tempOverlayOpacity
-                    settingsModel.triggerAnimationReset()
-                },
-                secondaryButton: .cancel() {
-                    // Revert to the previous opacity value
-                    tempOverlayOpacity = previousOverlayOpacity
-                }
-            )
         }
     }
 }
