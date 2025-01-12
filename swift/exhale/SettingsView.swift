@@ -1,38 +1,6 @@
 // SettingsView.swift
 import SwiftUI
 
-func validateValue(value: Double, minimumValue: Double, formatter: NumberFormatter) -> Double {
-    var updatedValue = value
-    if updatedValue < minimumValue {
-        updatedValue = minimumValue
-    }
-    if let maximum = formatter.maximum?.doubleValue,
-       updatedValue > maximum {
-        updatedValue = maximum
-    }
-    return updatedValue
-}
-
-struct TextFieldWithValidation: View {
-    var title: String
-    @Binding var value: Double
-    var formatter: NumberFormatter
-    var minimumValue: Double
-    
-    var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            TextField("", value: $value, formatter: formatter)
-                .onChange(of: value) { newValue in
-                    value = validateValue(value: newValue, minimumValue: minimumValue, formatter: formatter)
-                }
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .frame(width: 65)
-        }
-    }
-}
-
 func createNumberFormatter(limits: (min: Double, max: Double?)) -> NumberFormatter {
     let formatter = NumberFormatter()
     formatter.numberStyle = .decimal
@@ -189,59 +157,91 @@ struct SettingsView: View {
                                         }
                                 }
                                 .help("Choose the background color, or the color outside of the animation shape. This parameter has no effect if the Shape parameter is set to Fullscreen.")
+
+                                CombinedStepperTextField(
+                                    title: "Inhale Duration (s)",
+                                    value: $inhaleDuration,
+                                    formatter: createNumberFormatter(limits: (min: 0.1, max: nil)),
+                                    minimumValue: 0.1,
+                                    maximumValue: nil,
+                                    step: 1.0
+                                )
+                                .help("Choose the duration of the inhale phase, in seconds.")
+                                .onChange(of: inhaleDuration) { _ in
+                                    settingsModel.triggerAnimationReset()
+                                }
                                 
-                                TextFieldWithValidation(title: "Inhale Duration (s)", value: $inhaleDuration, formatter: createNumberFormatter(limits: (min: 0.1, max: nil)), minimumValue: 0.1)
-                                    .help("Choose the duration of the inhale phase, in seconds.")
-                                    .onChange(of: inhaleDuration) { _ in
+                                CombinedStepperTextField(
+                                    title: "Post-Inhale Hold (s)",
+                                    value: $postInhaleHoldDuration,
+                                    formatter: createNumberFormatter(limits: (min: 0.1, max: nil)),
+                                    minimumValue: 0.1,
+                                    maximumValue: nil,
+                                    step: 1.0
+                                )
+                                .help("Choose the duration of the hold/pause that occurs at the end of the inhale phase, in seconds.")
+                                .onChange(of: postInhaleHoldDuration) { _ in
+                                    settingsModel.triggerAnimationReset()
+                                }
+                                
+                                CombinedStepperTextField(
+                                    title: "Exhale Duration (s)",
+                                    value: $exhaleDuration,
+                                    formatter: createNumberFormatter(limits: (min: 0.1, max: nil)),
+                                    minimumValue: 0.1,
+                                    maximumValue: nil,
+                                    step: 1.0
+                                )
+                                .help("Choose the duration of the exhale phase, in seconds.")
+                                .onChange(of: exhaleDuration) { _ in
+                                    settingsModel.triggerAnimationReset()
+                                }
+                                
+                                CombinedStepperTextField(
+                                    title: "Post-Exhale Hold (s)",
+                                    value: $postExhaleHoldDuration,
+                                    formatter: createNumberFormatter(limits: (min: 0.1, max: nil)),
+                                    minimumValue: 0.1,
+                                    maximumValue: nil,
+                                    step: 1.0
+                                )
+                                .help("Choose the duration of the hold/pause that occurs at the end of the exhale phase, in seconds.")
+                                .onChange(of: postExhaleHoldDuration) { _ in
+                                    settingsModel.triggerAnimationReset()
+                                }
+                                
+                                CombinedStepperTextField(
+                                    title: "Overlay Opacity (%)",
+                                    value: Binding(
+                                        get: { self.tempOverlayOpacity * 100 },
+                                        set: { self.tempOverlayOpacity = ($0) / 100 }
+                                    ),
+                                    formatter: createNumberFormatter(limits: (min: 0, max: 100)),
+                                    minimumValue: 0,
+                                    maximumValue: 100,
+                                    step: 1.0
+                                )
+                                .onAppear {
+                                    tempOverlayOpacity = overlayOpacity
+                                    previousOverlayOpacity = overlayOpacity
+                                }
+                                .onChange(of: tempOverlayOpacity) { newValue in
+                                    let validatedValue = validateValue(
+                                        value: newValue,
+                                        minimumValue: 0.0,
+                                        maximumValue: 100,
+                                        formatter: createNumberFormatter(limits: (min: 0, max: 1))
+                                    )
+                                    
+                                    if validatedValue > 0.6 && validatedValue != previousOverlayOpacity {
+                                        showOpacityWarning = true
+                                    } else {
+                                        overlayOpacity = validatedValue
+                                        previousOverlayOpacity = validatedValue
                                         settingsModel.triggerAnimationReset()
                                     }
-                                
-                                TextFieldWithValidation(title: "Post-Inhale Hold (s)", value: $postInhaleHoldDuration, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0)
-                                    .help("Choose the duration of the hold/pause that occurs at the end of the inhale phase, in seconds.")
-                                    .onChange(of: postInhaleHoldDuration) { _ in
-                                        settingsModel.triggerAnimationReset()
-                                    }
-                                
-                                TextFieldWithValidation(title: "Exhale Duration (s)", value: $exhaleDuration, formatter: createNumberFormatter(limits: (min: 0.1, max: nil)), minimumValue: 0.1)
-                                    .help("Choose the duration of the exhale phase, in seconds.")
-                                    .onChange(of: exhaleDuration) { _ in
-                                        settingsModel.triggerAnimationReset()
-                                    }
-                                
-                                TextFieldWithValidation(title: "Post-Exhale Hold (s)", value: $postExhaleHoldDuration, formatter: createNumberFormatter(limits: (min: 0, max: nil)), minimumValue: 0)
-                                    .help("Choose the duration of the hold/pause that occurs at the end of the exhale phase, in seconds.")
-                                    .onChange(of: postExhaleHoldDuration) { _ in
-                                        settingsModel.triggerAnimationReset()
-                                    }
-                                
-                            // Binding to a temporary state variable
-                            TextFieldWithValidation(
-                                title: "Overlay Opacity (%)",
-                                value: Binding(
-                                    get: { self.tempOverlayOpacity * 100 },
-                                    set: { self.tempOverlayOpacity = ($0) / 100 }
-                                ),
-                                formatter: createNumberFormatter(limits: (min: 0, max: 100)),
-                                minimumValue: 0
-                            )
-                                    .onAppear {
-                                        // Initialize tempOverlayOpacity with the current overlayOpacity
-                                        tempOverlayOpacity = overlayOpacity
-                                        previousOverlayOpacity = overlayOpacity
-                                    }
-                                    .onChange(of: tempOverlayOpacity) { newValue in
-                                        // Validate the new value
-                                        let validatedValue = validateValue(value: newValue, minimumValue: 0.0, formatter: createNumberFormatter(limits: (min: 0, max: 1)))
-                                        
-                                        if validatedValue > 0.5 && validatedValue != previousOverlayOpacity {
-                                            showOpacityWarning = true
-                                        } else {
-                                            overlayOpacity = validatedValue
-                                            previousOverlayOpacity = validatedValue
-                                            settingsModel.triggerAnimationReset()
-                                        }
-                                    }
-                                    .help("Choose the transparency of the overlay colors, with lower values being more transparent and higher values being more visible.")
+                                }
+                                .help("Choose the transparency of the overlay colors, with lower values being more transparent and higher values being more visible.")
                             }
                             .padding()
                             
@@ -301,63 +301,71 @@ struct SettingsView: View {
                                 }
                                 .help("Choose the animation speed's acceleration curve. Sinusoidal begins slowly, speeds up during the middle point, and slows down again near the end, creating a natural and organic feel to the transition. Linear provides a constant animation speed and acceleration rate throughout the duration of the animation.")
                                 
-                                TextFieldWithValidation(
+                                CombinedStepperTextField(
                                     title: "Inhale Randomization (%)",
                                     value: Binding(
                                         get: { self.randomizedTimingInhale * 100 },
                                         set: { self.randomizedTimingInhale = $0 / 100 }
                                     ),
                                     formatter: createNumberFormatter(limits: (min: 0, max: nil)),
-                                    minimumValue: 0.0
+                                    minimumValue: 0.0,
+                                    maximumValue: nil,
+                                    step: 1.0
                                 )
-                                    .help("Choose the extent to which the duration of the inhale phase should be randomized, in seconds.")
-                                    .onChange(of: randomizedTimingInhale) { _ in
-                                        settingsModel.triggerAnimationReset()
-                                    }
+                                .help("Choose the extent to which the duration of the inhale phase should be randomized, in seconds.")
+                                .onChange(of: randomizedTimingInhale) { _ in
+                                    settingsModel.triggerAnimationReset()
+                                }
                                 
-                                TextFieldWithValidation(
+                                CombinedStepperTextField(
                                     title: "Post-Inhale Hold Randomization (%)",
                                     value: Binding(
                                         get: { self.randomizedTimingPostInhaleHold * 100 },
                                         set: { self.randomizedTimingPostInhaleHold = $0 / 100 }
                                     ),
                                     formatter: createNumberFormatter(limits: (min: 0, max: nil)),
-                                    minimumValue: 0.0
+                                    minimumValue: 0.0,
+                                    maximumValue: nil,
+                                    step: 1.0
                                 )
-                                    .help("Choose the extent to which the duration of the hold/pause that occurs at the end of the inhale phase should be randomized, in seconds.")
-                                    .onChange(of: randomizedTimingPostInhaleHold) { _ in
-                                        settingsModel.triggerAnimationReset()
-                                    }
+                                .help("Choose the extent to which the duration of the hold/pause that occurs at the end of the inhale phase should be randomized, in seconds.")
+                                .onChange(of: randomizedTimingPostInhaleHold) { _ in
+                                    settingsModel.triggerAnimationReset()
+                                }
                                 
-                                TextFieldWithValidation(
+                                CombinedStepperTextField(
                                     title: "Exhale Randomization (%)",
                                     value: Binding(
                                         get: { self.randomizedTimingExhale * 100 },
                                         set: { self.randomizedTimingExhale = $0 / 100 }
                                     ),
                                     formatter: createNumberFormatter(limits: (min: 0, max: nil)),
-                                    minimumValue: 0.0
+                                    minimumValue: 0.0,
+                                    maximumValue: nil,
+                                    step: 1.0
                                 )
-                                    .help("Choose the extent to which the duration of the exhale phase should be randomized, in seconds.")
-                                    .onChange(of: randomizedTimingExhale) { _ in
-                                        settingsModel.triggerAnimationReset()
-                                    }
+                                .help("Choose the extent to which the duration of the exhale phase should be randomized, in seconds.")
+                                .onChange(of: randomizedTimingExhale) { _ in
+                                    settingsModel.triggerAnimationReset()
+                                }
                                 
-                                TextFieldWithValidation(
+                                CombinedStepperTextField(
                                     title: "Post-Exhale Hold Randomization (%)",
                                     value: Binding(
                                         get: { self.randomizedTimingPostExhaleHold * 100 },
                                         set: { self.randomizedTimingPostExhaleHold = $0 / 100 }
                                     ),
                                     formatter: createNumberFormatter(limits: (min: 0, max: nil)),
-                                    minimumValue: 0.0
+                                    minimumValue: 0.0,
+                                    maximumValue: nil,
+                                    step: 1.0
                                 )
-                                    .help("Choose the extent to which the duration of the hold/pause that occurs at the end of the exhale phase should be randomized, in seconds.")
-                                    .onChange(of: randomizedTimingPostExhaleHold) { _ in
-                                        settingsModel.triggerAnimationReset()
-                                    }
+                                .help("Choose the extent to which the duration of the hold/pause that occurs at the end of the exhale phase should be randomized, in seconds.")
+                                .onChange(of: randomizedTimingPostExhaleHold) { _ in
+                                    settingsModel.triggerAnimationReset()
+                                }
                                 
-                                TextFieldWithValidation(
+                                CombinedStepperTextField(
                                     title: "Drift (%)",
                                     value: Binding(
                                         get: { self.drift * 100 - 100 },
@@ -383,7 +391,7 @@ struct SettingsView: View {
             Alert(
                 title: Text("High Opacity Warning"),
                 message: Text("""
-                    You've set the overlay opacity to a very high value (>\(String(format: "%.2f", "50%"))).
+                    You've attempted to set the overlay opacity to a very high value (>60%).
                     
                     To change this value back:
                     1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
