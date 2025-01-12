@@ -8,6 +8,7 @@ func getAppVersion() -> String {
     }
     return "Unknown"
 }
+
 struct SettingsView: View {
     @EnvironmentObject var settingsModel: SettingsModel
     @Binding var showSettings: Bool
@@ -47,7 +48,7 @@ struct SettingsView: View {
                 Spacer()
                 Text("\(getAppVersion())")
                     .font(.footnote)
-                    .padding([.trailing, .top], 20)
+                    .padding(.top, 20)
             }
 
             // Control Buttons
@@ -228,6 +229,11 @@ struct SettingsView: View {
                                         settingsModel.triggerAnimationReset()
                                     }
                                 }
+                                .onChange(of: overlayOpacity) { newValue in
+                                    // Synchronize tempOverlayOpacity and previousOverlayOpacity with overlayOpacity
+                                    tempOverlayOpacity = newValue
+                                    previousOverlayOpacity = newValue
+                                }
                                 .help("Choose the transparency of the overlay colors, with lower values being more transparent and higher values being more visible.")
                             }
                             .alert(isPresented: $showOpacityWarning) {
@@ -385,12 +391,42 @@ struct SettingsView: View {
                                     settingsModel.triggerAnimationReset()
                                 }
                             }
-                        }
 
-                        Spacer()
+                            Spacer()
+                        }
                     }
                 }
             }
         }
+        .alert(isPresented: $showOpacityWarning) {
+            Alert(
+                title: Text("High Opacity Warning"),
+                message: Text("""
+                    You've attempted to set the overlay opacity to a very high value (>60%).
+
+                    To change this value back:
+                    1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
+                    2. From the top bar menu, click Preferences to close the Preferences pane in the previous workspace.
+                    3. Access the top bar menu again, click Preferences to open the Preferences pane in the current workspace, and adjust your Opacity value accordingly.
+                    4. Switch back to the original workspace.
+
+                    **Note:** A high opacity value can obscure the Preferences pane in the current workspace.
+                    """),
+                primaryButton: .default(Text("OK")) {
+                    // Commit the new opacity value
+                    overlayOpacity = tempOverlayOpacity
+                    previousOverlayOpacity = tempOverlayOpacity
+                    settingsModel.triggerAnimationReset()
+
+                    // Set the flag to true to indicate the alert has been shown
+                    UserDefaults.standard.set(true, forKey: opacityAlertShownKey)
+                },
+                secondaryButton: .cancel() {
+                    // Revert to the previous opacity value
+                    tempOverlayOpacity = previousOverlayOpacity
+                }
+            )
+        }
+        .padding([.bottom, .trailing], 20)
     }
 }
