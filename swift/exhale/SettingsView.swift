@@ -354,7 +354,6 @@ struct SettingsView: View {
                                 }
                             }
                         }
-                        .frame(width: 724)
 
                         Spacer()
                     }

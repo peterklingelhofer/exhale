@@ -44,7 +44,7 @@ struct CombinedStepperTextField: View {
             // Stepper for increment/decrement
             Stepper("", value: $value, in: (limits.min ?? defaultMin)...(limits.max ?? Double.infinity), step: step)
                 .labelsHidden()
-                .frame(width: 0)
+                .frame(width: 16, alignment: .leading)
         }
     }
 }
