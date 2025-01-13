@@ -2,6 +2,8 @@
 import Cocoa
 import Combine
 import SwiftUI
+import HotKey
+
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var windows: [NSWindow] = []
@@ -13,44 +15,84 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var isAnimatingSubscription: AnyCancellable?
     var subscriptions = Set<AnyCancellable>()
     var statusItem: NSStatusItem!
-
+    var startHotKey: HotKey?
+    var stopHotKey: HotKey?
+    var tintHotKey: HotKey?
+    var resetHotKey: HotKey?
+    var preferencesHotKey: HotKey?
+    
     func setUpStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            button.image = NSImage(named: "StatusBarIcon")
-            button.action = #selector(statusBarButtonClicked(sender:))
+            statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            if let button = statusItem.button {
+                button.image = NSImage(named: "StatusBarIcon") // Ensure you have an image named "StatusBarIcon" in Assets
+                button.action = #selector(statusBarButtonClicked(sender:))
+            }
+
+            let menu = NSMenu()
+            
+            // Preferences
+            let preferencesItem = NSMenuItem(title: "Preferences", action: #selector(toggleSettings(_:)), keyEquivalent: "w")
+            preferencesItem.keyEquivalentModifierMask = [.control, .shift]
+            preferencesItem.target = self
+            menu.addItem(preferencesItem)
+
+            // Start Animation
+            let startMenuItem = NSMenuItem(title: "Start Animation", action: #selector(startAnimating(_:)), keyEquivalent: "a")
+            startMenuItem.keyEquivalentModifierMask = [.control, .shift]
+            startMenuItem.target = self
+            menu.addItem(startMenuItem)
+            
+            // Stop Animation
+            let stopMenuItem = NSMenuItem(title: "Stop Animation", action: #selector(stopAnimating(_:)), keyEquivalent: "s")
+            stopMenuItem.keyEquivalentModifierMask = [.control, .shift]
+            stopMenuItem.target = self
+            menu.addItem(stopMenuItem)
+            
+            // Tint Screen
+            let tintMenuItem = NSMenuItem(title: "Tint Screen", action: #selector(tintScreen(_:)), keyEquivalent: "d")
+            tintMenuItem.keyEquivalentModifierMask = [.control, .shift]
+            tintMenuItem.target = self
+            menu.addItem(tintMenuItem)
+            
+            // Reset to Defaults
+            let resetMenuItem = NSMenuItem(title: "Reset to Defaults", action: #selector(resetToDefaults(_:)), keyEquivalent: "f")
+            resetMenuItem.keyEquivalentModifierMask = [.control, .shift]
+            resetMenuItem.target = self
+            menu.addItem(resetMenuItem)
+            
+            // Separator
+            menu.addItem(NSMenuItem.separator())
+            
+            // Quit
+            let quitMenuItem = NSMenuItem(title: "Quit exhale", action: #selector(terminateApp(_:)), keyEquivalent: "q")
+            quitMenuItem.keyEquivalentModifierMask = [.command]
+            quitMenuItem.target = self
+            menu.addItem(quitMenuItem)
+
+            // Bind menu items to model state
+            settingsModel.$isAnimating
+                .sink { [weak self] isAnimating in
+                    guard let self = self else { return }
+                    startMenuItem.title = "Start Animation"
+                    stopMenuItem.title = "Stop Animation"
+                    tintMenuItem.title = "Tint Screen"
+                    resetMenuItem.title = "Reset to Defaults"
+                    startMenuItem.isEnabled = !isAnimating
+                    stopMenuItem.isEnabled = isAnimating || self.settingsModel.isPaused
+                    tintMenuItem.isEnabled = !isAnimating && !self.settingsModel.isPaused
+                }
+                .store(in: &subscriptions)
+            
+            settingsModel.$isPaused
+                .sink { [weak self] isPaused in
+                    guard let self = self else { return }
+                    tintMenuItem.title = isPaused ? "Unpause" : "Tint Screen"
+                    tintMenuItem.isEnabled = !self.settingsModel.isAnimating && !isPaused
+                }
+                .store(in: &subscriptions)
+            
+            statusItem.menu = menu
         }
-
-        let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Preferences...", action: #selector(toggleSettings(_:)), keyEquivalent: ","))
-        
-        let startMenuItem = NSMenuItem(title: "Start", action: #selector(startAnimating(_:)), keyEquivalent: "s")
-        let tintMenuItem = NSMenuItem(title: "Tint", action: #selector(pauseAnimating(_:)), keyEquivalent: "p")
-        let stopMenuItem = NSMenuItem(title: "Stop", action: #selector(stopAnimating(_:)), keyEquivalent: "x")
-        
-        menu.addItem(startMenuItem)
-        menu.addItem(stopMenuItem)
-        menu.addItem(tintMenuItem)
-        menu.addItem(NSMenuItem(title: "Quit exhale", action: #selector(terminateApp(_:)), keyEquivalent: "q"))
-
-        settingsModel.$isAnimating
-            .sink { [weak self] isAnimating in
-                guard let self = self else { return }
-                startMenuItem.isEnabled = !isAnimating
-                stopMenuItem.isEnabled = isAnimating || self.settingsModel.isPaused
-                tintMenuItem.isEnabled = !isAnimating && !self.settingsModel.isPaused
-            }
-            .store(in: &subscriptions)
-
-        settingsModel.$isPaused
-            .sink { [weak self] isPaused in
-                guard let self = self else { return }
-                tintMenuItem.isEnabled = !self.settingsModel.isAnimating && !isPaused
-            }
-            .store(in: &subscriptions)
-        
-        statusItem.menu = menu
-    }
 
     @objc func startAnimating(_ sender: Any?) {
         settingsModel.start()
@@ -59,13 +101,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func stopAnimating(_ sender: Any?) {
         settingsModel.stop()
     }
-
-    @objc func pauseAnimating(_ sender: Any?) {
-        if settingsModel.isPaused {
-            settingsModel.unpause()
-        } else {
-            settingsModel.pause()
-        }
+    
+    @objc func tintScreen(_ sender: Any?) {
+        settingsModel.pause()
     }
 
     @objc func statusBarButtonClicked(sender: NSStatusBarButton) {
@@ -74,6 +112,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func terminateApp(_ sender: Any?) {
         NSApp.terminate(nil)
+    }
+    
+    @objc func resetToDefaults(_ sender: Any?) {
+        settingsModel.resetToDefaults()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -96,11 +138,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.isOpaque = false
             window.ignoresMouseEvents = true
             window.setFrame(screen.frame, display: true)
-//            window.collectionBehavior = [.canJoinAllSpaces]  // Ensures window appears in all spaces
+            // window.collectionBehavior = [.canJoinAllSpaces]  // Ensures window appears in all spaces
 
             windows.append(window)
         }
 
+        // Subscriptions to update window colors and opacity
         inhaleColorSubscription = settingsModel.$inhaleColor.sink { [unowned self] newColor in
             for window in self.windows {
                 window.backgroundColor = NSColor(newColor)
@@ -126,8 +169,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         reloadContentView()
 
+        // Initialize the Settings Window
         settingsWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 200),
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 600),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -146,8 +190,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             postExhaleHoldDuration: Binding(get: { self.settingsModel.postExhaleHoldDuration }, set: { self.settingsModel.postExhaleHoldDuration = $0 }),
             drift: Binding(get: { self.settingsModel.drift }, set: { self.settingsModel.drift = $0 }),
             overlayOpacity: Binding(get: { self.settingsModel.overlayOpacity }, set: { self.settingsModel.overlayOpacity = $0 }),
-            shape: Binding<AnimationShape>(get: { self.settingsModel.shape }, set: { self.settingsModel.shape = $0 }),
-            animationMode: Binding(get: { self.settingsModel.animationMode }, set: { self.settingsModel.animationMode = $0 }),
+            shape: Binding<AnimationShape>(
+                get: { self.settingsModel.shape },
+                set: { self.settingsModel.shape = $0 }
+            ),
+            animationMode: Binding<AnimationMode>(
+                get: { self.settingsModel.animationMode },
+                set: { self.settingsModel.animationMode = $0 }
+            ),
             randomizedTimingInhale: Binding(get: { self.settingsModel.randomizedTimingInhale }, set: { self.settingsModel.randomizedTimingInhale = $0 }),
             randomizedTimingPostInhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostInhaleHold }, set: { self.settingsModel.randomizedTimingPostInhaleHold = $0 }),
             randomizedTimingExhale: Binding(get: { self.settingsModel.randomizedTimingExhale }, set: { self.settingsModel.randomizedTimingExhale = $0 }),
@@ -166,6 +216,59 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
         }
+        
+        // Setup Global HotKeys
+        setUpGlobalHotKeys()
+    }
+
+    func setUpGlobalHotKeys() {
+        // Start Animation: Ctrl + Shift + A
+        startHotKey = HotKey(key: .a, modifiers: [.control, .shift])
+        startHotKey?.keyDownHandler = { [weak self] in
+            self?.settingsModel.start()
+        }
+
+        // Stop Animation: Ctrl + Shift + S
+        stopHotKey = HotKey(key: .s, modifiers: [.control, .shift])
+        stopHotKey?.keyDownHandler = { [weak self] in
+            self?.settingsModel.stop()
+        }
+
+        // Tint Screen: Ctrl + Shift + D
+        tintHotKey = HotKey(key: .d, modifiers: [.control, .shift])
+        tintHotKey?.keyDownHandler = { [weak self] in
+            self?.settingsModel.pause()
+        }
+
+        // Reset to Defaults: Ctrl + Shift + F
+        resetHotKey = HotKey(key: .f, modifiers: [.control, .shift])
+        resetHotKey?.keyDownHandler = { [weak self] in
+            self?.showResetConfirmation()
+        }
+
+        // Preferences: Ctrl + Shift + ,
+        preferencesHotKey = HotKey(key: .comma, modifiers: [.control, .shift])
+        preferencesHotKey?.keyDownHandler = { [weak self] in
+            self?.toggleSettings(nil)
+        }
+    }
+    
+    func showResetConfirmation() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let alert = NSAlert()
+            alert.messageText = "Reset to Defaults"
+            alert.informativeText = "Are you sure you want to reset all settings to their default values? This action cannot be undone."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Reset")
+            alert.addButton(withTitle: "Cancel")
+    
+            if alert.runModal() == .alertFirstButtonReturn {
+                // User clicked "Reset"
+                self.settingsModel.resetToDefaults()
+            }
+            // If "Cancel" is clicked, do nothing
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -174,7 +277,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func toggleSettings(_ sender: Any?) {
         if settingsWindow.isVisible {
-            settingsWindow.orderOut(nil)
+            settingsWindow.orderOut(sender)
         } else {
             settingsWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
