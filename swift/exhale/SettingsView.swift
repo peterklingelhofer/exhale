@@ -48,7 +48,7 @@ struct SettingsView: View {
                 Spacer()
                 Text("\(getAppVersion())")
                     .font(.footnote)
-                    .padding(.top, 20)
+                    .padding(.top, 4)
             }
 
             // Control Buttons
@@ -427,6 +427,7 @@ struct SettingsView: View {
                 }
             )
         }
-        .padding([.bottom, .trailing], 20)
+        .padding(.trailing, 20)
+        .padding(.bottom, 8)
     }
 }
