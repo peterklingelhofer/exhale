@@ -20,18 +20,19 @@ struct exhaleApp: App {
                     appDelegate.toggleSettings(nil)
                 }
                 .environmentObject(settingsModel)
-                .keyboardShortcut(",", modifiers: .command)
+                .keyboardShortcut("w", modifiers: [.control, .shift])
+                .keyboardShortcut(",", modifiers: [.control, .shift])
                 
                 Button(settingsModel.isAnimating ? "Stop" : "Start") {
                     settingsModel.isAnimating.toggle()
                 }
                 .environmentObject(settingsModel)
-                .keyboardShortcut("s", modifiers: .command)
+                .keyboardShortcut("s", modifiers: [.control, .shift])
                 
                 Button("Reset to Defaults") {
-                    settingsModel.resetToDefaults()
+                    appDelegate.resetToDefaults(nil)
                 }
-                .keyboardShortcut("r", modifiers: .command)
+                .keyboardShortcut("f", modifiers: [.control, .shift])
                 .help("Reset all settings to their default values.")
                 
                 Button("Quit exhale") {

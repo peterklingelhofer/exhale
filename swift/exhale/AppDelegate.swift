@@ -2,6 +2,8 @@
 import Cocoa
 import Combine
 import SwiftUI
+import HotKey
+
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var windows: [NSWindow] = []
@@ -13,60 +15,84 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var isAnimatingSubscription: AnyCancellable?
     var subscriptions = Set<AnyCancellable>()
     var statusItem: NSStatusItem!
-
+    var startHotKey: HotKey?
+    var stopHotKey: HotKey?
+    var tintHotKey: HotKey?
+    var resetHotKey: HotKey?
+    var preferencesHotKey: HotKey?
+    
     func setUpStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            button.image = NSImage(named: "StatusBarIcon")
-            button.action = #selector(statusBarButtonClicked(sender:))
+            statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            if let button = statusItem.button {
+                button.image = NSImage(named: "StatusBarIcon") // Ensure you have an image named "StatusBarIcon" in Assets
+                button.action = #selector(statusBarButtonClicked(sender:))
+            }
+
+            let menu = NSMenu()
+            
+            // Preferences
+            let preferencesItem = NSMenuItem(title: "Preferences", action: #selector(toggleSettings(_:)), keyEquivalent: "w")
+            preferencesItem.keyEquivalentModifierMask = [.control, .shift]
+            preferencesItem.target = self
+            menu.addItem(preferencesItem)
+
+            // Start Animation
+            let startMenuItem = NSMenuItem(title: "Start Animation", action: #selector(startAnimating(_:)), keyEquivalent: "a")
+            startMenuItem.keyEquivalentModifierMask = [.control, .shift]
+            startMenuItem.target = self
+            menu.addItem(startMenuItem)
+            
+            // Stop Animation
+            let stopMenuItem = NSMenuItem(title: "Stop Animation", action: #selector(stopAnimating(_:)), keyEquivalent: "s")
+            stopMenuItem.keyEquivalentModifierMask = [.control, .shift]
+            stopMenuItem.target = self
+            menu.addItem(stopMenuItem)
+            
+            // Tint Screen
+            let tintMenuItem = NSMenuItem(title: "Tint Screen", action: #selector(tintScreen(_:)), keyEquivalent: "d")
+            tintMenuItem.keyEquivalentModifierMask = [.control, .shift]
+            tintMenuItem.target = self
+            menu.addItem(tintMenuItem)
+            
+            // Reset to Defaults
+            let resetMenuItem = NSMenuItem(title: "Reset to Defaults", action: #selector(resetToDefaults(_:)), keyEquivalent: "f")
+            resetMenuItem.keyEquivalentModifierMask = [.control, .shift]
+            resetMenuItem.target = self
+            menu.addItem(resetMenuItem)
+            
+            // Separator
+            menu.addItem(NSMenuItem.separator())
+            
+            // Quit
+            let quitMenuItem = NSMenuItem(title: "Quit exhale", action: #selector(terminateApp(_:)), keyEquivalent: "q")
+            quitMenuItem.keyEquivalentModifierMask = [.command]
+            quitMenuItem.target = self
+            menu.addItem(quitMenuItem)
+
+            // Bind menu items to model state
+            settingsModel.$isAnimating
+                .sink { [weak self] isAnimating in
+                    guard let self = self else { return }
+                    startMenuItem.title = "Start Animation"
+                    stopMenuItem.title = "Stop Animation"
+                    tintMenuItem.title = "Tint Screen"
+                    resetMenuItem.title = "Reset to Defaults"
+                    startMenuItem.isEnabled = !isAnimating
+                    stopMenuItem.isEnabled = isAnimating || self.settingsModel.isPaused
+                    tintMenuItem.isEnabled = !isAnimating && !self.settingsModel.isPaused
+                }
+                .store(in: &subscriptions)
+            
+            settingsModel.$isPaused
+                .sink { [weak self] isPaused in
+                    guard let self = self else { return }
+                    tintMenuItem.title = isPaused ? "Unpause" : "Tint Screen"
+                    tintMenuItem.isEnabled = !self.settingsModel.isAnimating && !isPaused
+                }
+                .store(in: &subscriptions)
+            
+            statusItem.menu = menu
         }
-
-        let menu = NSMenu()
-        
-        // Preferences
-        menu.addItem(NSMenuItem(title: "Preferences...", action: #selector(toggleSettings(_:)), keyEquivalent: ","))
-        
-        // Start/Stop
-        let startMenuItem = NSMenuItem(title: "Start", action: #selector(startAnimating(_:)), keyEquivalent: "s")
-        let stopMenuItem = NSMenuItem(title: "Stop", action: #selector(stopAnimating(_:)), keyEquivalent: "x")
-        menu.addItem(startMenuItem)
-        menu.addItem(stopMenuItem)
-        
-        // Tint
-        let tintMenuItem = NSMenuItem(title: "Tint", action: #selector(pauseAnimating(_:)), keyEquivalent: "p")
-        menu.addItem(tintMenuItem)
-        
-        // Reset to Defaults
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Reset to Defaults", action: #selector(resetToDefaults(_:)), keyEquivalent: "r"))
-        
-        // Quit
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Quit exhale", action: #selector(terminateApp(_:)), keyEquivalent: "q"))
-
-        // Bind menu items to model state
-        settingsModel.$isAnimating
-            .sink { [weak self] isAnimating in
-                guard let self = self else { return }
-                startMenuItem.title = isAnimating ? "Start" : "Start"
-                stopMenuItem.title = isAnimating ? "Stop" : "Stop"
-                tintMenuItem.title = isAnimating ? "Tint" : "Tint"
-                startMenuItem.isEnabled = !isAnimating
-                stopMenuItem.isEnabled = isAnimating || self.settingsModel.isPaused
-                tintMenuItem.isEnabled = !isAnimating && !self.settingsModel.isPaused
-            }
-            .store(in: &subscriptions)
-
-        settingsModel.$isPaused
-            .sink { [weak self] isPaused in
-                guard let self = self else { return }
-                tintMenuItem.title = isPaused ? "Unpause" : "Tint"
-                tintMenuItem.isEnabled = !self.settingsModel.isAnimating && !isPaused
-            }
-            .store(in: &subscriptions)
-        
-        statusItem.menu = menu
-    }
 
     @objc func startAnimating(_ sender: Any?) {
         settingsModel.start()
@@ -75,15 +101,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func stopAnimating(_ sender: Any?) {
         settingsModel.stop()
     }
-
-    @objc func pauseAnimating(_ sender: Any?) {
-        if settingsModel.isPaused {
-            settingsModel.unpause()
-        } else {
-            settingsModel.pause()
-        }
-    }
     
+    @objc func tintScreen(_ sender: Any?) {
+        settingsModel.pause()
+    }
+
     @objc func statusBarButtonClicked(sender: NSStatusBarButton) {
         statusItem.menu?.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
@@ -193,6 +215,59 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     window.backgroundColor = NSColor.clear
                 }
             }
+        }
+        
+        // Setup Global HotKeys
+        setUpGlobalHotKeys()
+    }
+
+    func setUpGlobalHotKeys() {
+        // Start Animation: Ctrl + Shift + A
+        startHotKey = HotKey(key: .a, modifiers: [.control, .shift])
+        startHotKey?.keyDownHandler = { [weak self] in
+            self?.settingsModel.start()
+        }
+
+        // Stop Animation: Ctrl + Shift + S
+        stopHotKey = HotKey(key: .s, modifiers: [.control, .shift])
+        stopHotKey?.keyDownHandler = { [weak self] in
+            self?.settingsModel.stop()
+        }
+
+        // Tint Screen: Ctrl + Shift + D
+        tintHotKey = HotKey(key: .d, modifiers: [.control, .shift])
+        tintHotKey?.keyDownHandler = { [weak self] in
+            self?.settingsModel.pause()
+        }
+
+        // Reset to Defaults: Ctrl + Shift + F
+        resetHotKey = HotKey(key: .f, modifiers: [.control, .shift])
+        resetHotKey?.keyDownHandler = { [weak self] in
+            self?.showResetConfirmation()
+        }
+
+        // Preferences: Ctrl + Shift + ,
+        preferencesHotKey = HotKey(key: .comma, modifiers: [.control, .shift])
+        preferencesHotKey?.keyDownHandler = { [weak self] in
+            self?.toggleSettings(nil)
+        }
+    }
+    
+    func showResetConfirmation() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let alert = NSAlert()
+            alert.messageText = "Reset to Defaults"
+            alert.informativeText = "Are you sure you want to reset all settings to their default values? This action cannot be undone."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Reset")
+            alert.addButton(withTitle: "Cancel")
+    
+            if alert.runModal() == .alertFirstButtonReturn {
+                // User clicked "Reset"
+                self.settingsModel.resetToDefaults()
+            }
+            // If "Cancel" is clicked, do nothing
         }
     }
 

@@ -58,8 +58,8 @@ struct SettingsView: View {
                     systemImageName: "play.circle.fill",
                     title: "Start",
                     action: { settingsModel.start() },
-                    keyboardShortcut: "s",
-                    modifiers: .command,
+                    keyboardShortcut: "a",
+                    modifiers: [.control, .shift],
                     helpText: "Start the app and re-initialize animation."
                 )
 
@@ -70,8 +70,8 @@ struct SettingsView: View {
                     systemImageName: "stop.circle.fill",
                     title: "Stop",
                     action: { settingsModel.stop() },
-                    keyboardShortcut: "x",
-                    modifiers: .command,
+                    keyboardShortcut: "s",
+                    modifiers: [.control, .shift],
                     helpText: "Stop the animation and remove all screen tints."
                 )
 
@@ -82,8 +82,8 @@ struct SettingsView: View {
                     systemImageName: "paintbrush.fill",
                     title: "Tint",
                     action: { settingsModel.pause() },
-                    keyboardShortcut: "p",
-                    modifiers: .command,
+                    keyboardShortcut: "d",
+                    modifiers: [.control, .shift],
                     helpText: "Tint the screen with the background color."
                 )
 
@@ -94,8 +94,8 @@ struct SettingsView: View {
                     systemImageName: "arrow.counterclockwise.circle.fill",
                     title: "Reset",
                     action: { settingsModel.resetToDefaults() },
-                    keyboardShortcut: "r",
-                    modifiers: .command,
+                    keyboardShortcut: "f",
+                    modifiers: [.control, .shift],
                     helpText: "Reset all settings to their default values."
                 )
 

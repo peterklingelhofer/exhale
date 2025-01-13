@@ -30,6 +30,9 @@ struct ControlButton: View {
         }, perform: {})
         .keyboardShortcut(keyboardShortcut, modifiers: modifiers)
         .help(helpText)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text(title))
+        .accessibilityHint(Text(helpText))
     }
 }
 
@@ -39,8 +42,8 @@ struct ControlButton_Previews: PreviewProvider {
             systemImageName: "play.circle.fill",
             title: "Start",
             action: { print("Start tapped") },
-            keyboardShortcut: "s",
-            modifiers: .command,
+            keyboardShortcut: "a",
+            modifiers: [.control, .shift],
             helpText: "Start the app and re-initialize animation."
         )
         .previewLayout(.sizeThatFits)
