@@ -18,6 +18,7 @@
 		020C89FA29C2B59A00720231 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C89F929C2B59A00720231 /* AppDelegate.swift */; };
 		020C8A0229C3307100720231 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C8A0129C3307100720231 /* SettingsView.swift */; };
 		020C8A0429C3323F00720231 /* SettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C8A0329C3323F00720231 /* SettingsModel.swift */; };
+		022C49FC2D34192200BD1C86 /* CombinedStepperTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 022C49FB2D34192200BD1C86 /* CombinedStepperTextField.swift */; };
 		023F8D3C2CBC110900809D87 /* EmptyClosingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 023F8D3B2CBC110800809D87 /* EmptyClosingView.swift */; };
 		02775BB629C6311E00584F4B /* CustomMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02775BB529C6311E00584F4B /* CustomMenu.swift */; };
 /* End PBXBuildFile section */
@@ -55,6 +56,7 @@
 		020C89F929C2B59A00720231 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		020C8A0129C3307100720231 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		020C8A0329C3323F00720231 /* SettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModel.swift; sourceTree = "<group>"; };
+		022C49FB2D34192200BD1C86 /* CombinedStepperTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombinedStepperTextField.swift; sourceTree = "<group>"; };
 		023F8D3B2CBC110800809D87 /* EmptyClosingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyClosingView.swift; sourceTree = "<group>"; };
 		02775BB529C6311E00584F4B /* CustomMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomMenu.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -115,6 +117,7 @@
 				020C89D229C2B05700720231 /* Preview Content */,
 				020C89F929C2B59A00720231 /* AppDelegate.swift */,
 				020C8A0129C3307100720231 /* SettingsView.swift */,
+				022C49FB2D34192200BD1C86 /* CombinedStepperTextField.swift */,
 				020C8A0329C3323F00720231 /* SettingsModel.swift */,
 				02775BB529C6311E00584F4B /* CustomMenu.swift */,
 				0208F33A29C75C0900CC6FAC /* types.swift */,
@@ -284,6 +287,7 @@
 				02775BB629C6311E00584F4B /* CustomMenu.swift in Sources */,
 				020C89CF29C2B05500720231 /* ContentView.swift in Sources */,
 				020C89CD29C2B05500720231 /* exhaleApp.swift in Sources */,
+				022C49FC2D34192200BD1C86 /* CombinedStepperTextField.swift in Sources */,
 				0208F33B29C75C0900CC6FAC /* types.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -450,10 +454,11 @@
 				CODE_SIGN_ENTITLEMENTS = exhale/exhale.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 161;
+				CURRENT_PROJECT_VERSION = 162;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"exhale/Preview Content\"";
 				DEVELOPMENT_TEAM = VZCHHV7VNW;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Exhale;
@@ -464,7 +469,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.6.1;
+				MARKETING_VERSION = 1.6.2;
 				PRODUCT_BUNDLE_IDENTIFIER = peterklingelhofer.exhale;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = macosx;
@@ -483,10 +488,11 @@
 				CODE_SIGN_ENTITLEMENTS = exhale/exhale.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 161;
+				CURRENT_PROJECT_VERSION = 162;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"exhale/Preview Content\"";
 				DEVELOPMENT_TEAM = VZCHHV7VNW;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Exhale;
@@ -497,7 +503,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.6.1;
+				MARKETING_VERSION = 1.6.2;
 				PRODUCT_BUNDLE_IDENTIFIER = peterklingelhofer.exhale;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = macosx;
