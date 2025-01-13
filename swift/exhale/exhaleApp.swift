@@ -28,6 +28,12 @@ struct exhaleApp: App {
                 .environmentObject(settingsModel)
                 .keyboardShortcut("s", modifiers: .command)
                 
+                Button("Reset to Defaults") {
+                    settingsModel.resetToDefaults()
+                }
+                .keyboardShortcut("r", modifiers: .command)
+                .help("Reset all settings to their default values.")
+                
                 Button("Quit exhale") {
                     NSApp.terminate(nil)
                 }

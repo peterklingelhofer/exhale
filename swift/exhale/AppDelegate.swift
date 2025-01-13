@@ -22,20 +22,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let menu = NSMenu()
+        
+        // Preferences
         menu.addItem(NSMenuItem(title: "Preferences...", action: #selector(toggleSettings(_:)), keyEquivalent: ","))
         
+        // Start/Stop
         let startMenuItem = NSMenuItem(title: "Start", action: #selector(startAnimating(_:)), keyEquivalent: "s")
-        let tintMenuItem = NSMenuItem(title: "Tint", action: #selector(pauseAnimating(_:)), keyEquivalent: "p")
         let stopMenuItem = NSMenuItem(title: "Stop", action: #selector(stopAnimating(_:)), keyEquivalent: "x")
-        
         menu.addItem(startMenuItem)
         menu.addItem(stopMenuItem)
+        
+        // Tint
+        let tintMenuItem = NSMenuItem(title: "Tint", action: #selector(pauseAnimating(_:)), keyEquivalent: "p")
         menu.addItem(tintMenuItem)
+        
+        // Reset to Defaults
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "Reset to Defaults", action: #selector(resetToDefaults(_:)), keyEquivalent: "r"))
+        
+        // Quit
+        menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit exhale", action: #selector(terminateApp(_:)), keyEquivalent: "q"))
 
+        // Bind menu items to model state
         settingsModel.$isAnimating
             .sink { [weak self] isAnimating in
                 guard let self = self else { return }
+                startMenuItem.title = isAnimating ? "Start" : "Start"
+                stopMenuItem.title = isAnimating ? "Stop" : "Stop"
+                tintMenuItem.title = isAnimating ? "Tint" : "Tint"
                 startMenuItem.isEnabled = !isAnimating
                 stopMenuItem.isEnabled = isAnimating || self.settingsModel.isPaused
                 tintMenuItem.isEnabled = !isAnimating && !self.settingsModel.isPaused
@@ -45,6 +60,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsModel.$isPaused
             .sink { [weak self] isPaused in
                 guard let self = self else { return }
+                tintMenuItem.title = isPaused ? "Unpause" : "Tint"
                 tintMenuItem.isEnabled = !self.settingsModel.isAnimating && !isPaused
             }
             .store(in: &subscriptions)
@@ -67,13 +83,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             settingsModel.pause()
         }
     }
-
+    
     @objc func statusBarButtonClicked(sender: NSStatusBarButton) {
         statusItem.menu?.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
 
     @objc func terminateApp(_ sender: Any?) {
         NSApp.terminate(nil)
+    }
+    
+    @objc func resetToDefaults(_ sender: Any?) {
+        settingsModel.resetToDefaults()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -96,11 +116,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.isOpaque = false
             window.ignoresMouseEvents = true
             window.setFrame(screen.frame, display: true)
-//            window.collectionBehavior = [.canJoinAllSpaces]  // Ensures window appears in all spaces
+            // window.collectionBehavior = [.canJoinAllSpaces]  // Ensures window appears in all spaces
 
             windows.append(window)
         }
 
+        // Subscriptions to update window colors and opacity
         inhaleColorSubscription = settingsModel.$inhaleColor.sink { [unowned self] newColor in
             for window in self.windows {
                 window.backgroundColor = NSColor(newColor)
@@ -126,8 +147,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         reloadContentView()
 
+        // Initialize the Settings Window
         settingsWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 200),
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 600),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -146,8 +168,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             postExhaleHoldDuration: Binding(get: { self.settingsModel.postExhaleHoldDuration }, set: { self.settingsModel.postExhaleHoldDuration = $0 }),
             drift: Binding(get: { self.settingsModel.drift }, set: { self.settingsModel.drift = $0 }),
             overlayOpacity: Binding(get: { self.settingsModel.overlayOpacity }, set: { self.settingsModel.overlayOpacity = $0 }),
-            shape: Binding<AnimationShape>(get: { self.settingsModel.shape }, set: { self.settingsModel.shape = $0 }),
-            animationMode: Binding(get: { self.settingsModel.animationMode }, set: { self.settingsModel.animationMode = $0 }),
+            shape: Binding<AnimationShape>(
+                get: { self.settingsModel.shape },
+                set: { self.settingsModel.shape = $0 }
+            ),
+            animationMode: Binding<AnimationMode>(
+                get: { self.settingsModel.animationMode },
+                set: { self.settingsModel.animationMode = $0 }
+            ),
             randomizedTimingInhale: Binding(get: { self.settingsModel.randomizedTimingInhale }, set: { self.settingsModel.randomizedTimingInhale = $0 }),
             randomizedTimingPostInhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostInhaleHold }, set: { self.settingsModel.randomizedTimingPostInhaleHold = $0 }),
             randomizedTimingExhale: Binding(get: { self.settingsModel.randomizedTimingExhale }, set: { self.settingsModel.randomizedTimingExhale = $0 }),
@@ -174,7 +202,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func toggleSettings(_ sender: Any?) {
         if settingsWindow.isVisible {
-            settingsWindow.orderOut(nil)
+            settingsWindow.orderOut(sender)
         } else {
             settingsWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)

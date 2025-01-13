@@ -21,6 +21,7 @@
 		022C49FC2D34192200BD1C86 /* CombinedStepperTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 022C49FB2D34192200BD1C86 /* CombinedStepperTextField.swift */; };
 		023F8D3C2CBC110900809D87 /* EmptyClosingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 023F8D3B2CBC110800809D87 /* EmptyClosingView.swift */; };
 		02775BB629C6311E00584F4B /* CustomMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02775BB529C6311E00584F4B /* CustomMenu.swift */; };
+		02956BC82D3549EF001D9EE4 /* ControlButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02956BC72D3549EF001D9EE4 /* ControlButton.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +60,7 @@
 		022C49FB2D34192200BD1C86 /* CombinedStepperTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombinedStepperTextField.swift; sourceTree = "<group>"; };
 		023F8D3B2CBC110800809D87 /* EmptyClosingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyClosingView.swift; sourceTree = "<group>"; };
 		02775BB529C6311E00584F4B /* CustomMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomMenu.swift; sourceTree = "<group>"; };
+		02956BC72D3549EF001D9EE4 /* ControlButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlButton.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -117,6 +119,7 @@
 				020C89D229C2B05700720231 /* Preview Content */,
 				020C89F929C2B59A00720231 /* AppDelegate.swift */,
 				020C8A0129C3307100720231 /* SettingsView.swift */,
+				02956BC72D3549EF001D9EE4 /* ControlButton.swift */,
 				022C49FB2D34192200BD1C86 /* CombinedStepperTextField.swift */,
 				020C8A0329C3323F00720231 /* SettingsModel.swift */,
 				02775BB529C6311E00584F4B /* CustomMenu.swift */,
@@ -281,6 +284,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				020C89FA29C2B59A00720231 /* AppDelegate.swift in Sources */,
+				02956BC82D3549EF001D9EE4 /* ControlButton.swift in Sources */,
 				020C8A0429C3323F00720231 /* SettingsModel.swift in Sources */,
 				023F8D3C2CBC110900809D87 /* EmptyClosingView.swift in Sources */,
 				020C8A0229C3307100720231 /* SettingsView.swift in Sources */,
