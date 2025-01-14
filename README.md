@@ -29,16 +29,32 @@ Note: This is built natively in Swift.
 
 To launch the app on Catalina or newer for the first time, you may have to right click and select "Open" instead of double clicking on it, and you may need to do this twice. That's Apple's take on "security" for non-notarized binaries, or if you are not connected to the Internet.
 
-You can use <kbd>Cmd</kbd> + <kbd>,</kbd> to toggle settings open and closed. The **Tint** feature can be used to tint your screen the color of your selected background color, or make your screen darker than otherwise possible for nighttime work (which can compound with both [Night Shift](https://support.apple.com/en-us/102191) and [f.lux](https://justgetflux.com/).
+You can use <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>,</kbd> to toggle settings open and closed. The **Tint** feature (or Pause) can be used to tint your screen the color of your selected background color, or make your screen darker than otherwise possible for nighttime work (which can compound with both [Night Shift](https://support.apple.com/en-us/102191) and [f.lux](https://justgetflux.com/).
+
+#### Global Keyboard Shortcuts:
+
+<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>: **Start Animation**
+
+<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>: **Stop Animation**
+
+<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd>: **Tint Screen**
+
+<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd>: **Reset to Defaults**
+
+<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>W</kbd> or
+
+<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>,</kbd>: **Open/Close Preferences**
+
 
 **Notice:** A high opacity value can obscure the Preferences pane in the current workspace.
-To change this value back:
+To change this value back, you can use <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> to **Reset to Defaults**, or if you'd like to persist your other settings:
 1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
 2. From the top bar menu, click Preferences to close the Preferences pane in the previous workspace.
 3. Access the top bar menu again, click Preferences to open the Preferences pane in the current workspace, and adjust your Opacity value accordingly.
 4. Switch back to the original workspace.
 
                                         
+#### Development
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
@@ -54,20 +70,6 @@ xed .
 <img width="912" alt="Screenshot 2024-06-01 at 1 35 36 PM" src="https://github.com/peterklingelhofer/exhale/assets/60944077/b2eb9450-8dcf-4934-b6c9-08328ef6a167">
 
 Note: This implementation is built with TypeScript & Electron. The macOS will build but it is not very performant and is far more CPU-intensive than the native Swift build, and as a result the Swift build is recommended for macOS users.
-
-```sh
-git clone https://github.com/peterklingelhofer/exhale.git
-cd exhale
-cd typescript
-yarn
-yarn start
-```
-
-To recompile automatically and use [electron-reload](https://github.com/yan-foto/electron-reload), run in a separate terminal:
-
-```sh
-yarn run watch
-```
 
 Modify settings by going to **Application** (found in the top right via `>>`) > **Local storage** > **file://**. While the Developer Tools are open, you can resize the window, and opacity values are ignored, so you can position the window and change settings to your liking, and then close the Dev Tools window by clicking the `x` in the top right, or use <kbd>F12</kbd> or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd>(Linux/Windows) or <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd> (macOS) to toggle Developer Tools to [access and modify these settings](https://developer.chrome.com/docs/devtools/storage/localstorage/#edit), and <kbd>Ctrl</kbd> + <kbd>R</kbd> (Linux/Windows) or <kbd>Cmd</kbd> + <kbd>R</kbd> (macOS) to refresh the app to use your newly selected settings. If no settings appear on the first run of the application, you can manually add them), following the format of the `storedValues` variable in [`/src/renderer.ts`](https://github.com/peterklingelhofer/exhale/blob/main/src/renderer.ts). To add them manually, go to the **Console** and copy paste the following code into the console and press <kbd>Enter</kbd> or <kbd>Return</kbd> to populate your `localStorage` (these are the defaults as of the time of writing):
 
@@ -88,6 +90,22 @@ localStorage = {
 Once added, you can modify all values from the **Local Storage** pane. Or, if you prefer the terminal, in the **Console** you can write `localStorage.opacity = "0.15"` for example.
 
 <img width="371" alt="Screen Shot 2023-03-11 at 2 12 30 PM" src="https://user-images.githubusercontent.com/60944077/224511531-c0d615a1-1859-47b6-a78b-7d38276d80be.png">
+
+#### Development
+
+```sh
+git clone https://github.com/peterklingelhofer/exhale.git
+cd exhale
+cd typescript
+yarn
+yarn start
+```
+
+To recompile automatically and use [electron-reload](https://github.com/yan-foto/electron-reload), run in a separate terminal:
+
+```sh
+yarn run watch
+```
 
 ## Python Script Usage
 
@@ -114,6 +132,6 @@ Companion repository made in Perl can be found [here](https://github.com/franco3
 
 ## Sponsorship
 
-This app is free and will always be free, but if you want to support me or want a more rapid response time on feature requests, feel free to buy me a coffee:
+This app is free and will always be free, but if you want to support me or want a more rapid response time on feature requests, you may buy me a coffee:
 
 <a href="https://www.buymeacoffee.com/peterklingelhofer" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
