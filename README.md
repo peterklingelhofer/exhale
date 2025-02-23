@@ -4,7 +4,7 @@
 
 ## Introduction
 
-Research indicates we blink less and breathe more shallowly when we are looking at screens. This minimal app is intended as a friendly indicator and reminder to continue to take full and deep breaths. As looking at screens for long periods of time is typically less than ideal, this tool is intended as a means to potentially ameliorate those negative impacts.
+Research indicates we blink less and breathe more shallowly when we are looking at screens. This minimal app is an internal tool I created for myself that I released for the public in case others find it useful, and is intended as a friendly indicator and reminder to continue to take full and deep breaths. As looking at screens for long periods of time is typically less than ideal, this tool is intended as a means to potentially ameliorate those negative impacts.
 
 Each of these implementations allows users to set an inhale, inhale hold, exhale, and exhale hold duration, in seconds, to fit their needs. For beginners who might be curious what a good starting value might be for these, I recommend keeping it simple, using `4` for the in duration and `4` for the out duration. Eventually you can work your way up to `6` and `8`, and set the out duration to be twice that of the in duration to facilitate activation of the parasympathetic nervous system. Some users might like to start out with box breathing, which is inhale `4`, inhale hold `4`, exhale `4`, exhale hold `4`. Remember, if intense feelings arise while practicing, taking a break is encouraged - it's important to not overdo it.
 
