@@ -5,14 +5,15 @@ import SwiftUI
 struct exhaleApp: App {
     @ObservedObject private var settingsModel = SettingsModel()
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    
+
     init() {
         appDelegate.settingsModel = settingsModel
     }
-    
+
     var body: some Scene {
-        Settings {
+        WindowGroup {
             EmptyClosingView()
+                .frame(width: 0, height: 0)
         }
         .commands {
             CommandGroup(replacing: .appSettings) {
