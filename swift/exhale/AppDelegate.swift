@@ -176,6 +176,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
+        settingsWindow.setValue("SettingsWindow", forKey: "frameAutosaveName")
 
         settingsWindow.delegate = self
         settingsWindow.contentView = NSHostingView(rootView: SettingsView(
