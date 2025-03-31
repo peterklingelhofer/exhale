@@ -1,9 +1,7 @@
-// AppDelegate.swift
 import Cocoa
 import Combine
 import SwiftUI
 import HotKey
-
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var windows: [NSWindow] = []
@@ -22,77 +20,77 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var preferencesHotKey: HotKey?
     
     func setUpStatusItem() {
-            statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            if let button = statusItem.button {
-                button.image = NSImage(named: "StatusBarIcon") // Ensure you have an image named "StatusBarIcon" in Assets
-                button.action = #selector(statusBarButtonClicked(sender:))
-            }
-
-            let menu = NSMenu()
-            
-            // Preferences
-            let preferencesItem = NSMenuItem(title: "Preferences", action: #selector(toggleSettings(_:)), keyEquivalent: "w")
-            preferencesItem.keyEquivalentModifierMask = [.control, .shift]
-            preferencesItem.target = self
-            menu.addItem(preferencesItem)
-
-            // Start Animation
-            let startMenuItem = NSMenuItem(title: "Start Animation", action: #selector(startAnimating(_:)), keyEquivalent: "a")
-            startMenuItem.keyEquivalentModifierMask = [.control, .shift]
-            startMenuItem.target = self
-            menu.addItem(startMenuItem)
-            
-            // Stop Animation
-            let stopMenuItem = NSMenuItem(title: "Stop Animation", action: #selector(stopAnimating(_:)), keyEquivalent: "s")
-            stopMenuItem.keyEquivalentModifierMask = [.control, .shift]
-            stopMenuItem.target = self
-            menu.addItem(stopMenuItem)
-            
-            // Tint Screen
-            let tintMenuItem = NSMenuItem(title: "Tint Screen", action: #selector(tintScreen(_:)), keyEquivalent: "d")
-            tintMenuItem.keyEquivalentModifierMask = [.control, .shift]
-            tintMenuItem.target = self
-            menu.addItem(tintMenuItem)
-            
-            // Reset to Defaults
-            let resetMenuItem = NSMenuItem(title: "Reset to Defaults", action: #selector(resetToDefaults(_:)), keyEquivalent: "f")
-            resetMenuItem.keyEquivalentModifierMask = [.control, .shift]
-            resetMenuItem.target = self
-            menu.addItem(resetMenuItem)
-            
-            // Separator
-            menu.addItem(NSMenuItem.separator())
-            
-            // Quit
-            let quitMenuItem = NSMenuItem(title: "Quit exhale", action: #selector(terminateApp(_:)), keyEquivalent: "q")
-            quitMenuItem.keyEquivalentModifierMask = [.command]
-            quitMenuItem.target = self
-            menu.addItem(quitMenuItem)
-
-            // Bind menu items to model state
-            settingsModel.$isAnimating
-                .sink { [weak self] isAnimating in
-                    guard let self = self else { return }
-                    startMenuItem.title = "Start Animation"
-                    stopMenuItem.title = "Stop Animation"
-                    tintMenuItem.title = "Tint Screen"
-                    resetMenuItem.title = "Reset to Defaults"
-                    startMenuItem.isEnabled = !isAnimating
-                    stopMenuItem.isEnabled = isAnimating || self.settingsModel.isPaused
-                    tintMenuItem.isEnabled = !isAnimating && !self.settingsModel.isPaused
-                }
-                .store(in: &subscriptions)
-            
-            settingsModel.$isPaused
-                .sink { [weak self] isPaused in
-                    guard let self = self else { return }
-                    tintMenuItem.title = isPaused ? "Unpause" : "Tint Screen"
-                    tintMenuItem.isEnabled = !self.settingsModel.isAnimating && !isPaused
-                }
-                .store(in: &subscriptions)
-            
-            statusItem.menu = menu
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = statusItem.button {
+            button.image = NSImage(named: "StatusBarIcon") // Ensure you have an image named "StatusBarIcon" in Assets
+            button.action = #selector(statusBarButtonClicked(sender:))
         }
+
+        let menu = NSMenu()
+        
+        // Preferences
+        let preferencesItem = NSMenuItem(title: "Preferences", action: #selector(toggleSettings(_:)), keyEquivalent: "w")
+        preferencesItem.keyEquivalentModifierMask = [.control, .shift]
+        preferencesItem.target = self
+        menu.addItem(preferencesItem)
+
+        // Start Animation
+        let startMenuItem = NSMenuItem(title: "Start Animation", action: #selector(startAnimating(_:)), keyEquivalent: "a")
+        startMenuItem.keyEquivalentModifierMask = [.control, .shift]
+        startMenuItem.target = self
+        menu.addItem(startMenuItem)
+        
+        // Stop Animation
+        let stopMenuItem = NSMenuItem(title: "Stop Animation", action: #selector(stopAnimating(_:)), keyEquivalent: "s")
+        stopMenuItem.keyEquivalentModifierMask = [.control, .shift]
+        stopMenuItem.target = self
+        menu.addItem(stopMenuItem)
+        
+        // Tint Screen
+        let tintMenuItem = NSMenuItem(title: "Tint Screen", action: #selector(tintScreen(_:)), keyEquivalent: "d")
+        tintMenuItem.keyEquivalentModifierMask = [.control, .shift]
+        tintMenuItem.target = self
+        menu.addItem(tintMenuItem)
+        
+        // Reset to Defaults
+        let resetMenuItem = NSMenuItem(title: "Reset to Defaults", action: #selector(resetToDefaults(_:)), keyEquivalent: "f")
+        resetMenuItem.keyEquivalentModifierMask = [.control, .shift]
+        resetMenuItem.target = self
+        menu.addItem(resetMenuItem)
+        
+        // Separator
+        menu.addItem(NSMenuItem.separator())
+        
+        // Quit
+        let quitMenuItem = NSMenuItem(title: "Quit exhale", action: #selector(terminateApp(_:)), keyEquivalent: "q")
+        quitMenuItem.keyEquivalentModifierMask = [.command]
+        quitMenuItem.target = self
+        menu.addItem(quitMenuItem)
+
+        // Bind menu items to model state
+        settingsModel.$isAnimating
+            .sink { [weak self] isAnimating in
+                guard let self = self else { return }
+                startMenuItem.title = "Start Animation"
+                stopMenuItem.title = "Stop Animation"
+                tintMenuItem.title = "Tint Screen"
+                resetMenuItem.title = "Reset to Defaults"
+                startMenuItem.isEnabled = !isAnimating
+                stopMenuItem.isEnabled = isAnimating || self.settingsModel.isPaused
+                tintMenuItem.isEnabled = !isAnimating && !self.settingsModel.isPaused
+            }
+            .store(in: &subscriptions)
+        
+        settingsModel.$isPaused
+            .sink { [weak self] isPaused in
+                guard let self = self else { return }
+                tintMenuItem.title = isPaused ? "Unpause" : "Tint Screen"
+                tintMenuItem.isEnabled = !self.settingsModel.isAnimating && !isPaused
+            }
+            .store(in: &subscriptions)
+        
+        statusItem.menu = menu
+    }
 
     @objc func startAnimating(_ sender: Any?) {
         settingsModel.start()
@@ -122,6 +120,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.accessory)
         settingsModel = SettingsModel()
 
+        // Create overlay windows for each screen.
         for screen in NSScreen.screens {
             let screenSize = screen.frame.size
             let window = NSWindow(
@@ -176,9 +175,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
+        // Set the autosave frame name using KVC.
         settingsWindow.setValue("SettingsWindow", forKey: "frameAutosaveName")
-
+        
+        // Set the delegate so we can save the frame when the window moves.
         settingsWindow.delegate = self
+        
         settingsWindow.contentView = NSHostingView(rootView: SettingsView(
             showSettings: .constant(false),
             inhaleColor: Binding(get: { self.settingsModel.inhaleColor }, set: { self.settingsModel.inhaleColor = $0 }),
@@ -207,6 +209,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ).environmentObject(settingsModel))
 
         settingsWindow.title = "exhale"
+        // Initially hide the settings window.
         toggleSettings(nil)
         setUpStatusItem()
 
@@ -280,6 +283,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if settingsWindow.isVisible {
             settingsWindow.orderOut(sender)
         } else {
+            // Attempt to restore the saved frame (including screen identifier)
+            if let frameDict = UserDefaults.standard.dictionary(forKey: "SettingsWindowFrame") as? [String: Any],
+               let x = frameDict["x"] as? CGFloat,
+               let y = frameDict["y"] as? CGFloat,
+               let width = frameDict["width"] as? CGFloat,
+               let height = frameDict["height"] as? CGFloat,
+               let savedScreen = frameDict["screen"] as? String,
+               let matchingScreen = NSScreen.screens.first(where: { $0.localizedName == savedScreen })
+            {
+                let restoredFrame = NSRect(x: x, y: y, width: width, height: height)
+                // Optionally, you might adjust the frame to ensure it is fully visible on matchingScreen.
+                settingsWindow.setFrame(restoredFrame, display: true)
+            }
+            
             settingsWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             settingsWindow.level = .floating
@@ -293,11 +310,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    // Prevent the settings window from closing (just hide it instead)
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if sender == settingsWindow {
             settingsWindow.orderOut(sender)
             return false
         }
         return true
+    }
+    
+    // MARK: - NSWindowDelegate for Saving Window Frame
+
+    func windowDidMove(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow,
+              window == settingsWindow,
+              let screen = window.screen else { return }
+        let frame = window.frame
+        let frameDict: [String: Any] = [
+            "x": frame.origin.x,
+            "y": frame.origin.y,
+            "width": frame.size.width,
+            "height": frame.size.height,
+            "screen": screen.localizedName
+        ]
+        UserDefaults.standard.set(frameDict, forKey: "SettingsWindowFrame")
     }
 }
