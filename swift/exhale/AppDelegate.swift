@@ -293,7 +293,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                let matchingScreen = NSScreen.screens.first(where: { $0.localizedName == savedScreen })
             {
                 let restoredFrame = NSRect(x: x, y: y, width: width, height: height)
-                // Optionally, you might adjust the frame to ensure it is fully visible on matchingScreen.
                 settingsWindow.setFrame(restoredFrame, display: true)
             }
             
