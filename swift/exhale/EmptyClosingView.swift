@@ -6,10 +6,9 @@ struct EmptyClosingView: NSViewRepresentable {
         let view = NSView(frame: .zero)
         DispatchQueue.main.async {
             if let window = view.window {
-                window.isRestorable = false
-                window.alphaValue = 0
                 window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)))
                 window.orderBack(nil)
+                window.isRestorable = false
                 window.close()
             }
         }
