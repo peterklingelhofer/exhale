@@ -13,7 +13,6 @@ struct exhaleApp: App {
     var body: some Scene {
         WindowGroup {
             EmptyClosingView()
-                .frame(width: 0, height: 0)
         }
         .commands {
             CommandGroup(replacing: .appSettings) {
