@@ -1,7 +1,5 @@
 # exhale
 
-![exhale](https://github.com/user-attachments/assets/cc35cf4c-f7ab-4abf-aa87-e10273343f3f)
-
 ## Introduction
 
 Research indicates we blink less and breathe more shallowly when we are looking at screens. This minimal app is an internal tool I created for myself that I released for the public in case others find it useful, and is intended as a friendly indicator and reminder to continue to take full and deep breaths. As looking at screens for long periods of time is typically less than ideal, this tool is intended as a means to potentially ameliorate those negative impacts.
