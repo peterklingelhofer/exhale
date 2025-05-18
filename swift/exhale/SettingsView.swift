@@ -29,18 +29,18 @@ struct SettingsView: View {
     @Binding var randomizedTimingExhale: Double
     @Binding var randomizedTimingPostExhaleHold: Double
     @Binding var isAnimating: Bool
-
+    
     private let labelWidth: CGFloat = 130
     private let controlWidth: CGFloat = 90
-
+    
     // State variables for managing opacity change
     @State private var tempOverlayOpacity: Double = 0.0
     @State private var showOpacityWarning: Bool = false
     @State private var previousOverlayOpacity: Double = 0.0
-
+    
     // UserDefaults key for tracking if the alert has been shown
     private let opacityAlertShownKey = "hasShownOverlayOpacityAlert"
-
+    
     var body: some View {
         VStack {
             // App Version Display
@@ -50,7 +50,7 @@ struct SettingsView: View {
                     .font(.footnote)
                     .padding(.top, 4)
             }
-
+            
             // Control Buttons
             HStack {
                 // Start Button
@@ -62,9 +62,9 @@ struct SettingsView: View {
                     modifiers: [.control, .shift],
                     helpText: "Start the app and re-initialize animation."
                 )
-
+                
                 Spacer().frame(width: 16)
-
+                
                 // Stop Button
                 ControlButton(
                     systemImageName: "stop.circle.fill",
@@ -74,9 +74,9 @@ struct SettingsView: View {
                     modifiers: [.control, .shift],
                     helpText: "Stop the animation and remove all screen tints."
                 )
-
+                
                 Spacer().frame(width: 16)
-
+                
                 // Tint Button
                 ControlButton(
                     systemImageName: "paintbrush.fill",
@@ -86,9 +86,9 @@ struct SettingsView: View {
                     modifiers: [.control, .shift],
                     helpText: "Tint the screen with the background color."
                 )
-
+                
                 Spacer().frame(width: 16)
-
+                
                 // Reset Button
                 ControlButton(
                     systemImageName: "arrow.counterclockwise.circle.fill",
@@ -98,15 +98,15 @@ struct SettingsView: View {
                     modifiers: [.control, .shift],
                     helpText: "Reset all settings to their default values."
                 )
-
+                
                 Spacer()
             }
             .padding(.leading, 25)
-
+            
             // Settings Form
             HStack {
                 Spacer()
-
+                
                 VStack {
                     Form {
                         HStack {
@@ -115,7 +115,7 @@ struct SettingsView: View {
                                 HStack {
                                     Text("Inhale Color")
                                         .frame(width: labelWidth, alignment: .leading)
-
+                                    
                                     ColorPicker("", selection: $inhaleColor)
                                         .labelsHidden()
                                         .frame(alignment: .trailing)
@@ -124,12 +124,12 @@ struct SettingsView: View {
                                         }
                                 }
                                 .help("Choose the color for the inhale phase.")
-
+                                
                                 // Exhale Color Picker
                                 HStack {
                                     Text("Exhale Color")
                                         .frame(width: labelWidth, alignment: .leading)
-
+                                    
                                     ColorPicker("", selection: $exhaleColor)
                                         .labelsHidden()
                                         .frame(alignment: .trailing)
@@ -138,12 +138,12 @@ struct SettingsView: View {
                                         }
                                 }
                                 .help("Choose the color for the exhale phase.")
-
+                                
                                 // Background Color Picker
                                 HStack {
                                     Text("Background Color")
                                         .frame(width: labelWidth, alignment: .leading)
-
+                                    
                                     ColorPicker("", selection: $backgroundColor, supportsOpacity: true)
                                         .labelsHidden()
                                         .frame(alignment: .trailing)
@@ -153,7 +153,7 @@ struct SettingsView: View {
                                         }
                                 }
                                 .help("Choose the background color, or the color outside of the animation shape. This parameter has no effect if the Shape parameter is set to Fullscreen.")
-
+                                
                                 // Inhale Duration
                                 CombinedStepperTextField(
                                     title: "Inhale Duration (s)",
@@ -164,7 +164,7 @@ struct SettingsView: View {
                                 .onChange(of: inhaleDuration) { _ in
                                     settingsModel.triggerAnimationReset()
                                 }
-
+                                
                                 // Post-Inhale Hold Duration
                                 CombinedStepperTextField(
                                     title: "Post-Inhale Hold (s)",
@@ -175,7 +175,7 @@ struct SettingsView: View {
                                 .onChange(of: postInhaleHoldDuration) { _ in
                                     settingsModel.triggerAnimationReset()
                                 }
-
+                                
                                 // Exhale Duration
                                 CombinedStepperTextField(
                                     title: "Exhale Duration (s)",
@@ -186,7 +186,7 @@ struct SettingsView: View {
                                 .onChange(of: exhaleDuration) { _ in
                                     settingsModel.triggerAnimationReset()
                                 }
-
+                                
                                 // Post-Exhale Hold Duration
                                 CombinedStepperTextField(
                                     title: "Post-Exhale Hold (s)",
@@ -197,7 +197,7 @@ struct SettingsView: View {
                                 .onChange(of: postExhaleHoldDuration) { _ in
                                     settingsModel.triggerAnimationReset()
                                 }
-
+                                
                                 // Overlay Opacity Control
                                 CombinedStepperTextField(
                                     title: "Overlay Opacity (%)",
@@ -217,7 +217,7 @@ struct SettingsView: View {
                                         minimumValue: 0.0,
                                         maximumValue: 1.0
                                     )
-
+                                    
                                     if validatedValue > 0.6 && !UserDefaults.standard.bool(forKey: opacityAlertShownKey) {
                                         showOpacityWarning = true
                                     } else {
@@ -238,13 +238,13 @@ struct SettingsView: View {
                                     title: Text("High Opacity Warning"),
                                     message: Text("""
                                         You've attempted to set the overlay opacity to a very high value (>60%).
-
+                                        
                                         To change this value back:
                                         1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
                                         2. From the top bar menu, click Preferences to close the Preferences pane in the previous workspace.
                                         3. Access the top bar menu again, click Preferences to open the Preferences pane in the current workspace, and adjust your Opacity value accordingly.
                                         4. Switch back to the original workspace.
-
+                                        
                                         **Note:** A high opacity value can obscure the Preferences pane in the current workspace.
                                         """),
                                     primaryButton: .default(Text("OK")) {
@@ -252,7 +252,7 @@ struct SettingsView: View {
                                         overlayOpacity = tempOverlayOpacity
                                         previousOverlayOpacity = tempOverlayOpacity
                                         settingsModel.triggerAnimationReset()
-
+                                        
                                         // Set the flag to true to indicate the alert has been shown
                                         UserDefaults.standard.set(true, forKey: opacityAlertShownKey)
                                     },
@@ -263,13 +263,13 @@ struct SettingsView: View {
                                 )
                             }
                             .padding()
-
+                            
                             VStack(alignment: .leading) {
                                 // Shape Picker
                                 HStack {
                                     Text("Shape")
                                         .frame(width: labelWidth, alignment: .leading)
-
+                                    
                                     Picker("", selection: $shape) {
                                         ForEach(AnimationShape.allCases, id: \.self) { shape in
                                             Text(shape.rawValue).tag(shape)
@@ -283,12 +283,12 @@ struct SettingsView: View {
                                     }
                                 }
                                 .help("Choose the Shape of the animation. Fullscreen changes the color of every pixel on the screen, starting with the Inhale Color at the beginning of the inhale phase and transitioning to the Exhale Color, then for the exhale phase transitioning back from the Exhale Color to the Inhale Color (Fullscreen uses Gradient Type Constant, setting it to Linear Gradient has no effect). Rectangle rises vertically from the bottom of the screen to the top for the inhale phase, and then lowers back down from the top to the bottom for the exhale phase. Circle grows outwards starting from a single point in the center of the screen to the outer edges of the screen for the inhale phase, and then shrinks back to the center again for the exhale phase.")
-
+                                
                                 // Gradient Picker
                                 HStack {
                                     Text("Gradient")
                                         .frame(width: labelWidth, alignment: .leading)
-
+                                    
                                     Picker("", selection: $colorFillType) {
                                         ForEach(ColorFillGradient.allCases) { type in
                                             Text(type.rawValue).tag(type)
@@ -303,12 +303,12 @@ struct SettingsView: View {
                                     }
                                 }
                                 .help("Choose the gradient color effect. Off allows the change the color to transition over time between the Inhale Color and Exhale Color and back. Inner and On causes abrupt color transitions at the end of the inhale and exhale phases (which can make it easier to notice when it is time to reverse the direction of your breathing), and enables a color gradient from the Background Color to the Inhale Color or Exhale Color (depending on the current phase). When the Shape is Circle the Inner gradient color transition is from the innermost center point of the Circle to the diameter, whereas with the Rectangle shape the Inner gradient color transition is from the bottom of the Rectangle to the top. On has similar behavior to Inner, but includes a gradient on the exterior of shape in addition to the interior. This parameter has no effect if the Shape parameter is set to Fullscreen.")
-
+                                
                                 // Animation Mode Picker
                                 HStack {
                                     Text("Animation Mode")
                                         .frame(width: labelWidth, alignment: .leading)
-
+                                    
                                     Picker("", selection: $animationMode) {
                                         ForEach(AnimationMode.allCases) { mode in
                                             Text(mode.rawValue).tag(mode)
@@ -322,7 +322,7 @@ struct SettingsView: View {
                                     }
                                 }
                                 .help("Choose the animation speed's acceleration curve. Sinusoidal begins slowly, speeds up during the middle point, and slows down again near the end, creating a natural and organic feel to the transition. Linear provides a constant animation speed and acceleration rate throughout the duration of the animation.")
-
+                                
                                 // Inhale Randomization
                                 CombinedStepperTextField(
                                     title: "Inhale Randomization (%)",
@@ -335,7 +335,7 @@ struct SettingsView: View {
                                 .onChange(of: randomizedTimingInhale) { _ in
                                     settingsModel.triggerAnimationReset()
                                 }
-
+                                
                                 // Post-Inhale Hold Randomization
                                 CombinedStepperTextField(
                                     title: "Post-Inhale Hold Randomization (%)",
@@ -348,7 +348,7 @@ struct SettingsView: View {
                                 .onChange(of: randomizedTimingPostInhaleHold) { _ in
                                     settingsModel.triggerAnimationReset()
                                 }
-
+                                
                                 // Exhale Randomization
                                 CombinedStepperTextField(
                                     title: "Exhale Randomization (%)",
@@ -361,7 +361,7 @@ struct SettingsView: View {
                                 .onChange(of: randomizedTimingExhale) { _ in
                                     settingsModel.triggerAnimationReset()
                                 }
-
+                                
                                 // Post-Exhale Hold Randomization
                                 CombinedStepperTextField(
                                     title: "Post-Exhale Hold Randomization (%)",
@@ -374,7 +374,7 @@ struct SettingsView: View {
                                 .onChange(of: randomizedTimingPostExhaleHold) { _ in
                                     settingsModel.triggerAnimationReset()
                                 }
-
+                                
                                 // Drift
                                 CombinedStepperTextField(
                                     title: "Drift (%)",
@@ -388,7 +388,7 @@ struct SettingsView: View {
                                     settingsModel.triggerAnimationReset()
                                 }
                             }
-
+                            
                             Spacer()
                         }
                     }
@@ -400,13 +400,13 @@ struct SettingsView: View {
                 title: Text("High Opacity Warning"),
                 message: Text("""
                     You've attempted to set the overlay opacity to a very high value (>60%).
-
+                    
                     To change this value back:
                     1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
                     2. From the top bar menu, click Preferences to close the Preferences pane in the previous workspace.
                     3. Access the top bar menu again, click Preferences to open the Preferences pane in the current workspace, and adjust your Opacity value accordingly.
                     4. Switch back to the original workspace.
-
+                    
                     **Note:** A high opacity value can obscure the Preferences pane in the current workspace.
                     """),
                 primaryButton: .default(Text("OK")) {
@@ -414,7 +414,7 @@ struct SettingsView: View {
                     overlayOpacity = tempOverlayOpacity
                     previousOverlayOpacity = tempOverlayOpacity
                     settingsModel.triggerAnimationReset()
-
+                    
                     // Set the flag to true to indicate the alert has been shown
                     UserDefaults.standard.set(true, forKey: opacityAlertShownKey)
                 },

@@ -14,6 +14,6 @@ struct EmptyClosingView: NSViewRepresentable {
         }
         return view
     }
-
+    
     func updateNSView(_ nsView: NSView, context: Context) { }
 }

@@ -8,9 +8,9 @@ struct ControlButton: View {
     let keyboardShortcut: KeyEquivalent
     let modifiers: EventModifiers
     let helpText: String
-
+    
     @State private var isPressed: Bool = false
-
+    
     var body: some View {
         Button(action: action) {
             VStack {

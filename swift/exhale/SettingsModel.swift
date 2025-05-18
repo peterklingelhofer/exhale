@@ -73,13 +73,13 @@ class SettingsModel: ObservableObject {
             defaults.set(overlayOpacity, forKey: "overlayOpacity")
         }
     }
-
+    
     @Published var colorFillGradient: ColorFillGradient {
         didSet {
             defaults.set(colorFillGradient.rawValue, forKey: "colorFillGradient")
         }
     }
-
+    
     @Published var shape: AnimationShape {
         didSet {
             defaults.set(shape.rawValue, forKey: "shape")
@@ -121,34 +121,34 @@ class SettingsModel: ObservableObject {
             defaults.set(isAnimating, forKey: "isAnimating")
         }
     }
-
+    
     @Published var resetAnimation: Bool = false
     
     @Published var isPaused: Bool = false
-
-     func triggerAnimationReset() {
-         resetAnimation = true
-         resetAnimation = false
-     }
-
-     func start() {
-         isAnimating = true
-         isPaused = false
-     }
-
-     func stop() {
-         isAnimating = false
-         isPaused = false
-     }
-
-     func pause() {
-         isPaused = true
-     }
-
-     func unpause() {
-         isPaused = false
-     }
-
+    
+    func triggerAnimationReset() {
+        resetAnimation = true
+        resetAnimation = false
+    }
+    
+    func start() {
+        isAnimating = true
+        isPaused = false
+    }
+    
+    func stop() {
+        isAnimating = false
+        isPaused = false
+    }
+    
+    func pause() {
+        isPaused = true
+    }
+    
+    func unpause() {
+        isPaused = false
+    }
+    
     init() {
         self.backgroundColor = Color.clear
         self.inhaleColor = Color.red
@@ -175,19 +175,19 @@ class SettingsModel: ObservableObject {
         if defaults.object(forKey: "inhaleDuration") != nil {
             self.inhaleDuration = defaults.double(forKey: "inhaleDuration")
         }
-
+        
         if defaults.object(forKey: "postInhaleHoldDuration") != nil {
             self.postInhaleHoldDuration = defaults.double(forKey: "postInhaleHoldDuration")
         }
-
+        
         if defaults.object(forKey: "exhaleDuration") != nil {
             self.exhaleDuration = defaults.double(forKey: "exhaleDuration")
         }
-
+        
         if defaults.object(forKey: "postExhaleHoldDuration") != nil {
             self.postExhaleHoldDuration = defaults.double(forKey: "postExhaleHoldDuration")
         }
-
+        
         if defaults.object(forKey: "drift") != nil {
             self.drift = defaults.double(forKey: "drift")
         }
@@ -204,31 +204,31 @@ class SettingsModel: ObservableObject {
         }
         
         if let savedShape = defaults.string(forKey: "shape"),
-          let shape = AnimationShape(rawValue: savedShape) {
-           self.shape = shape
-       } else {
-           self.shape = .rectangle
-       }
-       
-       if let savedMode = defaults.string(forKey: "animationMode"),
-          let mode = AnimationMode(rawValue: savedMode) {
-           self.animationMode = mode
-       } else {
-           self.animationMode = .sinusoidal
-       }
-
+           let shape = AnimationShape(rawValue: savedShape) {
+            self.shape = shape
+        } else {
+            self.shape = .rectangle
+        }
+        
+        if let savedMode = defaults.string(forKey: "animationMode"),
+           let mode = AnimationMode(rawValue: savedMode) {
+            self.animationMode = mode
+        } else {
+            self.animationMode = .sinusoidal
+        }
+        
         if defaults.object(forKey: "randomizedTimingInhale") != nil {
             self.randomizedTimingInhale = defaults.double(forKey: "randomizedTimingInhale")
         }
-
+        
         if defaults.object(forKey: "randomizedTimingPostInhaleHold") != nil {
             self.randomizedTimingPostInhaleHold = defaults.double(forKey: "randomizedTimingPostInhaleHold")
         }
-
+        
         if defaults.object(forKey: "randomizedTimingExhale") != nil {
             self.randomizedTimingExhale = defaults.double(forKey: "randomizedTimingExhale")
         }
-
+        
         if defaults.object(forKey: "randomizedTimingPostExhaleHold") != nil {
             self.randomizedTimingPostExhaleHold = defaults.double(forKey: "randomizedTimingPostExhaleHold")
         }
@@ -240,7 +240,7 @@ class SettingsModel: ObservableObject {
             defaults.set(data, forKey: key)
         }
     }
-        
+    
     private func loadColor(forKey key: String) -> Color? {
         guard let data = defaults.object(forKey: key) as? Data else {
             return nil

@@ -8,7 +8,7 @@ struct CombinedStepperTextField: View {
     @Binding var value: Double
     var limits: (min: Double?, max: Double?)
     var step: Double = 1.0
-
+    
     private var formatter: NumberFormatter {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -20,14 +20,14 @@ struct CombinedStepperTextField: View {
         formatter.usesGroupingSeparator = false
         return formatter
     }
-
+    
     var body: some View {
         HStack {
             Text(title)
                 .frame(width: 224, alignment: .leading)
-
+            
             Spacer()
-
+            
             TextField("", value: $value, formatter: formatter)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .frame(width: 60)
@@ -38,7 +38,7 @@ struct CombinedStepperTextField: View {
                         maximumValue: limits.max
                     )
                 }
-
+            
             Stepper("", value: $value, in: (limits.min ?? defaultMin)...(limits.max ?? Double.infinity), step: step)
                 .labelsHidden()
                 .frame(width: 0)
