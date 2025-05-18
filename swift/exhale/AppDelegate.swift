@@ -25,7 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             button.image = NSImage(named: "StatusBarIcon") // Ensure you have an image named "StatusBarIcon" in Assets
             button.action = #selector(statusBarButtonClicked(sender:))
         }
-
+        
         let menu = NSMenu()
         
         // Preferences
@@ -33,7 +33,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         preferencesItem.keyEquivalentModifierMask = [.control, .shift]
         preferencesItem.target = self
         menu.addItem(preferencesItem)
-
+        
         // Start Animation
         let startMenuItem = NSMenuItem(title: "Start Animation", action: #selector(startAnimating(_:)), keyEquivalent: "a")
         startMenuItem.keyEquivalentModifierMask = [.control, .shift]
@@ -66,7 +66,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         quitMenuItem.keyEquivalentModifierMask = [.command]
         quitMenuItem.target = self
         menu.addItem(quitMenuItem)
-
+        
         // Bind menu items to model state
         settingsModel.$isAnimating
             .sink { [weak self] isAnimating in
@@ -91,11 +91,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         statusItem.menu = menu
     }
-
+    
     @objc func startAnimating(_ sender: Any?) {
         settingsModel.start()
     }
-
+    
     @objc func stopAnimating(_ sender: Any?) {
         settingsModel.stop()
     }
@@ -103,11 +103,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func tintScreen(_ sender: Any?) {
         settingsModel.pause()
     }
-
+    
     @objc func statusBarButtonClicked(sender: NSStatusBarButton) {
         statusItem.menu?.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
-
+    
     @objc func terminateApp(_ sender: Any?) {
         NSApp.terminate(nil)
     }
@@ -115,11 +115,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func resetToDefaults(_ sender: Any?) {
         settingsModel.resetToDefaults()
     }
-
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         settingsModel = SettingsModel()
-
+        
         // Create overlay windows for each screen.
         for screen in NSScreen.screens {
             let screenSize = screen.frame.size
@@ -129,7 +129,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 backing: .buffered,
                 defer: false
             )
-
+            
             window.contentView = NSHostingView(rootView: ContentView().environmentObject(settingsModel))
             window.makeKeyAndOrderFront(nil)
             window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 1) // Window level in front of the menu bar
@@ -138,41 +138,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.ignoresMouseEvents = true
             window.setFrame(screen.frame, display: true)
             // window.collectionBehavior = [.canJoinAllSpaces]  // Ensures window appears in all spaces
-
+            
             windows.append(window)
         }
-
+        
         // Subscriptions to update window colors and opacity
         inhaleColorSubscription = settingsModel.$inhaleColor.sink { [unowned self] newColor in
             for window in self.windows {
                 window.backgroundColor = NSColor(newColor)
             }
         }
-
+        
         exhaleColorSubscription = settingsModel.$exhaleColor.sink { [unowned self] newColor in
             for window in self.windows {
                 window.backgroundColor = NSColor(newColor)
             }
         }
-
+        
         overlayOpacitySubscription = settingsModel.$overlayOpacity.sink { [unowned self] newOpacity in
             for window in self.windows {
                 window.alphaValue = 1.0
                 window.isOpaque   = false
                 window.backgroundColor = .clear
-//                window.alphaValue = CGFloat(newOpacity)
+                //                window.alphaValue = CGFloat(newOpacity)
             }
         }
-
-
-
+        
+        
+        
         // Reload content view when any setting changes
         settingsModel.objectWillChange.sink { [unowned self] in
             self.reloadContentView()
         }.store(in: &subscriptions)
-
+        
         reloadContentView()
-
+        
         // Initialize the Settings Window
         settingsWindow = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 600, height: 600),
@@ -212,12 +212,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             randomizedTimingPostExhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostExhaleHold }, set: { self.settingsModel.randomizedTimingPostExhaleHold = $0 }),
             isAnimating: Binding(get: { self.settingsModel.isAnimating }, set: { self.settingsModel.isAnimating = $0 })
         ).environmentObject(settingsModel))
-
+        
         settingsWindow.title = "exhale"
         // Initially hide the settings window.
         toggleSettings(nil)
         setUpStatusItem()
-
+        
         isAnimatingSubscription = settingsModel.$isAnimating.sink { [unowned self] isAnimating in
             if !isAnimating && !self.settingsModel.isPaused {
                 for window in self.windows {
@@ -229,32 +229,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Setup Global HotKeys
         setUpGlobalHotKeys()
     }
-
+    
     func setUpGlobalHotKeys() {
         // Start Animation: Ctrl + Shift + A
         startHotKey = HotKey(key: .a, modifiers: [.control, .shift])
         startHotKey?.keyDownHandler = { [weak self] in
             self?.settingsModel.start()
         }
-
+        
         // Stop Animation: Ctrl + Shift + S
         stopHotKey = HotKey(key: .s, modifiers: [.control, .shift])
         stopHotKey?.keyDownHandler = { [weak self] in
             self?.settingsModel.stop()
         }
-
+        
         // Tint Screen: Ctrl + Shift + D
         tintHotKey = HotKey(key: .d, modifiers: [.control, .shift])
         tintHotKey?.keyDownHandler = { [weak self] in
             self?.settingsModel.pause()
         }
-
+        
         // Reset to Defaults: Ctrl + Shift + F
         resetHotKey = HotKey(key: .f, modifiers: [.control, .shift])
         resetHotKey?.keyDownHandler = { [weak self] in
             self?.showResetConfirmation()
         }
-
+        
         // Preferences: Ctrl + Shift + ,
         preferencesHotKey = HotKey(key: .comma, modifiers: [.control, .shift])
         preferencesHotKey?.keyDownHandler = { [weak self] in
@@ -271,7 +271,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             alert.alertStyle = .warning
             alert.addButton(withTitle: "Reset")
             alert.addButton(withTitle: "Cancel")
-    
+            
             if alert.runModal() == .alertFirstButtonReturn {
                 // User clicked "Reset"
                 self.settingsModel.resetToDefaults()
@@ -279,11 +279,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             // If "Cancel" is clicked, do nothing
         }
     }
-
+    
     func applicationWillTerminate(_ notification: Notification) {
         // Insert code here to tear down your application
     }
-
+    
     @objc func toggleSettings(_ sender: Any?) {
         if settingsWindow.isVisible {
             settingsWindow.orderOut(sender)
@@ -306,14 +306,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             settingsWindow.level = .floating
         }
     }
-
+    
     func reloadContentView() {
         let contentView = ContentView().environmentObject(settingsModel)
         for window in windows {
             window.contentView = NSHostingView(rootView: contentView)
         }
     }
-
+    
     // Prevent the settings window from closing (just hide it instead)
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if sender == settingsWindow {
@@ -324,7 +324,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     // MARK: - NSWindowDelegate for Saving Window Frame
-
+    
     func windowDidMove(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
               window == settingsWindow,
