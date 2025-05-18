@@ -150,7 +150,7 @@ class SettingsModel: ObservableObject {
      }
 
     init() {
-        self.backgroundColor = Color.black
+        self.backgroundColor = Color.clear
         self.inhaleColor = Color.red
         self.exhaleColor = Color.blue
         self.colorFillGradient = .on
@@ -160,7 +160,7 @@ class SettingsModel: ObservableObject {
         self.postExhaleHoldDuration = 0
         self.drift = 1.01
         self.overlayOpacity = 0.25
-        self.shape = .fullscreen
+        self.shape = .rectangle
         self.animationMode = .sinusoidal
         self.randomizedTimingInhale = 0
         self.randomizedTimingPostInhaleHold = 0
@@ -168,7 +168,7 @@ class SettingsModel: ObservableObject {
         self.randomizedTimingPostExhaleHold = 0
         self.isAnimating = true
         
-        self.backgroundColor = loadColor(forKey: "backgroundColor") ?? Color.black
+        self.backgroundColor = loadColor(forKey: "backgroundColor") ?? Color.clear
         self.inhaleColor = loadColor(forKey: "inhaleColor") ?? Color(red: 1, green: 0, blue: 0)
         self.exhaleColor = loadColor(forKey: "exhaleColor") ?? Color(red: 0, green: 0, blue: 1)
         
@@ -207,7 +207,7 @@ class SettingsModel: ObservableObject {
           let shape = AnimationShape(rawValue: savedShape) {
            self.shape = shape
        } else {
-           self.shape = .fullscreen
+           self.shape = .rectangle
        }
        
        if let savedMode = defaults.string(forKey: "animationMode"),
@@ -256,7 +256,7 @@ class SettingsModel: ObservableObject {
     }
     
     func resetToDefaults() {
-        self.backgroundColor = Color.black
+        self.backgroundColor = Color.clear
         self.inhaleColor = Color.red
         self.exhaleColor = Color.blue
         self.inhaleDuration = 5
@@ -266,7 +266,7 @@ class SettingsModel: ObservableObject {
         self.drift = 1.01
         self.overlayOpacity = 0.25
         self.colorFillGradient = .on
-        self.shape = .fullscreen
+        self.shape = .rectangle
         self.animationMode = .sinusoidal
         self.randomizedTimingInhale = 0
         self.randomizedTimingPostInhaleHold = 0

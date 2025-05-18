@@ -144,7 +144,7 @@ struct SettingsView: View {
                                     Text("Background Color")
                                         .frame(width: labelWidth, alignment: .leading)
 
-                                    ColorPicker("", selection: $backgroundColor)
+                                    ColorPicker("", selection: $backgroundColor, supportsOpacity: true)
                                         .labelsHidden()
                                         .frame(alignment: .trailing)
                                         .disabled(shape == .fullscreen)

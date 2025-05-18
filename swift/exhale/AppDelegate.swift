@@ -157,9 +157,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         overlayOpacitySubscription = settingsModel.$overlayOpacity.sink { [unowned self] newOpacity in
             for window in self.windows {
-                window.alphaValue = CGFloat(newOpacity)
+                window.alphaValue = 1.0
+                window.isOpaque   = false
+                window.backgroundColor = .clear
+//                window.alphaValue = CGFloat(newOpacity)
             }
         }
+
+
 
         // Reload content view when any setting changes
         settingsModel.objectWillChange.sink { [unowned self] in
@@ -284,7 +289,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             settingsWindow.orderOut(sender)
         } else {
             // Attempt to restore the saved frame (including screen identifier)
-            if let frameDict = UserDefaults.standard.dictionary(forKey: "SettingsWindowFrame") as? [String: Any],
+            if let frameDict = UserDefaults.standard.dictionary(forKey: "SettingsWindowFrame"),
                let x = frameDict["x"] as? CGFloat,
                let y = frameDict["y"] as? CGFloat,
                let width = frameDict["width"] as? CGFloat,
