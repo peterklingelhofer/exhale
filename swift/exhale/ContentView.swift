@@ -1,6 +1,19 @@
 // ContentView.swift
 import SwiftUI
 
+extension Color {
+  func alphaComponent() -> Double {
+    guard let cg = self.cgColor,
+          let ns = NSColor(cgColor: cg) else { return 1 }
+    return Double(ns.alphaComponent)
+  }
+  func withoutAlpha() -> Color {
+    guard let cg = self.cgColor,
+          let ns = NSColor(cgColor: cg) else { return self }
+    return Color(ns.withAlphaComponent(1))
+  }
+}
+
 extension Shape {
     @ViewBuilder
     func colorTransitionFill(settingsModel: SettingsModel, animationProgress: CGFloat, breathingPhase: BreathingPhase, endRadius: CGFloat = 0) -> some View {
@@ -72,107 +85,73 @@ struct ContentView: View {
                 if !settingsModel.isAnimating && !settingsModel.isPaused {
                     Color.clear.edgesIgnoringSafeArea(.all)
                 } else {
-                    // FULLSCREEN MODE
-                    if settingsModel.shape == .fullscreen {
-                        Rectangle()
-                            .fill(
-                                (breathingPhase == .inhale || breathingPhase == .holdAfterInhale)
-                                ? settingsModel.inhaleColor
-                                : settingsModel.exhaleColor
-                            )
+                    if settingsModel.shape != .fullscreen {
+                      settingsModel.backgroundColor
+                            .withoutAlpha()
                             .edgesIgnoringSafeArea(.all)
-                            .opacity(settingsModel.overlayOpacity)   // global slider
+                            .opacity(min(settingsModel.backgroundColor.alphaComponent(), settingsModel.overlayOpacity))
                     }
-                    // RECTANGLE & CIRCLE: we draw
-                    //    The _outside_ region tinted with backgroundColor’s own alpha
-                    //    The breathing shape tinted with inhale/exhale color & overlayOpacity
-                    else {
-                        // “donut” or “inverted mask” path
-                        Path { path in
-                            let size = geometry.size
-                            path.addRect(CGRect(origin: .zero, size: size))
+                    
+                    Group {
+                        switch settingsModel.shape {
+                        case .fullscreen:
+                            Rectangle()
+                                .fill(
+                                    (breathingPhase == .inhale || breathingPhase == .holdAfterInhale)
+                                    ? settingsModel.inhaleColor
+                                    : settingsModel.exhaleColor
+                                )
+                                .edgesIgnoringSafeArea(.all)
                             
-                            switch settingsModel.shape {
-                            case .rectangle:
-                                let fullHeight = size.height
-                                let effectiveHeight = fullHeight * animationProgress
-                                * (settingsModel.colorFillGradient == .on ? 2 : 1)
-                                let yOffset = (fullHeight - effectiveHeight)/2
-                                let rect = CGRect(
-                                    x: 0,
-                                    y: yOffset,
-                                    width: size.width,
-                                    height: effectiveHeight
+                        case .rectangle:
+                            Rectangle()
+                                .colorTransitionFill(
+                                    settingsModel: settingsModel,
+                                    animationProgress: animationProgress,
+                                    breathingPhase: breathingPhase
                                 )
-                                path.addRect(rect)
-                                
-                            case .circle:
-                                let diameter = min(size.width, size.height)
-                                * animationProgress * maxCircleScale
-                                let circleRect = CGRect(
-                                    x: (size.width - diameter)/2,
-                                    y: (size.height - diameter)/2,
-                                    width: diameter,
-                                    height: diameter
+                                .frame(height: geometry.size.height)
+                                .scaleEffect(
+                                    x: 1,
+                                    y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
+                                    anchor: .bottom
                                 )
-                                path.addEllipse(in: circleRect)
-                                
-                            default: break
-                            }
+                                .position(
+                                    x: geometry.size.width/2,
+                                    y: geometry.size.height/2
+                                )
+                            
+                        case .circle:
+                            Circle()
+                                .colorTransitionFill(
+                                    settingsModel: settingsModel,
+                                    animationProgress: animationProgress,
+                                    breathingPhase: breathingPhase,
+                                    endRadius: (min(geometry.size.width, geometry.size.height)
+                                                * animationProgress * maxCircleScale)/2
+                                )
+                                .frame(
+                                    width: min(geometry.size.width, geometry.size.height)
+                                    * animationProgress * maxCircleScale,
+                                    height: min(geometry.size.width, geometry.size.height)
+                                    * animationProgress * maxCircleScale
+                                )
+                                .scaleEffect(
+                                    x: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
+                                    y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
+                                    anchor: .center
+                                )
+                                .position(
+                                    x: geometry.size.width/2,
+                                    y: geometry.size.height/2
+                                )
                         }
-                        .fill(style: FillStyle(eoFill: true))              // even-odd rule
-                        .foregroundColor(settingsModel.backgroundColor)     // respects the color’s own alpha
                         
-                        Group {
-                            if settingsModel.shape == .rectangle {
-                                Rectangle()
-                                    .colorTransitionFill(
-                                        settingsModel: settingsModel,
-                                        animationProgress: animationProgress,
-                                        breathingPhase: breathingPhase
-                                    )
-                                    .frame(height: geometry.size.height)
-                                    .scaleEffect(
-                                        x: 1,
-                                        y: animationProgress
-                                        * (settingsModel.colorFillGradient == .on ? 2 : 1),
-                                        anchor: .bottom
-                                    )
-                                    .position(
-                                        x: geometry.size.width/2,
-                                        y: geometry.size.height/2
-                                    )
-                            } else { // .circle
-                                Circle()
-                                    .colorTransitionFill(
-                                        settingsModel: settingsModel,
-                                        animationProgress: animationProgress,
-                                        breathingPhase: breathingPhase,
-                                        endRadius: (min(geometry.size.width, geometry.size.height)
-                                                    * animationProgress * maxCircleScale)/2
-                                    )
-                                    .frame(
-                                        width: min(geometry.size.width, geometry.size.height)
-                                        * animationProgress * maxCircleScale,
-                                        height: min(geometry.size.width, geometry.size.height)
-                                        * animationProgress * maxCircleScale
-                                    )
-                                    .scaleEffect(
-                                        x: animationProgress
-                                        * (settingsModel.colorFillGradient == .on ? 2 : 1),
-                                        y: animationProgress
-                                        * (settingsModel.colorFillGradient == .on ? 2 : 1),
-                                        anchor: .center
-                                    )
-                                    .position(x: geometry.size.width/2,
-                                              y: geometry.size.height/2)
-                            }
-                        }
-                        .opacity(settingsModel.overlayOpacity)  // only shapes respect the slider
                     }
+                    .opacity(settingsModel.overlayOpacity)
                 }
             }
-            .edgesIgnoringSafeArea(.all)
+            
             
             
             if showSettings {
