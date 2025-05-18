@@ -1,6 +1,19 @@
 // ContentView.swift
 import SwiftUI
 
+extension Color {
+  func alphaComponent() -> Double {
+    guard let cg = self.cgColor,
+          let ns = NSColor(cgColor: cg) else { return 1 }
+    return Double(ns.alphaComponent)
+  }
+  func withoutAlpha() -> Color {
+    guard let cg = self.cgColor,
+          let ns = NSColor(cgColor: cg) else { return self }
+    return Color(ns.withAlphaComponent(1))
+  }
+}
+
 extension Shape {
     @ViewBuilder
     func colorTransitionFill(settingsModel: SettingsModel, animationProgress: CGFloat, breathingPhase: BreathingPhase, endRadius: CGFloat = 0) -> some View {
@@ -72,13 +85,13 @@ struct ContentView: View {
                 if !settingsModel.isAnimating && !settingsModel.isPaused {
                     Color.clear.edgesIgnoringSafeArea(.all)
                 } else {
-                    // 1) FULL-SCREEN BACKGROUND only when not in fullscreen‐shape mode:
                     if settingsModel.shape != .fullscreen {
-                        settingsModel.backgroundColor
+                      settingsModel.backgroundColor
+                            .withoutAlpha()
                             .edgesIgnoringSafeArea(.all)
+                            .opacity(min(settingsModel.backgroundColor.alphaComponent(), settingsModel.overlayOpacity))
                     }
                     
-                    // 2) BREATHING SHAPE on top, with only global slider opacity:
                     Group {
                         switch settingsModel.shape {
                         case .fullscreen:
