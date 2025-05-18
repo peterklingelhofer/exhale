@@ -116,7 +116,7 @@ struct SettingsView: View {
                                     Text("Inhale Color")
                                         .frame(width: labelWidth, alignment: .leading)
                                     
-                                    ColorPicker("", selection: $inhaleColor)
+                                    ColorPicker("", selection: $inhaleColor, supportsOpacity: false)
                                         .labelsHidden()
                                         .frame(alignment: .trailing)
                                         .onChange(of: inhaleColor) { _ in
@@ -130,7 +130,7 @@ struct SettingsView: View {
                                     Text("Exhale Color")
                                         .frame(width: labelWidth, alignment: .leading)
                                     
-                                    ColorPicker("", selection: $exhaleColor)
+                                    ColorPicker("", selection: $exhaleColor, supportsOpacity: false)
                                         .labelsHidden()
                                         .frame(alignment: .trailing)
                                         .onChange(of: exhaleColor) { _ in
