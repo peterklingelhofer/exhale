@@ -288,19 +288,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if settingsWindow.isVisible {
             settingsWindow.orderOut(sender)
         } else {
-            // Attempt to restore the saved frame (including screen identifier)
-            if let frameDict = UserDefaults.standard.dictionary(forKey: "SettingsWindowFrame"),
-               let x = frameDict["x"] as? CGFloat,
-               let y = frameDict["y"] as? CGFloat,
-               let width = frameDict["width"] as? CGFloat,
-               let height = frameDict["height"] as? CGFloat,
-               let savedScreen = frameDict["screen"] as? String,
-               let matchingScreen = NSScreen.screens.first(where: { $0.localizedName == savedScreen })
+            if let frameDict    = UserDefaults.standard.dictionary(forKey: "SettingsWindowFrame"),
+               let x            = frameDict["x"]      as? CGFloat,
+               let y            = frameDict["y"]      as? CGFloat,
+               let w            = frameDict["width"]  as? CGFloat,
+               let h            = frameDict["height"] as? CGFloat,
+               let screenName   = frameDict["screen"] as? String,
+               let matchingScreen = NSScreen.screens.first(where: { $0.localizedName == screenName })
             {
-                let restoredFrame = NSRect(x: x, y: y, width: width, height: height)
+                // Offset saved x/y by the screen's origin
+                let screenOrigin = matchingScreen.frame.origin
+                let restoredFrame = NSRect(
+                    x: screenOrigin.x + x,
+                    y: screenOrigin.y + y,
+                    width: w,
+                    height: h
+                )
                 settingsWindow.setFrame(restoredFrame, display: true)
             }
-            
+
             settingsWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             settingsWindow.level = .floating
