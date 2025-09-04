@@ -29,7 +29,7 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.11.0",
     "@typescript-eslint/parser": "^7.11.0",
-    "electron": "^30.0.9",
+    "electron": "^35.7.5",
     "electron-packager": "^17.1.2",
     "eslint": "^9.4.0",
     "typescript": "^5.4.5"
