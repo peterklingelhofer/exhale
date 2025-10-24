@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
-    "lint": "eslint -c .eslintrc --ext .ts ./src",
+    "lint": "eslint ./src",
     "start": "yarn run build && electron ./dist/main.js",
     "dist": "npx electron-packager . --platform=linux,win32,darwin --overwrite",
     "dist:linux": "npx electron-packager . --platform=linux --overwrite",
@@ -27,12 +27,12 @@
   "author": "peterklingelhofer",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^7.11.0",
-    "@typescript-eslint/parser": "^7.11.0",
+    "@eslint/js": "^9.38.0",
     "electron": "^35.7.5",
     "electron-packager": "^17.1.2",
-    "eslint": "^9.4.0",
-    "typescript": "^5.4.5"
+    "eslint": "^9.38.0",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.46.2"
   },
   "dependencies": {},
   "packageManager": "yarn@1.22.22+sha1.ac34549e6aa8e7ead463a7407e1c7390f61a6610"
