@@ -6,6 +6,21 @@
 // needed in the renderer process.
 // renderer.ts
 
+// Declare the window.store interface
+interface StoreAPI {
+  get: (key: string) => Promise<unknown>;
+  set: (key: string, value: unknown) => Promise<void>;
+}
+
+declare global {
+  interface Window {
+    store: StoreAPI;
+  }
+}
+
+// This export makes this file a module, enabling global augmentation
+export {};
+
 type Color = string;
 const ColorStyle = {
   CONSTANT: "constant",
@@ -68,39 +83,33 @@ console.log(
   "color: yellow; font-weight: bold;"
 );
 
-const {
-  colorExhale = "rgb(0, 0, 255)",
-  colorInhale = "rgb(255, 0, 0)",
-  colorStyle = ColorStyle.LINEAR,
-  shape = Shape.FULLSCREEN,
-  durationInhale = 5,
-  durationPostInhalePause = 0,
-  durationExhale = 10,
-  durationPostExhalePause = 0,
-  opacity = 0.25,
-} = localStorage as {
-  colorExhale?: Color;
-  colorInhale?: Color;
-  colorStyle?: ColorStyle;
-  shape?: Shape;
-  durationInhale?: number;
-  durationPostInhalePause?: number;
-  durationExhale?: number;
-  durationPostExhalePause?: number;
-  opacity?: number;
-};
+// Load settings from store
+let colorExhale: string;
+let colorInhale: string;
+let colorStyle: string;
+let shape: string;
+let durationInhale: number;
+let durationPostInhalePause: number;
+let durationExhale: number;
+let durationPostExhalePause: number;
+let opacity: number;
 
-Object.assign(localStorage, {
-  shape,
-  colorExhale,
-  colorInhale,
-  colorStyle,
-  durationExhale,
-  durationPostInhalePause,
-  durationInhale,
-  durationPostExhalePause,
-  opacity,
-});
+async function loadSettings() {
+  if (!window.store) {
+    console.error("window.store is not defined! Preload script may not have loaded correctly.");
+    throw new Error("Store API not available. Check preload script.");
+  }
+
+  colorExhale = await window.store.get('colorExhale') as string;
+  colorInhale = await window.store.get('colorInhale') as string;
+  colorStyle = (await window.store.get('colorStyle') as string).toLowerCase();
+  shape = (await window.store.get('shape') as string).toLowerCase();
+  durationInhale = await window.store.get('durationInhale') as number;
+  durationPostInhalePause = await window.store.get('durationPostInhalePause') as number;
+  durationExhale = await window.store.get('durationExhale') as number;
+  durationPostExhalePause = await window.store.get('durationPostExhalePause') as number;
+  opacity = await window.store.get('opacity') as number;
+}
 
 let canvasWidth = 0;
 let canvasHeight = 0;
@@ -126,49 +135,54 @@ function linspace(
   return Array.from({ length: num }, (_, i) => start + step * i);
 }
 
-const timeInn = linspace(
-  (7 * Math.PI) / 4,
-  (9 * Math.PI) / 4,
-  Math.ceil(durationInhale * FRAMES_PER_SECOND) + 1
-);
-const timeI2O = linspace(
-  (1 * Math.PI) / 4,
-  (3 * Math.PI) / 4,
-  Math.ceil(durationPostInhalePause * FRAMES_PER_SECOND) + 1
-);
-const timeOut = linspace(
-  (3 * Math.PI) / 4,
-  (5 * Math.PI) / 4,
-  Math.ceil(durationExhale * FRAMES_PER_SECOND) + 1
-);
-const timeO2I = linspace(
-  (5 * Math.PI) / 4,
-  (7 * Math.PI) / 4,
-  Math.ceil(durationPostExhalePause * FRAMES_PER_SECOND) + 1
-);
+let indices: Array<number> = [];
+let totalFrames: number = 0;
 
-timeInn.pop();
-timeI2O.pop();
-timeOut.pop();
-timeO2I.pop();
+function calculateIndices() {
+  const timeInn = linspace(
+    (7 * Math.PI) / 4,
+    (9 * Math.PI) / 4,
+    Math.ceil(durationInhale * FRAMES_PER_SECOND) + 1
+  );
+  const timeI2O = linspace(
+    (1 * Math.PI) / 4,
+    (3 * Math.PI) / 4,
+    Math.ceil(durationPostInhalePause * FRAMES_PER_SECOND) + 1
+  );
+  const timeOut = linspace(
+    (3 * Math.PI) / 4,
+    (5 * Math.PI) / 4,
+    Math.ceil(durationExhale * FRAMES_PER_SECOND) + 1
+  );
+  const timeO2I = linspace(
+    (5 * Math.PI) / 4,
+    (7 * Math.PI) / 4,
+    Math.ceil(durationPostExhalePause * FRAMES_PER_SECOND) + 1
+  );
 
-const indices: Array<number> = [];
+  timeInn.pop();
+  timeI2O.pop();
+  timeOut.pop();
+  timeO2I.pop();
 
-// array math is not defined in base javascript >.<
-// i wonder if this is slow...
-for (let i = 0; i < timeInn.length; i++) {
-  indices.push((Math.sin(timeInn[i]) + 1) / 2);
+  indices = [];
+
+  // array math is not defined in base javascript >.<
+  // i wonder if this is slow...
+  for (let i = 0; i < timeInn.length; i++) {
+    indices.push((Math.sin(timeInn[i]) + 1) / 2);
+  }
+  for (let i = 0; i < timeI2O.length; i++) {
+    indices.push((Math.sin(timeI2O[i]) + 1) / 2);
+  }
+  for (let i = 0; i < timeOut.length; i++) {
+    indices.push((Math.sin(timeOut[i]) + 1) / 2);
+  }
+  for (let i = 0; i < timeO2I.length; i++) {
+    indices.push((Math.sin(timeO2I[i]) + 1) / 2);
+  }
+  totalFrames = indices.length;
 }
-for (let i = 0; i < timeI2O.length; i++) {
-  indices.push((Math.sin(timeI2O[i]) + 1) / 2);
-}
-for (let i = 0; i < timeOut.length; i++) {
-  indices.push((Math.sin(timeOut[i]) + 1) / 2);
-}
-for (let i = 0; i < timeO2I.length; i++) {
-  indices.push((Math.sin(timeO2I[i]) + 1) / 2);
-}
-const totalFrames = indices.length;
 
 let totalFrameInd: number;
 let transitionValue: number;
@@ -254,5 +268,16 @@ function animate(): void {
   requestAnimationFrame(animate);
 }
 
-resizeCanvas();
-requestAnimationFrame(animate);
+// Initialize the application
+async function init() {
+  try {
+    await loadSettings();
+    calculateIndices();
+    resizeCanvas();
+    requestAnimationFrame(animate);
+  } catch (error) {
+    console.error("Error during initialization:", error);
+  }
+}
+
+init();
