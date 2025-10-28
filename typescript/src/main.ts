@@ -1,5 +1,5 @@
 // main.ts
-import { app, BrowserWindow } from "electron";
+import { app, globalShortcut, BrowserWindow } from "electron";
 import * as path from "path";
 
 let mainWindow: BrowserWindow;
@@ -31,6 +31,9 @@ function createWindow() {
   mainWindow.webContents.on("devtools-focused", () => {
     mainWindow.setOpacity(1.0);
     mainWindow.setIgnoreMouseEvents(false);
+  });
+  globalShortcut.register('CommandOrControl+Shift+I', () => {
+    mainWindow.webContents.openDevTools();
   });
 }
 
