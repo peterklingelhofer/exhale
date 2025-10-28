@@ -6,7 +6,7 @@
     "build": "tsc",
     "watch": "tsc -w",
     "lint": "eslint ./src",
-    "start": "yarn run build && electron ./dist/main.js",
+    "start": "pnpm run build && electron ./dist/main.js",
     "dist": "npx electron-packager . --platform=linux,win32,darwin --overwrite",
     "dist:linux": "npx electron-packager . --platform=linux --overwrite",
     "dist:mac": "npx electron-packager . --platform=darwin --overwrite",
@@ -35,5 +35,5 @@
     "typescript-eslint": "^8.46.2"
   },
   "dependencies": {},
-  "packageManager": "yarn@1.22.22+sha1.ac34549e6aa8e7ead463a7407e1c7390f61a6610"
+  "packageManager": "pnpm@10.19.0"
 }
