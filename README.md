@@ -95,14 +95,14 @@ Once added, you can modify all values from the **Local Storage** pane. Or, if yo
 git clone https://github.com/peterklingelhofer/exhale.git
 cd exhale
 cd typescript
-yarn
-yarn start
+pnpm install
+pnpm start
 ```
 
 To recompile automatically and use [electron-reload](https://github.com/yan-foto/electron-reload), run in a separate terminal:
 
 ```sh
-yarn run watch
+pnpm watch
 ```
 
 ## Python Script Usage
