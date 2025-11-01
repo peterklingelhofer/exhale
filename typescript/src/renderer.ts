@@ -115,12 +115,7 @@ function resizeCanvas(): void {
 }
 window.addEventListener("resize", resizeCanvas);
 
-function linspace(
-  start: number,
-  stop: number,
-  num: number,
-  endpoint = true
-): number[] {
+function linspace(start: number, stop: number, num: number, endpoint = true): number[] {
   const div = endpoint ? num - 1 : num;
   const step = (stop - start) / div;
   return Array.from({ length: num }, (_, i) => start + step * i);
@@ -191,11 +186,9 @@ function draw(): void {
   if (shape === Shape.FULLSCREEN) {
     const inhaleColorComponents = colorInhale.match(/\d+/g)!.map(Number);
     const exhaleColorComponents = colorExhale.match(/\d+/g)!.map(Number);
-    const interpolatedColor = inhaleColorComponents.map(
-      (comp: number, index: number) => {
-        return comp + (exhaleColorComponents[index] - comp) * transitionValue;
-      }
-    );
+    const interpolatedColor = inhaleColorComponents.map((comp: number, index: number) => {
+      return comp + (exhaleColorComponents[index] - comp) * transitionValue;
+    });
 
     ctx.fillStyle = `rgb(${interpolatedColor[0]}, ${interpolatedColor[1]}, ${interpolatedColor[2]})`;
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
@@ -207,14 +200,7 @@ function draw(): void {
     const isCounterClockwise = false;
 
     if (colorStyle === ColorStyle.LINEAR) {
-      gradient = ctx.createRadialGradient(
-        centerX,
-        centerY,
-        0,
-        centerX,
-        centerY,
-        radius
-      );
+      gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
       gradient.addColorStop(0, BACKDROP_COLOR);
       gradient.addColorStop(1, color);
       ctx.fillStyle = gradient;
@@ -230,12 +216,7 @@ function draw(): void {
     const twiceRadius = radius * 2;
 
     if (colorStyle === ColorStyle.LINEAR) {
-      gradient = ctx.createLinearGradient(
-        0,
-        canvasHeight - twiceRadius,
-        0,
-        canvasHeight
-      );
+      gradient = ctx.createLinearGradient(0, canvasHeight - twiceRadius, 0, canvasHeight);
       gradient.addColorStop(0, color);
       gradient.addColorStop(1, BACKDROP_COLOR);
       ctx.fillStyle = gradient;

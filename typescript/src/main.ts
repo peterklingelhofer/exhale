@@ -32,7 +32,7 @@ function createWindow() {
     mainWindow.setOpacity(1.0);
     mainWindow.setIgnoreMouseEvents(false);
   });
-  globalShortcut.register('CommandOrControl+Shift+I', () => {
+  globalShortcut.register("CommandOrControl+Shift+I", () => {
     mainWindow.webContents.openDevTools();
   });
 }
