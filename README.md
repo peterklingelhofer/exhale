@@ -126,11 +126,3 @@ For the full-screen resizable version, use, `IS_FULL_SCREEN = True` which makes 
 ## Perl Script
 
 Companion repository made in Perl can be found [here](https://github.com/franco3445/Breathing).
-
-
-## Sponsorship
-
-This app is free and will always be free, but if you want to support me or want a more rapid response time on feature requests, you may buy me a coffee:
-
-
-<a href="https://paypal.me/peterklingelhofer" target="_blank">Buy me a coffee</a>
