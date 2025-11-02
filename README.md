@@ -132,4 +132,5 @@ Companion repository made in Perl can be found [here](https://github.com/franco3
 
 This app is free and will always be free, but if you want to support me or want a more rapid response time on feature requests, you may buy me a coffee:
 
-<a href="https://www.buymeacoffee.com/peterklingelhofer" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+
+<a href="https://paypal.me/peterklingelhofer" target="_blank"></a>
