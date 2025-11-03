@@ -18,6 +18,7 @@ function createWindow() {
       nodeIntegration: true,
     },
     width: 800,
+    transparent: true,
   });
 
   mainWindow.loadFile(path.join(__dirname, "../index.html"));
