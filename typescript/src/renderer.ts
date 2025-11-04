@@ -170,7 +170,7 @@ let transitionValue: number;
 
 function draw(): void {
   ctx.fillStyle = BACKDROP_COLOR;
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
   let gradient: CanvasGradient | undefined;
 
