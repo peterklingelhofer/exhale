@@ -3,16 +3,18 @@ import { app, globalShortcut, BrowserWindow } from "electron";
 import * as path from "path";
 
 let mainWindow: BrowserWindow;
+let isDevToolsOpen = true;
+let opacity: number = 1.0;
+let isRecreatingWindow = false;
 
 function createWindow() {
-  // Create the browser window.
   mainWindow = new BrowserWindow({
     alwaysOnTop: true,
     height: 600,
     movable: false,
     resizable: true,
     show: true,
-    titleBarStyle: "hidden",
+    titleBarStyle: isDevToolsOpen ? undefined : "hidden",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: true,
@@ -22,20 +24,50 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "../index.html"));
-  mainWindow.webContents.openDevTools();
+
+  if (isDevToolsOpen) {
+    mainWindow.webContents.openDevTools();
+  }
+
   mainWindow.setAlwaysOnTop(true, "floating", 1);
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   mainWindow.setFullScreenable(false);
   mainWindow.setFocusable(true);
-  mainWindow.setIgnoreMouseEvents(true);
+  mainWindow.setIgnoreMouseEvents(!isDevToolsOpen);
   mainWindow.removeMenu();
-  mainWindow.webContents.on("devtools-focused", () => {
-    mainWindow.setOpacity(1.0);
-    mainWindow.setIgnoreMouseEvents(false);
+  mainWindow.setOpacity(isDevToolsOpen ? 1.0 : opacity);
+
+  mainWindow.webContents.on("devtools-opened", () => {
+    if (!isDevToolsOpen) {
+      isDevToolsOpen = true;
+      recreateWindow();
+    }
   });
-  globalShortcut.register("CommandOrControl+Shift+I", () => {
-    mainWindow.webContents.openDevTools();
+
+  mainWindow.webContents.on("devtools-closed", () => {
+    if (isDevToolsOpen) {
+      isDevToolsOpen = false;
+      recreateWindow();
+    }
   });
+}
+
+function recreateWindow() {
+  // Save current window state
+  const bounds = mainWindow.getBounds();
+
+  isRecreatingWindow = true;
+
+  // Destroy the old window
+  mainWindow.destroy();
+
+  // Create new window with updated titleBarStyle
+  createWindow();
+
+  // Restore window position and size
+  mainWindow.setBounds(bounds);
+
+  isRecreatingWindow = false;
 }
 
 // This method will be called when Electron has finished
@@ -43,13 +75,18 @@ function createWindow() {
 // Some APIs can only be used after this event occurs.
 app.on("ready", async () => {
   createWindow();
-  const opacity: string = await mainWindow.webContents.executeJavaScript(
+
+  opacity = Number(await mainWindow.webContents.executeJavaScript(
     'localStorage.getItem("opacity");',
     true
-  );
-  mainWindow.webContents.on("devtools-closed", () => {
-    mainWindow.setOpacity(Number(opacity));
-    mainWindow.setIgnoreMouseEvents(true);
+  )) || 1.0;
+
+  globalShortcut.register("CommandOrControl+Shift+I", () => {
+    if (isDevToolsOpen) {
+      mainWindow.webContents.closeDevTools();
+    } else {
+      mainWindow.webContents.openDevTools();
+    }
   });
 
   app.on("activate", function () {
@@ -63,7 +100,7 @@ app.on("ready", async () => {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  if (!isRecreatingWindow && process.platform !== "darwin") {
     app.quit();
   }
 });
