@@ -172,6 +172,8 @@ function draw(): void {
   ctx.fillStyle = BACKDROP_COLOR;
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
+  ctx.globalAlpha = opacity;
+
   let gradient: CanvasGradient | undefined;
 
   // convert the frameCount (special variable) to its position in our totalFrames
