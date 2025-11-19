@@ -78,9 +78,9 @@ def updateScreens(canvasLeft, canvasRight, rectangleLeft, rectangleRight, window
 class CircleWidget(QWidget):
     def __init__(self):
         super().__init__()
-        self.radius = 50
-        self.minRadius = 50
-        self.maxRadius = min(screenWidth, screenHeight) // 3
+        self.radius = 150
+        self.minRadius = 150
+        self.maxRadius = min(screenWidth, screenHeight) // 4
         self.radiusRange = self.maxRadius - self.minRadius
 
         # Setup window
