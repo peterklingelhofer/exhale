@@ -124,21 +124,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         for screen in NSScreen.screens {
             let screenSize = screen.frame.size
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: screenSize.width, height: screenSize.height),
+                contentRect: NSRect(x: 0, y: 0,
+                                    width: screenSize.width,
+                                    height: screenSize.height),
                 styleMask: [.borderless, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
             )
-            
-            window.contentView = NSHostingView(rootView: ContentView().environmentObject(settingsModel))
+
+            let host = NSHostingView(
+                rootView: ContentView()
+                             .environmentObject(settingsModel)
+            )
+            window.contentView = host
+
             window.makeKeyAndOrderFront(nil)
-            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 1) // Window level in front of the menu bar
-            window.alphaValue = CGFloat(settingsModel.overlayOpacity)
-            window.isOpaque = false
+            window.level = .init(rawValue:
+                          Int(CGWindowLevelForKey(.mainMenuWindow)) + 1)
+            window.alphaValue       = CGFloat(settingsModel.overlayOpacity)
+            window.isOpaque         = false
             window.ignoresMouseEvents = true
             window.setFrame(screen.frame, display: true)
-            // window.collectionBehavior = [.canJoinAllSpaces]  // Ensures window appears in all spaces
-            
+
             windows.append(window)
         }
         
@@ -160,18 +167,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 window.alphaValue = 1.0
                 window.isOpaque   = false
                 window.backgroundColor = .clear
-                //                window.alphaValue = CGFloat(newOpacity)
             }
         }
-        
-        
-        
-        // Reload content view when any setting changes
-        settingsModel.objectWillChange.sink { [unowned self] in
-            self.reloadContentView()
-        }.store(in: &subscriptions)
-        
-        reloadContentView()
         
         // Initialize the Settings Window
         settingsWindow = NSWindow(
