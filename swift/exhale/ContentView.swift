@@ -116,20 +116,25 @@ struct ContentView: View {
 
                         case .circle:
                             let minDimension = min(geometry.size.width, geometry.size.height)
-                            let scaledSize = minDimension * animationProgress * cachedMaxCircleScale
+                            let gradientScale: CGFloat = settingsModel.colorFillGradient == .on ? 2 : 1
+
+                            // Preserve the existing visuals:
+                            // Old effective size = (minDim * animationProgress * maxCircleScale) * (animationProgress * gradientScale)
+                            // because you applied animationProgress in frame AND in scaleEffect.
+                            let bakedSize = minDimension
+                                * animationProgress
+                                * cachedMaxCircleScale
+                                * animationProgress
+                                * gradientScale
+
                             Circle()
                                 .colorTransitionFill(
                                     settingsModel: settingsModel,
                                     animationProgress: animationProgress,
                                     breathingPhase: breathingPhase,
-                                    endRadius: (scaledSize) / 2
+                                    endRadius: bakedSize / 2
                                 )
-                                .frame(width: scaledSize, height: scaledSize)
-                                .scaleEffect(
-                                    x: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
-                                    y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
-                                    anchor: .center
-                                )
+                                .frame(width: bakedSize, height: bakedSize)
                                 .position(
                                     x: geometry.size.width / 2,
                                     y: geometry.size.height / 2
@@ -205,7 +210,7 @@ struct ContentView: View {
         cycleCount = 0
         inhale()
     }
-    
+
     func inhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         var duration = settingsModel.inhaleDuration * pow(settingsModel.drift, Double(cycleCount))
@@ -213,9 +218,9 @@ struct ContentView: View {
             duration += Double.random(in: -settingsModel.randomizedTimingInhale...settingsModel.randomizedTimingInhale)
         }
         duration = max(duration, 0.1)
-        
+
         let animation: Animation = settingsModel.animationMode == .linear ? .linear(duration: duration) : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
-        
+
         withAnimation(animation) {
             breathingPhase = .inhale
             animationProgress = 1.0
@@ -227,7 +232,7 @@ struct ContentView: View {
             holdAfterInhale()
         }
     }
-    
+
     func holdAfterInhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         var duration = settingsModel.postInhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
@@ -240,7 +245,7 @@ struct ContentView: View {
             exhale()
         }
     }
-    
+
     func exhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         var duration = settingsModel.exhaleDuration * pow(settingsModel.drift, Double(cycleCount))
@@ -248,9 +253,9 @@ struct ContentView: View {
             duration += Double.random(in: -settingsModel.randomizedTimingExhale...settingsModel.randomizedTimingExhale)
         }
         duration = max(duration, 0.1)
-        
+
         let animation: Animation = settingsModel.animationMode == .linear ? .linear(duration: duration) : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
-        
+
         withAnimation(animation) {
             breathingPhase = .exhale
             animationProgress = 0.0
@@ -259,7 +264,7 @@ struct ContentView: View {
             holdAfterExhale()
         }
     }
-    
+
     func holdAfterExhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         var duration = settingsModel.postExhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
@@ -268,26 +273,26 @@ struct ContentView: View {
         }
         duration = max(duration, 0.1)
         breathingPhase = .holdAfterExhale
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             guard self.settingsModel.isAnimating else { return self.resetAnimation() }
             self.cycleCount += 1
             self.inhale()
         }
     }
-    
+
     func resetAnimation() {
         cycleCount = 0
         animationProgress = 0.0
         breathingPhase = .inhale
     }
-    
+
     func stopCurrentAnimation() {
         // Stop the current animation
         cycleCount = 0
         animationProgress = 0.0
     }
-    
+
     func resumeBreathingCycle() {
         // Resume the breathing cycle
         switch breathingPhase {
