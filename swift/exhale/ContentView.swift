@@ -20,8 +20,9 @@ extension Shape {
         let isInhalePhase = breathingPhase == .inhale || breathingPhase == .holdAfterInhale
         let lastColor = isInhalePhase ? settingsModel.inhaleColor : settingsModel.exhaleColor
         
-        let colorSequence: [Color] = [settingsModel.backgroundColor, lastColor, settingsModel.backgroundColor]
-        
+        let backgroundColor = settingsModel.cachedBackgroundColorWithoutAlpha
+        let colorSequence: [Color] = [backgroundColor, lastColor, backgroundColor]
+
         switch settingsModel.colorFillGradient {
         case .off:
             self.fill(lastColor)
@@ -79,10 +80,9 @@ struct ContentView: View {
                     Color.clear.edgesIgnoringSafeArea(.all)
                 } else {
                     if settingsModel.shape != .fullscreen {
-                        settingsModel.backgroundColor
-                            .withoutAlpha()
+                        settingsModel.cachedBackgroundColorWithoutAlpha
                             .edgesIgnoringSafeArea(.all)
-                            .opacity(min(settingsModel.backgroundColor.alphaComponent(), settingsModel.overlayOpacity))
+                            .opacity(min(settingsModel.cachedBackgroundAlphaComponent, settingsModel.overlayOpacity))
                     }
 
                     Group {
