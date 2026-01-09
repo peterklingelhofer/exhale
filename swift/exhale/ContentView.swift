@@ -85,6 +85,9 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             GeometryReader { geometry in
+                let centerX = geometry.size.width / 2
+                let centerY = geometry.size.height / 2
+
                 if !settingsModel.isAnimating && !settingsModel.isPaused {
                     Color.clear.edgesIgnoringSafeArea(.all)
                 } else {
@@ -118,18 +121,12 @@ struct ContentView: View {
                                     y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
                                     anchor: .bottom
                                 )
-                                .position(
-                                    x: geometry.size.width / 2,
-                                    y: geometry.size.height / 2
-                                )
+                                .position(x: centerX, y: centerY)
 
                         case .circle:
                             let minDimension = min(geometry.size.width, geometry.size.height)
                             let gradientScale: CGFloat = settingsModel.colorFillGradient == .on ? 2 : 1
 
-                            // Preserve the existing visuals:
-                            // Old effective size = (minDim * animationProgress * maxCircleScale) * (animationProgress * gradientScale)
-                            // because you applied animationProgress in frame AND in scaleEffect.
                             let bakedSize = minDimension
                                 * animationProgress
                                 * cachedMaxCircleScale
@@ -144,10 +141,7 @@ struct ContentView: View {
                                     endRadius: bakedSize / 2
                                 )
                                 .frame(width: bakedSize, height: bakedSize)
-                                .position(
-                                    x: geometry.size.width / 2,
-                                    y: geometry.size.height / 2
-                                )
+                                .position(x: centerX, y: centerY)
                         }
                     }
                     .opacity(settingsModel.overlayOpacity)
@@ -228,7 +222,9 @@ struct ContentView: View {
         }
         duration = max(duration, 0.1)
 
-        let animation: Animation = settingsModel.animationMode == .linear ? .linear(duration: duration) : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
+        let animation: Animation = settingsModel.animationMode == .linear
+            ? .linear(duration: duration)
+            : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
 
         withAnimation(animation) {
             breathingPhase = .inhale
@@ -263,7 +259,9 @@ struct ContentView: View {
         }
         duration = max(duration, 0.1)
 
-        let animation: Animation = settingsModel.animationMode == .linear ? .linear(duration: duration) : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
+        let animation: Animation = settingsModel.animationMode == .linear
+            ? .linear(duration: duration)
+            : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
 
         withAnimation(animation) {
             breathingPhase = .exhale
