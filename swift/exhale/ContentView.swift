@@ -70,15 +70,8 @@ struct ContentView: View {
     @State private var overlayOpacity: Double = 0.1
     @State private var showSettings = false
     @State private var cycleCount: Int = 0
-    
-    var maxCircleScale: CGFloat {
-        guard let screen = NSScreen.main else { return settingsModel.colorFillGradient == .on ? 2 : 1 }
-        let screenWidth = screen.frame.width
-        let screenHeight = screen.frame.height
-        let maxDimension = max(screenWidth, screenHeight)
-        return maxDimension / min(screenWidth, screenHeight)
-    }
-    
+    @State private var cachedMaxCircleScale: CGFloat = 1
+
     var body: some View {
         ZStack {
             GeometryReader { geometry in
@@ -86,23 +79,23 @@ struct ContentView: View {
                     Color.clear.edgesIgnoringSafeArea(.all)
                 } else {
                     if settingsModel.shape != .fullscreen {
-                      settingsModel.backgroundColor
+                        settingsModel.backgroundColor
                             .withoutAlpha()
                             .edgesIgnoringSafeArea(.all)
                             .opacity(min(settingsModel.backgroundColor.alphaComponent(), settingsModel.overlayOpacity))
                     }
-                    
+
                     Group {
                         switch settingsModel.shape {
                         case .fullscreen:
                             Rectangle()
                                 .fill(
                                     (breathingPhase == .inhale || breathingPhase == .holdAfterInhale)
-                                    ? settingsModel.inhaleColor
-                                    : settingsModel.exhaleColor
+                                        ? settingsModel.inhaleColor
+                                        : settingsModel.exhaleColor
                                 )
                                 .edgesIgnoringSafeArea(.all)
-                            
+
                         case .rectangle:
                             Rectangle()
                                 .colorTransitionFill(
@@ -117,43 +110,36 @@ struct ContentView: View {
                                     anchor: .bottom
                                 )
                                 .position(
-                                    x: geometry.size.width/2,
-                                    y: geometry.size.height/2
+                                    x: geometry.size.width / 2,
+                                    y: geometry.size.height / 2
                                 )
-                            
+
                         case .circle:
+                            let minDimension = min(geometry.size.width, geometry.size.height)
+                            let scaledSize = minDimension * animationProgress * cachedMaxCircleScale
                             Circle()
                                 .colorTransitionFill(
                                     settingsModel: settingsModel,
                                     animationProgress: animationProgress,
                                     breathingPhase: breathingPhase,
-                                    endRadius: (min(geometry.size.width, geometry.size.height)
-                                                * animationProgress * maxCircleScale)/2
+                                    endRadius: (scaledSize) / 2
                                 )
-                                .frame(
-                                    width: min(geometry.size.width, geometry.size.height)
-                                    * animationProgress * maxCircleScale,
-                                    height: min(geometry.size.width, geometry.size.height)
-                                    * animationProgress * maxCircleScale
-                                )
+                                .frame(width: scaledSize, height: scaledSize)
                                 .scaleEffect(
                                     x: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
                                     y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
                                     anchor: .center
                                 )
                                 .position(
-                                    x: geometry.size.width/2,
-                                    y: geometry.size.height/2
+                                    x: geometry.size.width / 2,
+                                    y: geometry.size.height / 2
                                 )
                         }
-                        
                     }
                     .opacity(settingsModel.overlayOpacity)
                 }
             }
-            
-            
-            
+
             if showSettings {
                 SettingsView(
                     showSettings: $showSettings,
@@ -183,7 +169,10 @@ struct ContentView: View {
                 )
             }
         }
-        .onAppear(perform: startBreathingCycle)
+        .onAppear {
+            cachedMaxCircleScale = Self.getMaxCircleScale()
+            startBreathingCycle()
+        }
         .onChange(of: settingsModel.isAnimating) { newValue in
             if !newValue {
                 resetAnimation()
@@ -203,7 +192,15 @@ struct ContentView: View {
             }
         }
     }
-    
+
+    static func getMaxCircleScale() -> CGFloat {
+        guard let screen = NSScreen.main else { return 1 }
+        let screenWidth = screen.frame.width
+        let screenHeight = screen.frame.height
+        let maxDimension = max(screenWidth, screenHeight)
+        return maxDimension / min(screenWidth, screenHeight)
+    }
+
     func startBreathingCycle() {
         cycleCount = 0
         inhale()
