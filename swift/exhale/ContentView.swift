@@ -16,49 +16,58 @@ extension Color {
 
 extension Shape {
     @ViewBuilder
-    func colorTransitionFill(settingsModel: SettingsModel, animationProgress: CGFloat, breathingPhase: BreathingPhase, endRadius: CGFloat = 0) -> some View {
+    func colorTransitionFill(
+        settingsModel: SettingsModel,
+        animationProgress: CGFloat,
+        breathingPhase: BreathingPhase,
+        endRadius: CGFloat = 0
+    ) -> some View {
         let isInhalePhase = breathingPhase == .inhale || breathingPhase == .holdAfterInhale
         let lastColor = isInhalePhase ? settingsModel.inhaleColor : settingsModel.exhaleColor
-        
         let backgroundColor = settingsModel.cachedBackgroundColorWithoutAlpha
-        let colorSequence: [Color] = [backgroundColor, lastColor, backgroundColor]
 
         switch settingsModel.colorFillGradient {
         case .off:
             self.fill(lastColor)
+
         case .inner:
             if settingsModel.shape == .rectangle {
-                let gradient = LinearGradient(
-                    gradient: Gradient(colors: [lastColor, settingsModel.backgroundColor]),
-                    startPoint: .top,
-                    endPoint: .bottom
+                self.fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [lastColor, backgroundColor]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
                 )
-                self.fill(gradient)
             } else {
-                let gradient = RadialGradient(
-                    gradient: Gradient(colors: [settingsModel.backgroundColor, lastColor]),
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: endRadius
+                self.fill(
+                    RadialGradient(
+                        gradient: Gradient(colors: [backgroundColor, lastColor]),
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: endRadius
+                    )
                 )
-                self.fill(gradient)
             }
+
         case .on:
             if settingsModel.shape == .rectangle {
-                let gradient = LinearGradient(
-                    gradient: Gradient(colors: colorSequence),
-                    startPoint: .bottom,
-                    endPoint: .top
+                self.fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [backgroundColor, lastColor, backgroundColor]),
+                        startPoint: .bottom,
+                        endPoint: .top
+                    )
                 )
-                self.fill(gradient)
             } else {
-                let gradient = RadialGradient(
-                    gradient: Gradient(colors: colorSequence),
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: endRadius
+                self.fill(
+                    RadialGradient(
+                        gradient: Gradient(colors: [backgroundColor, lastColor, backgroundColor]),
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: endRadius
+                    )
                 )
-                self.fill(gradient)
             }
         }
     }
