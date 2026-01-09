@@ -16,48 +16,58 @@ extension Color {
 
 extension Shape {
     @ViewBuilder
-    func colorTransitionFill(settingsModel: SettingsModel, animationProgress: CGFloat, breathingPhase: BreathingPhase, endRadius: CGFloat = 0) -> some View {
+    func colorTransitionFill(
+        settingsModel: SettingsModel,
+        animationProgress: CGFloat,
+        breathingPhase: BreathingPhase,
+        endRadius: CGFloat = 0
+    ) -> some View {
         let isInhalePhase = breathingPhase == .inhale || breathingPhase == .holdAfterInhale
         let lastColor = isInhalePhase ? settingsModel.inhaleColor : settingsModel.exhaleColor
-        
-        let colorSequence: [Color] = [settingsModel.backgroundColor, lastColor, settingsModel.backgroundColor]
-        
+        let backgroundColor = settingsModel.cachedBackgroundColorWithoutAlpha
+
         switch settingsModel.colorFillGradient {
         case .off:
             self.fill(lastColor)
+
         case .inner:
             if settingsModel.shape == .rectangle {
-                let gradient = LinearGradient(
-                    gradient: Gradient(colors: [lastColor, settingsModel.backgroundColor]),
-                    startPoint: .top,
-                    endPoint: .bottom
+                self.fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [lastColor, backgroundColor]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
                 )
-                self.fill(gradient)
             } else {
-                let gradient = RadialGradient(
-                    gradient: Gradient(colors: [settingsModel.backgroundColor, lastColor]),
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: endRadius
+                self.fill(
+                    RadialGradient(
+                        gradient: Gradient(colors: [backgroundColor, lastColor]),
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: endRadius
+                    )
                 )
-                self.fill(gradient)
             }
+
         case .on:
             if settingsModel.shape == .rectangle {
-                let gradient = LinearGradient(
-                    gradient: Gradient(colors: colorSequence),
-                    startPoint: .bottom,
-                    endPoint: .top
+                self.fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [backgroundColor, lastColor, backgroundColor]),
+                        startPoint: .bottom,
+                        endPoint: .top
+                    )
                 )
-                self.fill(gradient)
             } else {
-                let gradient = RadialGradient(
-                    gradient: Gradient(colors: colorSequence),
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: endRadius
+                self.fill(
+                    RadialGradient(
+                        gradient: Gradient(colors: [backgroundColor, lastColor, backgroundColor]),
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: endRadius
+                    )
                 )
-                self.fill(gradient)
             }
         }
     }
@@ -70,39 +80,34 @@ struct ContentView: View {
     @State private var overlayOpacity: Double = 0.1
     @State private var showSettings = false
     @State private var cycleCount: Int = 0
-    
-    var maxCircleScale: CGFloat {
-        guard let screen = NSScreen.main else { return settingsModel.colorFillGradient == .on ? 2 : 1 }
-        let screenWidth = screen.frame.width
-        let screenHeight = screen.frame.height
-        let maxDimension = max(screenWidth, screenHeight)
-        return maxDimension / min(screenWidth, screenHeight)
-    }
-    
+    @State private var cachedMaxCircleScale: CGFloat = 1
+
     var body: some View {
         ZStack {
             GeometryReader { geometry in
+                let centerX = geometry.size.width / 2
+                let centerY = geometry.size.height / 2
+
                 if !settingsModel.isAnimating && !settingsModel.isPaused {
                     Color.clear.edgesIgnoringSafeArea(.all)
                 } else {
                     if settingsModel.shape != .fullscreen {
-                      settingsModel.backgroundColor
-                            .withoutAlpha()
+                        settingsModel.cachedBackgroundColorWithoutAlpha
                             .edgesIgnoringSafeArea(.all)
-                            .opacity(min(settingsModel.backgroundColor.alphaComponent(), settingsModel.overlayOpacity))
+                            .opacity(min(settingsModel.cachedBackgroundAlphaComponent, settingsModel.overlayOpacity))
                     }
-                    
+
                     Group {
                         switch settingsModel.shape {
                         case .fullscreen:
                             Rectangle()
                                 .fill(
                                     (breathingPhase == .inhale || breathingPhase == .holdAfterInhale)
-                                    ? settingsModel.inhaleColor
-                                    : settingsModel.exhaleColor
+                                        ? settingsModel.inhaleColor
+                                        : settingsModel.exhaleColor
                                 )
                                 .edgesIgnoringSafeArea(.all)
-                            
+
                         case .rectangle:
                             Rectangle()
                                 .colorTransitionFill(
@@ -116,44 +121,33 @@ struct ContentView: View {
                                     y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
                                     anchor: .bottom
                                 )
-                                .position(
-                                    x: geometry.size.width/2,
-                                    y: geometry.size.height/2
-                                )
-                            
+                                .position(x: centerX, y: centerY)
+
                         case .circle:
+                            let minDimension = min(geometry.size.width, geometry.size.height)
+                            let gradientScale: CGFloat = settingsModel.colorFillGradient == .on ? 2 : 1
+
+                            let bakedSize = minDimension
+                                * animationProgress
+                                * cachedMaxCircleScale
+                                * animationProgress
+                                * gradientScale
+
                             Circle()
                                 .colorTransitionFill(
                                     settingsModel: settingsModel,
                                     animationProgress: animationProgress,
                                     breathingPhase: breathingPhase,
-                                    endRadius: (min(geometry.size.width, geometry.size.height)
-                                                * animationProgress * maxCircleScale)/2
+                                    endRadius: bakedSize / 2
                                 )
-                                .frame(
-                                    width: min(geometry.size.width, geometry.size.height)
-                                    * animationProgress * maxCircleScale,
-                                    height: min(geometry.size.width, geometry.size.height)
-                                    * animationProgress * maxCircleScale
-                                )
-                                .scaleEffect(
-                                    x: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
-                                    y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
-                                    anchor: .center
-                                )
-                                .position(
-                                    x: geometry.size.width/2,
-                                    y: geometry.size.height/2
-                                )
+                                .frame(width: bakedSize, height: bakedSize)
+                                .position(x: centerX, y: centerY)
                         }
-                        
                     }
                     .opacity(settingsModel.overlayOpacity)
                 }
             }
-            
-            
-            
+
             if showSettings {
                 SettingsView(
                     showSettings: $showSettings,
@@ -183,7 +177,10 @@ struct ContentView: View {
                 )
             }
         }
-        .onAppear(perform: startBreathingCycle)
+        .onAppear {
+            cachedMaxCircleScale = Self.getMaxCircleScale()
+            startBreathingCycle()
+        }
         .onChange(of: settingsModel.isAnimating) { newValue in
             if !newValue {
                 resetAnimation()
@@ -203,12 +200,20 @@ struct ContentView: View {
             }
         }
     }
-    
+
+    static func getMaxCircleScale() -> CGFloat {
+        guard let screen = NSScreen.main else { return 1 }
+        let screenWidth = screen.frame.width
+        let screenHeight = screen.frame.height
+        let maxDimension = max(screenWidth, screenHeight)
+        return maxDimension / min(screenWidth, screenHeight)
+    }
+
     func startBreathingCycle() {
         cycleCount = 0
         inhale()
     }
-    
+
     func inhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         var duration = settingsModel.inhaleDuration * pow(settingsModel.drift, Double(cycleCount))
@@ -216,9 +221,11 @@ struct ContentView: View {
             duration += Double.random(in: -settingsModel.randomizedTimingInhale...settingsModel.randomizedTimingInhale)
         }
         duration = max(duration, 0.1)
-        
-        let animation: Animation = settingsModel.animationMode == .linear ? .linear(duration: duration) : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
-        
+
+        let animation: Animation = settingsModel.animationMode == .linear
+            ? .linear(duration: duration)
+            : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
+
         withAnimation(animation) {
             breathingPhase = .inhale
             animationProgress = 1.0
@@ -230,7 +237,7 @@ struct ContentView: View {
             holdAfterInhale()
         }
     }
-    
+
     func holdAfterInhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         var duration = settingsModel.postInhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
@@ -243,7 +250,7 @@ struct ContentView: View {
             exhale()
         }
     }
-    
+
     func exhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         var duration = settingsModel.exhaleDuration * pow(settingsModel.drift, Double(cycleCount))
@@ -251,9 +258,11 @@ struct ContentView: View {
             duration += Double.random(in: -settingsModel.randomizedTimingExhale...settingsModel.randomizedTimingExhale)
         }
         duration = max(duration, 0.1)
-        
-        let animation: Animation = settingsModel.animationMode == .linear ? .linear(duration: duration) : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
-        
+
+        let animation: Animation = settingsModel.animationMode == .linear
+            ? .linear(duration: duration)
+            : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
+
         withAnimation(animation) {
             breathingPhase = .exhale
             animationProgress = 0.0
@@ -262,7 +271,7 @@ struct ContentView: View {
             holdAfterExhale()
         }
     }
-    
+
     func holdAfterExhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         var duration = settingsModel.postExhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
@@ -271,26 +280,26 @@ struct ContentView: View {
         }
         duration = max(duration, 0.1)
         breathingPhase = .holdAfterExhale
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             guard self.settingsModel.isAnimating else { return self.resetAnimation() }
             self.cycleCount += 1
             self.inhale()
         }
     }
-    
+
     func resetAnimation() {
         cycleCount = 0
         animationProgress = 0.0
         breathingPhase = .inhale
     }
-    
+
     func stopCurrentAnimation() {
         // Stop the current animation
         cycleCount = 0
         animationProgress = 0.0
     }
-    
+
     func resumeBreathingCycle() {
         // Resume the breathing cycle
         switch breathingPhase {

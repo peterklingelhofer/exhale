@@ -1,3 +1,4 @@
+// AppDelegate.swift
 import Cocoa
 import Combine
 import SwiftUI
@@ -115,11 +116,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func resetToDefaults(_ sender: Any?) {
         settingsModel.resetToDefaults()
     }
-    
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         settingsModel = SettingsModel()
-        
+
         // Create overlay windows for each screen.
         for screen in NSScreen.screens {
             let screenSize = screen.frame.size
@@ -129,50 +129,43 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 backing: .buffered,
                 defer: false
             )
-            
-            window.contentView = NSHostingView(rootView: ContentView().environmentObject(settingsModel))
+
+            // Create the hosting view once. SwiftUI will update it via EnvironmentObject.
+            let rootView = ContentView().environmentObject(settingsModel)
+            window.contentView = NSHostingView(rootView: rootView)
+
             window.makeKeyAndOrderFront(nil)
-            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 1) // Window level in front of the menu bar
+            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 1)
             window.alphaValue = CGFloat(settingsModel.overlayOpacity)
             window.isOpaque = false
+            window.hasShadow = false
             window.ignoresMouseEvents = true
             window.setFrame(screen.frame, display: true)
-            // window.collectionBehavior = [.canJoinAllSpaces]  // Ensures window appears in all spaces
-            
+
             windows.append(window)
         }
-        
+
         // Subscriptions to update window colors and opacity
         inhaleColorSubscription = settingsModel.$inhaleColor.sink { [unowned self] newColor in
             for window in self.windows {
                 window.backgroundColor = NSColor(newColor)
             }
         }
-        
+
         exhaleColorSubscription = settingsModel.$exhaleColor.sink { [unowned self] newColor in
             for window in self.windows {
                 window.backgroundColor = NSColor(newColor)
             }
         }
-        
-        overlayOpacitySubscription = settingsModel.$overlayOpacity.sink { [unowned self] newOpacity in
+
+        overlayOpacitySubscription = settingsModel.$overlayOpacity.sink { [unowned self] _ in
             for window in self.windows {
                 window.alphaValue = 1.0
-                window.isOpaque   = false
+                window.isOpaque = false
                 window.backgroundColor = .clear
-                //                window.alphaValue = CGFloat(newOpacity)
             }
         }
-        
-        
-        
-        // Reload content view when any setting changes
-        settingsModel.objectWillChange.sink { [unowned self] in
-            self.reloadContentView()
-        }.store(in: &subscriptions)
-        
-        reloadContentView()
-        
+
         // Initialize the Settings Window
         settingsWindow = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 600, height: 600),
@@ -180,12 +173,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        // Set the autosave frame name using KVC.
         settingsWindow.setValue("SettingsWindow", forKey: "frameAutosaveName")
-        
-        // Set the delegate so we can save the frame when the window moves.
         settingsWindow.delegate = self
-        
+
         settingsWindow.contentView = NSHostingView(rootView: SettingsView(
             showSettings: .constant(false),
             inhaleColor: Binding(get: { self.settingsModel.inhaleColor }, set: { self.settingsModel.inhaleColor = $0 }),
@@ -212,12 +202,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             randomizedTimingPostExhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostExhaleHold }, set: { self.settingsModel.randomizedTimingPostExhaleHold = $0 }),
             isAnimating: Binding(get: { self.settingsModel.isAnimating }, set: { self.settingsModel.isAnimating = $0 })
         ).environmentObject(settingsModel))
-        
+
         settingsWindow.title = "exhale"
-        // Initially hide the settings window.
         toggleSettings(nil)
         setUpStatusItem()
-        
+
         isAnimatingSubscription = settingsModel.$isAnimating.sink { [unowned self] isAnimating in
             if !isAnimating && !self.settingsModel.isPaused {
                 for window in self.windows {
@@ -225,11 +214,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
         }
-        
-        // Setup Global HotKeys
+
         setUpGlobalHotKeys()
     }
-    
+
     func setUpGlobalHotKeys() {
         // Start Animation: Ctrl + Shift + A
         startHotKey = HotKey(key: .a, modifiers: [.control, .shift])
@@ -314,10 +302,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func reloadContentView() {
-        let contentView = ContentView().environmentObject(settingsModel)
-        for window in windows {
-            window.contentView = NSHostingView(rootView: contentView)
-        }
+        // Intentionally left blank.
+        // NSHostingView is created once per window; SwiftUI updates via EnvironmentObject.
     }
     
     // Prevent the settings window from closing (just hide it instead)

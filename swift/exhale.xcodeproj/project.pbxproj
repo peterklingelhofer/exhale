@@ -9,18 +9,18 @@
 /* Begin PBXBuildFile section */
 		0208F33B29C75C0900CC6FAC /* types.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0208F33A29C75C0900CC6FAC /* types.swift */; };
 		020C89CD29C2B05500720231 /* exhaleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C89CC29C2B05500720231 /* exhaleApp.swift */; };
-		020C89CF29C2B05500720231 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C89CE29C2B05500720231 /* ContentView.swift */; };
 		020C89D129C2B05700720231 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 020C89D029C2B05700720231 /* Assets.xcassets */; };
 		020C89D429C2B05700720231 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 020C89D329C2B05700720231 /* Preview Assets.xcassets */; };
 		020C89DF29C2B05700720231 /* exhaleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C89DE29C2B05700720231 /* exhaleTests.swift */; };
 		020C89E929C2B05700720231 /* exhaleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C89E829C2B05700720231 /* exhaleUITests.swift */; };
 		020C89EB29C2B05700720231 /* exhaleUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C89EA29C2B05700720231 /* exhaleUITestsLaunchTests.swift */; };
-		020C89FA29C2B59A00720231 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C89F929C2B59A00720231 /* AppDelegate.swift */; };
 		020C8A0229C3307100720231 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C8A0129C3307100720231 /* SettingsView.swift */; };
 		020C8A0429C3323F00720231 /* SettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020C8A0329C3323F00720231 /* SettingsModel.swift */; };
 		022C49FC2D34192200BD1C86 /* CombinedStepperTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 022C49FB2D34192200BD1C86 /* CombinedStepperTextField.swift */; };
 		023F8D3C2CBC110900809D87 /* EmptyClosingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 023F8D3B2CBC110800809D87 /* EmptyClosingView.swift */; };
 		02775BB629C6311E00584F4B /* CustomMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02775BB529C6311E00584F4B /* CustomMenu.swift */; };
+		027A60942F10B8B900825951 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 027A60932F10B8B900825951 /* ContentView.swift */; };
+		027A60952F10B8B900825951 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 027A60922F10B8B900825951 /* AppDelegate.swift */; };
 		027B08952D9A1AF6000E049F /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 027B08942D9A1AF6000E049F /* Info.plist */; };
 		02956BC82D3549EF001D9EE4 /* ControlButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02956BC72D3549EF001D9EE4 /* ControlButton.swift */; };
 		02956BCB2D354E86001D9EE4 /* HotKey in Frameworks */ = {isa = PBXBuildFile; productRef = 02956BCA2D354E86001D9EE4 /* HotKey */; };
@@ -47,7 +47,6 @@
 		0208F33A29C75C0900CC6FAC /* types.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = types.swift; sourceTree = "<group>"; };
 		020C89C929C2B05500720231 /* exhale.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = exhale.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		020C89CC29C2B05500720231 /* exhaleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = exhaleApp.swift; sourceTree = "<group>"; };
-		020C89CE29C2B05500720231 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		020C89D029C2B05700720231 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		020C89D329C2B05700720231 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		020C89D529C2B05700720231 /* exhale.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = exhale.entitlements; sourceTree = "<group>"; };
@@ -56,12 +55,13 @@
 		020C89E429C2B05700720231 /* exhaleUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = exhaleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		020C89E829C2B05700720231 /* exhaleUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = exhaleUITests.swift; sourceTree = "<group>"; };
 		020C89EA29C2B05700720231 /* exhaleUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = exhaleUITestsLaunchTests.swift; sourceTree = "<group>"; };
-		020C89F929C2B59A00720231 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		020C8A0129C3307100720231 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		020C8A0329C3323F00720231 /* SettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModel.swift; sourceTree = "<group>"; };
 		022C49FB2D34192200BD1C86 /* CombinedStepperTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombinedStepperTextField.swift; sourceTree = "<group>"; };
 		023F8D3B2CBC110800809D87 /* EmptyClosingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyClosingView.swift; sourceTree = "<group>"; };
 		02775BB529C6311E00584F4B /* CustomMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomMenu.swift; sourceTree = "<group>"; };
+		027A60922F10B8B900825951 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		027A60932F10B8B900825951 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		027B08942D9A1AF6000E049F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		02956BC72D3549EF001D9EE4 /* ControlButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlButton.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -116,14 +116,14 @@
 			isa = PBXGroup;
 			children = (
 				020C89CC29C2B05500720231 /* exhaleApp.swift */,
-				020C89CE29C2B05500720231 /* ContentView.swift */,
 				023F8D3B2CBC110800809D87 /* EmptyClosingView.swift */,
 				027B08942D9A1AF6000E049F /* Info.plist */,
 				020C89D029C2B05700720231 /* Assets.xcassets */,
 				020C89D529C2B05700720231 /* exhale.entitlements */,
 				020C89D229C2B05700720231 /* Preview Content */,
-				020C89F929C2B59A00720231 /* AppDelegate.swift */,
 				020C8A0129C3307100720231 /* SettingsView.swift */,
+				027A60922F10B8B900825951 /* AppDelegate.swift */,
+				027A60932F10B8B900825951 /* ContentView.swift */,
 				02956BC72D3549EF001D9EE4 /* ControlButton.swift */,
 				022C49FB2D34192200BD1C86 /* CombinedStepperTextField.swift */,
 				020C8A0329C3323F00720231 /* SettingsModel.swift */,
@@ -295,13 +295,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				020C89FA29C2B59A00720231 /* AppDelegate.swift in Sources */,
 				02956BC82D3549EF001D9EE4 /* ControlButton.swift in Sources */,
+				027A60942F10B8B900825951 /* ContentView.swift in Sources */,
+				027A60952F10B8B900825951 /* AppDelegate.swift in Sources */,
 				020C8A0429C3323F00720231 /* SettingsModel.swift in Sources */,
 				023F8D3C2CBC110900809D87 /* EmptyClosingView.swift in Sources */,
 				020C8A0229C3307100720231 /* SettingsView.swift in Sources */,
 				02775BB629C6311E00584F4B /* CustomMenu.swift in Sources */,
-				020C89CF29C2B05500720231 /* ContentView.swift in Sources */,
 				020C89CD29C2B05500720231 /* exhaleApp.swift in Sources */,
 				022C49FC2D34192200BD1C86 /* CombinedStepperTextField.swift in Sources */,
 				0208F33B29C75C0900CC6FAC /* types.swift in Sources */,
