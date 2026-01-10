@@ -1,5 +1,4 @@
 // MetalBreathingController.swift
-import CoreVideo
 import Foundation
 import QuartzCore
 
@@ -11,8 +10,10 @@ struct MetalBreathingState {
 final class MetalBreathingController {
     private let settingsModel: SettingsModel
 
-    private var displayLink: CVDisplayLink?
     private let stateQueue = DispatchQueue(label: "exhale.metalBreathingController.stateQueue")
+    private let timerQueue = DispatchQueue(label: "exhale.metalBreathingController.timerQueue")
+
+    private var drawTimer: DispatchSourceTimer?
 
     private var cycleCount: Int = 0
     private var currentPhase: BreathingPhase = .inhale
@@ -26,22 +27,17 @@ final class MetalBreathingController {
     private var lastDrawnPhase: BreathingPhase = .inhale
     private var lastDrawnProgress: Float = -1
 
-    // Cap at 24fps to reduce CPU spikes but remain visually smooth
+    // Cadence tuning (matches your current smooth-but-efficient behavior)
     private let maximumDrawIntervalFast: CFTimeInterval = 1.0 / 24.0
-    private let maximumDrawIntervalSlow: CFTimeInterval = 1.0 / 14.0
+    private let maximumDrawIntervalSlow: CFTimeInterval = 1.0 / 12.0
 
-    // Adaptive redraw thresholds (hysteresis)
-    // - If delta exceeds enterFastThreshold, go "fast" (up to 24fps)
-    // - If delta drops below exitFastThreshold, return to "slow"
-    private let enterFastThreshold: Float = 0.006
-    private let exitFastThreshold: Float = 0.0035
-
-    // Minimum delta required to draw at all (prevents noise)
-    private let minimumProgressDelta: Float = 0.0025
+    private let enterFastThreshold: Float = 0.0075
+    private let exitFastThreshold: Float = 0.0045
+    private let minimumProgressDelta: Float = 0.003
 
     private var isFastCadenceEnabled: Bool = false
 
-    // Called from the CVDisplayLink thread
+    // Called from a background queue
     var requestDraw: (() -> Void)?
 
     init(settingsModel: SettingsModel) {
@@ -66,43 +62,31 @@ final class MetalBreathingController {
             phaseDuration = getDurationForInhale()
 
             didRenderThisHold = false
+            isFastCadenceEnabled = false
 
             lastDrawRequestTime = 0
             lastDrawnPhase = currentPhase
             lastDrawnProgress = -1
-
-            isFastCadenceEnabled = false
         }
 
         stop()
 
-        var newDisplayLink: CVDisplayLink?
-        CVDisplayLinkCreateWithActiveCGDisplays(&newDisplayLink)
-        guard let createdDisplayLink = newDisplayLink else {
-            return
+        let timer = DispatchSource.makeTimerSource(queue: timerQueue)
+        timer.setEventHandler { [weak self] in
+            self?.tick()
         }
 
-        let callback: CVDisplayLinkOutputCallback = { _, _, _, _, _, userInfo in
-            guard let userInfo else { return kCVReturnError }
-            let controller = Unmanaged<MetalBreathingController>.fromOpaque(userInfo).takeUnretainedValue()
-            controller.step()
-            return kCVReturnSuccess
-        }
-
-        CVDisplayLinkSetOutputCallback(
-            createdDisplayLink,
-            callback,
-            Unmanaged.passUnretained(self).toOpaque()
-        )
-
-        displayLink = createdDisplayLink
-        CVDisplayLinkStart(createdDisplayLink)
+        // Start immediately; we re-schedule inside tick()
+        timer.schedule(deadline: .now(), repeating: .seconds(3600), leeway: .milliseconds(5))
+        drawTimer = timer
+        timer.resume()
     }
 
     func stop() {
-        if let displayLink {
-            CVDisplayLinkStop(displayLink)
-            self.displayLink = nil
+        if let timer = drawTimer {
+            timer.setEventHandler {}
+            timer.cancel()
+            drawTimer = nil
         }
     }
 
@@ -114,52 +98,76 @@ final class MetalBreathingController {
 
     // MARK: - Private
 
-    private func step() {
+    private func tick() {
         let now = CACurrentMediaTime()
 
-        if !settingsModel.isAnimating && !settingsModel.isPaused {
-            stop()
-            return
-        }
+        var shouldDraw = false
+        var nextInterval: CFTimeInterval = 1.0
 
-        let shouldRequestDraw: Bool = stateQueue.sync {
-            // Pause mode: tint is static, but redraw occasionally to reflect settings changes
+        stateQueue.sync {
+            if !settingsModel.isAnimating && !settingsModel.isPaused {
+                nextInterval = 10.0
+                shouldDraw = false
+                return
+            }
+
             if settingsModel.isPaused {
-                if now - lastDrawRequestTime < 1.0 {
-                    return false
+                // Tint is static; redraw occasionally to reflect settings changes
+                nextInterval = 1.0
+
+                if now - lastDrawRequestTime >= nextInterval {
+                    lastDrawRequestTime = now
+                    let state = computeCurrentState(now: now)
+                    lastDrawnPhase = state.phase
+                    lastDrawnProgress = state.progress
+                    isFastCadenceEnabled = false
+                    shouldDraw = true
+                } else {
+                    shouldDraw = false
                 }
-                lastDrawRequestTime = now
-                let state = computeCurrentState(now: now)
-                lastDrawnPhase = state.phase
-                lastDrawnProgress = state.progress
-                isFastCadenceEnabled = false
-                return true
+
+                return
             }
 
             let isHoldPhase = (currentPhase == .holdAfterInhale) || (currentPhase == .holdAfterExhale)
 
             if isHoldPhase {
                 let elapsed = now - phaseStartTime
+                let remaining = max(phaseDuration - elapsed, 0.001)
+
                 if elapsed >= phaseDuration {
                     advancePhase(now: now)
                     didRenderThisHold = false
                     isFastCadenceEnabled = false
-                    return true
+
+                    lastDrawRequestTime = now
+                    let state = computeCurrentState(now: now)
+                    lastDrawnPhase = state.phase
+                    lastDrawnProgress = state.progress
+                    shouldDraw = true
+
+                    nextInterval = maximumDrawIntervalFast
+                    return
                 }
 
-                if didRenderThisHold {
-                    return false
+                // Render once when we enter the hold, then sleep until it ends
+                if !didRenderThisHold {
+                    didRenderThisHold = true
+
+                    lastDrawRequestTime = now
+                    let state = computeCurrentState(now: now)
+                    lastDrawnPhase = state.phase
+                    lastDrawnProgress = state.progress
+                    shouldDraw = true
+                } else {
+                    shouldDraw = false
                 }
 
-                didRenderThisHold = true
-                lastDrawRequestTime = now
-                let state = computeCurrentState(now: now)
-                lastDrawnPhase = state.phase
-                lastDrawnProgress = state.progress
-                return true
+                nextInterval = remaining
+                return
             }
 
-            // Advance phase timing
+            // Inhale / exhale: advance phase if needed
             let elapsed = now - phaseStartTime
             if elapsed >= phaseDuration {
                 advancePhase(now: now)
@@ -171,57 +179,60 @@ final class MetalBreathingController {
 
             // Always draw on phase change
             if currentState.phase != lastDrawnPhase {
-                if now - lastDrawRequestTime < maximumDrawIntervalFast {
-                    return false
-                }
-                lastDrawRequestTime = now
-                lastDrawnPhase = currentState.phase
-                lastDrawnProgress = currentState.progress
-                return true
-            }
-
-            if lastDrawnProgress < 0 {
-                if now - lastDrawRequestTime < maximumDrawIntervalFast {
-                    return false
-                }
-                lastDrawRequestTime = now
-                lastDrawnPhase = currentState.phase
-                lastDrawnProgress = currentState.progress
-                return true
-            }
-
-            let delta = abs(currentState.progress - lastDrawnProgress)
-
-            if delta < minimumProgressDelta {
-                return false
-            }
-
-            // Hysteresis for cadence mode
-            if isFastCadenceEnabled {
-                if delta < exitFastThreshold {
-                    isFastCadenceEnabled = false
-                }
+                shouldDraw = true
+            } else if lastDrawnProgress < 0 {
+                shouldDraw = true
             } else {
-                if delta > enterFastThreshold {
-                    isFastCadenceEnabled = true
+                let delta = abs(currentState.progress - lastDrawnProgress)
+                if delta >= minimumProgressDelta {
+                    shouldDraw = true
+                } else {
+                    shouldDraw = false
+                }
+
+                // Hysteresis for cadence switching (based on delta)
+                if isFastCadenceEnabled {
+                    if delta < exitFastThreshold {
+                        isFastCadenceEnabled = false
+                    }
+                } else {
+                    if delta > enterFastThreshold {
+                        isFastCadenceEnabled = true
+                    }
                 }
             }
 
             let cadenceInterval = isFastCadenceEnabled ? maximumDrawIntervalFast : maximumDrawIntervalSlow
+            let timeUntilPhaseEnd = max((phaseStartTime + phaseDuration) - now, 0.001)
 
-            if now - lastDrawRequestTime < cadenceInterval {
-                return false
+            if shouldDraw {
+                if now - lastDrawRequestTime >= cadenceInterval {
+                    lastDrawRequestTime = now
+                    lastDrawnPhase = currentState.phase
+                    lastDrawnProgress = currentState.progress
+                    nextInterval = min(cadenceInterval, timeUntilPhaseEnd)
+                } else {
+                    shouldDraw = false
+                    nextInterval = min(cadenceInterval - (now - lastDrawRequestTime), timeUntilPhaseEnd)
+                }
+            } else {
+                // No draw needed; wake again at cadence or phase end (whichever is sooner)
+                nextInterval = min(cadenceInterval, timeUntilPhaseEnd)
             }
-
-            lastDrawRequestTime = now
-            lastDrawnPhase = currentState.phase
-            lastDrawnProgress = currentState.progress
-            return true
         }
 
-        if shouldRequestDraw {
+        if shouldDraw {
             requestDraw?()
         }
+
+        scheduleNextTick(after: nextInterval)
+    }
+
+    private func scheduleNextTick(after interval: CFTimeInterval) {
+        guard let timer = drawTimer else { return }
+        let safeInterval = max(interval, 0.001)
+
+        timer.schedule(deadline: .now() + safeInterval, repeating: .seconds(3600), leeway: .milliseconds(5))
     }
 
     private func computeCurrentState(now: CFTimeInterval) -> MetalBreathingState {
@@ -256,7 +267,7 @@ final class MetalBreathingController {
         case .exhale:
             currentPhase = .holdAfterExhale
             phaseStartTime = now
-            phaseDuration = getDurationForHoldAfterInhale()
+            phaseDuration = getDurationForHoldAfterExhale()
 
         case .holdAfterExhale:
             cycleCount += 1
