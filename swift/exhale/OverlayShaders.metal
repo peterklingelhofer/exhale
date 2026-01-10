@@ -59,10 +59,6 @@ static inline float4 applyOverlayOpacityPremultiplied(float4 color, float overla
     return color;
 }
 
-// This recreates SwiftUI's "withAnimation { breathingPhase = ... }" color interpolation.
-// - Inhale: blend Exhale -> Inhale as progress goes 0 -> 1
-// - Exhale: blend Inhale -> Exhale as progress goes 1 -> 0 (so use 1 - progress)
-// - Holds: constant endpoint colors
 static inline float4 getAnimatedPhaseColor(constant OverlayUniforms &u) {
     if (u.phase == 0u) { // inhale
         float t = clamp01(u.progress);
@@ -78,11 +74,10 @@ static inline float4 getAnimatedPhaseColor(constant OverlayUniforms &u) {
         return u.inhaleColor;
     }
 
-    // hold after exhale
-    return u.exhaleColor;
+    return u.exhaleColor; // hold after exhale
 }
 
-// Gradient mode mapping (matches Swift):
+// Gradient mode mapping:
 // 0 = Off, 1 = Inner, 2 = On
 static inline float4 applyGradientCircle(constant OverlayUniforms &u, float4 baseColor, float2 pixel) {
     float2 center = u.viewportSize * 0.5f;
@@ -109,20 +104,26 @@ static inline float4 applyGradientCircle(constant OverlayUniforms &u, float4 bas
     return lerpColor(baseColor, u.backgroundColor, (t - 0.5f) * 2.0f);
 }
 
-static inline float4 applyGradientRectangle(constant OverlayUniforms &u, float4 baseColor, float2 pixel) {
-    float height = max(u.viewportSize.y, 1.0f);
-    float yFromBottom = clamp01(pixel.y / height);
+static inline float4 applyGradientRectangle(
+    constant OverlayUniforms &u,
+    float4 baseColor,
+    float2 pixel,
+    float rectHeight
+) {
+    float safeRectHeight = max(rectHeight, 1.0f);
+    float yInRect01 = clamp01(pixel.y / safeRectHeight); // 0 bottom -> 1 top edge of rectangle
 
     if (u.gradientMode == 1u) {
-        return lerpColor(baseColor, u.backgroundColor, yFromBottom);
+        // Inner: top = base, bottom = background
+        return lerpColor(u.backgroundColor, baseColor, yInRect01);
     }
 
-    float t = yFromBottom;
-    if (t <= 0.5f) {
-        return lerpColor(u.backgroundColor, baseColor, t * 2.0f);
+    // On: bottom = bg, middle = base, top = bg (tied to the moving rectangle height)
+    if (yInRect01 <= 0.5f) {
+        return lerpColor(u.backgroundColor, baseColor, yInRect01 * 2.0f);
     }
 
-    return lerpColor(baseColor, u.backgroundColor, (t - 0.5f) * 2.0f);
+    return lerpColor(baseColor, u.backgroundColor, (yInRect01 - 0.5f) * 2.0f);
 }
 
 fragment float4 overlayFragment(
@@ -138,7 +139,6 @@ fragment float4 overlayFragment(
     float4 background = u.backgroundColor;
     background.a *= u.backgroundOpacity;
 
-    // Use animated phase color (fixes "flashing" at phase boundary)
     float4 phaseColor = getAnimatedPhaseColor(u);
 
     // 0 = fullscreen, 1 = rectangle, 2 = circle
@@ -147,19 +147,28 @@ fragment float4 overlayFragment(
     }
 
     if (u.shape == 1u) {
-        float4 shapeColor = phaseColor;
-
-        if (u.gradientMode != 0u) {
-            shapeColor = applyGradientRectangle(u, phaseColor, pixel);
-        }
-
         float height = max(u.viewportSize.y, 1.0f);
-        float scaledProgress = clamp01(u.progress * max(u.rectangleScale, 1.0f));
+
+        // FIX: do not clamp to 1.0 when rectangleScale is > 1 (Gradient On uses 2x)
+        float scaleLimit = max(u.rectangleScale, 1.0f);
+        float scaledProgress = clamp(u.progress * scaleLimit, 0.0f, scaleLimit);
+
         float rectHeight = height * scaledProgress;
 
         bool inside = pixel.y <= rectHeight;
 
-        float4 outColor = inside ? shapeColor : background;
+        float4 outColor = background;
+
+        if (inside) {
+            float4 shapeColor = phaseColor;
+
+            if (u.gradientMode != 0u) {
+                shapeColor = applyGradientRectangle(u, phaseColor, pixel, rectHeight);
+            }
+
+            outColor = shapeColor;
+        }
+
         return applyOverlayOpacityPremultiplied(outColor, u.overlayOpacity);
     }
 
