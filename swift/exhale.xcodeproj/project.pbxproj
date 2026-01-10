@@ -24,6 +24,11 @@
 		027B08952D9A1AF6000E049F /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 027B08942D9A1AF6000E049F /* Info.plist */; };
 		02956BC82D3549EF001D9EE4 /* ControlButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02956BC72D3549EF001D9EE4 /* ControlButton.swift */; };
 		02956BCB2D354E86001D9EE4 /* HotKey in Frameworks */ = {isa = PBXBuildFile; productRef = 02956BCA2D354E86001D9EE4 /* HotKey */; };
+		02BE88BC2F11FEC300D28D09 /* MetalOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BE88BB2F11FEC300D28D09 /* MetalOverlayView.swift */; };
+		02BE88BE2F11FED100D28D09 /* OverlayShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 02BE88BD2F11FED100D28D09 /* OverlayShaders.metal */; };
+		02BE88C02F11FEEE00D28D09 /* MetalOverlayRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BE88BF2F11FEEE00D28D09 /* MetalOverlayRenderer.swift */; };
+		02BE88C22F11FF0B00D28D09 /* OverlayUniforms.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BE88C12F11FF0B00D28D09 /* OverlayUniforms.swift */; };
+		02BE88C42F11FF1D00D28D09 /* MetalBreathingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BE88C32F11FF1D00D28D09 /* MetalBreathingController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +69,11 @@
 		027A60932F10B8B900825951 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		027B08942D9A1AF6000E049F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		02956BC72D3549EF001D9EE4 /* ControlButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlButton.swift; sourceTree = "<group>"; };
+		02BE88BB2F11FEC300D28D09 /* MetalOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalOverlayView.swift; sourceTree = "<group>"; };
+		02BE88BD2F11FED100D28D09 /* OverlayShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = OverlayShaders.metal; sourceTree = "<group>"; };
+		02BE88BF2F11FEEE00D28D09 /* MetalOverlayRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalOverlayRenderer.swift; sourceTree = "<group>"; };
+		02BE88C12F11FF0B00D28D09 /* OverlayUniforms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayUniforms.swift; sourceTree = "<group>"; };
+		02BE88C32F11FF1D00D28D09 /* MetalBreathingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalBreathingController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,10 +133,15 @@
 				020C89D229C2B05700720231 /* Preview Content */,
 				020C8A0129C3307100720231 /* SettingsView.swift */,
 				027A60922F10B8B900825951 /* AppDelegate.swift */,
+				02BE88BB2F11FEC300D28D09 /* MetalOverlayView.swift */,
 				027A60932F10B8B900825951 /* ContentView.swift */,
+				02BE88BF2F11FEEE00D28D09 /* MetalOverlayRenderer.swift */,
+				02BE88C32F11FF1D00D28D09 /* MetalBreathingController.swift */,
+				02BE88C12F11FF0B00D28D09 /* OverlayUniforms.swift */,
 				02956BC72D3549EF001D9EE4 /* ControlButton.swift */,
 				022C49FB2D34192200BD1C86 /* CombinedStepperTextField.swift */,
 				020C8A0329C3323F00720231 /* SettingsModel.swift */,
+				02BE88BD2F11FED100D28D09 /* OverlayShaders.metal */,
 				02775BB529C6311E00584F4B /* CustomMenu.swift */,
 				0208F33A29C75C0900CC6FAC /* types.swift */,
 			);
@@ -296,10 +311,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				02956BC82D3549EF001D9EE4 /* ControlButton.swift in Sources */,
+				02BE88C22F11FF0B00D28D09 /* OverlayUniforms.swift in Sources */,
 				027A60942F10B8B900825951 /* ContentView.swift in Sources */,
 				027A60952F10B8B900825951 /* AppDelegate.swift in Sources */,
 				020C8A0429C3323F00720231 /* SettingsModel.swift in Sources */,
+				02BE88BC2F11FEC300D28D09 /* MetalOverlayView.swift in Sources */,
+				02BE88BE2F11FED100D28D09 /* OverlayShaders.metal in Sources */,
 				023F8D3C2CBC110900809D87 /* EmptyClosingView.swift in Sources */,
+				02BE88C42F11FF1D00D28D09 /* MetalBreathingController.swift in Sources */,
+				02BE88C02F11FEEE00D28D09 /* MetalOverlayRenderer.swift in Sources */,
 				020C8A0229C3307100720231 /* SettingsView.swift in Sources */,
 				02775BB629C6311E00584F4B /* CustomMenu.swift in Sources */,
 				020C89CD29C2B05500720231 /* exhaleApp.swift in Sources */,
@@ -470,7 +490,7 @@
 				CODE_SIGN_ENTITLEMENTS = exhale/exhale.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 170;
+				CURRENT_PROJECT_VERSION = 200;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"exhale/Preview Content\"";
 				DEVELOPMENT_TEAM = VZCHHV7VNW;
@@ -485,7 +505,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.7.0;
+				MARKETING_VERSION = 2.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = peterklingelhofer.exhale;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = macosx;
@@ -504,7 +524,7 @@
 				CODE_SIGN_ENTITLEMENTS = exhale/exhale.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 170;
+				CURRENT_PROJECT_VERSION = 200;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"exhale/Preview Content\"";
 				DEVELOPMENT_TEAM = VZCHHV7VNW;
@@ -519,7 +539,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.7.0;
+				MARKETING_VERSION = 2.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = peterklingelhofer.exhale;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = macosx;
