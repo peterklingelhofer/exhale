@@ -24,143 +24,161 @@ struct OverlayUniforms {
 
 struct VertexOut {
     float4 position [[position]];
-    float2 uv;
+    float2 ndc;
 };
 
-vertex VertexOut overlayVertex(uint vertexID [[vertex_id]],
-                               constant OverlayUniforms& uniforms [[buffer(0)]]) {
-    // Fullscreen triangle
+vertex VertexOut overlayVertex(uint vertexID [[vertex_id]]) {
     float2 positions[3] = {
         float2(-1.0, -1.0),
         float2( 3.0, -1.0),
         float2(-1.0,  3.0)
     };
 
-    float2 pos = positions[vertexID];
     VertexOut out;
-    out.position = float4(pos, 0.0, 1.0);
-
-    // Map to [0,1] UV
-    out.uv = pos * 0.5 + 0.5;
+    out.position = float4(positions[vertexID], 0.0, 1.0);
+    out.ndc = positions[vertexID];
     return out;
 }
 
-static inline float4 premultiply(float4 c) {
-    return float4(c.rgb * c.a, c.a);
-}
-
-static inline float4 lerp4(float4 a, float4 b, float t) {
+static inline float4 lerpColor(float4 a, float4 b, float t) {
     return a + (b - a) * t;
 }
 
-static inline float4 gradient3(float4 c0, float4 c1, float4 c2, float t) {
-    if (t <= 0.5) {
-        return lerp4(c0, c1, t * 2.0);
-    }
-    return lerp4(c1, c2, (t - 0.5) * 2.0);
+static inline float clamp01(float x) {
+    return clamp(x, 0.0f, 1.0f);
 }
 
-fragment float4 overlayFragment(VertexOut in [[stage_in]],
-                                constant OverlayUniforms& u [[buffer(0)]]) {
-    // Pixel space for shape math
-    float2 pixel = in.uv * u.viewportSize;
-    float2 center = u.viewportSize * 0.5;
+static inline float2 getPixelCoordinateFromNdc(float2 ndc, float2 viewportSize) {
+    float2 uv = ndc * 0.5f + 0.5f;
+    return uv * viewportSize;
+}
+
+static inline float4 applyOverlayOpacityPremultiplied(float4 color, float overlayOpacity) {
+    color.a *= overlayOpacity;
+    color.rgb *= color.a;
+    return color;
+}
+
+// This recreates SwiftUI's "withAnimation { breathingPhase = ... }" color interpolation.
+// - Inhale: blend Exhale -> Inhale as progress goes 0 -> 1
+// - Exhale: blend Inhale -> Exhale as progress goes 1 -> 0 (so use 1 - progress)
+// - Holds: constant endpoint colors
+static inline float4 getAnimatedPhaseColor(constant OverlayUniforms &u) {
+    if (u.phase == 0u) { // inhale
+        float t = clamp01(u.progress);
+        return lerpColor(u.exhaleColor, u.inhaleColor, t);
+    }
+
+    if (u.phase == 2u) { // exhale
+        float t = clamp01(1.0f - u.progress);
+        return lerpColor(u.inhaleColor, u.exhaleColor, t);
+    }
+
+    if (u.phase == 1u) { // hold after inhale
+        return u.inhaleColor;
+    }
+
+    // hold after exhale
+    return u.exhaleColor;
+}
+
+// Gradient mode mapping (matches Swift):
+// 0 = Off, 1 = Inner, 2 = On
+static inline float4 applyGradientCircle(constant OverlayUniforms &u, float4 baseColor, float2 pixel) {
+    float2 center = u.viewportSize * 0.5f;
     float2 delta = pixel - center;
 
-    float minDimension = min(u.viewportSize.x, u.viewportSize.y);
-
-    // Background tint: without alpha, but with backgroundOpacity
-    float4 background = float4(u.backgroundColor.rgb, u.backgroundOpacity);
-    float4 result = premultiply(background);
-
-    // If not animating, you can treat progress as 0 and still tint background
-    float progress = clamp(u.progress, 0.0, 1.0);
-
-    // Determine inhale/exhale color selection for phase
-    bool inhalePhase = (u.phase == 0u) || (u.phase == 1u);
-    float4 phaseColor = inhalePhase ? u.inhaleColor : u.exhaleColor;
-
-    // Fullscreen: constant fill (matches your current fullscreen behavior)
-    if (u.shape == 0u) {
-        float4 full = float4(phaseColor.rgb, u.overlayOpacity);
-        return premultiply(full);
-    }
-
-    float shapeAlpha = u.overlayOpacity;
-    float4 shapeColor = float4(phaseColor.rgb, shapeAlpha);
-
-    // Rectangle: fills from bottom upward with scale factor
-    if (u.shape == 1u) {
-        float heightFactor = progress * u.rectangleScale;
-        if (heightFactor <= 0.0) {
-            return result;
-        }
-
-        float yNorm = in.uv.y;
-        bool inside = (yNorm <= heightFactor);
-
-        if (!inside) {
-            return result;
-        }
-
-        float t = clamp(yNorm / max(heightFactor, 1e-6), 0.0, 1.0); // 0 bottom -> 1 top
-
-        if (u.gradientMode == 0u) {
-            // off: constant
-            shapeColor = float4(phaseColor.rgb, shapeAlpha);
-        } else if (u.gradientMode == 1u) {
-            // inner: LinearGradient colors [lastColor, background], start top end bottom
-            // so t=1 (top) => lastColor, t=0 (bottom) => background
-            float4 cTop = float4(phaseColor.rgb, shapeAlpha);
-            float4 cBottom = float4(u.backgroundColor.rgb, shapeAlpha);
-            shapeColor = lerp4(cBottom, cTop, t);
-        } else {
-            // on: LinearGradient [background, lastColor, background], start bottom end top
-            float4 c0 = float4(u.backgroundColor.rgb, shapeAlpha);
-            float4 c1 = float4(phaseColor.rgb, shapeAlpha);
-            float4 c2 = float4(u.backgroundColor.rgb, shapeAlpha);
-            shapeColor = gradient3(c0, c1, c2, t);
-        }
-
-        float4 pm = premultiply(shapeColor);
-        // Over compositing with premultiplied alpha
-        return pm + result * (1.0 - pm.a);
-    }
-
-    // Circle: match your baked size behavior:
-    // bakedSize = minDim * progress * maxCircleScale * progress * gradientScale
-    float gradientScale = (u.gradientMode == 2u) ? u.circleGradientScale : 1.0;
-    float bakedSize = minDimension * progress * u.maxCircleScale * progress * gradientScale;
-    float radius = bakedSize * 0.5;
-
-    if (radius <= 0.0) {
-        return result;
-    }
+    float minDim = min(u.viewportSize.x, u.viewportSize.y);
+    float scaledMinRadius = (minDim * u.progress * u.maxCircleScale) * 0.5f;
+    float radius = max(scaledMinRadius, 0.001f);
 
     float dist = length(delta);
-    bool insideCircle = dist <= radius;
 
-    if (!insideCircle) {
-        return result;
+    if (u.gradientMode == 1u) {
+        float t = clamp01(dist / radius);
+        return lerpColor(u.backgroundColor, baseColor, t);
     }
 
-    float tRadial = clamp(dist / max(radius, 1e-6), 0.0, 1.0); // 0 center -> 1 edge
+    float extendedRadius = radius * max(u.circleGradientScale, 1.0f);
+    float t = clamp01(dist / extendedRadius);
 
-    if (u.gradientMode == 0u) {
-        shapeColor = float4(phaseColor.rgb, shapeAlpha);
-    } else if (u.gradientMode == 1u) {
-        // inner: RadialGradient [background, lastColor]
-        float4 c0 = float4(u.backgroundColor.rgb, shapeAlpha);
-        float4 c1 = float4(phaseColor.rgb, shapeAlpha);
-        shapeColor = lerp4(c0, c1, tRadial);
-    } else {
-        // on: RadialGradient [background, lastColor, background]
-        float4 c0 = float4(u.backgroundColor.rgb, shapeAlpha);
-        float4 c1 = float4(phaseColor.rgb, shapeAlpha);
-        float4 c2 = float4(u.backgroundColor.rgb, shapeAlpha);
-        shapeColor = gradient3(c0, c1, c2, tRadial);
+    if (t <= 0.5f) {
+        return lerpColor(u.backgroundColor, baseColor, t * 2.0f);
     }
 
-    float4 pm = premultiply(shapeColor);
-    return pm + result * (1.0 - pm.a);
+    return lerpColor(baseColor, u.backgroundColor, (t - 0.5f) * 2.0f);
+}
+
+static inline float4 applyGradientRectangle(constant OverlayUniforms &u, float4 baseColor, float2 pixel) {
+    float height = max(u.viewportSize.y, 1.0f);
+    float yFromBottom = clamp01(pixel.y / height);
+
+    if (u.gradientMode == 1u) {
+        return lerpColor(baseColor, u.backgroundColor, yFromBottom);
+    }
+
+    float t = yFromBottom;
+    if (t <= 0.5f) {
+        return lerpColor(u.backgroundColor, baseColor, t * 2.0f);
+    }
+
+    return lerpColor(baseColor, u.backgroundColor, (t - 0.5f) * 2.0f);
+}
+
+fragment float4 overlayFragment(
+    VertexOut in [[stage_in]],
+    constant OverlayUniforms &u [[buffer(0)]]
+) {
+    if (u.overlayOpacity <= 0.0001f) {
+        return float4(0.0f);
+    }
+
+    float2 pixel = getPixelCoordinateFromNdc(in.ndc, u.viewportSize);
+
+    float4 background = u.backgroundColor;
+    background.a *= u.backgroundOpacity;
+
+    // Use animated phase color (fixes "flashing" at phase boundary)
+    float4 phaseColor = getAnimatedPhaseColor(u);
+
+    // 0 = fullscreen, 1 = rectangle, 2 = circle
+    if (u.shape == 0u) {
+        return applyOverlayOpacityPremultiplied(phaseColor, u.overlayOpacity);
+    }
+
+    if (u.shape == 1u) {
+        float4 shapeColor = phaseColor;
+
+        if (u.gradientMode != 0u) {
+            shapeColor = applyGradientRectangle(u, phaseColor, pixel);
+        }
+
+        float height = max(u.viewportSize.y, 1.0f);
+        float scaledProgress = clamp01(u.progress * max(u.rectangleScale, 1.0f));
+        float rectHeight = height * scaledProgress;
+
+        bool inside = pixel.y <= rectHeight;
+
+        float4 outColor = inside ? shapeColor : background;
+        return applyOverlayOpacityPremultiplied(outColor, u.overlayOpacity);
+    }
+
+    // Circle
+    float4 shapeColor = phaseColor;
+
+    if (u.gradientMode != 0u) {
+        shapeColor = applyGradientCircle(u, phaseColor, pixel);
+    }
+
+    float2 center = u.viewportSize * 0.5f;
+    float2 delta = pixel - center;
+
+    float minDim = min(u.viewportSize.x, u.viewportSize.y);
+    float radius = (minDim * u.progress * u.maxCircleScale) * 0.5f;
+    radius = max(radius, 0.0f);
+
+    bool inside = length(delta) <= radius;
+
+    float4 outColor = inside ? shapeColor : background;
+    return applyOverlayOpacityPremultiplied(outColor, u.overlayOpacity);
 }
