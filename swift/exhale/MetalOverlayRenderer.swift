@@ -62,7 +62,18 @@ final class MetalOverlayRenderer: NSObject, MTKViewDelegate {
 
         breathingController.requestDraw = { [weak metalView] in
             guard let metalView else { return }
+
             DispatchQueue.main.async {
+                guard let window = metalView.window else { return }
+
+                if !window.isVisible {
+                    return
+                }
+
+                if window.occlusionState.contains(.visible) == false {
+                    return
+                }
+
                 metalView.setNeedsDisplay(metalView.bounds)
             }
         }
