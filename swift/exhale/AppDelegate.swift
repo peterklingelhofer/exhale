@@ -120,9 +120,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.accessory)
         settingsModel = SettingsModel()
 
-        // Create overlay windows for each screen.
         for screen in NSScreen.screens {
             let screenSize = screen.frame.size
+
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: screenSize.width, height: screenSize.height),
                 styleMask: [.borderless, .fullSizeContentView],
@@ -130,16 +130,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 defer: false
             )
 
-            // Create the hosting view once. SwiftUI will update it via EnvironmentObject.
-            let rootView = ContentView().environmentObject(settingsModel)
-            window.contentView = NSHostingView(rootView: rootView)
+            let overlayViewFrame = CGRect(origin: .zero, size: screenSize)
+            let metalOverlayView = MetalOverlayView(frame: overlayViewFrame, settingsModel: settingsModel)
+            window.contentView = metalOverlayView
 
             window.makeKeyAndOrderFront(nil)
             window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 1)
-            window.alphaValue = CGFloat(settingsModel.overlayOpacity)
+            window.alphaValue = 1.0
             window.isOpaque = false
             window.hasShadow = false
             window.ignoresMouseEvents = true
+            window.backgroundColor = .clear
+
             window.setFrame(screen.frame, display: true)
 
             windows.append(window)
