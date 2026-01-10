@@ -7,10 +7,10 @@
     "watch": "tsc -w",
     "lint": "eslint ./src && prettier --check .",
     "start": "pnpm run build && electron ./dist/main.js",
-    "dist": "npx electron-packager . --platform=linux,win32,darwin --overwrite",
-    "dist:linux": "npx electron-packager . --platform=linux --overwrite",
-    "dist:mac": "npx electron-packager . --platform=darwin --overwrite",
-    "dist:windows": "npx electron-packager . --platform=win32 --overwrite",
+    "dist": "pnpm exec electron-packager . --platform=linux,win32,darwin --overwrite",
+    "dist:linux": "pnpm exec electron-packager . --platform=linux --overwrite",
+    "dist:mac": "pnpm exec electron-packager . --platform=darwin --overwrite",
+    "dist:windows": "pnpm exec electron-packager . --platform=win32 --overwrite",
     "format": "prettier --write ."
   },
   "build": {
@@ -28,8 +28,10 @@
   "author": "peterklingelhofer",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@electron/asar": "^4.0.1",
     "@electron/packager": "^19.0.1",
     "@eslint/js": "^9.38.0",
+    "commander": "^14.0.2",
     "electron": "^38.4.0",
     "eslint": "^9.38.0",
     "eslint-config-prettier": "^10.1.8",
@@ -37,6 +39,5 @@
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.46.2"
   },
-  "dependencies": {},
   "packageManager": "pnpm@10.19.0"
 }
