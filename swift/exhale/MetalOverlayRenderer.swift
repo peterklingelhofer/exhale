@@ -14,7 +14,6 @@ final class MetalOverlayRenderer: NSObject, MTKViewDelegate {
     private var viewportSize: SIMD2<Float> = .zero
     private var maxCircleScale: Float = 1
 
-    private var uniformBuffer: MTLBuffer?
     private var uniforms = OverlayUniforms()
 
     private let breathingController: MetalBreathingController
@@ -23,6 +22,10 @@ final class MetalOverlayRenderer: NSObject, MTKViewDelegate {
     private var cachedBackgroundColorFloat4: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0)
     private var cachedInhaleColorFloat4: SIMD4<Float> = SIMD4<Float>(1, 0, 0, 1)
     private var cachedExhaleColorFloat4: SIMD4<Float> = SIMD4<Float>(0, 0, 1, 1)
+
+    private var uniformBuffers: [MTLBuffer] = []
+    private var uniformBufferIndex: Int = 0
+    private let uniformBufferCount: Int = 3
 
     init(device: MTLDevice, metalView: MTKView, settingsModel: SettingsModel) {
         self.device = device
@@ -62,23 +65,11 @@ final class MetalOverlayRenderer: NSObject, MTKViewDelegate {
 
         breathingController.requestDraw = { [weak metalView] in
             guard let metalView else { return }
-
             DispatchQueue.main.async {
-                guard let window = metalView.window else { return }
-
-                if !window.isVisible {
-                    return
-                }
-
-                if window.occlusionState.contains(.visible) == false {
-                    return
-                }
-
                 metalView.setNeedsDisplay(metalView.bounds)
             }
         }
 
-        // Update cached colors only when they change, and trigger a draw (no constant redraw loop)
         settingsModel.$backgroundColor
             .receive(on: RunLoop.main)
             .sink { [weak self, weak metalView] _ in
@@ -106,7 +97,6 @@ final class MetalOverlayRenderer: NSObject, MTKViewDelegate {
             }
             .store(in: &subscriptions)
 
-        // Start/stop display link only when needed
         Publishers.CombineLatest(settingsModel.$isAnimating, settingsModel.$isPaused)
             .receive(on: RunLoop.main)
             .sink { [weak self, weak metalView] _, _ in
@@ -152,11 +142,24 @@ final class MetalOverlayRenderer: NSObject, MTKViewDelegate {
         uniforms.exhaleColor = cachedExhaleColorFloat4
 
         let bufferLength = MemoryLayout<OverlayUniforms>.stride
-        if uniformBuffer == nil || uniformBuffer!.length < bufferLength {
-            uniformBuffer = device.makeBuffer(length: bufferLength, options: .storageModeShared)
+
+        if uniformBuffers.isEmpty {
+            uniformBuffers = (0..<uniformBufferCount).compactMap { _ in
+                device.makeBuffer(
+                    length: bufferLength,
+                    options: [.storageModeShared, .cpuCacheModeWriteCombined]
+                )
+            }
+
+            if uniformBuffers.count != uniformBufferCount {
+                return
+            }
+
+            uniformBufferIndex = 0
         }
 
-        guard let uniformBuffer else { return }
+        uniformBufferIndex = (uniformBufferIndex + 1) % uniformBufferCount
+        let uniformBuffer = uniformBuffers[uniformBufferIndex]
         memcpy(uniformBuffer.contents(), &uniforms, bufferLength)
 
         guard let commandBuffer = commandQueue.makeCommandBuffer(),
@@ -166,7 +169,8 @@ final class MetalOverlayRenderer: NSObject, MTKViewDelegate {
         }
 
         encoder.setRenderPipelineState(pipelineState)
-        encoder.setVertexBuffer(uniformBuffer, offset: 0, index: 0)
+
+        // Vertex shader does not require uniforms
         encoder.setFragmentBuffer(uniformBuffer, offset: 0, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
 
