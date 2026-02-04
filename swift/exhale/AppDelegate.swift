@@ -122,27 +122,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         for screen in NSScreen.screens {
             let screenSize = screen.frame.size
-
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: screenSize.width, height: screenSize.height),
                 styleMask: [.borderless, .fullSizeContentView],
                 backing: .buffered,
-                defer: false
+                defer: false,
+                screen: screen
             )
 
-            let overlayViewFrame = CGRect(origin: .zero, size: screenSize)
-            let metalOverlayView = MetalOverlayView(frame: overlayViewFrame, settingsModel: settingsModel)
-            window.contentView = metalOverlayView
+            window.contentView = NSHostingView(rootView: ContentView().environmentObject(settingsModel))
+            window.setFrame(screen.frame, display: true)
+
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.alphaValue = 1.0
+            window.ignoresMouseEvents = true
+            window.isReleasedWhenClosed = false
+
+            // Make the overlay participate in fullscreen spaces
+            window.collectionBehavior = [
+                .canJoinAllSpaces,
+                .fullScreenAuxiliary,
+                .ignoresCycle
+            ]
+
+            // Ensure overlay can appear above fullscreen content
+            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
 
             window.makeKeyAndOrderFront(nil)
-            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 1)
-            window.alphaValue = 1.0
-            window.isOpaque = false
-            window.hasShadow = false
-            window.ignoresMouseEvents = true
-            window.backgroundColor = .clear
-
-            window.setFrame(screen.frame, display: true)
 
             windows.append(window)
         }
