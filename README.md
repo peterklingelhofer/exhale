@@ -12,9 +12,20 @@ The information and guidance provided by this breathing app are intended for gen
 
 ## Download
 
+You can download the build for your respective operating system on the [Releases](https://github.com/peterklingelhofer/exhale/releases) page. Using the latest release is recommended, but if you run into issues you could try a previous release to see if that yields better results. If you do encounter a problem, please [document the issue you encountered](https://github.com/peterklingelhofer/exhale/issues/new).
+
+**Mac**
+
+Recommend installing via the Apple App Store (or trying `exhale-macos-x64.zip` first) is recommended:
 [<img src="https://user-images.githubusercontent.com/60944077/232312847-df673556-fb5e-49b4-8037-4d38267e6e18.png"  width="157" height="63"></img>](https://apps.apple.com/us/app/exhale-breath/id6447758995?mt=12)
 
-You can download the build for your respective operating system on the [Releases](https://github.com/peterklingelhofer/exhale/releases) page. Using the latest release is recommended, but if you run into issues you could try a previous release to see if that yields better results. If you do encounter a problem, please [document the issue you encountered](https://github.com/peterklingelhofer/exhale/issues/new).
+**Windows**
+
+Recommend installing the lightweight, native Windows release inspired by this app, in lieu of the Windows Electron release below: https://github.com/nitin2953/breathing
+
+**Linux**
+
+The Electron app below is quite large, but it is functional. For something more lightweight, try the Python script.
 
 ## Mac App Usage
 
@@ -61,7 +72,7 @@ cd swift
 xed .
 ```
 
-## Windows & Linux App Usage
+## Windows & Linux Electron App Usage
 
 ![exhaleElectron](https://user-images.githubusercontent.com/60944077/224524962-56da25cc-e3d9-4d4b-9171-f185be9d709c.gif)
 ![exhaleElectronCircular](https://user-images.githubusercontent.com/60944077/224865780-0e61721e-2345-49aa-830d-0e157b6f4366.gif)
