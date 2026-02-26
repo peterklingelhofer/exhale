@@ -81,7 +81,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var cycleCount: Int = 0
     @State private var cachedMaxCircleScale: CGFloat = 1
-
+    @State private var animationSessionIdentifier: Int = 0
     var body: some View {
         ZStack {
             GeometryReader { geometry in
@@ -91,60 +91,67 @@ struct ContentView: View {
                 if !settingsModel.isAnimating && !settingsModel.isPaused {
                     Color.clear.edgesIgnoringSafeArea(.all)
                 } else {
-                    if settingsModel.shape != .fullscreen {
+                    if settingsModel.isPaused {
+                        // Tint mode: keep the screen tinted using ONLY the configured overlay opacity
                         settingsModel.cachedBackgroundColorWithoutAlpha
                             .edgesIgnoringSafeArea(.all)
-                            .opacity(min(settingsModel.cachedBackgroundAlphaComponent, settingsModel.overlayOpacity))
-                    }
-
-                    Group {
-                        switch settingsModel.shape {
-                        case .fullscreen:
-                            Rectangle()
-                                .fill(
-                                    (breathingPhase == .inhale || breathingPhase == .holdAfterInhale)
-                                        ? settingsModel.inhaleColor
-                                        : settingsModel.exhaleColor
-                                )
+                            .opacity(settingsModel.overlayOpacity)
+                    } else {
+                        if settingsModel.shape != .fullscreen {
+                            settingsModel.cachedBackgroundColorWithoutAlpha
                                 .edgesIgnoringSafeArea(.all)
-
-                        case .rectangle:
-                            Rectangle()
-                                .colorTransitionFill(
-                                    settingsModel: settingsModel,
-                                    animationProgress: animationProgress,
-                                    breathingPhase: breathingPhase
-                                )
-                                .frame(height: geometry.size.height)
-                                .scaleEffect(
-                                    x: 1,
-                                    y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
-                                    anchor: .bottom
-                                )
-                                .position(x: centerX, y: centerY)
-
-                        case .circle:
-                            let minDimension = min(geometry.size.width, geometry.size.height)
-                            let gradientScale: CGFloat = settingsModel.colorFillGradient == .on ? 2 : 1
-
-                            let bakedSize = minDimension
-                                * animationProgress
-                                * cachedMaxCircleScale
-                                * animationProgress
-                                * gradientScale
-
-                            Circle()
-                                .colorTransitionFill(
-                                    settingsModel: settingsModel,
-                                    animationProgress: animationProgress,
-                                    breathingPhase: breathingPhase,
-                                    endRadius: bakedSize / 2
-                                )
-                                .frame(width: bakedSize, height: bakedSize)
-                                .position(x: centerX, y: centerY)
+                                .opacity(min(settingsModel.cachedBackgroundAlphaComponent, settingsModel.overlayOpacity))
                         }
+
+                        Group {
+                            switch settingsModel.shape {
+                            case .fullscreen:
+                                Rectangle()
+                                    .fill(
+                                        (breathingPhase == .inhale || breathingPhase == .holdAfterInhale)
+                                            ? settingsModel.inhaleColor
+                                            : settingsModel.exhaleColor
+                                    )
+                                    .edgesIgnoringSafeArea(.all)
+
+                            case .rectangle:
+                                Rectangle()
+                                    .colorTransitionFill(
+                                        settingsModel: settingsModel,
+                                        animationProgress: animationProgress,
+                                        breathingPhase: breathingPhase
+                                    )
+                                    .frame(height: geometry.size.height)
+                                    .scaleEffect(
+                                        x: 1,
+                                        y: animationProgress * (settingsModel.colorFillGradient == .on ? 2 : 1),
+                                        anchor: .bottom
+                                    )
+                                    .position(x: centerX, y: centerY)
+
+                            case .circle:
+                                let minDimension = min(geometry.size.width, geometry.size.height)
+                                let gradientScale: CGFloat = settingsModel.colorFillGradient == .on ? 2 : 1
+
+                                let bakedSize = minDimension
+                                    * animationProgress
+                                    * cachedMaxCircleScale
+                                    * animationProgress
+                                    * gradientScale
+
+                                Circle()
+                                    .colorTransitionFill(
+                                        settingsModel: settingsModel,
+                                        animationProgress: animationProgress,
+                                        breathingPhase: breathingPhase,
+                                        endRadius: bakedSize / 2
+                                    )
+                                    .frame(width: bakedSize, height: bakedSize)
+                                    .position(x: centerX, y: centerY)
+                            }
+                        }
+                        .opacity(settingsModel.overlayOpacity)
                     }
-                    .opacity(settingsModel.overlayOpacity)
                 }
             }
 
@@ -182,7 +189,11 @@ struct ContentView: View {
             startBreathingCycle()
         }
         .onChange(of: settingsModel.isAnimating) { newValue in
-            if !newValue {
+            if newValue {
+                guard !settingsModel.isPaused else { return }
+                resetAnimation()
+                startBreathingCycle()
+            } else {
                 resetAnimation()
             }
         }
@@ -199,6 +210,11 @@ struct ContentView: View {
                 startBreathingCycle()
             }
         }
+        .onChange(of: settingsModel.shape) { _ in
+            guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
+            resetAnimation()
+            startBreathingCycle()
+        }
     }
 
     static func getMaxCircleScale() -> CGFloat {
@@ -211,11 +227,13 @@ struct ContentView: View {
 
     func startBreathingCycle() {
         cycleCount = 0
+        animationSessionIdentifier += 1
         inhale()
     }
 
     func inhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
+        let currentAnimationSessionIdentifier = animationSessionIdentifier
         var duration = settingsModel.inhaleDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingInhale > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingInhale...settingsModel.randomizedTimingInhale)
@@ -234,12 +252,14 @@ struct ContentView: View {
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            holdAfterInhale()
+            guard currentAnimationSessionIdentifier == self.animationSessionIdentifier else { return }
+            self.holdAfterInhale()
         }
     }
 
     func holdAfterInhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
+        let currentAnimationSessionIdentifier = animationSessionIdentifier
         var duration = settingsModel.postInhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingPostInhaleHold > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingPostInhaleHold...settingsModel.randomizedTimingPostInhaleHold)
@@ -247,12 +267,14 @@ struct ContentView: View {
         duration = max(duration, 0.1)
         breathingPhase = .holdAfterInhale
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            exhale()
+            guard currentAnimationSessionIdentifier == self.animationSessionIdentifier else { return }
+            self.exhale()
         }
     }
 
     func exhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
+        let currentAnimationSessionIdentifier = animationSessionIdentifier
         var duration = settingsModel.exhaleDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingExhale > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingExhale...settingsModel.randomizedTimingExhale)
@@ -268,12 +290,14 @@ struct ContentView: View {
             animationProgress = 0.0
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            holdAfterExhale()
+            guard currentAnimationSessionIdentifier == self.animationSessionIdentifier else { return }
+            self.holdAfterExhale()
         }
     }
 
     func holdAfterExhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
+        let currentAnimationSessionIdentifier = animationSessionIdentifier
         var duration = settingsModel.postExhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingPostExhaleHold > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingPostExhaleHold...settingsModel.randomizedTimingPostExhaleHold)
@@ -282,6 +306,7 @@ struct ContentView: View {
         breathingPhase = .holdAfterExhale
 
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            guard currentAnimationSessionIdentifier == self.animationSessionIdentifier else { return }
             guard self.settingsModel.isAnimating else { return self.resetAnimation() }
             self.cycleCount += 1
             self.inhale()
@@ -289,6 +314,7 @@ struct ContentView: View {
     }
 
     func resetAnimation() {
+        animationSessionIdentifier += 1
         cycleCount = 0
         animationProgress = 0.0
         breathingPhase = .inhale
@@ -296,6 +322,7 @@ struct ContentView: View {
 
     func stopCurrentAnimation() {
         // Stop the current animation
+        animationSessionIdentifier += 1
         cycleCount = 0
         animationProgress = 0.0
     }

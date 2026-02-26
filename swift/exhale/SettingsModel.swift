@@ -145,7 +145,7 @@ class SettingsModel: ObservableObject {
     }
 
     func pause() {
-        isPaused = true
+        stop()
     }
 
     func unpause() {
