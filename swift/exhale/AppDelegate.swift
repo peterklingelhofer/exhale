@@ -16,7 +16,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var statusItem: NSStatusItem!
     var startHotKey: HotKey?
     var stopHotKey: HotKey?
-    var tintHotKey: HotKey?
     var resetHotKey: HotKey?
     var preferencesHotKey: HotKey?
     
@@ -47,12 +46,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         stopMenuItem.target = self
         menu.addItem(stopMenuItem)
         
-        // Tint Screen
-        let tintMenuItem = NSMenuItem(title: "Tint Screen", action: #selector(tintScreen(_:)), keyEquivalent: "d")
-        tintMenuItem.keyEquivalentModifierMask = [.control, .shift]
-        tintMenuItem.target = self
-        menu.addItem(tintMenuItem)
-        
         // Reset to Defaults
         let resetMenuItem = NSMenuItem(title: "Reset to Defaults", action: #selector(resetToDefaults(_:)), keyEquivalent: "f")
         resetMenuItem.keyEquivalentModifierMask = [.control, .shift]
@@ -74,19 +67,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 guard let self = self else { return }
                 startMenuItem.title = "Start Animation"
                 stopMenuItem.title = "Stop Animation"
-                tintMenuItem.title = "Tint Screen"
                 resetMenuItem.title = "Reset to Defaults"
                 startMenuItem.isEnabled = !isAnimating
                 stopMenuItem.isEnabled = isAnimating || self.settingsModel.isPaused
-                tintMenuItem.isEnabled = !isAnimating && !self.settingsModel.isPaused
-            }
-            .store(in: &subscriptions)
-        
-        settingsModel.$isPaused
-            .sink { [weak self] isPaused in
-                guard let self = self else { return }
-                tintMenuItem.title = isPaused ? "Unpause" : "Tint Screen"
-                tintMenuItem.isEnabled = !self.settingsModel.isAnimating && !isPaused
             }
             .store(in: &subscriptions)
         
@@ -101,10 +84,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsModel.stop()
     }
     
-    @objc func tintScreen(_ sender: Any?) {
-        settingsModel.pause()
-    }
-    
     @objc func statusBarButtonClicked(sender: NSStatusBarButton) {
         statusItem.menu?.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
@@ -116,6 +95,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func resetToDefaults(_ sender: Any?) {
         settingsModel.resetToDefaults()
     }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         settingsModel = SettingsModel()
@@ -155,18 +135,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         // Subscriptions to update window colors and opacity
-        inhaleColorSubscription = settingsModel.$inhaleColor.sink { [unowned self] newColor in
-            for window in self.windows {
-                window.backgroundColor = NSColor(newColor)
-            }
-        }
-
-        exhaleColorSubscription = settingsModel.$exhaleColor.sink { [unowned self] newColor in
-            for window in self.windows {
-                window.backgroundColor = NSColor(newColor)
-            }
-        }
-
         overlayOpacitySubscription = settingsModel.$overlayOpacity.sink { [unowned self] _ in
             for window in self.windows {
                 window.alphaValue = 1.0
@@ -238,12 +206,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         stopHotKey = HotKey(key: .s, modifiers: [.control, .shift])
         stopHotKey?.keyDownHandler = { [weak self] in
             self?.settingsModel.stop()
-        }
-        
-        // Tint Screen: Ctrl + Shift + D
-        tintHotKey = HotKey(key: .d, modifiers: [.control, .shift])
-        tintHotKey?.keyDownHandler = { [weak self] in
-            self?.settingsModel.pause()
         }
         
         // Reset to Defaults: Ctrl + Shift + F

@@ -77,18 +77,6 @@ struct SettingsView: View {
                 
                 Spacer().frame(width: 16)
                 
-                // Tint Button
-                ControlButton(
-                    systemImageName: "paintbrush.fill",
-                    title: "Tint",
-                    action: { settingsModel.pause() },
-                    keyboardShortcut: "d",
-                    modifiers: [.control, .shift],
-                    helpText: "Tint the screen with the background color."
-                )
-                
-                Spacer().frame(width: 16)
-                
                 // Reset Button
                 ControlButton(
                     systemImageName: "arrow.counterclockwise.circle.fill",
@@ -278,9 +266,6 @@ struct SettingsView: View {
                                     .pickerStyle(SegmentedPickerStyle())
                                     .frame(width: controlWidth)
                                     .labelsHidden()
-                                    .onChange(of: shape) { _ in
-                                        settingsModel.triggerAnimationReset()
-                                    }
                                 }
                                 .help("Choose the Shape of the animation. Fullscreen changes the color of every pixel on the screen, starting with the Inhale Color at the beginning of the inhale phase and transitioning to the Exhale Color, then for the exhale phase transitioning back from the Exhale Color to the Inhale Color (Fullscreen uses Gradient Type Constant, setting it to Linear Gradient has no effect). Rectangle rises vertically from the bottom of the screen to the top for the inhale phase, and then lowers back down from the top to the bottom for the exhale phase. Circle grows outwards starting from a single point in the center of the screen to the outer edges of the screen for the inhale phase, and then shrinks back to the center again for the exhale phase.")
                                 
