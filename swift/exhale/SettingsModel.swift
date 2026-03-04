@@ -129,6 +129,13 @@ class SettingsModel: ObservableObject {
     @Published var resetAnimation: Bool = false
     @Published var isPaused: Bool = false
 
+    var inhaleAndExhaleColorsMatch: Bool {
+        guard let inhale = inhaleColor.cgColor?.components,
+              let exhale = exhaleColor.cgColor?.components,
+              inhale.count == exhale.count else { return false }
+        return zip(inhale, exhale).allSatisfy { abs($0 - $1) < 0.001 }
+    }
+
     func triggerAnimationReset() {
         resetAnimation = true
         resetAnimation = false

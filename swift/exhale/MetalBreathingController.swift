@@ -129,6 +129,24 @@ final class MetalBreathingController {
                 return
             }
 
+            // Fullscreen with identical colors: no visible animation, save CPU
+            if settingsModel.shape == .fullscreen && settingsModel.inhaleAndExhaleColorsMatch {
+                nextInterval = 1.0
+
+                if now - lastDrawRequestTime >= nextInterval {
+                    lastDrawRequestTime = now
+                    let state = computeCurrentState(now: now)
+                    lastDrawnPhase = state.phase
+                    lastDrawnProgress = state.progress
+                    isFastCadenceEnabled = false
+                    shouldDraw = true
+                } else {
+                    shouldDraw = false
+                }
+
+                return
+            }
+
             let isHoldPhase = (currentPhase == .holdAfterInhale) || (currentPhase == .holdAfterExhale)
 
             if isHoldPhase {
