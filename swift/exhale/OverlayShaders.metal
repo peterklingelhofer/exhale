@@ -79,7 +79,7 @@ static inline float4 getAnimatedPhaseColor(constant OverlayUniforms &u) {
 
 // Gradient mode mapping:
 // 0 = Off, 1 = Inner, 2 = On
-static inline float4 applyGradientCircle(constant OverlayUniforms &u, float4 baseColor, float2 pixel) {
+static inline float4 applyGradientCircle(constant OverlayUniforms &u, float4 baseColor, float2 pixel, float4 bgColor) {
     float2 center = u.viewportSize * 0.5f;
     float2 delta = pixel - center;
 
@@ -91,39 +91,40 @@ static inline float4 applyGradientCircle(constant OverlayUniforms &u, float4 bas
 
     if (u.gradientMode == 1u) {
         float t = clamp01(dist / radius);
-        return lerpColor(u.backgroundColor, baseColor, t);
+        return lerpColor(bgColor, baseColor, t);
     }
 
     float extendedRadius = radius * max(u.circleGradientScale, 1.0f);
     float t = clamp01(dist / extendedRadius);
 
     if (t <= 0.5f) {
-        return lerpColor(u.backgroundColor, baseColor, t * 2.0f);
+        return lerpColor(bgColor, baseColor, t * 2.0f);
     }
 
-    return lerpColor(baseColor, u.backgroundColor, (t - 0.5f) * 2.0f);
+    return lerpColor(baseColor, bgColor, (t - 0.5f) * 2.0f);
 }
 
 static inline float4 applyGradientRectangle(
     constant OverlayUniforms &u,
     float4 baseColor,
     float2 pixel,
-    float rectHeight
+    float rectHeight,
+    float4 bgColor
 ) {
     float safeRectHeight = max(rectHeight, 1.0f);
     float yInRect01 = clamp01(pixel.y / safeRectHeight); // 0 bottom -> 1 top edge of rectangle
 
     if (u.gradientMode == 1u) {
         // Inner: top = base, bottom = background
-        return lerpColor(u.backgroundColor, baseColor, yInRect01);
+        return lerpColor(bgColor, baseColor, yInRect01);
     }
 
     // On: bottom = bg, middle = base, top = bg (tied to the moving rectangle height)
     if (yInRect01 <= 0.5f) {
-        return lerpColor(u.backgroundColor, baseColor, yInRect01 * 2.0f);
+        return lerpColor(bgColor, baseColor, yInRect01 * 2.0f);
     }
 
-    return lerpColor(baseColor, u.backgroundColor, (yInRect01 - 0.5f) * 2.0f);
+    return lerpColor(baseColor, bgColor, (yInRect01 - 0.5f) * 2.0f);
 }
 
 fragment float4 overlayFragment(
@@ -163,7 +164,7 @@ fragment float4 overlayFragment(
             float4 shapeColor = phaseColor;
 
             if (u.gradientMode != 0u) {
-                shapeColor = applyGradientRectangle(u, phaseColor, pixel, rectHeight);
+                shapeColor = applyGradientRectangle(u, phaseColor, pixel, rectHeight, background);
             }
 
             outColor = shapeColor;
@@ -176,7 +177,7 @@ fragment float4 overlayFragment(
     float4 shapeColor = phaseColor;
 
     if (u.gradientMode != 0u) {
-        shapeColor = applyGradientCircle(u, phaseColor, pixel);
+        shapeColor = applyGradientCircle(u, phaseColor, pixel, background);
     }
 
     float2 center = u.viewportSize * 0.5f;
