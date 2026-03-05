@@ -24,7 +24,7 @@ extension Shape {
     ) -> some View {
         let isInhalePhase = breathingPhase == .inhale || breathingPhase == .holdAfterInhale
         let lastColor = isInhalePhase ? settingsModel.inhaleColor : settingsModel.exhaleColor
-        let backgroundColor = settingsModel.cachedBackgroundColorWithoutAlpha
+        let backgroundColor = settingsModel.backgroundColor
 
         switch settingsModel.colorFillGradient {
         case .off:
