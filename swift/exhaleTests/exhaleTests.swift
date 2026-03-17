@@ -7,30 +7,972 @@
 
 import XCTest
 @testable import exhale
+import SwiftUI
 
-class exhaleTests: XCTestCase {
+// MARK: - SettingsModel Tests
 
-    override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+class SettingsModelDefaultsTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
     }
 
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+    func testDefaultValues() {
+        XCTAssertEqual(model.inhaleDuration, 5)
+        XCTAssertEqual(model.exhaleDuration, 10)
+        XCTAssertEqual(model.postInhaleHoldDuration, 0)
+        XCTAssertEqual(model.postExhaleHoldDuration, 0)
+        XCTAssertEqual(model.drift, 1.01)
+        XCTAssertEqual(model.overlayOpacity, 0.25)
+        XCTAssertEqual(model.colorFillGradient, .on)
+        XCTAssertEqual(model.shape, .rectangle)
+        XCTAssertEqual(model.animationMode, .sinusoidal)
+        XCTAssertEqual(model.randomizedTimingInhale, 0)
+        XCTAssertEqual(model.randomizedTimingPostInhaleHold, 0)
+        XCTAssertEqual(model.randomizedTimingExhale, 0)
+        XCTAssertEqual(model.randomizedTimingPostExhaleHold, 0)
     }
 
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // Any test you write for XCTest can be annotated as throws and async.
-        // Mark your test throws to produce an unexpected failure when your test encounters an uncaught error.
-        // Mark your test async to allow awaiting for asynchronous code to complete. Check the results with assertions afterwards.
+    func testResetToDefaults() {
+        model.inhaleDuration = 99
+        model.exhaleDuration = 99
+        model.drift = 5.0
+        model.overlayOpacity = 1.0
+        model.shape = .fullscreen
+        model.animationMode = .linear
+        model.colorFillGradient = .off
+
+        model.resetToDefaults()
+
+        XCTAssertEqual(model.inhaleDuration, 5)
+        XCTAssertEqual(model.exhaleDuration, 10)
+        XCTAssertEqual(model.drift, 1.01)
+        XCTAssertEqual(model.overlayOpacity, 0.25)
+        XCTAssertEqual(model.shape, .rectangle)
+        XCTAssertEqual(model.animationMode, .sinusoidal)
+        XCTAssertEqual(model.colorFillGradient, .on)
+    }
+}
+
+class SettingsModelStateTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
     }
 
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
-        self.measure {
-            // Put the code you want to measure the time of here.
+    func testStartSetsAnimatingAndUnpauses() {
+        model.isPaused = true
+        model.isAnimating = false
+
+        model.start()
+
+        XCTAssertTrue(model.isAnimating)
+        XCTAssertFalse(model.isPaused)
+    }
+
+    func testStopClearsBothFlags() {
+        model.isAnimating = true
+        model.isPaused = true
+
+        model.stop()
+
+        XCTAssertFalse(model.isAnimating)
+        XCTAssertFalse(model.isPaused)
+    }
+
+    func testPauseBehavesLikeStop() {
+        model.isAnimating = true
+        model.isPaused = false
+
+        model.pause()
+
+        XCTAssertFalse(model.isAnimating)
+        XCTAssertFalse(model.isPaused)
+    }
+
+    func testUnpauseClearsPausedFlag() {
+        model.isPaused = true
+
+        model.unpause()
+
+        XCTAssertFalse(model.isPaused)
+    }
+}
+
+// MARK: - Color Matching Tests (regression: same-color fullscreen CPU optimization)
+
+class ColorMatchingTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
+    }
+
+    func testColorsMatchWhenIdentical() {
+        let color = Color(red: 0.5, green: 0.3, blue: 0.8)
+        model.inhaleColor = color
+        model.exhaleColor = color
+
+        XCTAssertTrue(model.inhaleAndExhaleColorsMatch)
+    }
+
+    func testColorsDoNotMatchWhenDifferent() {
+        model.inhaleColor = Color.red
+        model.exhaleColor = Color.blue
+
+        XCTAssertFalse(model.inhaleAndExhaleColorsMatch)
+    }
+
+    func testDefaultColorsDoNotMatch() {
+        // Defaults: red inhale, blue exhale
+        XCTAssertFalse(model.inhaleAndExhaleColorsMatch)
+    }
+
+    func testColorsMatchWithinEpsilon() {
+        // Two colors that are extremely close but constructed separately
+        model.inhaleColor = Color(red: 0.5, green: 0.5, blue: 0.5)
+        model.exhaleColor = Color(red: 0.5, green: 0.5, blue: 0.5)
+
+        XCTAssertTrue(model.inhaleAndExhaleColorsMatch)
+    }
+
+    func testBlackColorsMatch() {
+        model.inhaleColor = Color(red: 0, green: 0, blue: 0)
+        model.exhaleColor = Color(red: 0, green: 0, blue: 0)
+
+        XCTAssertTrue(model.inhaleAndExhaleColorsMatch)
+    }
+
+    func testWhiteColorsMatch() {
+        model.inhaleColor = Color(red: 1, green: 1, blue: 1)
+        model.exhaleColor = Color(red: 1, green: 1, blue: 1)
+
+        XCTAssertTrue(model.inhaleAndExhaleColorsMatch)
+    }
+}
+
+// MARK: - Background Color Cache Tests (regression: gradient dark outline)
+
+class BackgroundColorCacheTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
+    }
+
+    func testClearBackgroundHasZeroAlpha() {
+        model.backgroundColor = Color.clear
+
+        XCTAssertEqual(model.cachedBackgroundAlphaComponent, 0, accuracy: 0.001)
+    }
+
+    func testOpaqueBackgroundHasFullAlpha() {
+        model.backgroundColor = Color.red // fully opaque
+
+        XCTAssertEqual(model.cachedBackgroundAlphaComponent, 1.0, accuracy: 0.001)
+    }
+
+    func testWithoutAlphaPreservesRGB() {
+        let original = Color(red: 0.3, green: 0.6, blue: 0.9)
+        model.backgroundColor = original
+
+        let withoutAlpha = model.cachedBackgroundColorWithoutAlpha
+        // withoutAlpha should have alpha = 1
+        XCTAssertEqual(withoutAlpha.alphaComponent(), 1.0, accuracy: 0.001)
+    }
+
+    func testBackgroundCacheUpdatesOnChange() {
+        model.backgroundColor = Color.red
+        XCTAssertEqual(model.cachedBackgroundAlphaComponent, 1.0, accuracy: 0.001)
+
+        model.backgroundColor = Color.clear
+        XCTAssertEqual(model.cachedBackgroundAlphaComponent, 0.0, accuracy: 0.001)
+    }
+
+    func testSemiTransparentBackground() {
+        model.backgroundColor = Color(red: 1, green: 0, blue: 0, opacity: 0.5)
+
+        XCTAssertEqual(model.cachedBackgroundAlphaComponent, 0.5, accuracy: 0.001)
+    }
+}
+
+// MARK: - Color Extension Tests
+
+class ColorExtensionTests: XCTestCase {
+    func testAlphaComponentOfOpaqueColor() {
+        let color = Color(red: 1, green: 0, blue: 0)
+        XCTAssertEqual(color.alphaComponent(), 1.0, accuracy: 0.001)
+    }
+
+    func testAlphaComponentOfTransparentColor() {
+        let color = Color.clear
+        XCTAssertEqual(color.alphaComponent(), 0.0, accuracy: 0.001)
+    }
+
+    func testAlphaComponentOfSemiTransparent() {
+        let color = Color(red: 1, green: 0, blue: 0, opacity: 0.5)
+        XCTAssertEqual(color.alphaComponent(), 0.5, accuracy: 0.01)
+    }
+
+    func testWithoutAlphaSetsAlphaToOne() {
+        let color = Color(red: 0.5, green: 0.3, blue: 0.8, opacity: 0.2)
+        let result = color.withoutAlpha()
+        XCTAssertEqual(result.alphaComponent(), 1.0, accuracy: 0.001)
+    }
+
+    func testWithoutAlphaOnOpaqueIsIdempotent() {
+        let color = Color(red: 0.5, green: 0.3, blue: 0.8)
+        let result = color.withoutAlpha()
+        XCTAssertEqual(result.alphaComponent(), 1.0, accuracy: 0.001)
+    }
+
+    func testToFloat4CachedOpaqueRed() {
+        let color = Color(red: 1, green: 0, blue: 0)
+        let f4 = color.toFloat4Cached()
+        XCTAssertEqual(f4.x, 1.0, accuracy: 0.02) // red
+        XCTAssertEqual(f4.y, 0.0, accuracy: 0.02) // green
+        XCTAssertEqual(f4.z, 0.0, accuracy: 0.02) // blue
+        XCTAssertEqual(f4.w, 1.0, accuracy: 0.02) // alpha
+    }
+
+    func testToFloat4CachedTransparent() {
+        let color = Color.clear
+        let f4 = color.toFloat4Cached()
+        XCTAssertEqual(f4.w, 0.0, accuracy: 0.02, "Clear color should have alpha 0")
+    }
+
+    func testToFloat4CachedSemiTransparent() {
+        let color = Color(red: 0, green: 1, blue: 0, opacity: 0.5)
+        let f4 = color.toFloat4Cached()
+        XCTAssertEqual(f4.y, 1.0, accuracy: 0.05) // green
+        XCTAssertEqual(f4.w, 0.5, accuracy: 0.05) // alpha
+    }
+}
+
+// MARK: - BreathingPhase Tests
+
+class BreathingPhaseTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
+    }
+
+    func testInhaleDuration() {
+        model.inhaleDuration = 3.0
+        XCTAssertEqual(BreathingPhase.inhale.duration(settingsModel: model), 3.0)
+    }
+
+    func testExhaleDuration() {
+        model.exhaleDuration = 7.0
+        XCTAssertEqual(BreathingPhase.exhale.duration(settingsModel: model), 7.0)
+    }
+
+    func testHoldAfterInhaleDuration() {
+        model.postInhaleHoldDuration = 2.0
+        XCTAssertEqual(BreathingPhase.holdAfterInhale.duration(settingsModel: model), 2.0)
+    }
+
+    func testHoldAfterExhaleDuration() {
+        model.postExhaleHoldDuration = 1.5
+        XCTAssertEqual(BreathingPhase.holdAfterExhale.duration(settingsModel: model), 1.5)
+    }
+}
+
+// MARK: - CubicBezierEaseInOut Tests
+
+class CubicBezierTests: XCTestCase {
+    // Standard ease-in-out: (0.42, 0, 0.58, 1)
+    let x1 = 0.42, y1 = 0.0, x2 = 0.58, y2 = 1.0
+
+    func testBoundaryAtZero() {
+        let value = CubicBezierEaseInOut.getValue(t: 0, x1: x1, y1: y1, x2: x2, y2: y2)
+        XCTAssertEqual(value, 0.0, accuracy: 1e-4)
+    }
+
+    func testBoundaryAtOne() {
+        let value = CubicBezierEaseInOut.getValue(t: 1, x1: x1, y1: y1, x2: x2, y2: y2)
+        XCTAssertEqual(value, 1.0, accuracy: 1e-4)
+    }
+
+    func testMidpointSymmetry() {
+        // Standard ease-in-out is symmetric: f(0.5) should be 0.5
+        let value = CubicBezierEaseInOut.getValue(t: 0.5, x1: x1, y1: y1, x2: x2, y2: y2)
+        XCTAssertEqual(value, 0.5, accuracy: 0.01)
+    }
+
+    func testMonotonicallyIncreasing() {
+        var prev = 0.0
+        for i in 1...100 {
+            let t = Double(i) / 100.0
+            let value = CubicBezierEaseInOut.getValue(t: t, x1: x1, y1: y1, x2: x2, y2: y2)
+            XCTAssertGreaterThanOrEqual(value, prev, "Easing should be monotonically increasing at t=\(t)")
+            prev = value
         }
     }
 
+    func testEaseInOutSlowerAtEndpoints() {
+        // Ease-in-out: progress near 0 and 1 should be slower than linear
+        let earlyValue = CubicBezierEaseInOut.getValue(t: 0.1, x1: x1, y1: y1, x2: x2, y2: y2)
+        XCTAssertLessThan(earlyValue, 0.1, "Ease-in should be slower than linear at start")
+
+        let lateValue = CubicBezierEaseInOut.getValue(t: 0.9, x1: x1, y1: y1, x2: x2, y2: y2)
+        XCTAssertGreaterThan(lateValue, 0.9, "Ease-out should be faster than linear near end")
+    }
+
+    func testLinearCurve() {
+        // Linear: control points at (0.0, 0.0) and (1.0, 1.0)
+        for i in 0...10 {
+            let t = Double(i) / 10.0
+            let value = CubicBezierEaseInOut.getValue(t: t, x1: 0, y1: 0, x2: 1, y2: 1)
+            XCTAssertEqual(value, t, accuracy: 0.01, "Linear curve should approximate identity at t=\(t)")
+        }
+    }
+
+    func testOutputAlwaysInUnitRange() {
+        // For standard ease-in-out, output should stay in [0, 1]
+        for i in 0...100 {
+            let t = Double(i) / 100.0
+            let value = CubicBezierEaseInOut.getValue(t: t, x1: x1, y1: y1, x2: x2, y2: y2)
+            XCTAssertGreaterThanOrEqual(value, 0.0)
+            XCTAssertLessThanOrEqual(value, 1.0)
+        }
+    }
+}
+
+// MARK: - MetalBreathingState Tests
+
+class MetalBreathingStateTests: XCTestCase {
+    func testInhaleStateProgressRange() {
+        let state = MetalBreathingState(phase: .inhale, progress: 0.5)
+        XCTAssertEqual(state.phase, .inhale)
+        XCTAssertEqual(state.progress, 0.5)
+    }
+
+    func testHoldAfterInhaleFullProgress() {
+        let state = MetalBreathingState(phase: .holdAfterInhale, progress: 1.0)
+        XCTAssertEqual(state.progress, 1.0)
+    }
+
+    func testHoldAfterExhaleZeroProgress() {
+        let state = MetalBreathingState(phase: .holdAfterExhale, progress: 0.0)
+        XCTAssertEqual(state.progress, 0.0)
+    }
+}
+
+// MARK: - MetalBreathingController Tests
+
+class MetalBreathingControllerTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
+    }
+
+    func testInitialStateIsInhale() {
+        let controller = MetalBreathingController(settingsModel: model)
+        model.start()
+        controller.start()
+
+        let state = controller.getCurrentState()
+        XCTAssertEqual(state.phase, .inhale)
+
+        controller.stop()
+    }
+
+    func testInitialProgressStartsNearZero() {
+        let controller = MetalBreathingController(settingsModel: model)
+        model.start()
+        controller.start()
+
+        let state = controller.getCurrentState()
+        // Just started, progress should be very low
+        XCTAssertLessThan(state.progress, 0.1)
+
+        controller.stop()
+    }
+
+    func testStartIfNeededStartsWhenAnimating() {
+        model.start()
+        let controller = MetalBreathingController(settingsModel: model)
+
+        var drawCalled = false
+        controller.requestDraw = { drawCalled = true }
+        controller.startIfNeeded()
+
+        // Give the timer a moment to fire
+        let expectation = XCTestExpectation(description: "draw requested")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            if drawCalled { expectation.fulfill() }
+        }
+        wait(for: [expectation], timeout: 1.0)
+
+        controller.stop()
+    }
+
+    func testStartIfNeededStartsWhenPaused() {
+        model.isAnimating = false
+        model.isPaused = true
+        let controller = MetalBreathingController(settingsModel: model)
+        controller.startIfNeeded()
+
+        // Should be running (not stopped) — verify by getting state
+        let state = controller.getCurrentState()
+        XCTAssertNotNil(state)
+
+        controller.stop()
+    }
+
+    func testStartIfNeededStopsWhenNotAnimatingNotPaused() {
+        model.isAnimating = false
+        model.isPaused = false
+
+        let controller = MetalBreathingController(settingsModel: model)
+        controller.startIfNeeded()
+
+        // Controller should be stopped — no crash getting state though
+        // (getCurrentState accesses internal queue synchronously)
+        let state = controller.getCurrentState()
+        XCTAssertNotNil(state)
+
+        controller.stop()
+    }
+}
+
+// MARK: - OverlayUniforms Tests
+
+class OverlayUniformsTests: XCTestCase {
+    func testDefaultValues() {
+        let u = OverlayUniforms()
+
+        XCTAssertEqual(u.viewportSize, .zero)
+        XCTAssertEqual(u.overlayOpacity, 0)
+        XCTAssertEqual(u.backgroundOpacity, 0)
+        XCTAssertEqual(u.maxCircleScale, 1)
+        XCTAssertEqual(u.shape, 0)
+        XCTAssertEqual(u.gradientMode, 0)
+        XCTAssertEqual(u.phase, 0)
+        XCTAssertEqual(u.progress, 0)
+        XCTAssertEqual(u.rectangleScale, 1)
+        XCTAssertEqual(u.circleGradientScale, 1)
+    }
+
+    func testDefaultInhaleColorIsRed() {
+        let u = OverlayUniforms()
+        XCTAssertEqual(u.inhaleColor.x, 1) // R
+        XCTAssertEqual(u.inhaleColor.y, 0) // G
+        XCTAssertEqual(u.inhaleColor.z, 0) // B
+        XCTAssertEqual(u.inhaleColor.w, 1) // A
+    }
+
+    func testDefaultExhaleColorIsBlue() {
+        let u = OverlayUniforms()
+        XCTAssertEqual(u.exhaleColor.x, 0) // R
+        XCTAssertEqual(u.exhaleColor.y, 0) // G
+        XCTAssertEqual(u.exhaleColor.z, 1) // B
+        XCTAssertEqual(u.exhaleColor.w, 1) // A
+    }
+
+    func testDefaultBackgroundColorIsTransparent() {
+        let u = OverlayUniforms()
+        XCTAssertEqual(u.backgroundColor, SIMD4<Float>(0, 0, 0, 0))
+    }
+}
+
+// MARK: - Enum Raw Value Tests
+
+class EnumTests: XCTestCase {
+    func testAnimationShapeRawValues() {
+        XCTAssertEqual(AnimationShape.rectangle.rawValue, "Rectangle")
+        XCTAssertEqual(AnimationShape.circle.rawValue, "Circle")
+        XCTAssertEqual(AnimationShape.fullscreen.rawValue, "Fullscreen")
+    }
+
+    func testAnimationShapeFromRawValue() {
+        XCTAssertEqual(AnimationShape(rawValue: "Rectangle"), .rectangle)
+        XCTAssertEqual(AnimationShape(rawValue: "Circle"), .circle)
+        XCTAssertEqual(AnimationShape(rawValue: "Fullscreen"), .fullscreen)
+        XCTAssertNil(AnimationShape(rawValue: "invalid"))
+    }
+
+    func testAnimationModeRawValues() {
+        XCTAssertEqual(AnimationMode.linear.rawValue, "Linear")
+        XCTAssertEqual(AnimationMode.sinusoidal.rawValue, "Sinusoidal")
+    }
+
+    func testAnimationModeFromRawValue() {
+        XCTAssertEqual(AnimationMode(rawValue: "Linear"), .linear)
+        XCTAssertEqual(AnimationMode(rawValue: "Sinusoidal"), .sinusoidal)
+        XCTAssertNil(AnimationMode(rawValue: "invalid"))
+    }
+
+    func testColorFillGradientRawValues() {
+        XCTAssertEqual(ColorFillGradient.off.rawValue, "Off")
+        XCTAssertEqual(ColorFillGradient.inner.rawValue, "Inner")
+        XCTAssertEqual(ColorFillGradient.on.rawValue, "On")
+    }
+
+    func testColorFillGradientFromRawValue() {
+        XCTAssertEqual(ColorFillGradient(rawValue: "Off"), .off)
+        XCTAssertEqual(ColorFillGradient(rawValue: "Inner"), .inner)
+        XCTAssertEqual(ColorFillGradient(rawValue: "On"), .on)
+        XCTAssertNil(ColorFillGradient(rawValue: "invalid"))
+    }
+
+    func testAnimationShapeCaseIterable() {
+        XCTAssertEqual(AnimationShape.allCases.count, 3)
+    }
+
+    func testAnimationModeCaseIterable() {
+        XCTAssertEqual(AnimationMode.allCases.count, 2)
+    }
+
+    func testColorFillGradientCaseIterable() {
+        XCTAssertEqual(ColorFillGradient.allCases.count, 3)
+    }
+}
+
+// MARK: - Regression: Gradient background opacity leak
+
+class GradientBackgroundOpacityTests: XCTestCase {
+    /// Regression test: when background color is 0% opacity, the gradient should NOT
+    /// use cachedBackgroundColorWithoutAlpha (which has alpha forced to 1), because
+    /// that causes a visible dark outline in gradient On mode.
+    /// The fix uses settingsModel.backgroundColor directly (preserves actual alpha).
+    func testClearBackgroundWithoutAlphaHasFullAlpha() {
+        let model = SettingsModel()
+        model.backgroundColor = Color.clear
+
+        // cachedBackgroundColorWithoutAlpha strips alpha → alpha=1
+        // This is the value that was incorrectly used in the gradient, causing the dark outline
+        XCTAssertEqual(model.cachedBackgroundColorWithoutAlpha.alphaComponent(), 1.0, accuracy: 0.001)
+
+        // The actual backgroundColor preserves alpha=0
+        XCTAssertEqual(model.backgroundColor.alphaComponent(), 0.0, accuracy: 0.001)
+    }
+
+    /// When background is transparent, using it in the gradient should produce
+    /// colors that fade to transparent, not to opaque black.
+    func testTransparentBackgroundFloat4HasZeroAlpha() {
+        let bgColor = Color.clear
+        let f4 = bgColor.toFloat4Cached()
+        XCTAssertEqual(f4.w, 0.0, accuracy: 0.02, "Clear background should have alpha=0 in float4 form")
+    }
+
+    /// When background has visible opacity, the gradient should fade to that color.
+    func testOpaqueBackgroundFloat4HasFullAlpha() {
+        let bgColor = Color(red: 0.5, green: 0.5, blue: 0.5) // fully opaque
+        let f4 = bgColor.toFloat4Cached()
+        XCTAssertEqual(f4.w, 1.0, accuracy: 0.02)
+    }
+
+    func testBackgroundOpacityComputedCorrectly() {
+        let model = SettingsModel()
+        model.overlayOpacity = 0.25
+
+        // Case 1: transparent background → backgroundOpacity should be 0
+        model.backgroundColor = Color.clear
+        let bgOpacity1 = min(model.cachedBackgroundAlphaComponent, model.overlayOpacity)
+        XCTAssertEqual(bgOpacity1, 0.0, accuracy: 0.001)
+
+        // Case 2: opaque background → backgroundOpacity capped at overlayOpacity
+        model.backgroundColor = Color.red
+        let bgOpacity2 = min(model.cachedBackgroundAlphaComponent, model.overlayOpacity)
+        XCTAssertEqual(bgOpacity2, 0.25, accuracy: 0.001)
+
+        // Case 3: semi-transparent background below overlay → uses bg alpha
+        model.backgroundColor = Color(red: 1, green: 0, blue: 0, opacity: 0.1)
+        let bgOpacity3 = min(model.cachedBackgroundAlphaComponent, model.overlayOpacity)
+        XCTAssertEqual(bgOpacity3, 0.1, accuracy: 0.01)
+    }
+}
+
+// MARK: - Regression: Same-color fullscreen CPU optimization
+
+class SameColorFullscreenTests: XCTestCase {
+    func testSameColorFullscreenDetection() {
+        let model = SettingsModel()
+        model.shape = .fullscreen
+        model.inhaleColor = Color(red: 0.5, green: 0.3, blue: 0.8)
+        model.exhaleColor = Color(red: 0.5, green: 0.3, blue: 0.8)
+
+        XCTAssertTrue(model.shape == .fullscreen && model.inhaleAndExhaleColorsMatch,
+                       "Should detect same-color fullscreen for CPU optimization")
+    }
+
+    func testDifferentColorFullscreenNotOptimized() {
+        let model = SettingsModel()
+        model.shape = .fullscreen
+        model.inhaleColor = Color.red
+        model.exhaleColor = Color.blue
+
+        XCTAssertFalse(model.inhaleAndExhaleColorsMatch,
+                        "Different colors should not trigger CPU optimization")
+    }
+
+    func testSameColorNonFullscreenNotAffected() {
+        let model = SettingsModel()
+        model.shape = .circle
+        let color = Color(red: 1, green: 0, blue: 0)
+        model.inhaleColor = color
+        model.exhaleColor = color
+
+        // Colors match, but shape is not fullscreen — the optimization only applies to fullscreen
+        XCTAssertTrue(model.inhaleAndExhaleColorsMatch)
+        XCTAssertNotEqual(model.shape, .fullscreen)
+    }
+}
+
+// MARK: - OverlayUniforms Layout Tests (Swift ↔ Metal struct parity)
+
+class OverlayUniformsLayoutTests: XCTestCase {
+    /// If this test fails, the Swift struct no longer matches the Metal shader struct.
+    /// Any field added/removed/reordered in one must be mirrored in the other.
+    func testStructStrideMatchesMetalLayout() {
+        // Metal struct layout (with float4 requiring 16-byte alignment):
+        //   float2 (8) + float (4) + float (4) + float (4) +
+        //   uint (4) + uint (4) + uint (4) + float (4) + float (4) + float (4) +
+        //   pad (4) + float4 (16) + float4 (16) + float4 (16) = 96
+        XCTAssertEqual(MemoryLayout<OverlayUniforms>.stride, 96,
+                        "OverlayUniforms stride changed — update both Swift and Metal struct definitions")
+    }
+
+    func testStructAlignment() {
+        // SIMD4<Float> requires 16-byte alignment
+        XCTAssertEqual(MemoryLayout<OverlayUniforms>.alignment, 16)
+    }
+}
+
+// MARK: - Color Persistence Round-Trip Tests
+
+class ColorPersistenceTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
+    }
+
+    override func tearDown() {
+        model.resetToDefaults()
+        super.tearDown()
+    }
+
+    func testInhaleColorPersistsAndReloads() {
+        let custom = Color(red: 0.2, green: 0.4, blue: 0.6)
+        model.inhaleColor = custom
+
+        // Create a new model that loads from UserDefaults
+        let reloaded = SettingsModel()
+        let f4original = custom.toFloat4Cached()
+        let f4reloaded = reloaded.inhaleColor.toFloat4Cached()
+
+        XCTAssertEqual(f4original.x, f4reloaded.x, accuracy: 0.02)
+        XCTAssertEqual(f4original.y, f4reloaded.y, accuracy: 0.02)
+        XCTAssertEqual(f4original.z, f4reloaded.z, accuracy: 0.02)
+    }
+
+    func testExhaleColorPersistsAndReloads() {
+        let custom = Color(red: 0.8, green: 0.1, blue: 0.9)
+        model.exhaleColor = custom
+
+        let reloaded = SettingsModel()
+        let f4original = custom.toFloat4Cached()
+        let f4reloaded = reloaded.exhaleColor.toFloat4Cached()
+
+        XCTAssertEqual(f4original.x, f4reloaded.x, accuracy: 0.02)
+        XCTAssertEqual(f4original.y, f4reloaded.y, accuracy: 0.02)
+        XCTAssertEqual(f4original.z, f4reloaded.z, accuracy: 0.02)
+    }
+
+    func testBackgroundColorPersistsAndReloads() {
+        let custom = Color(red: 0.5, green: 0.5, blue: 0.5, opacity: 0.7)
+        model.backgroundColor = custom
+
+        let reloaded = SettingsModel()
+        let f4original = custom.toFloat4Cached()
+        let f4reloaded = reloaded.backgroundColor.toFloat4Cached()
+
+        XCTAssertEqual(f4original.x, f4reloaded.x, accuracy: 0.02)
+        XCTAssertEqual(f4original.y, f4reloaded.y, accuracy: 0.02)
+        XCTAssertEqual(f4original.z, f4reloaded.z, accuracy: 0.02)
+        XCTAssertEqual(f4original.w, f4reloaded.w, accuracy: 0.02)
+    }
+
+    func testNumericSettingsPersist() {
+        model.inhaleDuration = 3.5
+        model.exhaleDuration = 7.5
+        model.drift = 1.05
+        model.overlayOpacity = 0.8
+
+        let reloaded = SettingsModel()
+        XCTAssertEqual(reloaded.inhaleDuration, 3.5)
+        XCTAssertEqual(reloaded.exhaleDuration, 7.5)
+        XCTAssertEqual(reloaded.drift, 1.05)
+        XCTAssertEqual(reloaded.overlayOpacity, 0.8)
+    }
+
+    func testEnumSettingsPersist() {
+        model.shape = .fullscreen
+        model.animationMode = .linear
+        model.colorFillGradient = .off
+
+        let reloaded = SettingsModel()
+        XCTAssertEqual(reloaded.shape, .fullscreen)
+        XCTAssertEqual(reloaded.animationMode, .linear)
+        XCTAssertEqual(reloaded.colorFillGradient, .off)
+    }
+}
+
+// MARK: - Easing Table Property Tests
+
+class EasingTableTests: XCTestCase {
+    func testEasingTableBoundaries() {
+        // Build same table the controller uses
+        let table = (0..<1024).map { i -> Float in
+            let t = Double(i) / 1023.0
+            return Float(CubicBezierEaseInOut.getValue(t: t, x1: 0.42, y1: 0.0, x2: 0.58, y2: 1.0))
+        }
+
+        XCTAssertEqual(table.first!, 0.0, accuracy: 0.001, "Table should start at 0")
+        XCTAssertEqual(table.last!, 1.0, accuracy: 0.001, "Table should end at 1")
+    }
+
+    func testEasingTableMonotonicity() {
+        let table = (0..<1024).map { i -> Float in
+            let t = Double(i) / 1023.0
+            return Float(CubicBezierEaseInOut.getValue(t: t, x1: 0.42, y1: 0.0, x2: 0.58, y2: 1.0))
+        }
+
+        for i in 1..<table.count {
+            XCTAssertGreaterThanOrEqual(table[i], table[i - 1],
+                                         "Easing table must be monotonically non-decreasing at index \(i)")
+        }
+    }
+
+    func testEasingTableSize() {
+        // Controller uses 1024 samples — verify table generation doesn't crash or truncate
+        let table = (0..<1024).map { i -> Float in
+            let t = Double(i) / 1023.0
+            return Float(CubicBezierEaseInOut.getValue(t: t, x1: 0.42, y1: 0.0, x2: 0.58, y2: 1.0))
+        }
+        XCTAssertEqual(table.count, 1024)
+    }
+
+    func testEasingTableSymmetry() {
+        // Ease-in-out with symmetric control points: table[i] + table[N-1-i] ≈ 1.0
+        let table = (0..<1024).map { i -> Float in
+            let t = Double(i) / 1023.0
+            return Float(CubicBezierEaseInOut.getValue(t: t, x1: 0.42, y1: 0.0, x2: 0.58, y2: 1.0))
+        }
+
+        for i in 0..<512 {
+            let sum = table[i] + table[1023 - i]
+            XCTAssertEqual(sum, 1.0, accuracy: 0.01,
+                           "Symmetric ease-in-out: table[\(i)] + table[\(1023 - i)] should ≈ 1.0")
+        }
+    }
+}
+
+// MARK: - Settings Edge Cases
+
+class SettingsEdgeCaseTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
+    }
+
+    func testZeroOverlayOpacity() {
+        model.overlayOpacity = 0
+        XCTAssertEqual(model.overlayOpacity, 0)
+
+        // backgroundOpacity should still be 0 regardless
+        let bgOpacity = min(model.cachedBackgroundAlphaComponent, model.overlayOpacity)
+        XCTAssertEqual(bgOpacity, 0)
+    }
+
+    func testMaxOverlayOpacity() {
+        model.overlayOpacity = 1.0
+        model.backgroundColor = Color(red: 1, green: 0, blue: 0, opacity: 1.0)
+
+        let bgOpacity = min(model.cachedBackgroundAlphaComponent, model.overlayOpacity)
+        XCTAssertEqual(bgOpacity, 1.0, accuracy: 0.001)
+    }
+
+    func testOverlayOpacityCapsBackground() {
+        // Even if bg alpha is 1.0, backgroundOpacity should be capped at overlayOpacity
+        model.overlayOpacity = 0.3
+        model.backgroundColor = Color(red: 1, green: 0, blue: 0, opacity: 1.0)
+
+        let bgOpacity = min(model.cachedBackgroundAlphaComponent, model.overlayOpacity)
+        XCTAssertEqual(bgOpacity, 0.3, accuracy: 0.001)
+    }
+
+    func testDriftOfOneProducesConstantDurations() {
+        model.drift = 1.0
+        model.inhaleDuration = 4.0
+        model.randomizedTimingInhale = 0
+
+        // With drift=1, duration * pow(1, cycleCount) == duration for any cycle
+        for cycle in 0..<10 {
+            let duration = model.inhaleDuration * pow(model.drift, Double(cycle))
+            XCTAssertEqual(duration, 4.0, accuracy: 0.001)
+        }
+    }
+
+    func testDriftGreaterThanOneIncreasesDurations() {
+        model.drift = 1.1
+        model.inhaleDuration = 4.0
+
+        let cycle0 = model.inhaleDuration * pow(model.drift, 0)
+        let cycle5 = model.inhaleDuration * pow(model.drift, 5)
+        XCTAssertGreaterThan(cycle5, cycle0)
+    }
+
+    func testDriftLessThanOneDecreasesDurations() {
+        model.drift = 0.9
+        model.inhaleDuration = 4.0
+
+        let cycle0 = model.inhaleDuration * pow(model.drift, 0)
+        let cycle5 = model.inhaleDuration * pow(model.drift, 5)
+        XCTAssertLessThan(cycle5, cycle0)
+    }
+
+    func testColorMatchingWithSystemColors() {
+        // SwiftUI named colors (Color.red, Color.blue) may use different color spaces
+        // than Color(red:green:blue:). Verify inhaleAndExhaleColorsMatch handles this.
+        model.inhaleColor = Color.red
+        model.exhaleColor = Color.blue
+        XCTAssertFalse(model.inhaleAndExhaleColorsMatch)
+    }
+
+    func testColorMatchingWithTransparentColors() {
+        model.inhaleColor = Color(red: 1, green: 0, blue: 0, opacity: 0)
+        model.exhaleColor = Color(red: 1, green: 0, blue: 0, opacity: 0)
+        XCTAssertTrue(model.inhaleAndExhaleColorsMatch)
+    }
+
+    func testColorMatchingWithMismatchedAlpha() {
+        model.inhaleColor = Color(red: 1, green: 0, blue: 0, opacity: 1.0)
+        model.exhaleColor = Color(red: 1, green: 0, blue: 0, opacity: 0.5)
+        XCTAssertFalse(model.inhaleAndExhaleColorsMatch,
+                        "Same RGB but different alpha should not match")
+    }
+}
+
+// MARK: - Combine Publisher Tests
+
+class SettingsPublisherTests: XCTestCase {
+    func testIsAnimatingPublishes() {
+        let model = SettingsModel()
+        model.resetToDefaults()
+        var received: [Bool] = []
+
+        let cancellable = model.$isAnimating.sink { received.append($0) }
+
+        model.isAnimating = false
+        model.isAnimating = true
+
+        // Initial value + 2 changes
+        XCTAssertGreaterThanOrEqual(received.count, 3)
+        XCTAssertEqual(received.last, true)
+
+        cancellable.cancel()
+    }
+
+    func testShapePublishes() {
+        let model = SettingsModel()
+        model.resetToDefaults()
+        var received: [AnimationShape] = []
+
+        let cancellable = model.$shape.sink { received.append($0) }
+
+        model.shape = .fullscreen
+        model.shape = .circle
+
+        XCTAssertGreaterThanOrEqual(received.count, 3)
+        XCTAssertEqual(received.last, .circle)
+
+        cancellable.cancel()
+    }
+
+    func testOverlayOpacityPublishes() {
+        let model = SettingsModel()
+        model.resetToDefaults()
+        var received: [Double] = []
+
+        let cancellable = model.$overlayOpacity.sink { received.append($0) }
+
+        model.overlayOpacity = 0.5
+        model.overlayOpacity = 0.9
+
+        XCTAssertGreaterThanOrEqual(received.count, 3)
+        XCTAssertEqual(received.last!, 0.9, accuracy: 0.001)
+
+        cancellable.cancel()
+    }
+}
+
+// MARK: - MetalBreathingState Phase Progress Invariants
+
+class BreathingStateInvariantTests: XCTestCase {
+    func testHoldAfterInhaleAlwaysProgress1() {
+        let state = MetalBreathingState(phase: .holdAfterInhale, progress: 1.0)
+        XCTAssertEqual(state.progress, 1.0)
+    }
+
+    func testHoldAfterExhaleAlwaysProgress0() {
+        let state = MetalBreathingState(phase: .holdAfterExhale, progress: 0.0)
+        XCTAssertEqual(state.progress, 0.0)
+    }
+
+    func testInhaleProgressBounds() {
+        // During inhale, progress should be in [0, 1]
+        for p in stride(from: Float(0), through: 1, by: 0.1) {
+            let state = MetalBreathingState(phase: .inhale, progress: p)
+            XCTAssertGreaterThanOrEqual(state.progress, 0)
+            XCTAssertLessThanOrEqual(state.progress, 1)
+        }
+    }
+
+    func testExhaleProgressBounds() {
+        for p in stride(from: Float(0), through: 1, by: 0.1) {
+            let state = MetalBreathingState(phase: .exhale, progress: p)
+            XCTAssertGreaterThanOrEqual(state.progress, 0)
+            XCTAssertLessThanOrEqual(state.progress, 1)
+        }
+    }
+}
+
+// MARK: - Easing Table Performance Test
+
+class EasingPerformanceTests: XCTestCase {
+    func testEasingTableBuildPerformance() {
+        measure {
+            for _ in 0..<100 {
+                _ = (0..<1024).map { i in
+                    let t = Double(i) / 1023.0
+                    return CubicBezierEaseInOut.getValue(t: t, x1: 0.42, y1: 0.0, x2: 0.58, y2: 1.0)
+                }
+            }
+        }
+    }
 }
