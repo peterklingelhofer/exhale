@@ -226,7 +226,7 @@ private extension BreathingPhase {
     }
 }
 
-private extension Color {
+extension Color {
     func toFloat4Cached() -> SIMD4<Float> {
         guard let cg = self.cgColor,
               let ns = NSColor(cgColor: cg) else {
