@@ -31,7 +31,7 @@ The Electron app below is quite large, but it is functional. For something more 
 
 ![circle-swift](https://user-images.githubusercontent.com/60944077/226204981-f390facc-4f6c-4bec-8784-23203aa64efc.gif)
 ![rectangle-swift](https://user-images.githubusercontent.com/60944077/226204986-7522cb4d-7df1-4d65-96de-e629197e9854.gif)
-<img width="677" alt="Settings macOS app" src="https://github.com/user-attachments/assets/76920109-a53b-4959-b556-359ddc14ffe3" />
+<img width="447" height="981" alt="Screenshot 2026-03-18 at 9 51 16 AM" src="https://github.com/user-attachments/assets/32e1d10e-72e3-4acb-ae35-be186cd7cb19" />
 
 
 Note: This is built natively in Swift.
