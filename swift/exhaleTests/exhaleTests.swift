@@ -1292,3 +1292,269 @@ class TimerInteractionTests: XCTestCase {
         XCTAssertEqual(model.autoStopMinutes, 30)
     }
 }
+
+// MARK: - Cache Consistency Tests
+
+/// These tests ensure cached (non-@Published) color properties stay in sync with
+/// their @Published counterparts. Reading @Published properties every animation frame
+/// causes SwiftUI observation overhead and CPU regression. The cached variants avoid this.
+class CacheConsistencyTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
+    }
+
+    func testCachedInhaleColorMatchesPublished() {
+        let testColor = Color(red: 0.1, green: 0.2, blue: 0.3)
+        model.inhaleColor = testColor
+        XCTAssertEqual(
+            model.cachedInhaleColor.description,
+            testColor.description,
+            "cachedInhaleColor must update when inhaleColor changes"
+        )
+    }
+
+    func testCachedExhaleColorMatchesPublished() {
+        let testColor = Color(red: 0.4, green: 0.5, blue: 0.6)
+        model.exhaleColor = testColor
+        XCTAssertEqual(
+            model.cachedExhaleColor.description,
+            testColor.description,
+            "cachedExhaleColor must update when exhaleColor changes"
+        )
+    }
+
+    func testCachedBackgroundColorMatchesPublished() {
+        let testColor = Color(red: 0.7, green: 0.8, blue: 0.9, opacity: 0.5)
+        model.backgroundColor = testColor
+        XCTAssertEqual(
+            model.cachedBackgroundColor.description,
+            testColor.description,
+            "cachedBackgroundColor must update when backgroundColor changes (including alpha)"
+        )
+    }
+
+    func testCachedBackgroundAlphaUpdates() {
+        model.backgroundColor = Color(red: 1, green: 0, blue: 0, opacity: 0.3)
+        XCTAssertEqual(model.cachedBackgroundAlphaComponent, 0.3, accuracy: 0.01,
+            "cachedBackgroundAlphaComponent must reflect backgroundColor alpha"
+        )
+    }
+
+    func testCachedBackgroundColorWithoutAlphaStripsAlpha() {
+        model.backgroundColor = Color(red: 1, green: 0, blue: 0, opacity: 0.3)
+        let withoutAlpha = model.cachedBackgroundColorWithoutAlpha
+        XCTAssertEqual(withoutAlpha.alphaComponent(), 1.0, accuracy: 0.01,
+            "cachedBackgroundColorWithoutAlpha must have alpha = 1.0"
+        )
+    }
+
+    func testCachesUpdateOnResetToDefaults() {
+        model.inhaleColor = Color.green
+        model.exhaleColor = Color.yellow
+        model.backgroundColor = Color(red: 0.5, green: 0.5, blue: 0.5, opacity: 0.5)
+
+        model.resetToDefaults()
+
+        // After reset, caches must reflect default values
+        XCTAssertEqual(model.cachedInhaleColor.description, Color.red.description)
+        XCTAssertEqual(model.cachedExhaleColor.description, Color.blue.description)
+        XCTAssertEqual(model.cachedBackgroundColor.description, Color.clear.description)
+    }
+
+    func testCachesUpdateOnRapidColorChanges() {
+        // Simulate rapid color changes (as might happen with a color picker)
+        for i in 0..<100 {
+            let fraction = Double(i) / 100.0
+            model.inhaleColor = Color(red: fraction, green: 0, blue: 0)
+            model.exhaleColor = Color(red: 0, green: fraction, blue: 0)
+            model.backgroundColor = Color(red: 0, green: 0, blue: fraction, opacity: fraction)
+        }
+        // Final values must match
+        let finalFraction = 99.0 / 100.0
+        XCTAssertEqual(
+            model.cachedInhaleColor.description,
+            Color(red: finalFraction, green: 0, blue: 0).description
+        )
+        XCTAssertEqual(
+            model.cachedExhaleColor.description,
+            Color(red: 0, green: finalFraction, blue: 0).description
+        )
+        XCTAssertEqual(model.cachedBackgroundAlphaComponent, finalFraction, accuracy: 0.01)
+    }
+}
+
+// MARK: - Performance Tests
+
+/// Performance benchmarks for the animation hot path. These use XCTest's measure()
+/// to track execution time and detect regressions in per-frame computation cost.
+class PerformanceTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
+    }
+
+    /// Measures the cost of reading cached properties (the hot path during animation).
+    /// This should be significantly faster than reading @Published properties.
+    func testCachedPropertyReadPerformance() {
+        measure {
+            for _ in 0..<10_000 {
+                _ = model.cachedInhaleColor
+                _ = model.cachedExhaleColor
+                _ = model.cachedBackgroundColor
+                _ = model.cachedBackgroundColorWithoutAlpha
+                _ = model.cachedBackgroundAlphaComponent
+            }
+        }
+    }
+
+    /// Measures the cost of reading @Published properties for comparison.
+    /// If this is not meaningfully slower than the cached version, caching is unnecessary.
+    func testPublishedPropertyReadPerformance() {
+        measure {
+            for _ in 0..<10_000 {
+                _ = model.inhaleColor
+                _ = model.exhaleColor
+                _ = model.backgroundColor
+                _ = model.overlayOpacity
+            }
+        }
+    }
+
+    /// Simulates the per-frame color selection logic in colorTransitionFill.
+    func testColorTransitionSelectionPerformance() {
+        model.shape = .circle
+        model.colorFillGradient = .on
+
+        measure {
+            for i in 0..<10_000 {
+                let isInhalePhase = (i % 2 == 0)
+                _ = isInhalePhase ? model.cachedInhaleColor : model.cachedExhaleColor
+                _ = model.cachedBackgroundColor
+                _ = model.shape
+                _ = model.colorFillGradient
+            }
+        }
+    }
+
+    /// Measures the cost of Color.alphaComponent() and Color.withoutAlpha() extensions,
+    /// which involve CGColor/NSColor conversions. These should only run on color change,
+    /// not per-frame.
+    func testColorConversionPerformance() {
+        let color = Color(red: 0.5, green: 0.3, blue: 0.8, opacity: 0.6)
+        measure {
+            for _ in 0..<10_000 {
+                _ = color.alphaComponent()
+                _ = color.withoutAlpha()
+            }
+        }
+    }
+
+    /// Measures CPU usage during a simulated animation loop.
+    /// Creates an actual ContentView with SettingsModel, runs the animation for a fixed
+    /// duration, and checks that process CPU stays within acceptable bounds.
+    func testAnimationCPUUsage_RectangleGradientOn() throws {
+        measureCPU(shape: .rectangle, gradient: .on)
+    }
+
+    func testAnimationCPUUsage_CircleGradientOn() throws {
+        measureCPU(shape: .circle, gradient: .on)
+    }
+
+    func testAnimationCPUUsage_FullscreenNoGradient() throws {
+        measureCPU(shape: .fullscreen, gradient: .off)
+    }
+
+    /// Helper: measures the CPU cost of the animation by comparing CPU with animation ON
+    /// vs animation OFF (baseline). This isolates the actual animation cost from XCTest
+    /// and RunLoop overhead, making the test reliable regardless of test runner load.
+    private func measureCPU(shape: AnimationShape, gradient: ColorFillGradient, file: StaticString = #file, line: UInt = #line) {
+        let model = SettingsModel()
+        model.resetToDefaults()
+        model.shape = shape
+        model.colorFillGradient = gradient
+        model.overlayOpacity = 0.25
+        model.isAnimating = false
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let hostingView = NSHostingView(rootView: ContentView().environmentObject(model))
+        window.contentView = hostingView
+        window.orderFront(nil)
+
+        // Warm up — let SwiftUI set up its render pipeline
+        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+
+        let sampleCount = 5
+        let sampleInterval: TimeInterval = 1.0
+
+        func getCPUTime() -> TimeInterval {
+            var usage = rusage()
+            getrusage(RUSAGE_SELF, &usage)
+            return TimeInterval(usage.ru_utime.tv_sec) + TimeInterval(usage.ru_utime.tv_usec) / 1_000_000
+                + TimeInterval(usage.ru_stime.tv_sec) + TimeInterval(usage.ru_stime.tv_usec) / 1_000_000
+        }
+
+        func sampleCPU(count: Int) -> [Double] {
+            var samples: [Double] = []
+            for _ in 0..<count {
+                let cpuBefore = getCPUTime()
+                let wallBefore = Date()
+                RunLoop.main.run(until: Date().addingTimeInterval(sampleInterval))
+                let wallElapsed = Date().timeIntervalSince(wallBefore)
+                let cpuUsed = getCPUTime() - cpuBefore
+                samples.append((cpuUsed / wallElapsed) * 100.0)
+            }
+            return samples
+        }
+
+        // Phase 1: measure baseline (animation OFF)
+        let baselineSamples = sampleCPU(count: sampleCount)
+        let baselineAvg = baselineSamples.reduce(0, +) / Double(baselineSamples.count)
+
+        // Phase 2: measure with animation ON
+        model.start()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.5)) // let animation ramp up
+        let animationSamples = sampleCPU(count: sampleCount)
+
+        // Clean up
+        model.stop()
+        window.orderOut(nil)
+
+        // Compute delta (animation cost above baseline)
+        let deltaSamples = animationSamples.map { max(0, $0 - baselineAvg) }
+        let peakDelta = deltaSamples.max() ?? 0
+        let avgDelta = deltaSamples.reduce(0, +) / Double(deltaSamples.count)
+
+        // Log for visibility
+        let baseStr = baselineSamples.map { String(format: "%.1f%%", $0) }.joined(separator: ", ")
+        let animStr = animationSamples.map { String(format: "%.1f%%", $0) }.joined(separator: ", ")
+        let deltaStr = deltaSamples.map { String(format: "%.1f%%", $0) }.joined(separator: ", ")
+        print("[\(shape.rawValue) + gradient \(gradient.rawValue)]")
+        print("  baseline: [\(baseStr)] avg: \(String(format: "%.1f", baselineAvg))%")
+        print("  animating: [\(animStr)]")
+        print("  delta: [\(deltaStr)] avg: \(String(format: "%.1f", avgDelta))% peak: \(String(format: "%.1f", peakDelta))%")
+
+        // Assert animation cost (above baseline) stays under thresholds.
+        // Peak: no single second should add more than 10% CPU from the animation.
+        // Average: animation should average under 5% CPU cost.
+        XCTAssertLessThan(peakDelta, 10.0,
+            "\(shape.rawValue) with gradient \(gradient.rawValue) peak animation CPU \(String(format: "%.1f", peakDelta))% exceeded 10% — delta: [\(deltaStr)]",
+            file: file, line: line
+        )
+        XCTAssertLessThan(avgDelta, 5.0,
+            "\(shape.rawValue) with gradient \(gradient.rawValue) average animation CPU \(String(format: "%.1f", avgDelta))% exceeded 5% — delta: [\(deltaStr)]",
+            file: file, line: line
+        )
+    }
+}

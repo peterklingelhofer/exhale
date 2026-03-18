@@ -20,6 +20,8 @@ class SettingsModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let defaults = UserDefaults.standard
 
+    private(set) var cachedInhaleColor: Color = .red
+    private(set) var cachedExhaleColor: Color = .blue
     private(set) var cachedBackgroundColor: Color = .clear
     private(set) var cachedBackgroundColorWithoutAlpha: Color = .clear
     private(set) var cachedBackgroundAlphaComponent: Double = 0
@@ -33,12 +35,14 @@ class SettingsModel: ObservableObject {
 
     @Published var inhaleColor: Color {
         didSet {
+            cachedInhaleColor = inhaleColor
             saveColor(inhaleColor, forKey: "inhaleColor")
         }
     }
 
     @Published var exhaleColor: Color {
         didSet {
+            cachedExhaleColor = exhaleColor
             saveColor(exhaleColor, forKey: "exhaleColor")
         }
     }
@@ -282,6 +286,8 @@ class SettingsModel: ObservableObject {
             self.randomizedTimingPostExhaleHold = defaults.double(forKey: "randomizedTimingPostExhaleHold")
         }
 
+        cachedInhaleColor = inhaleColor
+        cachedExhaleColor = exhaleColor
         updateCachedBackgroundValues()
     }
 

@@ -14,9 +14,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var settingsWindow: NSWindow!
     var settingsModel = SettingsModel()
     var tooltipCheckTimer: Timer?
-    var inhaleColorSubscription: AnyCancellable?
-    var exhaleColorSubscription: AnyCancellable?
-    var overlayOpacitySubscription: AnyCancellable?
     var isAnimatingSubscription: AnyCancellable?
     var subscriptions = Set<AnyCancellable>()
     var statusItem: NSStatusItem?
@@ -165,15 +162,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.makeKeyAndOrderFront(nil)
 
             windows.append(window)
-        }
-
-        // Subscriptions to update window colors and opacity
-        overlayOpacitySubscription = settingsModel.$overlayOpacity.sink { [unowned self] _ in
-            for window in self.windows {
-                window.alphaValue = 1.0
-                window.isOpaque = false
-                window.backgroundColor = .clear
-            }
         }
 
         // Initialize the Settings Window
