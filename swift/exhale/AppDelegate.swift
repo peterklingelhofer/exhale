@@ -3,25 +3,30 @@ import Cocoa
 import Combine
 import SwiftUI
 import HotKey
+import UserNotifications
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    static let overlayWindowLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
+    static let settingsWindowLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)) + 1)
+    static let tooltipWindowLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)) + 2)
+
     var windows: [NSWindow] = []
     var settingsWindow: NSWindow!
     var settingsModel = SettingsModel()
-    var inhaleColorSubscription: AnyCancellable?
-    var exhaleColorSubscription: AnyCancellable?
-    var overlayOpacitySubscription: AnyCancellable?
+    var tooltipCheckTimer: Timer?
     var isAnimatingSubscription: AnyCancellable?
     var subscriptions = Set<AnyCancellable>()
-    var statusItem: NSStatusItem!
+    var statusItem: NSStatusItem?
     var startHotKey: HotKey?
     var stopHotKey: HotKey?
     var resetHotKey: HotKey?
     var preferencesHotKey: HotKey?
+    var reminderTimer: Timer?
+    var autoStopTimer: Timer?
     
     func setUpStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
+        if let button = statusItem?.button {
             button.image = NSImage(named: "StatusBarIcon") // Ensure you have an image named "StatusBarIcon" in Assets
             button.action = #selector(statusBarButtonClicked(sender:))
         }
@@ -73,7 +78,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             .store(in: &subscriptions)
         
-        statusItem.menu = menu
+        statusItem?.menu = menu
     }
     
     @objc func startAnimating(_ sender: Any?) {
@@ -85,7 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     @objc func statusBarButtonClicked(sender: NSStatusBarButton) {
-        statusItem.menu?.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+        statusItem?.menu?.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
     
     @objc func terminateApp(_ sender: Any?) {
@@ -97,8 +102,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        // Single-instance enforcement: if another instance is already running,
+        // ask it to show settings and terminate this one.
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.peterklingelhofer.exhale"
+        let runningInstances = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        if runningInstances.count > 1 {
+            DistributedNotificationCenter.default().post(
+                name: .init("exhale.showSettings"), object: nil
+            )
+            // Small delay to ensure notification is delivered before we exit
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
+        // Listen for "show settings" from duplicate launch attempts
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(showSettingsFromNotification(_:)),
+            name: .init("exhale.showSettings"),
+            object: nil
+        )
+
+        // Tooltip timer is started/stopped with the settings window visibility
+
         settingsModel = SettingsModel()
+        applyAppVisibility(settingsModel.appVisibility)
 
         for screen in NSScreen.screens {
             let screenSize = screen.frame.size
@@ -127,33 +157,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             ]
 
             // Ensure overlay can appear above fullscreen content
-            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
+            window.level = Self.overlayWindowLevel
 
             window.makeKeyAndOrderFront(nil)
 
             windows.append(window)
         }
 
-        // Subscriptions to update window colors and opacity
-        overlayOpacitySubscription = settingsModel.$overlayOpacity.sink { [unowned self] _ in
-            for window in self.windows {
-                window.alphaValue = 1.0
-                window.isOpaque = false
-                window.backgroundColor = .clear
-            }
-        }
-
         // Initialize the Settings Window
         settingsWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 600),
-            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            contentRect: NSRect(x: 0, y: 0, width: 246, height: 870),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
-        settingsWindow.setValue("SettingsWindow", forKey: "frameAutosaveName")
+        settingsWindow.setValue("SettingsWindow3", forKey: "frameAutosaveName")
         settingsWindow.delegate = self
+        settingsWindow.minSize = NSSize(width: 246, height: 300)
+        settingsWindow.maxSize = NSSize(width: 246, height: 870)
+        let visualEffect = NSVisualEffectView()
+        visualEffect.material = .hudWindow
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.state = .active
+        settingsWindow.contentView = visualEffect
 
-        settingsWindow.contentView = NSHostingView(rootView: SettingsView(
+        let hostingView = NSHostingView(rootView: SettingsView(
             showSettings: .constant(false),
             inhaleColor: Binding(get: { self.settingsModel.inhaleColor }, set: { self.settingsModel.inhaleColor = $0 }),
             exhaleColor: Binding(get: { self.settingsModel.exhaleColor }, set: { self.settingsModel.exhaleColor = $0 }),
@@ -177,8 +205,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             randomizedTimingPostInhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostInhaleHold }, set: { self.settingsModel.randomizedTimingPostInhaleHold = $0 }),
             randomizedTimingExhale: Binding(get: { self.settingsModel.randomizedTimingExhale }, set: { self.settingsModel.randomizedTimingExhale = $0 }),
             randomizedTimingPostExhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostExhaleHold }, set: { self.settingsModel.randomizedTimingPostExhaleHold = $0 }),
-            isAnimating: Binding(get: { self.settingsModel.isAnimating }, set: { self.settingsModel.isAnimating = $0 })
+            isAnimating: Binding(get: { self.settingsModel.isAnimating }, set: { self.settingsModel.isAnimating = $0 }),
+            appVisibility: Binding(get: { self.settingsModel.appVisibility }, set: { self.settingsModel.appVisibility = $0 }),
+            reminderIntervalMinutes: Binding(get: { self.settingsModel.reminderIntervalMinutes }, set: { self.settingsModel.reminderIntervalMinutes = $0 }),
+            autoStopMinutes: Binding(get: { self.settingsModel.autoStopMinutes }, set: { self.settingsModel.autoStopMinutes = $0 })
         ).environmentObject(settingsModel))
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        visualEffect.addSubview(hostingView)
+        NSLayoutConstraint.activate([
+            hostingView.topAnchor.constraint(equalTo: visualEffect.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor),
+            hostingView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
+        ])
 
         settingsWindow.title = "exhale"
         toggleSettings(nil)
@@ -192,7 +231,146 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
 
+        // React to app visibility changes
+        settingsModel.$appVisibility
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] visibility in
+                self?.applyAppVisibility(visibility)
+            }
+            .store(in: &subscriptions)
+
+        // Reminder notification timer
+        if settingsModel.reminderIntervalMinutes > 0 {
+            requestNotificationPermission()
+        }
+        settingsModel.$reminderIntervalMinutes
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] minutes in
+                if minutes > 0 { self?.requestNotificationPermission() }
+                self?.rescheduleReminderTimer()
+            }
+            .store(in: &subscriptions)
+        rescheduleReminderTimer()
+
+        // Auto-stop timer: restart when interval changes or animation starts/stops
+        settingsModel.$autoStopMinutes
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.rescheduleAutoStopTimer() }
+            .store(in: &subscriptions)
+
+        settingsModel.$isAnimating
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isAnimating in
+                if isAnimating {
+                    self?.rescheduleAutoStopTimer()
+                } else {
+                    self?.autoStopTimer?.invalidate()
+                    self?.autoStopTimer = nil
+                }
+            }
+            .store(in: &subscriptions)
+
         setUpGlobalHotKeys()
+    }
+
+    @objc func showSettingsFromNotification(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            self?.showSettings()
+        }
+    }
+
+    @objc func raiseTooltipWindows(_ notification: Notification?) {
+        guard settingsWindow.isVisible else { return }
+        for window in NSApp.windows where String(describing: type(of: window)).contains("ToolTip") {
+            if window.level != Self.tooltipWindowLevel {
+                window.level = Self.tooltipWindowLevel
+            }
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showSettings()
+        return false
+    }
+
+    func showSettings() {
+        if !settingsWindow.isVisible {
+            toggleSettings(nil)
+        } else {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    func applyAppVisibility(_ visibility: AppVisibility) {
+        switch visibility {
+        case .topBarOnly:
+            NSApp.setActivationPolicy(.accessory)
+            if statusItem == nil { setUpStatusItem() }
+        case .dockOnly:
+            NSApp.setActivationPolicy(.regular)
+            if let item = statusItem {
+                NSStatusBar.system.removeStatusItem(item)
+                statusItem = nil
+            }
+        case .both:
+            NSApp.setActivationPolicy(.regular)
+            if statusItem == nil { setUpStatusItem() }
+        }
+    }
+
+    // MARK: - Reminder Notifications
+
+    func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    func rescheduleReminderTimer() {
+        reminderTimer?.invalidate()
+        reminderTimer = nil
+
+        let minutes = settingsModel.reminderIntervalMinutes
+        guard minutes > 0 else { return }
+
+        let interval = minutes * 60
+        reminderTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            self?.postReminderNotification()
+        }
+    }
+
+    func postReminderNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "exhale"
+        content.body = "Remember to breathe"
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "exhale.reminder.\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    // MARK: - Auto-Stop Timer
+
+    func rescheduleAutoStopTimer() {
+        autoStopTimer?.invalidate()
+        autoStopTimer = nil
+
+        let minutes = settingsModel.autoStopMinutes
+        guard minutes > 0, settingsModel.isAnimating else { return }
+
+        let interval = minutes * 60
+        autoStopTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.settingsModel.stop()
+            }
+        }
     }
 
     func setUpGlobalHotKeys() {
@@ -246,6 +424,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func toggleSettings(_ sender: Any?) {
         if settingsWindow.isVisible {
             settingsWindow.orderOut(sender)
+            tooltipCheckTimer?.invalidate()
+            tooltipCheckTimer = nil
         } else {
             if let frameDict    = UserDefaults.standard.dictionary(forKey: "SettingsWindowFrame"),
                let x            = frameDict["x"]      as? CGFloat,
@@ -260,15 +440,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let restoredFrame = NSRect(
                     x: screenOrigin.x + x,
                     y: screenOrigin.y + y,
-                    width: w,
-                    height: h
+                    width: min(w, 246),
+                    height: min(h, 870)
                 )
                 settingsWindow.setFrame(restoredFrame, display: true)
             }
 
             settingsWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
-            settingsWindow.level = .floating
+            // Settings window must be above the overlay so it's usable at any opacity
+            settingsWindow.level = Self.settingsWindowLevel
+
+            // Start tooltip elevation timer while settings is visible
+            if tooltipCheckTimer == nil {
+                tooltipCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                    self?.raiseTooltipWindows(nil)
+                }
+            }
         }
     }
     
@@ -278,9 +466,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     // Prevent the settings window from closing (just hide it instead)
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        if sender == settingsWindow {
+            return NSSize(width: sender.frame.width, height: frameSize.height)
+        }
+        return frameSize
+    }
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if sender == settingsWindow {
             settingsWindow.orderOut(sender)
+            tooltipCheckTimer?.invalidate()
+            tooltipCheckTimer = nil
             return false
         }
         return true

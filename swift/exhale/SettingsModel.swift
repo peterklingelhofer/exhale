@@ -20,6 +20,9 @@ class SettingsModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let defaults = UserDefaults.standard
 
+    private(set) var cachedInhaleColor: Color = .red
+    private(set) var cachedExhaleColor: Color = .blue
+    private(set) var cachedBackgroundColor: Color = .clear
     private(set) var cachedBackgroundColorWithoutAlpha: Color = .clear
     private(set) var cachedBackgroundAlphaComponent: Double = 0
 
@@ -32,12 +35,14 @@ class SettingsModel: ObservableObject {
 
     @Published var inhaleColor: Color {
         didSet {
+            cachedInhaleColor = inhaleColor
             saveColor(inhaleColor, forKey: "inhaleColor")
         }
     }
 
     @Published var exhaleColor: Color {
         didSet {
+            cachedExhaleColor = exhaleColor
             saveColor(exhaleColor, forKey: "exhaleColor")
         }
     }
@@ -93,6 +98,26 @@ class SettingsModel: ObservableObject {
     @Published var animationMode: AnimationMode {
         didSet {
             defaults.set(animationMode.rawValue, forKey: "animationMode")
+        }
+    }
+
+    @Published var appVisibility: AppVisibility {
+        didSet {
+            defaults.set(appVisibility.rawValue, forKey: "appVisibility")
+        }
+    }
+
+    /// Reminder notification interval in minutes. 0 = off.
+    @Published var reminderIntervalMinutes: Double {
+        didSet {
+            defaults.set(reminderIntervalMinutes, forKey: "reminderIntervalMinutes")
+        }
+    }
+
+    /// Auto-stop timer in minutes. 0 = off. Stops animation after this duration.
+    @Published var autoStopMinutes: Double {
+        didSet {
+            defaults.set(autoStopMinutes, forKey: "autoStopMinutes")
         }
     }
 
@@ -176,6 +201,9 @@ class SettingsModel: ObservableObject {
         self.randomizedTimingPostInhaleHold = 0
         self.randomizedTimingExhale = 0
         self.randomizedTimingPostExhaleHold = 0
+        self.appVisibility = .topBarOnly
+        self.reminderIntervalMinutes = 0
+        self.autoStopMinutes = 0
         self.isAnimating = true
 
         self.backgroundColor = loadColor(forKey: "backgroundColor") ?? Color.clear
@@ -227,6 +255,21 @@ class SettingsModel: ObservableObject {
             self.animationMode = .sinusoidal
         }
 
+        if let savedVisibility = defaults.string(forKey: "appVisibility"),
+           let visibility = AppVisibility(rawValue: savedVisibility) {
+            self.appVisibility = visibility
+        } else {
+            self.appVisibility = .topBarOnly
+        }
+
+        if defaults.object(forKey: "reminderIntervalMinutes") != nil {
+            self.reminderIntervalMinutes = defaults.double(forKey: "reminderIntervalMinutes")
+        }
+
+        if defaults.object(forKey: "autoStopMinutes") != nil {
+            self.autoStopMinutes = defaults.double(forKey: "autoStopMinutes")
+        }
+
         if defaults.object(forKey: "randomizedTimingInhale") != nil {
             self.randomizedTimingInhale = defaults.double(forKey: "randomizedTimingInhale")
         }
@@ -243,10 +286,13 @@ class SettingsModel: ObservableObject {
             self.randomizedTimingPostExhaleHold = defaults.double(forKey: "randomizedTimingPostExhaleHold")
         }
 
+        cachedInhaleColor = inhaleColor
+        cachedExhaleColor = exhaleColor
         updateCachedBackgroundValues()
     }
 
     private func updateCachedBackgroundValues() {
+        cachedBackgroundColor = backgroundColor
         cachedBackgroundAlphaComponent = backgroundColor.alphaComponent()
         cachedBackgroundColorWithoutAlpha = backgroundColor.withoutAlpha()
     }
@@ -289,12 +335,16 @@ class SettingsModel: ObservableObject {
         self.randomizedTimingPostInhaleHold = 0
         self.randomizedTimingExhale = 0
         self.randomizedTimingPostExhaleHold = 0
+        self.appVisibility = .topBarOnly
+        self.reminderIntervalMinutes = 0
+        self.autoStopMinutes = 0
 
         let keys = [
             "backgroundColor", "inhaleColor", "exhaleColor", "inhaleDuration", "postInhaleHoldDuration",
             "exhaleDuration", "postExhaleHoldDuration", "drift", "overlayOpacity", "colorFillGradient",
             "shape", "animationMode", "randomizedTimingInhale", "randomizedTimingPostInhaleHold",
-            "randomizedTimingExhale", "randomizedTimingPostExhaleHold",
+            "randomizedTimingExhale", "randomizedTimingPostExhaleHold", "appVisibility",
+            "reminderIntervalMinutes", "autoStopMinutes",
         ]
         for key in keys {
             defaults.removeObject(forKey: key)

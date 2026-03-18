@@ -23,8 +23,8 @@ extension Shape {
         endRadius: CGFloat = 0
     ) -> some View {
         let isInhalePhase = breathingPhase == .inhale || breathingPhase == .holdAfterInhale
-        let lastColor = isInhalePhase ? settingsModel.inhaleColor : settingsModel.exhaleColor
-        let backgroundColor = settingsModel.backgroundColor
+        let lastColor = isInhalePhase ? settingsModel.cachedInhaleColor : settingsModel.cachedExhaleColor
+        let backgroundColor = settingsModel.cachedBackgroundColor
 
         switch settingsModel.colorFillGradient {
         case .off:
@@ -109,8 +109,8 @@ struct ContentView: View {
                                 Rectangle()
                                     .fill(
                                         (breathingPhase == .inhale || breathingPhase == .holdAfterInhale)
-                                            ? settingsModel.inhaleColor
-                                            : settingsModel.exhaleColor
+                                            ? settingsModel.cachedInhaleColor
+                                            : settingsModel.cachedExhaleColor
                                     )
                                     .edgesIgnoringSafeArea(.all)
 
@@ -180,7 +180,10 @@ struct ContentView: View {
                     randomizedTimingPostInhaleHold: $settingsModel.randomizedTimingPostInhaleHold,
                     randomizedTimingExhale: $settingsModel.randomizedTimingExhale,
                     randomizedTimingPostExhaleHold: $settingsModel.randomizedTimingPostExhaleHold,
-                    isAnimating: $settingsModel.isAnimating
+                    isAnimating: $settingsModel.isAnimating,
+                    appVisibility: $settingsModel.appVisibility,
+                    reminderIntervalMinutes: $settingsModel.reminderIntervalMinutes,
+                    autoStopMinutes: $settingsModel.autoStopMinutes
                 )
             }
         }
