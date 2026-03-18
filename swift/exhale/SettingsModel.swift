@@ -20,6 +20,7 @@ class SettingsModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let defaults = UserDefaults.standard
 
+    private(set) var cachedBackgroundColor: Color = .clear
     private(set) var cachedBackgroundColorWithoutAlpha: Color = .clear
     private(set) var cachedBackgroundAlphaComponent: Double = 0
 
@@ -285,6 +286,7 @@ class SettingsModel: ObservableObject {
     }
 
     private func updateCachedBackgroundValues() {
+        cachedBackgroundColor = backgroundColor
         cachedBackgroundAlphaComponent = backgroundColor.alphaComponent()
         cachedBackgroundColorWithoutAlpha = backgroundColor.withoutAlpha()
     }

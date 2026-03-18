@@ -13,6 +13,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var windows: [NSWindow] = []
     var settingsWindow: NSWindow!
     var settingsModel = SettingsModel()
+    var tooltipCheckTimer: Timer?
     var inhaleColorSubscription: AnyCancellable?
     var exhaleColorSubscription: AnyCancellable?
     var overlayOpacitySubscription: AnyCancellable?
@@ -127,13 +128,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             object: nil
         )
 
-        // Raise tooltip windows above the settings window so they are visible
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(raiseTooltipWindows(_:)),
-            name: NSWindow.didUpdateNotification,
-            object: nil
-        )
+        // Tooltip timer is started/stopped with the settings window visibility
 
         settingsModel = SettingsModel()
         applyAppVisibility(settingsModel.appVisibility)
@@ -192,10 +187,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsWindow.delegate = self
         settingsWindow.minSize = NSSize(width: 246, height: 300)
         settingsWindow.maxSize = NSSize(width: 246, height: 870)
-        settingsWindow.titlebarAppearsTransparent = false
-        settingsWindow.isMovableByWindowBackground = true
-        settingsWindow.backgroundColor = .clear
-
         let visualEffect = NSVisualEffectView()
         visualEffect.material = .hudWindow
         visualEffect.blendingMode = .behindWindow
@@ -304,9 +295,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    @objc func raiseTooltipWindows(_ notification: Notification) {
+    @objc func raiseTooltipWindows(_ notification: Notification?) {
+        guard settingsWindow.isVisible else { return }
         for window in NSApp.windows where String(describing: type(of: window)).contains("ToolTip") {
-            window.level = Self.tooltipWindowLevel
+            if window.level != Self.tooltipWindowLevel {
+                window.level = Self.tooltipWindowLevel
+            }
         }
     }
 
@@ -442,6 +436,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func toggleSettings(_ sender: Any?) {
         if settingsWindow.isVisible {
             settingsWindow.orderOut(sender)
+            tooltipCheckTimer?.invalidate()
+            tooltipCheckTimer = nil
         } else {
             if let frameDict    = UserDefaults.standard.dictionary(forKey: "SettingsWindowFrame"),
                let x            = frameDict["x"]      as? CGFloat,
@@ -466,6 +462,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSApp.activate(ignoringOtherApps: true)
             // Settings window must be above the overlay so it's usable at any opacity
             settingsWindow.level = Self.settingsWindowLevel
+
+            // Start tooltip elevation timer while settings is visible
+            if tooltipCheckTimer == nil {
+                tooltipCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                    self?.raiseTooltipWindows(nil)
+                }
+            }
         }
     }
     
@@ -485,6 +488,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if sender == settingsWindow {
             settingsWindow.orderOut(sender)
+            tooltipCheckTimer?.invalidate()
+            tooltipCheckTimer = nil
             return false
         }
         return true
