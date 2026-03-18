@@ -13,8 +13,16 @@ enum AnimationShape: String, CaseIterable, Identifiable {
     case rectangle = "Rectangle"
     case circle = "Circle"
     case fullscreen = "Fullscreen"
-    
+
     var id: String { self.rawValue }
+
+    var shortLabel: String {
+        switch self {
+        case .rectangle: return "Rectangle"
+        case .circle: return "Circle"
+        case .fullscreen: return "Full"
+        }
+    }
 }
 
 enum BreathingPhase {
@@ -48,4 +56,12 @@ enum AppVisibility: String, CaseIterable, Identifiable {
     case both = "Both"
 
     var id: String { rawValue }
+
+    var shortLabel: String {
+        switch self {
+        case .topBarOnly: return "Top Bar"
+        case .dockOnly: return "Dock"
+        case .both: return "Both"
+        }
+    }
 }

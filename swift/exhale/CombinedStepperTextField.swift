@@ -9,7 +9,7 @@ struct CombinedStepperTextField: View {
     var limits: (min: Double?, max: Double?)
     var step: Double = 1.0
     var hint: String? = nil
-    
+
     private var formatter: NumberFormatter {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -21,17 +21,26 @@ struct CombinedStepperTextField: View {
         formatter.usesGroupingSeparator = false
         return formatter
     }
-    
+
     var body: some View {
-        HStack {
-            Text(title)
-                .frame(width: 224, alignment: .leading)
-            
+        HStack(spacing: 4) {
+            if !title.isEmpty {
+                Text(title)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+
             Spacer()
-            
+
+            if let hint = hint {
+                Text(hint)
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+
             TextField("", value: $value, formatter: formatter)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
-                .frame(width: 60)
+                .frame(width: 56)
                 .onChange(of: value) { newValue in
                     value = validateValue(
                         value: newValue,
@@ -39,17 +48,10 @@ struct CombinedStepperTextField: View {
                         maximumValue: limits.max
                     )
                 }
-            
+
             Stepper("", value: $value, in: (limits.min ?? defaultMin)...(limits.max ?? Double.infinity), step: step)
                 .labelsHidden()
-                .frame(width: 0)
-
-            if let hint = hint {
-                Text(hint)
-                    .foregroundColor(.secondary)
-                    .font(.caption)
-                    .frame(width: 40, alignment: .leading)
-            }
+                .fixedSize()
         }
     }
 }

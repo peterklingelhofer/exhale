@@ -183,15 +183,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Initialize the Settings Window
         settingsWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 600),
-            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            contentRect: NSRect(x: 0, y: 0, width: 246, height: 870),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
-        settingsWindow.setValue("SettingsWindow", forKey: "frameAutosaveName")
+        settingsWindow.setValue("SettingsWindow3", forKey: "frameAutosaveName")
         settingsWindow.delegate = self
+        settingsWindow.minSize = NSSize(width: 246, height: 300)
+        settingsWindow.maxSize = NSSize(width: 246, height: 870)
+        settingsWindow.titlebarAppearsTransparent = false
+        settingsWindow.isMovableByWindowBackground = true
+        settingsWindow.backgroundColor = .clear
 
-        settingsWindow.contentView = NSHostingView(rootView: SettingsView(
+        let visualEffect = NSVisualEffectView()
+        visualEffect.material = .hudWindow
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.state = .active
+        settingsWindow.contentView = visualEffect
+
+        let hostingView = NSHostingView(rootView: SettingsView(
             showSettings: .constant(false),
             inhaleColor: Binding(get: { self.settingsModel.inhaleColor }, set: { self.settingsModel.inhaleColor = $0 }),
             exhaleColor: Binding(get: { self.settingsModel.exhaleColor }, set: { self.settingsModel.exhaleColor = $0 }),
@@ -220,6 +231,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             reminderIntervalMinutes: Binding(get: { self.settingsModel.reminderIntervalMinutes }, set: { self.settingsModel.reminderIntervalMinutes = $0 }),
             autoStopMinutes: Binding(get: { self.settingsModel.autoStopMinutes }, set: { self.settingsModel.autoStopMinutes = $0 })
         ).environmentObject(settingsModel))
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        visualEffect.addSubview(hostingView)
+        NSLayoutConstraint.activate([
+            hostingView.topAnchor.constraint(equalTo: visualEffect.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor),
+            hostingView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
+        ])
 
         settingsWindow.title = "exhale"
         toggleSettings(nil)
@@ -437,8 +456,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let restoredFrame = NSRect(
                     x: screenOrigin.x + x,
                     y: screenOrigin.y + y,
-                    width: w,
-                    height: h
+                    width: min(w, 246),
+                    height: min(h, 870)
                 )
                 settingsWindow.setFrame(restoredFrame, display: true)
             }
@@ -456,6 +475,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     // Prevent the settings window from closing (just hide it instead)
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        if sender == settingsWindow {
+            return NSSize(width: sender.frame.width, height: frameSize.height)
+        }
+        return frameSize
+    }
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if sender == settingsWindow {
             settingsWindow.orderOut(sender)
