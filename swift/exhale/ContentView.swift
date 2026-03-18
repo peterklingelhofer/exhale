@@ -180,7 +180,10 @@ struct ContentView: View {
                     randomizedTimingPostInhaleHold: $settingsModel.randomizedTimingPostInhaleHold,
                     randomizedTimingExhale: $settingsModel.randomizedTimingExhale,
                     randomizedTimingPostExhaleHold: $settingsModel.randomizedTimingPostExhaleHold,
-                    isAnimating: $settingsModel.isAnimating
+                    isAnimating: $settingsModel.isAnimating,
+                    appVisibility: $settingsModel.appVisibility,
+                    reminderIntervalMinutes: $settingsModel.reminderIntervalMinutes,
+                    autoStopMinutes: $settingsModel.autoStopMinutes
                 )
             }
         }

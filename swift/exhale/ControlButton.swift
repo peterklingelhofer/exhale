@@ -13,13 +13,19 @@ struct ControlButton: View {
     
     var body: some View {
         Button(action: action) {
-            VStack {
+            HStack(spacing: 6) {
                 Image(systemName: systemImageName)
-                    .imageScale(.large)
-                    .frame(width: 24, height: 24)
+                    .imageScale(.medium)
                 Text(title)
-                    .font(.caption)
+                    .font(.callout)
             }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.secondary.opacity(0.4), lineWidth: 1)
+            )
         }
         .buttonStyle(PlainButtonStyle())
         .opacity(isPressed ? 0.6 : 1.0)

@@ -8,6 +8,7 @@ struct CombinedStepperTextField: View {
     @Binding var value: Double
     var limits: (min: Double?, max: Double?)
     var step: Double = 1.0
+    var hint: String? = nil
     
     private var formatter: NumberFormatter {
         let formatter = NumberFormatter()
@@ -42,6 +43,13 @@ struct CombinedStepperTextField: View {
             Stepper("", value: $value, in: (limits.min ?? defaultMin)...(limits.max ?? Double.infinity), step: step)
                 .labelsHidden()
                 .frame(width: 0)
+
+            if let hint = hint {
+                Text(hint)
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+                    .frame(width: 40, alignment: .leading)
+            }
         }
     }
 }

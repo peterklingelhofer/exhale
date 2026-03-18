@@ -976,3 +976,319 @@ class EasingPerformanceTests: XCTestCase {
         }
     }
 }
+
+// MARK: - AppVisibility Enum Tests
+
+class AppVisibilityTests: XCTestCase {
+    func testRawValues() {
+        XCTAssertEqual(AppVisibility.topBarOnly.rawValue, "Top Bar Only")
+        XCTAssertEqual(AppVisibility.dockOnly.rawValue, "Dock Only")
+        XCTAssertEqual(AppVisibility.both.rawValue, "Both")
+    }
+
+    func testFromRawValue() {
+        XCTAssertEqual(AppVisibility(rawValue: "Top Bar Only"), .topBarOnly)
+        XCTAssertEqual(AppVisibility(rawValue: "Dock Only"), .dockOnly)
+        XCTAssertEqual(AppVisibility(rawValue: "Both"), .both)
+        XCTAssertNil(AppVisibility(rawValue: "invalid"))
+    }
+
+    func testCaseIterable() {
+        XCTAssertEqual(AppVisibility.allCases.count, 3)
+    }
+}
+
+// MARK: - AppVisibility Settings Tests
+
+class AppVisibilitySettingsTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
+    }
+
+    override func tearDown() {
+        model.resetToDefaults()
+        super.tearDown()
+    }
+
+    func testDefaultAppVisibilityIsTopBarOnly() {
+        XCTAssertEqual(model.appVisibility, .topBarOnly)
+    }
+
+    func testAppVisibilityPersists() {
+        model.appVisibility = .both
+
+        let reloaded = SettingsModel()
+        XCTAssertEqual(reloaded.appVisibility, .both)
+    }
+
+    func testAppVisibilityDockOnlyPersists() {
+        model.appVisibility = .dockOnly
+
+        let reloaded = SettingsModel()
+        XCTAssertEqual(reloaded.appVisibility, .dockOnly)
+    }
+
+    func testResetToDefaultsResetsAppVisibility() {
+        model.appVisibility = .both
+        model.resetToDefaults()
+
+        XCTAssertEqual(model.appVisibility, .topBarOnly)
+    }
+
+    func testAppVisibilityPublishes() {
+        var received: [AppVisibility] = []
+        let cancellable = model.$appVisibility.sink { received.append($0) }
+
+        model.appVisibility = .dockOnly
+        model.appVisibility = .both
+
+        XCTAssertGreaterThanOrEqual(received.count, 3)
+        XCTAssertEqual(received.last, .both)
+
+        cancellable.cancel()
+    }
+}
+
+// MARK: - Window Level Tests (settings window above overlay)
+
+class WindowLevelTests: XCTestCase {
+    func testSettingsWindowLevelAboveOverlay() {
+        XCTAssertGreaterThan(
+            AppDelegate.settingsWindowLevel.rawValue,
+            AppDelegate.overlayWindowLevel.rawValue,
+            "Settings window must be above overlay so it's usable at any opacity"
+        )
+    }
+
+    func testOverlayWindowLevelIsScreenSaver() {
+        let expected = Int(CGWindowLevelForKey(.screenSaverWindow))
+        XCTAssertEqual(AppDelegate.overlayWindowLevel.rawValue, expected)
+    }
+
+    func testSettingsWindowLevelIsOneAboveOverlay() {
+        XCTAssertEqual(
+            AppDelegate.settingsWindowLevel.rawValue,
+            AppDelegate.overlayWindowLevel.rawValue + 1
+        )
+    }
+}
+
+// MARK: - Overlay Window Configuration Tests
+
+class OverlayWindowConfigTests: XCTestCase {
+    /// Verifies the overlay window level is high enough to appear over fullscreen apps.
+    /// CGWindowLevelForKey(.screenSaverWindow) is above .mainMenu, .floating, and .modalPanel.
+    func testOverlayLevelAboveFullscreenApps() {
+        let overlayLevel = AppDelegate.overlayWindowLevel.rawValue
+        let mainMenuLevel = Int(CGWindowLevelForKey(.mainMenuWindow))
+        XCTAssertGreaterThan(overlayLevel, mainMenuLevel,
+                              "Overlay must be above main menu level to show over fullscreen apps")
+    }
+
+    func testOverlayLevelAboveFloating() {
+        let overlayLevel = AppDelegate.overlayWindowLevel.rawValue
+        let floatingLevel = Int(CGWindowLevelForKey(.floatingWindow))
+        XCTAssertGreaterThan(overlayLevel, floatingLevel)
+    }
+
+    func testOverlayLevelAboveModalPanel() {
+        let overlayLevel = AppDelegate.overlayWindowLevel.rawValue
+        let modalLevel = Int(CGWindowLevelForKey(.modalPanelWindow))
+        XCTAssertGreaterThan(overlayLevel, modalLevel)
+    }
+}
+
+// MARK: - Single Instance Support Tests
+
+class SingleInstanceTests: XCTestCase {
+    func testDistributedNotificationNameIsStable() {
+        // The notification name must remain stable across versions so that
+        // a new launch can communicate with an existing running instance.
+        let name = Notification.Name("exhale.showSettings")
+        XCTAssertEqual(name.rawValue, "exhale.showSettings")
+    }
+
+    func testBundleIdentifierExists() {
+        // In test host context, verify the app has a bundle identifier
+        // (single-instance logic falls back to a hardcoded ID if nil)
+        let bundleID = Bundle.main.bundleIdentifier
+        XCTAssertNotNil(bundleID)
+    }
+}
+
+// MARK: - Updated ResetToDefaults Tests (including new fields)
+
+class ResetToDefaultsFullTests: XCTestCase {
+    func testResetClearsAllSettingsIncludingAppVisibility() {
+        let model = SettingsModel()
+        model.appVisibility = .both
+        model.shape = .fullscreen
+        model.animationMode = .linear
+        model.overlayOpacity = 1.0
+        model.drift = 2.0
+        model.reminderIntervalMinutes = 15
+        model.autoStopMinutes = 30
+
+        model.resetToDefaults()
+
+        XCTAssertEqual(model.appVisibility, .topBarOnly)
+        XCTAssertEqual(model.shape, .rectangle)
+        XCTAssertEqual(model.animationMode, .sinusoidal)
+        XCTAssertEqual(model.overlayOpacity, 0.25)
+        XCTAssertEqual(model.drift, 1.01)
+        XCTAssertEqual(model.reminderIntervalMinutes, 0)
+        XCTAssertEqual(model.autoStopMinutes, 0)
+    }
+}
+
+// MARK: - Reminder Interval Tests
+
+class ReminderIntervalTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
+    }
+
+    override func tearDown() {
+        model.resetToDefaults()
+        super.tearDown()
+    }
+
+    func testDefaultReminderIntervalIsOff() {
+        XCTAssertEqual(model.reminderIntervalMinutes, 0)
+    }
+
+    func testReminderIntervalPersists() {
+        model.reminderIntervalMinutes = 15
+
+        let reloaded = SettingsModel()
+        XCTAssertEqual(reloaded.reminderIntervalMinutes, 15)
+    }
+
+    func testResetClearsReminderInterval() {
+        model.reminderIntervalMinutes = 30
+        model.resetToDefaults()
+        XCTAssertEqual(model.reminderIntervalMinutes, 0)
+    }
+
+    func testReminderIntervalPublishes() {
+        var received: [Double] = []
+        let cancellable = model.$reminderIntervalMinutes.sink { received.append($0) }
+
+        model.reminderIntervalMinutes = 10
+        model.reminderIntervalMinutes = 20
+
+        XCTAssertGreaterThanOrEqual(received.count, 3)
+        XCTAssertEqual(received.last!, 20, accuracy: 0.001)
+
+        cancellable.cancel()
+    }
+
+    func testZeroMeansOff() {
+        model.reminderIntervalMinutes = 0
+        XCTAssertEqual(model.reminderIntervalMinutes, 0,
+                        "0 should mean reminders are disabled")
+    }
+}
+
+// MARK: - Auto-Stop Timer Tests
+
+class AutoStopTimerTests: XCTestCase {
+    var model: SettingsModel!
+
+    override func setUp() {
+        super.setUp()
+        model = SettingsModel()
+        model.resetToDefaults()
+    }
+
+    override func tearDown() {
+        model.resetToDefaults()
+        super.tearDown()
+    }
+
+    func testDefaultAutoStopIsOff() {
+        XCTAssertEqual(model.autoStopMinutes, 0)
+    }
+
+    func testAutoStopPersists() {
+        model.autoStopMinutes = 30
+
+        let reloaded = SettingsModel()
+        XCTAssertEqual(reloaded.autoStopMinutes, 30)
+    }
+
+    func testResetClearsAutoStop() {
+        model.autoStopMinutes = 45
+        model.resetToDefaults()
+        XCTAssertEqual(model.autoStopMinutes, 0)
+    }
+
+    func testAutoStopPublishes() {
+        var received: [Double] = []
+        let cancellable = model.$autoStopMinutes.sink { received.append($0) }
+
+        model.autoStopMinutes = 15
+        model.autoStopMinutes = 60
+
+        XCTAssertGreaterThanOrEqual(received.count, 3)
+        XCTAssertEqual(received.last!, 60, accuracy: 0.001)
+
+        cancellable.cancel()
+    }
+
+    func testZeroMeansOff() {
+        model.autoStopMinutes = 0
+        XCTAssertEqual(model.autoStopMinutes, 0,
+                        "0 should mean auto-stop is disabled")
+    }
+}
+
+// MARK: - Timer Interaction Tests
+
+class TimerInteractionTests: XCTestCase {
+    func testAutoStopDoesNotAffectReminder() {
+        let model = SettingsModel()
+        model.resetToDefaults()
+        model.autoStopMinutes = 30
+        model.reminderIntervalMinutes = 10
+
+        // Both can be set independently
+        XCTAssertEqual(model.autoStopMinutes, 30)
+        XCTAssertEqual(model.reminderIntervalMinutes, 10)
+    }
+
+    func testBothTimersResetToZero() {
+        let model = SettingsModel()
+        model.reminderIntervalMinutes = 15
+        model.autoStopMinutes = 45
+
+        model.resetToDefaults()
+
+        XCTAssertEqual(model.reminderIntervalMinutes, 0)
+        XCTAssertEqual(model.autoStopMinutes, 0)
+    }
+
+    func testAutoStopWithAnimationState() {
+        let model = SettingsModel()
+        model.resetToDefaults()
+        model.autoStopMinutes = 30
+
+        // Auto-stop is configured but animation state is separate
+        model.start()
+        XCTAssertTrue(model.isAnimating)
+        XCTAssertEqual(model.autoStopMinutes, 30)
+
+        model.stop()
+        XCTAssertFalse(model.isAnimating)
+        // autoStopMinutes persists regardless of animation state
+        XCTAssertEqual(model.autoStopMinutes, 30)
+    }
+}

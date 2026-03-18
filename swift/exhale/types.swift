@@ -38,6 +38,14 @@ enum ColorFillGradient: String, CaseIterable, Identifiable {
     case inner = "Inner"
     case off = "Off"
     case on = "On"
-    
+
+    var id: String { rawValue }
+}
+
+enum AppVisibility: String, CaseIterable, Identifiable {
+    case topBarOnly = "Top Bar Only"
+    case dockOnly = "Dock Only"
+    case both = "Both"
+
     var id: String { rawValue }
 }
