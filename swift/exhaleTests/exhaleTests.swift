@@ -1545,15 +1545,20 @@ class PerformanceTests: XCTestCase {
         print("  animating: [\(animStr)]")
         print("  delta: [\(deltaStr)] avg: \(String(format: "%.1f", avgDelta))% peak: \(String(format: "%.1f", peakDelta))%")
 
+        // CI VMs have noisier CPU; use relaxed thresholds when running on GitHub Actions.
+        let isCI = ProcessInfo.processInfo.environment["CI"] != nil
+        let peakThreshold: Double = isCI ? 15.0 : 10.0
+        let avgThreshold: Double = isCI ? 8.0 : 5.0
+
         // Assert animation cost (above baseline) stays under thresholds.
-        // Peak: no single second should add more than 10% CPU from the animation.
-        // Average: animation should average under 5% CPU cost.
-        XCTAssertLessThan(peakDelta, 10.0,
-            "\(shape.rawValue) with gradient \(gradient.rawValue) peak animation CPU \(String(format: "%.1f", peakDelta))% exceeded 10% — delta: [\(deltaStr)]",
+        // Local: peak < 10%, average < 5%.
+        // CI:    peak < 15%, average < 8% (shared VM noise).
+        XCTAssertLessThan(peakDelta, peakThreshold,
+            "\(shape.rawValue) with gradient \(gradient.rawValue) peak animation CPU \(String(format: "%.1f", peakDelta))% exceeded \(String(format: "%.0f", peakThreshold))% — delta: [\(deltaStr)]",
             file: file, line: line
         )
-        XCTAssertLessThan(avgDelta, 5.0,
-            "\(shape.rawValue) with gradient \(gradient.rawValue) average animation CPU \(String(format: "%.1f", avgDelta))% exceeded 5% — delta: [\(deltaStr)]",
+        XCTAssertLessThan(avgDelta, avgThreshold,
+            "\(shape.rawValue) with gradient \(gradient.rawValue) average animation CPU \(String(format: "%.1f", avgDelta))% exceeded \(String(format: "%.0f", avgThreshold))% — delta: [\(deltaStr)]",
             file: file, line: line
         )
     }
