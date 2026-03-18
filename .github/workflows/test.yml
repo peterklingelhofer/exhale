@@ -23,10 +23,17 @@ jobs:
         run: xcodebuild -resolvePackageDependencies -project exhale.xcodeproj -scheme exhale
 
       - name: Build
-        run: xcodebuild build -project exhale.xcodeproj -scheme exhale -destination 'platform=macOS' -configuration Debug
+        run: >
+          xcodebuild build -project exhale.xcodeproj -scheme exhale
+          -destination 'platform=macOS' -configuration Debug
+          CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
       - name: Run tests
-        run: xcodebuild test -project exhale.xcodeproj -scheme exhale -destination 'platform=macOS' -configuration Debug -resultBundlePath ../TestResults.xcresult
+        run: >
+          xcodebuild test -project exhale.xcodeproj -scheme exhale
+          -destination 'platform=macOS' -configuration Debug
+          CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+          -resultBundlePath ../TestResults.xcresult
 
       - name: Upload test results
         if: always()
