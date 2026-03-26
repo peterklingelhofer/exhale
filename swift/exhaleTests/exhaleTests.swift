@@ -644,10 +644,13 @@ class OverlayUniformsLayoutTests: XCTestCase {
     /// Any field added/removed/reordered in one must be mirrored in the other.
     func testStructStrideMatchesMetalLayout() {
         // Metal struct layout (with float4 requiring 16-byte alignment):
-        //   float2 (8) + float (4) + float (4) + float (4) +
-        //   uint (4) + uint (4) + uint (4) + float (4) + float (4) + float (4) +
-        //   pad (4) + float4 (16) + float4 (16) + float4 (16) = 96
-        XCTAssertEqual(MemoryLayout<OverlayUniforms>.stride, 96,
+        //   float2 (8) + float (4) + float (4) = 16
+        //   float (4) + uint (4) + uint (4) + uint (4) = 16
+        //   float (4) + float (4) + float (4) + float (4) = 16
+        //   uint (4) + pad (12) = 16
+        //   float4 (16) + float4 (16) + float4 (16) = 48
+        //   Total = 112
+        XCTAssertEqual(MemoryLayout<OverlayUniforms>.stride, 112,
                         "OverlayUniforms stride changed — update both Swift and Metal struct definitions")
     }
 
@@ -1567,13 +1570,17 @@ class PerformanceTests: XCTestCase {
         print("  delta: [\(deltaStr)] avg: \(String(format: "%.1f", avgDelta))% peak: \(String(format: "%.1f", peakDelta))%")
 
         // CI VMs have noisier CPU; use relaxed thresholds when running on GitHub Actions.
+        // Ripple tests run blur + continuous hold animation alongside the main shape, so
+        // they need slightly higher limits.
         let isCI = ProcessInfo.processInfo.environment["CI"] != nil
-        let peakThreshold: Double = isCI ? 15.0 : 10.0
-        let avgThreshold: Double = isCI ? 8.0 : 5.0
+        let hasRipple = holdRipple != .off
+        let peakThreshold: Double = isCI ? 20.0 : (hasRipple ? 15.0 : 10.0)
+        let avgThreshold: Double = isCI ? 12.0 : (hasRipple ? 10.0 : 5.0)
 
         // Assert animation cost (above baseline) stays under thresholds.
-        // Local: peak < 10%, average < 5%.
-        // CI:    peak < 15%, average < 8% (shared VM noise).
+        // Local:        peak < 10%, average < 5%.
+        // Local+ripple: peak < 15%, average < 10%.
+        // CI:           peak < 20%, average < 12%.
         XCTAssertLessThan(peakDelta, peakThreshold,
             "\(label) peak animation CPU \(String(format: "%.1f", peakDelta))% exceeded \(String(format: "%.0f", peakThreshold))% — delta: [\(deltaStr)]",
             file: file, line: line
