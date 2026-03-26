@@ -110,6 +110,7 @@ struct ContentView: View {
     @State private var cachedMaxCircleScale: CGFloat = 1
     @State private var animationSessionIdentifier: Int = 0
     @State private var holdProgress: CGFloat = 0
+    @State private var rippleOpacity: Double = 0
     var body: some View {
         ZStack {
             GeometryReader { geometry in
@@ -180,11 +181,10 @@ struct ContentView: View {
                         }
                         .opacity(settingsModel.overlayOpacity)
 
-                        // Screen-edge ripple during hold phases (skip when hold duration is 0)
-                        if settingsModel.holdRippleEnabled
-                            && (breathingPhase == .holdAfterInhale || breathingPhase == .holdAfterExhale)
-                            && (breathingPhase == .holdAfterInhale ? settingsModel.postInhaleHoldDuration : settingsModel.postExhaleHoldDuration) > 0 {
+                        // Screen-edge ripple during hold phases (driven by rippleOpacity)
+                        if settingsModel.holdRippleEnabled && rippleOpacity > 0 {
                             let isExhale = breathingPhase == .holdAfterExhale
+                                || (breathingPhase == .inhale && holdProgress > 0)
                             let phaseColor = isExhale
                                 ? settingsModel.cachedExhaleColor
                                 : settingsModel.cachedInhaleColor
@@ -217,6 +217,7 @@ struct ContentView: View {
                                 }
                             }
                             .blur(radius: blurRadius)
+                            .opacity(rippleOpacity)
                         }
                     }
                 }
@@ -315,6 +316,11 @@ struct ContentView: View {
             ? .linear(duration: duration)
             : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
 
+        // Fade ripple out over the first 10% of the inhale
+        withAnimation(.linear(duration: duration * 0.1)) {
+            rippleOpacity = 0
+        }
+
         withAnimation(animation) {
             breathingPhase = .inhale
             animationProgress = 1.0
@@ -339,6 +345,7 @@ struct ContentView: View {
         breathingPhase = .holdAfterInhale
         if settingsModel.holdRippleEnabled && settingsModel.postInhaleHoldDuration > 0 {
             holdProgress = 0
+            rippleOpacity = 1
             withAnimation(.linear(duration: duration)) {
                 holdProgress = 1
             }
@@ -362,6 +369,11 @@ struct ContentView: View {
             ? .linear(duration: duration)
             : .timingCurve(0.42, 0, 0.58, 1, duration: duration)
 
+        // Fade ripple out over the first 10% of the exhale
+        withAnimation(.linear(duration: duration * 0.1)) {
+            rippleOpacity = 0
+        }
+
         withAnimation(animation) {
             breathingPhase = .exhale
             animationProgress = 0.0
@@ -383,6 +395,7 @@ struct ContentView: View {
         breathingPhase = .holdAfterExhale
         if settingsModel.holdRippleEnabled && settingsModel.postExhaleHoldDuration > 0 {
             holdProgress = 1
+            rippleOpacity = 1
             withAnimation(.linear(duration: duration)) {
                 holdProgress = 0
             }
@@ -400,6 +413,7 @@ struct ContentView: View {
         cycleCount = 0
         animationProgress = 0.0
         holdProgress = 0
+        rippleOpacity = 0
         breathingPhase = .inhale
     }
 
@@ -408,6 +422,7 @@ struct ContentView: View {
         cycleCount = 0
         animationProgress = 0.0
         holdProgress = 0
+        rippleOpacity = 0
     }
 
     func resumeBreathingCycle() {
