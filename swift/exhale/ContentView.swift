@@ -180,9 +180,10 @@ struct ContentView: View {
                         }
                         .opacity(settingsModel.overlayOpacity)
 
-                        // Screen-edge ripple during hold phases
+                        // Screen-edge ripple during hold phases (skip when hold duration is 0)
                         if settingsModel.holdRippleEnabled
-                            && (breathingPhase == .holdAfterInhale || breathingPhase == .holdAfterExhale) {
+                            && (breathingPhase == .holdAfterInhale || breathingPhase == .holdAfterExhale)
+                            && (breathingPhase == .holdAfterInhale ? settingsModel.postInhaleHoldDuration : settingsModel.postExhaleHoldDuration) > 0 {
                             let isExhale = breathingPhase == .holdAfterExhale
                             let phaseColor = isExhale
                                 ? settingsModel.cachedExhaleColor
@@ -336,7 +337,7 @@ struct ContentView: View {
         }
         duration = max(duration, 0.1)
         breathingPhase = .holdAfterInhale
-        if settingsModel.holdRippleEnabled {
+        if settingsModel.holdRippleEnabled && settingsModel.postInhaleHoldDuration > 0 {
             holdProgress = 0
             withAnimation(.linear(duration: duration)) {
                 holdProgress = 1
@@ -380,7 +381,7 @@ struct ContentView: View {
         }
         duration = max(duration, 0.1)
         breathingPhase = .holdAfterExhale
-        if settingsModel.holdRippleEnabled {
+        if settingsModel.holdRippleEnabled && settingsModel.postExhaleHoldDuration > 0 {
             holdProgress = 1
             withAnimation(.linear(duration: duration)) {
                 holdProgress = 0
