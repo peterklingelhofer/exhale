@@ -50,6 +50,14 @@ enum ColorFillGradient: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum HoldRippleMode: String, CaseIterable, Identifiable {
+    case gradient = "Gradient"
+    case stark = "Stark"
+    case off = "Off"
+
+    var id: String { rawValue }
+}
+
 enum AppVisibility: String, CaseIterable, Identifiable {
     case topBarOnly = "Top Bar Only"
     case dockOnly = "Dock Only"

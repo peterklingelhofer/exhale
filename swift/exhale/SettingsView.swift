@@ -48,6 +48,7 @@ struct SettingsView: View {
     @Binding var randomizedTimingPostInhaleHold: Double
     @Binding var randomizedTimingExhale: Double
     @Binding var randomizedTimingPostExhaleHold: Double
+    @Binding var holdRippleMode: HoldRippleMode
     @Binding var isAnimating: Bool
     @Binding var appVisibility: AppVisibility
     @Binding var reminderIntervalMinutes: Double
@@ -197,6 +198,20 @@ struct SettingsView: View {
                             }
                         }
                         .help("Sinusoidal eases in/out naturally. Linear is constant speed.")
+
+                        settingRow("Hold Ripple") {
+                            Picker("", selection: $holdRippleMode) {
+                                ForEach(HoldRippleMode.allCases) { mode in
+                                    Text(mode.rawValue).tag(mode)
+                                }
+                            }
+                            .pickerStyle(SegmentedPickerStyle())
+                            .labelsHidden()
+                            .onChange(of: holdRippleMode) { _ in
+                                settingsModel.triggerAnimationReset()
+                            }
+                        }
+                        .help("Hold phase ripple: Gradient (smooth glow), Stark (solid edge), or Off.")
 
                         settingRow("Show In") {
                             Picker("", selection: $appVisibility) {

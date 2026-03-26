@@ -73,6 +73,33 @@ extension Shape {
     }
 }
 
+// Traces half the screen perimeter: bottom-center → corner → side → top-center.
+// Used for the hold-phase ripple effect. `rightSide: true` goes clockwise (right),
+// `rightSide: false` goes counter-clockwise (left).
+struct HalfPerimeterShape: Shape {
+    let rightSide: Bool
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let w = rect.width
+        let h = rect.height
+
+        if rightSide {
+            path.move(to: CGPoint(x: w / 2, y: h))
+            path.addLine(to: CGPoint(x: w, y: h))
+            path.addLine(to: CGPoint(x: w, y: 0))
+            path.addLine(to: CGPoint(x: w / 2, y: 0))
+        } else {
+            path.move(to: CGPoint(x: w / 2, y: h))
+            path.addLine(to: CGPoint(x: 0, y: h))
+            path.addLine(to: CGPoint(x: 0, y: 0))
+            path.addLine(to: CGPoint(x: w / 2, y: 0))
+        }
+
+        return path
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject var settingsModel: SettingsModel
     @State private var animationProgress: CGFloat = 0
@@ -82,6 +109,7 @@ struct ContentView: View {
     @State private var cycleCount: Int = 0
     @State private var cachedMaxCircleScale: CGFloat = 1
     @State private var animationSessionIdentifier: Int = 0
+    @State private var holdProgress: CGFloat = 0
     var body: some View {
         ZStack {
             GeometryReader { geometry in
@@ -151,6 +179,44 @@ struct ContentView: View {
                             }
                         }
                         .opacity(settingsModel.overlayOpacity)
+
+                        // Screen-edge ripple during hold phases
+                        if settingsModel.holdRippleEnabled
+                            && (breathingPhase == .holdAfterInhale || breathingPhase == .holdAfterExhale) {
+                            let isExhale = breathingPhase == .holdAfterExhale
+                            let phaseColor = isExhale
+                                ? settingsModel.cachedExhaleColor
+                                : settingsModel.cachedInhaleColor
+                            let borderUnit = min(geometry.size.width, geometry.size.height) * 0.04
+                            let useGradient = settingsModel.holdRippleMode == .gradient
+
+                            let trailFrom = isExhale ? holdProgress : 0 as CGFloat
+                            let trailTo   = isExhale ? 1 as CGFloat : holdProgress
+                            let bandFrom  = isExhale ? holdProgress : max(0, holdProgress - 0.12)
+                            let bandTo    = isExhale ? min(1, holdProgress + 0.12) : holdProgress
+
+                            // When blurred, use a wider stroke so the glow is visible after
+                            // the blur spreads it. The blur softens ALL edges: inner (toward
+                            // center), and leading/trailing (along the perimeter).
+                            let strokeWidth = useGradient ? borderUnit * 3 : borderUnit * 2
+                            let blurRadius = useGradient ? borderUnit * 2 : 0 as CGFloat
+
+                            Group {
+                                ForEach([true, false], id: \.self) { rightSide in
+                                    // Trail glow (fills behind the sweep front)
+                                    HalfPerimeterShape(rightSide: rightSide)
+                                        .trim(from: trailFrom, to: trailTo)
+                                        .stroke(phaseColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .butt))
+                                        .opacity(0.25)
+                                    // Leading band (bright sweep at the front)
+                                    HalfPerimeterShape(rightSide: rightSide)
+                                        .trim(from: bandFrom, to: bandTo)
+                                        .stroke(phaseColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .butt))
+                                        .opacity(0.8)
+                                }
+                            }
+                            .blur(radius: blurRadius)
+                        }
                     }
                 }
             }
@@ -180,6 +246,7 @@ struct ContentView: View {
                     randomizedTimingPostInhaleHold: $settingsModel.randomizedTimingPostInhaleHold,
                     randomizedTimingExhale: $settingsModel.randomizedTimingExhale,
                     randomizedTimingPostExhaleHold: $settingsModel.randomizedTimingPostExhaleHold,
+                    holdRippleMode: $settingsModel.holdRippleMode,
                     isAnimating: $settingsModel.isAnimating,
                     appVisibility: $settingsModel.appVisibility,
                     reminderIntervalMinutes: $settingsModel.reminderIntervalMinutes,
@@ -269,6 +336,12 @@ struct ContentView: View {
         }
         duration = max(duration, 0.1)
         breathingPhase = .holdAfterInhale
+        if settingsModel.holdRippleEnabled {
+            holdProgress = 0
+            withAnimation(.linear(duration: duration)) {
+                holdProgress = 1
+            }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             guard currentAnimationSessionIdentifier == self.animationSessionIdentifier else { return }
             self.exhale()
@@ -307,7 +380,12 @@ struct ContentView: View {
         }
         duration = max(duration, 0.1)
         breathingPhase = .holdAfterExhale
-
+        if settingsModel.holdRippleEnabled {
+            holdProgress = 1
+            withAnimation(.linear(duration: duration)) {
+                holdProgress = 0
+            }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             guard currentAnimationSessionIdentifier == self.animationSessionIdentifier else { return }
             guard self.settingsModel.isAnimating else { return self.resetAnimation() }
@@ -320,14 +398,15 @@ struct ContentView: View {
         animationSessionIdentifier += 1
         cycleCount = 0
         animationProgress = 0.0
+        holdProgress = 0
         breathingPhase = .inhale
     }
 
     func stopCurrentAnimation() {
-        // Stop the current animation
         animationSessionIdentifier += 1
         cycleCount = 0
         animationProgress = 0.0
+        holdProgress = 0
     }
 
     func resumeBreathingCycle() {

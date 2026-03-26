@@ -5,6 +5,7 @@ import QuartzCore
 struct MetalBreathingState {
     var phase: BreathingPhase
     var progress: Float
+    var holdTime: Float = 0
 }
 
 final class MetalBreathingController {
@@ -168,20 +169,34 @@ final class MetalBreathingController {
                     return
                 }
 
-                // Render once when we enter the hold, then sleep until it ends
-                if !didRenderThisHold {
-                    didRenderThisHold = true
-
-                    lastDrawRequestTime = now
-                    let state = computeCurrentState(now: now)
-                    lastDrawnPhase = state.phase
-                    lastDrawnProgress = state.progress
-                    shouldDraw = true
+                // When ripple is enabled, continuously render during holds
+                if settingsModel.holdRippleEnabled {
+                    let holdCadence = maximumDrawIntervalFast
+                    if now - lastDrawRequestTime >= holdCadence || !didRenderThisHold {
+                        didRenderThisHold = true
+                        lastDrawRequestTime = now
+                        let state = computeCurrentState(now: now)
+                        lastDrawnPhase = state.phase
+                        lastDrawnProgress = state.progress
+                        shouldDraw = true
+                    }
+                    nextInterval = min(holdCadence, remaining)
                 } else {
-                    shouldDraw = false
+                    // Render once when we enter the hold, then sleep until it ends
+                    if !didRenderThisHold {
+                        didRenderThisHold = true
+
+                        lastDrawRequestTime = now
+                        let state = computeCurrentState(now: now)
+                        lastDrawnPhase = state.phase
+                        lastDrawnProgress = state.progress
+                        shouldDraw = true
+                    } else {
+                        shouldDraw = false
+                    }
+                    nextInterval = remaining
                 }
 
-                nextInterval = remaining
                 return
             }
 
@@ -257,16 +272,17 @@ final class MetalBreathingController {
         let elapsed = now - phaseStartTime
         let rawT = phaseDuration > 0 ? min(max(elapsed / phaseDuration, 0), 1) : 1
         let easedT = getEasedT(rawT: rawT)
+        let holdTime = Float(phaseDuration > 0 ? min(max(elapsed / phaseDuration, 0), 1) : 0)
 
         switch currentPhase {
         case .inhale:
-            return MetalBreathingState(phase: .inhale, progress: Float(easedT))
+            return MetalBreathingState(phase: .inhale, progress: Float(easedT), holdTime: 0)
         case .holdAfterInhale:
-            return MetalBreathingState(phase: .holdAfterInhale, progress: 1)
+            return MetalBreathingState(phase: .holdAfterInhale, progress: 1, holdTime: holdTime)
         case .exhale:
-            return MetalBreathingState(phase: .exhale, progress: Float(1 - easedT))
+            return MetalBreathingState(phase: .exhale, progress: Float(1 - easedT), holdTime: 0)
         case .holdAfterExhale:
-            return MetalBreathingState(phase: .holdAfterExhale, progress: 0)
+            return MetalBreathingState(phase: .holdAfterExhale, progress: 0, holdTime: holdTime)
         }
     }
 

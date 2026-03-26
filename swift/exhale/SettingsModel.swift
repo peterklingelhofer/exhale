@@ -145,6 +145,16 @@ class SettingsModel: ObservableObject {
         }
     }
 
+    @Published var holdRippleMode: HoldRippleMode {
+        didSet {
+            defaults.set(holdRippleMode.rawValue, forKey: "holdRippleMode")
+        }
+    }
+
+    var holdRippleEnabled: Bool {
+        holdRippleMode != .off
+    }
+
     @Published var isAnimating: Bool {
         didSet {
             defaults.set(isAnimating, forKey: "isAnimating")
@@ -204,6 +214,7 @@ class SettingsModel: ObservableObject {
         self.appVisibility = .topBarOnly
         self.reminderIntervalMinutes = 0
         self.autoStopMinutes = 0
+        self.holdRippleMode = .gradient
         self.isAnimating = true
 
         self.backgroundColor = loadColor(forKey: "backgroundColor") ?? Color.clear
@@ -286,6 +297,14 @@ class SettingsModel: ObservableObject {
             self.randomizedTimingPostExhaleHold = defaults.double(forKey: "randomizedTimingPostExhaleHold")
         }
 
+        if let savedRipple = defaults.string(forKey: "holdRippleMode"),
+           let ripple = HoldRippleMode(rawValue: savedRipple) {
+            self.holdRippleMode = ripple
+        } else if defaults.object(forKey: "holdRippleEnabled") != nil {
+            // Migrate old boolean setting
+            self.holdRippleMode = defaults.bool(forKey: "holdRippleEnabled") ? .gradient : .off
+        }
+
         cachedInhaleColor = inhaleColor
         cachedExhaleColor = exhaleColor
         updateCachedBackgroundValues()
@@ -335,6 +354,7 @@ class SettingsModel: ObservableObject {
         self.randomizedTimingPostInhaleHold = 0
         self.randomizedTimingExhale = 0
         self.randomizedTimingPostExhaleHold = 0
+        self.holdRippleMode = .gradient
         self.appVisibility = .topBarOnly
         self.reminderIntervalMinutes = 0
         self.autoStopMinutes = 0
@@ -343,7 +363,7 @@ class SettingsModel: ObservableObject {
             "backgroundColor", "inhaleColor", "exhaleColor", "inhaleDuration", "postInhaleHoldDuration",
             "exhaleDuration", "postExhaleHoldDuration", "drift", "overlayOpacity", "colorFillGradient",
             "shape", "animationMode", "randomizedTimingInhale", "randomizedTimingPostInhaleHold",
-            "randomizedTimingExhale", "randomizedTimingPostExhaleHold", "appVisibility",
+            "randomizedTimingExhale", "randomizedTimingPostExhaleHold", "holdRippleMode", "holdRippleEnabled", "appVisibility",
             "reminderIntervalMinutes", "autoStopMinutes",
         ]
         for key in keys {

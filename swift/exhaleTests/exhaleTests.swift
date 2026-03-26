@@ -1471,16 +1471,36 @@ class PerformanceTests: XCTestCase {
         measureCPU(shape: .fullscreen, gradient: .off)
     }
 
+    func testAnimationCPUUsage_RectangleHoldRippleGradient() throws {
+        measureCPU(shape: .rectangle, gradient: .on, holdRipple: .gradient, holdDuration: 4)
+    }
+
+    func testAnimationCPUUsage_RectangleHoldRippleStark() throws {
+        measureCPU(shape: .rectangle, gradient: .off, holdRipple: .stark, holdDuration: 4)
+    }
+
+    func testAnimationCPUUsage_CircleHoldRippleGradient() throws {
+        measureCPU(shape: .circle, gradient: .on, holdRipple: .gradient, holdDuration: 4)
+    }
+
     /// Helper: measures the CPU cost of the animation by comparing CPU with animation ON
     /// vs animation OFF (baseline). This isolates the actual animation cost from XCTest
     /// and RunLoop overhead, making the test reliable regardless of test runner load.
-    private func measureCPU(shape: AnimationShape, gradient: ColorFillGradient, file: StaticString = #file, line: UInt = #line) {
+    private func measureCPU(shape: AnimationShape, gradient: ColorFillGradient, holdRipple: HoldRippleMode = .off, holdDuration: TimeInterval = 0, file: StaticString = #file, line: UInt = #line) {
         let model = SettingsModel()
         model.resetToDefaults()
         model.shape = shape
         model.colorFillGradient = gradient
+        model.holdRippleMode = holdRipple
         model.overlayOpacity = 0.25
         model.isAnimating = false
+
+        if holdDuration > 0 {
+            model.postInhaleHoldDuration = holdDuration
+            model.postExhaleHoldDuration = holdDuration
+            model.inhaleDuration = 2
+            model.exhaleDuration = 2
+        }
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
@@ -1540,7 +1560,8 @@ class PerformanceTests: XCTestCase {
         let baseStr = baselineSamples.map { String(format: "%.1f%%", $0) }.joined(separator: ", ")
         let animStr = animationSamples.map { String(format: "%.1f%%", $0) }.joined(separator: ", ")
         let deltaStr = deltaSamples.map { String(format: "%.1f%%", $0) }.joined(separator: ", ")
-        print("[\(shape.rawValue) + gradient \(gradient.rawValue)]")
+        let label = "\(shape.rawValue) + gradient \(gradient.rawValue) + ripple \(holdRipple.rawValue)"
+        print("[\(label)]")
         print("  baseline: [\(baseStr)] avg: \(String(format: "%.1f", baselineAvg))%")
         print("  animating: [\(animStr)]")
         print("  delta: [\(deltaStr)] avg: \(String(format: "%.1f", avgDelta))% peak: \(String(format: "%.1f", peakDelta))%")
@@ -1554,11 +1575,11 @@ class PerformanceTests: XCTestCase {
         // Local: peak < 10%, average < 5%.
         // CI:    peak < 15%, average < 8% (shared VM noise).
         XCTAssertLessThan(peakDelta, peakThreshold,
-            "\(shape.rawValue) with gradient \(gradient.rawValue) peak animation CPU \(String(format: "%.1f", peakDelta))% exceeded \(String(format: "%.0f", peakThreshold))% — delta: [\(deltaStr)]",
+            "\(label) peak animation CPU \(String(format: "%.1f", peakDelta))% exceeded \(String(format: "%.0f", peakThreshold))% — delta: [\(deltaStr)]",
             file: file, line: line
         )
         XCTAssertLessThan(avgDelta, avgThreshold,
-            "\(shape.rawValue) with gradient \(gradient.rawValue) average animation CPU \(String(format: "%.1f", avgDelta))% exceeded \(String(format: "%.0f", avgThreshold))% — delta: [\(deltaStr)]",
+            "\(label) average animation CPU \(String(format: "%.1f", avgDelta))% exceeded \(String(format: "%.0f", avgThreshold))% — delta: [\(deltaStr)]",
             file: file, line: line
         )
     }
