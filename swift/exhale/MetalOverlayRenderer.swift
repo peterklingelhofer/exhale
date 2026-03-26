@@ -141,6 +141,8 @@ final class MetalOverlayRenderer: NSObject, MTKViewDelegate {
 
         uniforms.phase = breathingState.phase.metalValue
         uniforms.progress = breathingState.progress
+        uniforms.holdTime = breathingState.holdTime
+        uniforms.rippleEnabled = settingsModel.holdRippleEnabled ? 1 : 0
 
         uniforms.rectangleScale = settingsModel.colorFillGradient == .on ? 2.0 : 1.0
         uniforms.circleGradientScale = settingsModel.colorFillGradient == .on ? 2.0 : 1.0

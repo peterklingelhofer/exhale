@@ -14,8 +14,10 @@ struct OverlayUniforms {
     var phase: UInt32 = 0
 
     var progress: Float = 0
+    var holdTime: Float = 0
     var rectangleScale: Float = 1
     var circleGradientScale: Float = 1
+    var rippleEnabled: UInt32 = 1
 
     var backgroundColor: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0)
     var inhaleColor: SIMD4<Float> = SIMD4<Float>(1, 0, 0, 1)

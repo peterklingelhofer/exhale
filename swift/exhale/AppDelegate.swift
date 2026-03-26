@@ -205,6 +205,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             randomizedTimingPostInhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostInhaleHold }, set: { self.settingsModel.randomizedTimingPostInhaleHold = $0 }),
             randomizedTimingExhale: Binding(get: { self.settingsModel.randomizedTimingExhale }, set: { self.settingsModel.randomizedTimingExhale = $0 }),
             randomizedTimingPostExhaleHold: Binding(get: { self.settingsModel.randomizedTimingPostExhaleHold }, set: { self.settingsModel.randomizedTimingPostExhaleHold = $0 }),
+            holdRippleMode: Binding(get: { self.settingsModel.holdRippleMode }, set: { self.settingsModel.holdRippleMode = $0 }),
             isAnimating: Binding(get: { self.settingsModel.isAnimating }, set: { self.settingsModel.isAnimating = $0 }),
             appVisibility: Binding(get: { self.settingsModel.appVisibility }, set: { self.settingsModel.appVisibility = $0 }),
             reminderIntervalMinutes: Binding(get: { self.settingsModel.reminderIntervalMinutes }, set: { self.settingsModel.reminderIntervalMinutes = $0 }),
