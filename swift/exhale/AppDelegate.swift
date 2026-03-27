@@ -166,7 +166,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Initialize the Settings Window
         settingsWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 246, height: 870),
+            contentRect: NSRect(x: 0, y: 0, width: 246, height: 300),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
@@ -174,7 +174,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsWindow.setValue("SettingsWindow3", forKey: "frameAutosaveName")
         settingsWindow.delegate = self
         settingsWindow.minSize = NSSize(width: 246, height: 300)
-        settingsWindow.maxSize = NSSize(width: 246, height: 870)
         let visualEffect = NSVisualEffectView()
         visualEffect.material = .hudWindow
         visualEffect.blendingMode = .behindWindow
@@ -219,6 +218,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             hostingView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
             hostingView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
         ])
+
+        // Compute max height dynamically from the SwiftUI content's intrinsic size
+        // so we never need to hardcode a pixel value when settings are added/removed.
+        let fittingSize = hostingView.fittingSize
+        let titleBarHeight: CGFloat = 28
+        let idealHeight = ceil(fittingSize.height + titleBarHeight)
+        settingsWindow.maxSize = NSSize(width: 246, height: idealHeight)
+        settingsWindow.setContentSize(NSSize(width: 246, height: fittingSize.height))
 
         settingsWindow.title = "exhale"
         toggleSettings(nil)
@@ -442,7 +449,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     x: screenOrigin.x + x,
                     y: screenOrigin.y + y,
                     width: min(w, 246),
-                    height: min(h, 870)
+                    height: min(h, settingsWindow.maxSize.height)
                 )
                 settingsWindow.setFrame(restoredFrame, display: true)
             }
