@@ -47,34 +47,27 @@ class SettingsModel: ObservableObject {
         }
     }
 
-    @Published var inhaleDuration: TimeInterval {
-        didSet {
-            defaults.set(inhaleDuration, forKey: "inhaleDuration")
-        }
+    // Scheduling-only properties: not @Published because they don't affect what's
+    // rendered per-frame. Removing @Published prevents overlay ContentViews from
+    // re-rendering when the user adjusts timing in settings.
+    var inhaleDuration: TimeInterval {
+        didSet { defaults.set(inhaleDuration, forKey: "inhaleDuration") }
     }
 
-    @Published var postInhaleHoldDuration: TimeInterval {
-        didSet {
-            defaults.set(postInhaleHoldDuration, forKey: "postInhaleHoldDuration")
-        }
+    var postInhaleHoldDuration: TimeInterval {
+        didSet { defaults.set(postInhaleHoldDuration, forKey: "postInhaleHoldDuration") }
     }
 
-    @Published var exhaleDuration: TimeInterval {
-        didSet {
-            defaults.set(exhaleDuration, forKey: "exhaleDuration")
-        }
+    var exhaleDuration: TimeInterval {
+        didSet { defaults.set(exhaleDuration, forKey: "exhaleDuration") }
     }
 
-    @Published var postExhaleHoldDuration: TimeInterval {
-        didSet {
-            defaults.set(postExhaleHoldDuration, forKey: "postExhaleHoldDuration")
-        }
+    var postExhaleHoldDuration: TimeInterval {
+        didSet { defaults.set(postExhaleHoldDuration, forKey: "postExhaleHoldDuration") }
     }
 
-    @Published var drift: Double {
-        didSet {
-            defaults.set(drift, forKey: "drift")
-        }
+    var drift: Double {
+        didSet { defaults.set(drift, forKey: "drift") }
     }
 
     @Published var overlayOpacity: Double {
@@ -95,10 +88,8 @@ class SettingsModel: ObservableObject {
         }
     }
 
-    @Published var animationMode: AnimationMode {
-        didSet {
-            defaults.set(animationMode.rawValue, forKey: "animationMode")
-        }
+    var animationMode: AnimationMode {
+        didSet { defaults.set(animationMode.rawValue, forKey: "animationMode") }
     }
 
     @Published var appVisibility: AppVisibility {
@@ -121,28 +112,20 @@ class SettingsModel: ObservableObject {
         }
     }
 
-    @Published var randomizedTimingInhale: Double {
-        didSet {
-            defaults.set(randomizedTimingInhale, forKey: "randomizedTimingInhale")
-        }
+    var randomizedTimingInhale: Double {
+        didSet { defaults.set(randomizedTimingInhale, forKey: "randomizedTimingInhale") }
     }
 
-    @Published var randomizedTimingPostInhaleHold: Double {
-        didSet {
-            defaults.set(randomizedTimingPostInhaleHold, forKey: "randomizedTimingPostInhaleHold")
-        }
+    var randomizedTimingPostInhaleHold: Double {
+        didSet { defaults.set(randomizedTimingPostInhaleHold, forKey: "randomizedTimingPostInhaleHold") }
     }
 
-    @Published var randomizedTimingExhale: Double {
-        didSet {
-            defaults.set(randomizedTimingExhale, forKey: "randomizedTimingExhale")
-        }
+    var randomizedTimingExhale: Double {
+        didSet { defaults.set(randomizedTimingExhale, forKey: "randomizedTimingExhale") }
     }
 
-    @Published var randomizedTimingPostExhaleHold: Double {
-        didSet {
-            defaults.set(randomizedTimingPostExhaleHold, forKey: "randomizedTimingPostExhaleHold")
-        }
+    var randomizedTimingPostExhaleHold: Double {
+        didSet { defaults.set(randomizedTimingPostExhaleHold, forKey: "randomizedTimingPostExhaleHold") }
     }
 
     @Published var holdRippleMode: HoldRippleMode {
@@ -161,7 +144,11 @@ class SettingsModel: ObservableObject {
         }
     }
 
-    @Published var resetAnimation: Bool = false
+    /// Fires once when the animation should reset. Using a PassthroughSubject instead
+    /// of @Published Bool prevents the double objectWillChange fire that @Published causes
+    /// (true then false), which was forcing all overlay ContentViews to re-render twice
+    /// per settings change.
+    let resetAnimationSignal = PassthroughSubject<Void, Never>()
     @Published var isPaused: Bool = false
 
     var inhaleAndExhaleColorsMatch: Bool {
@@ -172,8 +159,7 @@ class SettingsModel: ObservableObject {
     }
 
     func triggerAnimationReset() {
-        resetAnimation = true
-        resetAnimation = false
+        resetAnimationSignal.send()
     }
 
     func start() {
