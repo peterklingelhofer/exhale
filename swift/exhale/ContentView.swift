@@ -109,7 +109,6 @@ struct ContentView: View {
     @State private var animationSessionIdentifier: Int = 0
     @State private var holdProgress: CGFloat = 0
     @State private var rippleOpacity: Double = 0
-    @State private var currentDrift: Double = 1.0
     var body: some View {
         ZStack {
             GeometryReader { geometry in
@@ -270,7 +269,6 @@ struct ContentView: View {
 
     func startBreathingCycle() {
         cycleCount = 0
-        currentDrift = 1.0
         animationSessionIdentifier += 1
         inhale()
     }
@@ -278,7 +276,7 @@ struct ContentView: View {
     func inhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         let currentAnimationSessionIdentifier = animationSessionIdentifier
-        var duration = settingsModel.inhaleDuration * currentDrift
+        var duration = settingsModel.inhaleDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingInhale > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingInhale...settingsModel.randomizedTimingInhale)
         }
@@ -296,6 +294,9 @@ struct ContentView: View {
         withAnimation(animation) {
             breathingPhase = .inhale
             animationProgress = 1.0
+            if settingsModel.shape == .circle {
+                animationProgress = 1
+            }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             guard currentAnimationSessionIdentifier == self.animationSessionIdentifier else { return }
@@ -306,7 +307,7 @@ struct ContentView: View {
     func holdAfterInhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         let currentAnimationSessionIdentifier = animationSessionIdentifier
-        var duration = settingsModel.postInhaleHoldDuration * currentDrift
+        var duration = settingsModel.postInhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingPostInhaleHold > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingPostInhaleHold...settingsModel.randomizedTimingPostInhaleHold)
         }
@@ -328,7 +329,7 @@ struct ContentView: View {
     func exhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         let currentAnimationSessionIdentifier = animationSessionIdentifier
-        var duration = settingsModel.exhaleDuration * currentDrift
+        var duration = settingsModel.exhaleDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingExhale > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingExhale...settingsModel.randomizedTimingExhale)
         }
@@ -356,7 +357,7 @@ struct ContentView: View {
     func holdAfterExhale() {
         guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
         let currentAnimationSessionIdentifier = animationSessionIdentifier
-        var duration = settingsModel.postExhaleHoldDuration * currentDrift
+        var duration = settingsModel.postExhaleHoldDuration * pow(settingsModel.drift, Double(cycleCount))
         if settingsModel.randomizedTimingPostExhaleHold > 0 {
             duration += Double.random(in: -settingsModel.randomizedTimingPostExhaleHold...settingsModel.randomizedTimingPostExhaleHold)
         }
@@ -373,7 +374,6 @@ struct ContentView: View {
             guard currentAnimationSessionIdentifier == self.animationSessionIdentifier else { return }
             guard self.settingsModel.isAnimating else { return self.resetAnimation() }
             self.cycleCount += 1
-            self.currentDrift *= self.settingsModel.drift
             self.inhale()
         }
     }
@@ -381,7 +381,6 @@ struct ContentView: View {
     func resetAnimation() {
         animationSessionIdentifier += 1
         cycleCount = 0
-        currentDrift = 1.0
         animationProgress = 0.0
         holdProgress = 0
         rippleOpacity = 0
