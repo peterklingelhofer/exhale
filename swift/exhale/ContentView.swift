@@ -104,8 +104,6 @@ struct ContentView: View {
     @EnvironmentObject var settingsModel: SettingsModel
     @State private var animationProgress: CGFloat = 0
     @State private var breathingPhase: BreathingPhase = .inhale
-    @State private var overlayOpacity: Double = 0.1
-    @State private var showSettings = false
     @State private var cycleCount: Int = 0
     @State private var cachedMaxCircleScale: CGFloat = 1
     @State private var animationSessionIdentifier: Int = 0
@@ -203,18 +201,24 @@ struct ContentView: View {
                             let blurRadius = useGradient ? borderUnit * 2 : 0 as CGFloat
 
                             Group {
-                                ForEach([true, false], id: \.self) { rightSide in
-                                    // Trail glow (fills behind the sweep front)
-                                    HalfPerimeterShape(rightSide: rightSide)
-                                        .trim(from: trailFrom, to: trailTo)
-                                        .stroke(phaseColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .butt))
-                                        .opacity(0.25)
-                                    // Leading band (bright sweep at the front)
-                                    HalfPerimeterShape(rightSide: rightSide)
-                                        .trim(from: bandFrom, to: bandTo)
-                                        .stroke(phaseColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .butt))
-                                        .opacity(0.8)
-                                }
+                                // Trail glow (fills behind the sweep front)
+                                HalfPerimeterShape(rightSide: true)
+                                    .trim(from: trailFrom, to: trailTo)
+                                    .stroke(phaseColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .butt))
+                                    .opacity(0.25)
+                                HalfPerimeterShape(rightSide: false)
+                                    .trim(from: trailFrom, to: trailTo)
+                                    .stroke(phaseColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .butt))
+                                    .opacity(0.25)
+                                // Leading band (bright sweep at the front)
+                                HalfPerimeterShape(rightSide: true)
+                                    .trim(from: bandFrom, to: bandTo)
+                                    .stroke(phaseColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .butt))
+                                    .opacity(0.8)
+                                HalfPerimeterShape(rightSide: false)
+                                    .trim(from: bandFrom, to: bandTo)
+                                    .stroke(phaseColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .butt))
+                                    .opacity(0.8)
                             }
                             .blur(radius: blurRadius)
                             .opacity(rippleOpacity)
@@ -223,38 +227,6 @@ struct ContentView: View {
                 }
             }
 
-            if showSettings {
-                SettingsView(
-                    showSettings: $showSettings,
-                    inhaleColor: $settingsModel.inhaleColor,
-                    exhaleColor: $settingsModel.exhaleColor,
-                    backgroundColor: $settingsModel.backgroundColor,
-                    colorFillType: $settingsModel.colorFillGradient,
-                    inhaleDuration: $settingsModel.inhaleDuration,
-                    postInhaleHoldDuration: $settingsModel.postInhaleHoldDuration,
-                    exhaleDuration: $settingsModel.exhaleDuration,
-                    postExhaleHoldDuration: $settingsModel.postExhaleHoldDuration,
-                    drift: $settingsModel.drift,
-                    overlayOpacity: $overlayOpacity,
-                    shape: Binding<AnimationShape>(
-                        get: { self.settingsModel.shape },
-                        set: { self.settingsModel.shape = $0 }
-                    ),
-                    animationMode: Binding<AnimationMode>(
-                        get: { self.settingsModel.animationMode },
-                        set: { self.settingsModel.animationMode = $0 }
-                    ),
-                    randomizedTimingInhale: $settingsModel.randomizedTimingInhale,
-                    randomizedTimingPostInhaleHold: $settingsModel.randomizedTimingPostInhaleHold,
-                    randomizedTimingExhale: $settingsModel.randomizedTimingExhale,
-                    randomizedTimingPostExhaleHold: $settingsModel.randomizedTimingPostExhaleHold,
-                    holdRippleMode: $settingsModel.holdRippleMode,
-                    isAnimating: $settingsModel.isAnimating,
-                    appVisibility: $settingsModel.appVisibility,
-                    reminderIntervalMinutes: $settingsModel.reminderIntervalMinutes,
-                    autoStopMinutes: $settingsModel.autoStopMinutes
-                )
-            }
         }
         .onAppear {
             cachedMaxCircleScale = Self.getMaxCircleScale()
@@ -276,11 +248,9 @@ struct ContentView: View {
                 resumeBreathingCycle()
             }
         }
-        .onChange(of: settingsModel.resetAnimation) { newValue in
-            if newValue {
-                resetAnimation()
-                startBreathingCycle()
-            }
+        .onReceive(settingsModel.resetAnimationSignal) { _ in
+            resetAnimation()
+            startBreathingCycle()
         }
         .onChange(of: settingsModel.shape) { _ in
             guard settingsModel.isAnimating && !settingsModel.isPaused else { return }
