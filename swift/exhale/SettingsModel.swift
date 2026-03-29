@@ -161,7 +161,11 @@ class SettingsModel: ObservableObject {
         }
     }
 
-    @Published var resetAnimation: Bool = false
+    /// Fires once when the animation should reset. Using a PassthroughSubject instead
+    /// of @Published Bool prevents the double objectWillChange fire that @Published causes
+    /// (true then false), which was forcing all overlay ContentViews to re-render twice
+    /// per settings change.
+    let resetAnimationSignal = PassthroughSubject<Void, Never>()
     @Published var isPaused: Bool = false
 
     var inhaleAndExhaleColorsMatch: Bool {
@@ -172,8 +176,7 @@ class SettingsModel: ObservableObject {
     }
 
     func triggerAnimationReset() {
-        resetAnimation = true
-        resetAnimation = false
+        resetAnimationSignal.send()
     }
 
     func start() {
