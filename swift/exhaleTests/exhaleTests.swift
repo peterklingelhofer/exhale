@@ -1569,18 +1569,24 @@ class PerformanceTests: XCTestCase {
         print("  animating: [\(animStr)]")
         print("  delta: [\(deltaStr)] avg: \(String(format: "%.1f", avgDelta))% peak: \(String(format: "%.1f", peakDelta))%")
 
-        // CI VMs have noisier CPU; use relaxed thresholds when running on GitHub Actions.
-        // Ripple tests run blur + continuous hold animation alongside the main shape, so
-        // they need slightly higher limits.
+        // Thresholds are set at ~2x the measured values to catch regressions without
+        // false positives. CI VMs are noisier so get an additional buffer.
+        // Ripple tests exercise blur + continuous animation concurrently.
+        // Measured baselines (2026-03-28):
+        //   no-ripple: avg ≤ 2.6%, peak ≤ 2.9%
+        //   ripple:    avg ≤ 2.4%, peak ≤ 3.5%
         let isCI = ProcessInfo.processInfo.environment["CI"] != nil
         let hasRipple = holdRipple != .off
-        let peakThreshold: Double = isCI ? 20.0 : (hasRipple ? 15.0 : 10.0)
-        let avgThreshold: Double = isCI ? 12.0 : (hasRipple ? 10.0 : 5.0)
+        let peakThreshold: Double = isCI ? (hasRipple ? 15.0 : 12.0) : (hasRipple ? 10.0 : 8.0)
+        let avgThreshold: Double  = isCI ? (hasRipple ? 10.0 : 8.0 ) : (hasRipple ? 8.0  : 6.0)
 
         // Assert animation cost (above baseline) stays under thresholds.
-        // Local:        peak < 10%, average < 5%.
-        // Local+ripple: peak < 15%, average < 10%.
-        // CI:           peak < 20%, average < 12%.
+        // Local (no ripple):  peak < 8%,  avg < 6%.
+        // Local (ripple):     peak < 10%, avg < 8%.
+        // CI (no ripple):     peak < 12%, avg < 8%.
+        // CI (ripple):        peak < 15%, avg < 10%.
+        // Circle gradient is inherently noisier than rectangle because its RadialGradient
+        // endRadius changes every frame, making it more sensitive to system load variance.
         XCTAssertLessThan(peakDelta, peakThreshold,
             "\(label) peak animation CPU \(String(format: "%.1f", peakDelta))% exceeded \(String(format: "%.0f", peakThreshold))% — delta: [\(deltaStr)]",
             file: file, line: line
