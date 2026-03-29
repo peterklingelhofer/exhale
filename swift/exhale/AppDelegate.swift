@@ -293,7 +293,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func raiseTooltipWindows(_ notification: Notification?) {
         guard settingsWindow.isVisible else { return }
-        for window in NSApp.windows where String(describing: type(of: window)).contains("ToolTip") {
+        for window in NSApp.windows where NSStringFromClass(type(of: window)).contains("ToolTip") {
             if window.level != Self.tooltipWindowLevel {
                 window.level = Self.tooltipWindowLevel
             }
