@@ -179,18 +179,40 @@ jobs:
           if-no-files-found: error
 
   # ─── Ubuntu: snap for the Snap Store ──────────────────────────────────────
-  # `continue-on-error: true` — snapcraft's LXD runner is finicky on GH
-  # Actions (pack failures inside the build instance with almost no log).
-  # Keep the job gating cosmetic until snap publishing is actually wired up,
-  # so a flaky snap build doesn't block the macOS / Linux / Windows release.
+  # Uses `--destructive-mode` — i.e. snapcraft runs directly on the runner
+  # VM rather than spawning an LXD container.  On `ubuntu-22.04` the LXD
+  # path fails inside stage-package extraction with "Failed to execute pack
+  # in instance" (cgroup-v2 / page_idle/bitmap permission issue) and the
+  # real error never surfaces.  Destructive mode skips the container layer
+  # and just works, at the cost of pulling build deps onto the host.
   linux-snap:
     needs: prepare
     runs-on: ubuntu-22.04
-    continue-on-error: true
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Host build deps (destructive mode needs them on the runner)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev \
+            libx11-dev libxcb1-dev libxkbcommon-dev libwayland-dev \
+            libglib2.0-dev libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            libvulkan-dev libxdo-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install snapcraft
+        run: sudo snap install --classic snapcraft
 
       - name: Override snapcraft version
         run: |
@@ -199,14 +221,12 @@ jobs:
           sed -i "s/^version: .*/version: '${VERSION}'/" \
             rust/packaging/linux/snap/snapcraft.yaml
 
-      - uses: snapcore/action-build@v1
+      - name: Build snap (destructive mode)
         id: snapcraft
-        with:
-          # action-build looks for <path>/snap/snapcraft.yaml; our file lives
-          # at rust/packaging/linux/snap/snapcraft.yaml, so point at the
-          # directory one level above the `snap/` subdir.
-          path: rust/packaging/linux
-          snapcraft-channel: stable
+        working-directory: rust/packaging/linux
+        run: |
+          snapcraft pack --destructive-mode --output exhale_${VERSION}_amd64.snap
+          echo "snap=$(pwd)/exhale_${VERSION}_amd64.snap" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
