@@ -91,13 +91,87 @@ pub struct TimerEvents {
 }
 
 /// Cross-platform desktop notification ("Remember to breathe").
+///
+/// macOS uses the native `UNUserNotifications` framework (required for Mac
+/// App Store distribution — `NSUserNotification` is deprecated and
+/// `notify-rust`'s macOS backend relies on it).  Other platforms continue
+/// to use `notify-rust` (D-Bus on Linux, WinRT toasts on Windows).
 pub fn send_reminder() {
     info!("reminder: Remember to breathe");
+    #[cfg(target_os = "macos")]
+    send_reminder_macos();
+    #[cfg(not(target_os = "macos"))]
+    send_reminder_other();
+}
+
+#[cfg(not(target_os = "macos"))]
+fn send_reminder_other() {
     let mut n = notify_rust::Notification::new();
     n.summary("exhale").body("Remember to breathe");
-    #[cfg(target_os = "macos")]
-    n.sound_name("default");
     if let Err(e) = n.show() {
         log::warn!("notification: {e}");
+    }
+}
+
+/// Deliver a local notification via `UNUserNotificationCenter`.
+///
+/// Mirrors the Swift AppDelegate's `sendReminderNotification()`: builds a
+/// `UNMutableNotificationContent` with title, body, and default sound, wraps
+/// it in a `UNNotificationRequest` with a fresh UUID identifier and a `nil`
+/// trigger (deliver immediately), then hands it to the shared center.
+///
+/// Requires the bundle to be code-signed and to have been granted
+/// `.alert | .sound` authorization (see `platform::request_notification_permission`).
+/// In an unsigned `cargo run` build the center silently drops the request
+/// — that's fine for development.
+#[cfg(target_os = "macos")]
+fn send_reminder_macos() {
+    use block::ConcreteBlock;
+    use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+
+    unsafe {
+        let content: *mut Object = msg_send![class!(UNMutableNotificationContent), alloc];
+        let content: *mut Object = msg_send![content, init];
+        if content.is_null() { return; }
+
+        let ns_string = class!(NSString);
+        let title_c = std::ffi::CString::new("exhale").unwrap();
+        let body_c  = std::ffi::CString::new("Remember to breathe").unwrap();
+        let title:  *mut Object = msg_send![ns_string, stringWithUTF8String: title_c.as_ptr()];
+        let body:   *mut Object = msg_send![ns_string, stringWithUTF8String: body_c.as_ptr()];
+        let _: () = msg_send![content, setTitle: title];
+        let _: () = msg_send![content, setBody:  body];
+
+        let sound: *mut Object = msg_send![class!(UNNotificationSound), defaultSound];
+        let _: () = msg_send![content, setSound: sound];
+
+        let uuid:       *mut Object = msg_send![class!(NSUUID), UUID];
+        let identifier: *mut Object = msg_send![uuid, UUIDString];
+
+        let trigger: *mut Object = std::ptr::null_mut();
+        let request: *mut Object = msg_send![class!(UNNotificationRequest),
+            requestWithIdentifier: identifier
+            content:               content
+            trigger:               trigger];
+
+        let center: *mut Object = msg_send![
+            class!(UNUserNotificationCenter), currentNotificationCenter];
+        if !center.is_null() && !request.is_null() {
+            let block = ConcreteBlock::new(|err: *mut Object| {
+                if !err.is_null() {
+                    log::warn!("notification delivery returned an NSError");
+                }
+            });
+            let block = block.copy();
+            let _: () = msg_send![center,
+                addNotificationRequest: request
+                 withCompletionHandler: &*block];
+        }
+
+        // Balance the +1 retain from `[UNMutableNotificationContent alloc] init]`.
+        // `requestWithIdentifier:…` retains `content` internally, and the
+        // request / sound / strings / uuid are autoreleased convenience
+        // returns that we don't own.
+        let _: () = msg_send![content, release];
     }
 }
