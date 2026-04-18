@@ -152,6 +152,7 @@ jobs:
             libglib2.0-dev libgtk-3-dev \
             libayatana-appindicator3-dev \
             libvulkan-dev \
+            libxdo-dev \
             fuse libfuse2
 
       - name: Install cargo-deb
@@ -178,9 +179,14 @@ jobs:
           if-no-files-found: error
 
   # ─── Ubuntu: snap for the Snap Store ──────────────────────────────────────
+  # `continue-on-error: true` — snapcraft's LXD runner is finicky on GH
+  # Actions (pack failures inside the build instance with almost no log).
+  # Keep the job gating cosmetic until snap publishing is actually wired up,
+  # so a flaky snap build doesn't block the macOS / Linux / Windows release.
   linux-snap:
     needs: prepare
     runs-on: ubuntu-22.04
+    continue-on-error: true
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
