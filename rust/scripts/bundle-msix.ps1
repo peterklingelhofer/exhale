@@ -112,7 +112,11 @@ $manifestText = [System.IO.File]::ReadAllText($ManifestSrc)
 # Coerce any pre-release suffix (e.g. "2.0.8-rc.1") down to the numeric
 # triple MSIX requires; D must be 0 (Microsoft Store rule).
 $numericVersion = ($Version -split '-')[0]
-$manifestText = $manifestText -replace 'Version="[^"]+"', "Version=`"$numericVersion.0`""
+# Case-sensitive replace (-creplace) so we only hit the <Identity Version="…">
+# attribute and leave the lowercase XML declaration `<?xml version="1.0"?>`
+# untouched.  Otherwise makeappx rejects the manifest with "Incorrect xml
+# declaration syntax" because `<?xml Version="2.0.8.0" …?>` is not valid XML.
+$manifestText = $manifestText -creplace 'Version="[^"]+"', "Version=`"$numericVersion.0`""
 [System.IO.File]::WriteAllText($ManifestDst, $manifestText, [System.Text.UTF8Encoding]::new($false))
 
 # ── 4. Pack the MSIX ─────────────────────────────────────────────────────────
