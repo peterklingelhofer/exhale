@@ -105,14 +105,14 @@ Copy-Item (Join-Path $PkgRoot "Assets\*") (Join-Path $StageDir "Assets\") -Recur
 $ManifestSrc = Join-Path $PkgRoot "AppxManifest.xml"
 $ManifestDst = Join-Path $StageDir "AppxManifest.xml"
 
-$manifestText = Get-Content $ManifestSrc -Raw
-# Version in manifest is A.B.C.D where D must be 0 (Microsoft Store rule).
-# Also coerce any pre-release suffix (e.g. "2.0.8-rc.1") down to the numeric
-# triple MSIX requires.
+# Read via .NET so a BOM on the source file is stripped during decode, and
+# write back with an explicit no-BOM encoder so makeappx doesn't reject the
+# manifest with "Incorrect xml declaration syntax" on Line 1 Col 14.
+$manifestText = [System.IO.File]::ReadAllText($ManifestSrc)
+# Coerce any pre-release suffix (e.g. "2.0.8-rc.1") down to the numeric
+# triple MSIX requires; D must be 0 (Microsoft Store rule).
 $numericVersion = ($Version -split '-')[0]
 $manifestText = $manifestText -replace 'Version="[^"]+"', "Version=`"$numericVersion.0`""
-# PowerShell 5.1's `Set-Content -Encoding UTF8` writes a BOM, which makeappx
-# rejects as "Incorrect xml declaration syntax". Emit plain UTF-8 without BOM.
 [System.IO.File]::WriteAllText($ManifestDst, $manifestText, [System.Text.UTF8Encoding]::new($false))
 
 # ── 4. Pack the MSIX ─────────────────────────────────────────────────────────
