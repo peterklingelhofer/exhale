@@ -1,3 +1,4 @@
+#[cfg(feature = "global-hotkeys")]
 mod hotkeys;
 mod overlay;
 mod platform;
@@ -18,6 +19,7 @@ use exhale_core::{
     settings_manager::SettingsManager,
 };
 use exhale_render::GpuContext;
+#[cfg(feature = "global-hotkeys")]
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager};
 use log::{error, info};
 use overlay::OverlayHandle;
@@ -42,6 +44,7 @@ enum AppEvent {
     StopAnimation,
     TogglePause,
     ResetDefaults,
+    #[cfg(feature = "global-hotkeys")]
     ResetDefaultsWithConfirm,
     Quit,
 }
@@ -85,7 +88,9 @@ struct App {
     tray_ids: Option<TrayMenuIds>,
 
     // Global hotkeys.
+    #[cfg(feature = "global-hotkeys")]
     hotkey_manager: Option<GlobalHotKeyManager>,
+    #[cfg(feature = "global-hotkeys")]
     hotkey_ids:     Option<hotkeys::HotkeyIds>,
 
     // Timers.
@@ -108,7 +113,9 @@ impl App {
             controller:       None,
             _tray:            None,
             tray_ids:         None,
+            #[cfg(feature = "global-hotkeys")]
             hotkey_manager:   None,
+            #[cfg(feature = "global-hotkeys")]
             hotkey_ids:       None,
             timers:           Timers::new(),
         }
@@ -247,6 +254,7 @@ impl App {
     /// Open the settings window (if hidden) and raise the reset confirmation
     /// dialog.  Matches Swift's `showResetConfirmation()` on the Ctrl+Shift+F
     /// global hotkey — an `NSAlert` is shown before `resetToDefaults` runs.
+    #[cfg(feature = "global-hotkeys")]
     fn do_reset_with_confirm(&mut self, event_loop: &ActiveEventLoop) {
         // Ensure the settings window exists and is visible.
         let visible = self.settings_win
@@ -384,6 +392,10 @@ impl ApplicationHandler<AppEvent> for App {
         }
 
         // ── Global hotkeys ────────────────────────────────────────────────────
+        // Gated behind the `global-hotkeys` feature so the Mac App Store
+        // build (`--no-default-features`) ships without the Carbon-based
+        // hotkey registration as a hedge against App Review flagging it.
+        #[cfg(feature = "global-hotkeys")]
         match GlobalHotKeyManager::new() {
             Ok(mgr) => {
                 match hotkeys::register_hotkeys(&mgr) {
@@ -436,6 +448,7 @@ impl ApplicationHandler<AppEvent> for App {
             AppEvent::StopAnimation  => self.do_stop(),
             AppEvent::TogglePause    => self.do_toggle_pause(),
             AppEvent::ResetDefaults  => self.do_reset(),
+            #[cfg(feature = "global-hotkeys")]
             AppEvent::ResetDefaultsWithConfirm => self.do_reset_with_confirm(event_loop),
             AppEvent::Quit => {
                 self.shutdown(event_loop);
@@ -661,6 +674,7 @@ impl ApplicationHandler<AppEvent> for App {
         }
 
         // Poll global hotkey events.
+        #[cfg(feature = "global-hotkeys")]
         if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
             use global_hotkey::HotKeyState;
             if event.state == HotKeyState::Pressed {

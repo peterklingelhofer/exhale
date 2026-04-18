@@ -171,6 +171,7 @@ impl SettingsWindow {
 
     /// Raise the Reset confirmation dialog on the next frame.  Used by the
     /// Ctrl+Shift+F global hotkey, mirroring Swift's `showResetConfirmation`.
+    #[cfg(feature = "global-hotkeys")]
     pub fn request_reset_confirmation(&mut self) {
         self.pending_reset = true;
     }

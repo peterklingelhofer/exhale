@@ -1,0 +1,295 @@
+#
+# Cross-platform release pipeline for the Rust exhale binary.
+#
+# Fires on any `v*` tag push (e.g. `git tag v2.0.8 && git push --tags`) and
+# on manual `workflow_dispatch`.  Each platform job builds, packages, and
+# uploads its artefact; the `release` job gathers them and attaches them to
+# a GitHub Release.
+#
+# Store submission (Mac App Store / Microsoft Store / Snap Store) is NOT
+# automated here — those require interactive secret setup (Apple App-Store-
+# Connect API key, Partner Center MSIX submission, snapcraft `edge` channel
+# push).  Hooks for each are left as clearly-marked TODO blocks.
+#
+# Secrets referenced (all optional; jobs gracefully degrade if missing):
+#   MACOS_APP_IDENT_P12       base64 of the Mac App Distribution .p12
+#   MACOS_APP_IDENT_PASSWORD  password for the p12
+#   MACOS_INSTALLER_P12       base64 of the Mac Installer Distribution .p12
+#   MACOS_INSTALLER_PASSWORD  password
+#   MACOS_PROVISION_PROFILE   base64 of exhale.provisionprofile
+#   MACOS_KEYCHAIN_PASSWORD   any string — used for the temporary CI keychain
+#   WINDOWS_CERT_PFX          base64 of a Windows code-signing PFX
+#   WINDOWS_CERT_PASSWORD     password for the PFX
+#   SNAPCRAFT_STORE_CREDENTIALS  output of `snapcraft export-login -`
+#
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version string (e.g. 2.0.8).  Defaults to tag / Cargo.toml."
+        required: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # ─── Derive one consistent version string for all downstream jobs ──────────
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      build:   ${{ steps.version.outputs.build }}
+    steps:
+      - id: version
+        shell: bash
+        run: |
+          if [[ -n "${{ inputs.version }}" ]]; then
+            V="${{ inputs.version }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            V="${GITHUB_REF#refs/tags/v}"
+          else
+            V="2.0.8"
+          fi
+          echo "version=$V"                  >> "$GITHUB_OUTPUT"
+          echo "build=${V//./}"              >> "$GITHUB_OUTPUT"
+          echo "resolved VERSION=$V"
+
+  # ─── macOS: universal binary, code-signed .app + .pkg for Mac App Store ───
+  macos:
+    needs: prepare
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BUILD:   ${{ needs.prepare.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Import signing identities
+        if: ${{ secrets.MACOS_APP_IDENT_P12 != '' && secrets.MACOS_INSTALLER_P12 != '' }}
+        env:
+          KEYCHAIN_PASSWORD:           ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+          APP_P12_B64:                 ${{ secrets.MACOS_APP_IDENT_P12 }}
+          APP_P12_PASSWORD:            ${{ secrets.MACOS_APP_IDENT_PASSWORD }}
+          INSTALLER_P12_B64:           ${{ secrets.MACOS_INSTALLER_P12 }}
+          INSTALLER_P12_PASSWORD:      ${{ secrets.MACOS_INSTALLER_PASSWORD }}
+          PROVISION_PROFILE_B64:       ${{ secrets.MACOS_PROVISION_PROFILE }}
+        run: |
+          set -euo pipefail
+          KC="$RUNNER_TEMP/ci.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KC"
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | xargs)
+
+          echo "$APP_P12_B64"       | base64 --decode > "$RUNNER_TEMP/app.p12"
+          echo "$INSTALLER_P12_B64" | base64 --decode > "$RUNNER_TEMP/installer.p12"
+          security import "$RUNNER_TEMP/app.p12"       -k "$KC" -P "$APP_P12_PASSWORD"        -T /usr/bin/codesign
+          security import "$RUNNER_TEMP/installer.p12" -k "$KC" -P "$INSTALLER_P12_PASSWORD"  -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KC" >/dev/null
+
+          mkdir -p rust/signing
+          echo "$PROVISION_PROFILE_B64" | base64 --decode > rust/signing/exhale.provisionprofile
+
+      - name: Build + package (.app + .pkg)
+        env:
+          DRY_RUN: ${{ (secrets.MACOS_APP_IDENT_P12 == '' || secrets.MACOS_INSTALLER_P12 == '') && '1' || '0' }}
+        run: |
+          chmod +x rust/scripts/bundle-mas.sh
+          rust/scripts/bundle-mas.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name:       macos-${{ env.VERSION }}
+          path:       rust/target/mas/*
+          if-no-files-found: error
+
+  # ─── Ubuntu: .deb (cargo-deb) + .AppImage ─────────────────────────────────
+  linux-direct:
+    needs: prepare
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: System deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libx11-dev libxcb1-dev libxkbcommon-dev libwayland-dev \
+            libglib2.0-dev libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            libvulkan-dev \
+            fuse libfuse2
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb --locked
+
+      - name: Build .deb
+        working-directory: rust
+        run: |
+          cargo deb --no-build -p exhale-app || true   # first call produces target/release
+          cargo build --release --no-default-features -p exhale-app
+          cargo deb --no-build -p exhale-app
+
+      - name: Build .AppImage
+        run: |
+          chmod +x rust/scripts/bundle-appimage.sh
+          rust/scripts/bundle-appimage.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-direct-${{ env.VERSION }}
+          path: |
+            rust/target/debian/*.deb
+            rust/target/appimage/*.AppImage
+          if-no-files-found: error
+
+  # ─── Ubuntu: snap for the Snap Store ──────────────────────────────────────
+  linux-snap:
+    needs: prepare
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Override snapcraft version
+        run: |
+          # snapcraft.yaml is pinned at 2.0.8; override to the resolved
+          # release version so each tag produces a distinct snap revision.
+          sed -i "s/^version: .*/version: '${VERSION}'/" \
+            rust/packaging/linux/snap/snapcraft.yaml
+
+      - uses: snapcore/action-build@v1
+        id: snapcraft
+        with:
+          # action-build looks for <path>/snap/snapcraft.yaml; our file lives
+          # at rust/packaging/linux/snap/snapcraft.yaml, so point at the
+          # directory one level above the `snap/` subdir.
+          path: rust/packaging/linux
+          snapcraft-channel: stable
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-snap-${{ env.VERSION }}
+          path: ${{ steps.snapcraft.outputs.snap }}
+          if-no-files-found: error
+
+      # TODO(store): enable once you've run
+      #   snapcraft export-login - | base64
+      # and set the output as SNAPCRAFT_STORE_CREDENTIALS in repo secrets.
+      #
+      # - uses: snapcore/action-publish@v1
+      #   if: env.HAS_CREDS == 'true'
+      #   env:
+      #     HAS_CREDS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS != '' }}
+      #     SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+      #   with:
+      #     snap:    ${{ steps.snapcraft.outputs.snap }}
+      #     release: edge
+
+  # ─── Windows: signed .msix for Microsoft Store ────────────────────────────
+  windows:
+    needs: prepare
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BUILD:   ${{ needs.prepare.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Decode signing cert
+        id: cert
+        if: ${{ secrets.WINDOWS_CERT_PFX != '' }}
+        shell: pwsh
+        env:
+          CERT_PFX_B64: ${{ secrets.WINDOWS_CERT_PFX }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
+          [IO.File]::WriteAllBytes($pfx,
+            [Convert]::FromBase64String($env:CERT_PFX_B64))
+          "path=$pfx" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Build + package (.msix)
+        shell: pwsh
+        env:
+          HAS_CERT:          ${{ secrets.WINDOWS_CERT_PFX != '' && 'true' || 'false' }}
+          CERT_PASSWORD:     ${{ secrets.WINDOWS_CERT_PASSWORD }}
+          CERT_PATH:         ${{ steps.cert.outputs.path }}
+        run: |
+          if ($env:HAS_CERT -eq 'true') {
+            $pw = ConvertTo-SecureString $env:CERT_PASSWORD -AsPlainText -Force
+            rust\scripts\bundle-msix.ps1 `
+              -Version $env:VERSION -Build $env:BUILD `
+              -CertPath $env:CERT_PATH -CertPassword $pw
+          } else {
+            rust\scripts\bundle-msix.ps1 -Version $env:VERSION -Build $env:BUILD -DryRun
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ env.VERSION }}
+          path: rust/target/msix/*.msix
+          if-no-files-found: error
+
+  # ─── Attach all artefacts to a GitHub Release ─────────────────────────────
+  release:
+    needs: [prepare, macos, linux-direct, linux-snap, windows]
+    if:    startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artefacts
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          find artifacts -type f \( \
+            -name '*.pkg' -o -name '*.app.zip' \
+            -o -name '*.deb' -o -name '*.AppImage' \
+            -o -name '*.snap' \
+            -o -name '*.msix' \
+          \) -exec cp {} release/ \;
+          ls -lh release/
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: release/*

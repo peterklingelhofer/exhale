@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=exhale
+GenericName=Breathing Overlay
+Comment=A full-screen breathing overlay for mindful breathing
+Exec=exhale
+Icon=exhale
+Terminal=false
+Categories=Utility;HealthCare;
+Keywords=breathing;meditation;mindfulness;health;
+StartupNotify=false
+StartupWMClass=exhale

@@ -1,11 +1,47 @@
 [package]
-name    = "exhale-app"
-version = "0.1.0"
-edition = "2021"
+name        = "exhale-app"
+version     = "2.0.8"
+edition     = "2021"
+description = "A full-screen breathing overlay that helps you breathe mindfully."
+license     = "MIT"
+authors     = ["Peter Klingelhofer <peterklingelhofer@gmail.com>"]
+repository  = "https://github.com/peterklingelhofer/exhale"
+homepage    = "https://github.com/peterklingelhofer/exhale"
+
+# ── Debian package metadata (used by `cargo deb`) ─────────────────────────────
+# Runtime dependency list is the conservative superset covering Ubuntu 20.04+
+# (`focal`, `jammy`, `noble`).  `libayatana-appindicator3-1` is the modern
+# tray-icon backend; distros that still ship libappindicator3-1 symlink it.
+[package.metadata.deb]
+maintainer          = "Peter Klingelhofer <peterklingelhofer@gmail.com>"
+copyright           = "2023-2026, Peter Klingelhofer"
+license-file        = ["../../../LICENSE", "0"]
+extended-description = """
+exhale is a calming full-screen overlay that paces your breathing with a
+tunable inhale/exhale/hold rhythm.  Runs as a menu-bar app with optional
+system-tray controls and global reminder notifications."""
+section             = "x11"
+priority            = "optional"
+depends             = "libc6, libgcc-s1, libx11-6, libxcb1, libxkbcommon0, libwayland-client0, libayatana-appindicator3-1 | libappindicator3-1, libvulkan1, libgtk-3-0"
+assets = [
+    ["target/release/exhale",                              "usr/bin/",                                    "755"],
+    ["../../packaging/linux/exhale.desktop",               "usr/share/applications/",                     "644"],
+    ["../../packaging/linux/icons/256x256/exhale.png",     "usr/share/icons/hicolor/256x256/apps/",       "644"],
+    ["../../packaging/linux/icons/512x512/exhale.png",     "usr/share/icons/hicolor/512x512/apps/",       "644"],
+    ["../../../LICENSE",                                   "usr/share/doc/exhale/",                       "644"],
+]
 
 [[bin]]
 name = "exhale"
 path = "src/main.rs"
+
+[features]
+# `global-hotkeys` wires up the Carbon `RegisterEventHotKey`-backed
+# `global-hotkey` crate.  Disabled for the Mac App Store build
+# (`--no-default-features`) as a hedge in case App Review flags the
+# behaviour — it's trivial to re-enable per-target later.
+default        = ["global-hotkeys"]
+global-hotkeys = ["dep:global-hotkey"]
 
 [dependencies]
 exhale-core   = { workspace = true }
@@ -20,14 +56,16 @@ egui          = { workspace = true }
 egui-winit    = { workspace = true }
 egui-wgpu     = { workspace = true }
 tray-icon     = { workspace = true }
-global-hotkey = { workspace = true }
-notify-rust   = { workspace = true }
+global-hotkey = { workspace = true, optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# macOS uses native `UNUserNotifications` via objc — `notify-rust` is only
+# pulled in on other platforms.
 objc  = "0.2"
 block = "0.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
+notify-rust = { workspace = true }
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
@@ -37,6 +75,7 @@ windows-sys = { version = "0.59", features = [
 ] }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+notify-rust = { workspace = true }
 # X11 click-through + shape input region for Linux overlay windows.
 # x11-dl loads libX11 / libXfixes at runtime, so the Rust build doesn't need
 # X11 development headers installed — only the runtime libraries (which are

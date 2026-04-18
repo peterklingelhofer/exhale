@@ -28,3 +28,9 @@ target/
 # Local backups / generated archives
 *.zip
 *.diff
+
+# Mac App Store signing — never commit provisioning profiles or keys
+rust/signing/
+*.provisionprofile
+*.p12
+*.cer
