@@ -67,9 +67,13 @@ jobs:
   macos:
     needs: prepare
     runs-on: macos-latest
+    # `secrets` context is not allowed in step-level `if:` expressions, so
+    # hoist the availability check into job-level `env` (which *can* read
+    # secrets) and gate individual steps on `env.HAS_MAC_CERTS`.
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
       BUILD:   ${{ needs.prepare.outputs.build }}
+      HAS_MAC_CERTS: ${{ (secrets.MACOS_APP_IDENT_P12 != '' && secrets.MACOS_INSTALLER_P12 != '') && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -83,7 +87,7 @@ jobs:
           workspaces: rust
 
       - name: Import signing identities
-        if: ${{ secrets.MACOS_APP_IDENT_P12 != '' && secrets.MACOS_INSTALLER_P12 != '' }}
+        if: env.HAS_MAC_CERTS == 'true'
         env:
           KEYCHAIN_PASSWORD:           ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
           APP_P12_B64:                 ${{ secrets.MACOS_APP_IDENT_P12 }}
@@ -110,7 +114,7 @@ jobs:
 
       - name: Build + package (.app + .pkg)
         env:
-          DRY_RUN: ${{ (secrets.MACOS_APP_IDENT_P12 == '' || secrets.MACOS_INSTALLER_P12 == '') && '1' || '0' }}
+          DRY_RUN: ${{ env.HAS_MAC_CERTS == 'true' && '0' || '1' }}
         run: |
           chmod +x rust/scripts/bundle-mas.sh
           rust/scripts/bundle-mas.sh
@@ -219,9 +223,13 @@ jobs:
   windows:
     needs: prepare
     runs-on: windows-latest
+    # `secrets` context is not allowed in step-level `if:` expressions, so
+    # expose HAS_WIN_CERT via job-level env (which can read secrets) and
+    # gate the Decode step on `env.HAS_WIN_CERT`.
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
       BUILD:   ${{ needs.prepare.outputs.build }}
+      HAS_WIN_CERT: ${{ secrets.WINDOWS_CERT_PFX != '' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -234,7 +242,7 @@ jobs:
 
       - name: Decode signing cert
         id: cert
-        if: ${{ secrets.WINDOWS_CERT_PFX != '' }}
+        if: env.HAS_WIN_CERT == 'true'
         shell: pwsh
         env:
           CERT_PFX_B64: ${{ secrets.WINDOWS_CERT_PFX }}
@@ -247,11 +255,10 @@ jobs:
       - name: Build + package (.msix)
         shell: pwsh
         env:
-          HAS_CERT:          ${{ secrets.WINDOWS_CERT_PFX != '' && 'true' || 'false' }}
           CERT_PASSWORD:     ${{ secrets.WINDOWS_CERT_PASSWORD }}
           CERT_PATH:         ${{ steps.cert.outputs.path }}
         run: |
-          if ($env:HAS_CERT -eq 'true') {
+          if ($env:HAS_WIN_CERT -eq 'true') {
             $pw = ConvertTo-SecureString $env:CERT_PASSWORD -AsPlainText -Force
             rust\scripts\bundle-msix.ps1 `
               -Version $env:VERSION -Build $env:BUILD `
