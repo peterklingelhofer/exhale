@@ -257,7 +257,11 @@ mod nix {
     use super::*;
     use std::ffi::CString;
     use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    use x11_dl::{xfixes::Xfixes, xlib::{Display, Xlib, XClientMessageEvent, XEvent, ClientMessage}};
+    // x11-dl's `x11_link!` macro generates a type named `Xlib` in every
+    // module it's invoked in (including `xfixes`), so the Xfixes handle is
+    // `x11_dl::xfixes::Xlib`, not `x11_dl::xfixes::Xfixes`. Alias it for
+    // readability.
+    use x11_dl::{xfixes::Xlib as Xfixes, xlib::{Display, Xlib, XClientMessageEvent, XEvent, ClientMessage}};
 
     struct X11<'a> {
         xlib:    &'a Xlib,

@@ -107,8 +107,13 @@ $ManifestDst = Join-Path $StageDir "AppxManifest.xml"
 
 $manifestText = Get-Content $ManifestSrc -Raw
 # Version in manifest is A.B.C.D where D must be 0 (Microsoft Store rule).
-$manifestText = $manifestText -replace 'Version="[^"]+"', "Version=`"$Version.0`""
-Set-Content -Path $ManifestDst -Value $manifestText -Encoding UTF8
+# Also coerce any pre-release suffix (e.g. "2.0.8-rc.1") down to the numeric
+# triple MSIX requires.
+$numericVersion = ($Version -split '-')[0]
+$manifestText = $manifestText -replace 'Version="[^"]+"', "Version=`"$numericVersion.0`""
+# PowerShell 5.1's `Set-Content -Encoding UTF8` writes a BOM, which makeappx
+# rejects as "Incorrect xml declaration syntax". Emit plain UTF-8 without BOM.
+[System.IO.File]::WriteAllText($ManifestDst, $manifestText, [System.Text.UTF8Encoding]::new($false))
 
 # ── 4. Pack the MSIX ─────────────────────────────────────────────────────────
 if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir | Out-Null }

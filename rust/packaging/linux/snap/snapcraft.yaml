@@ -14,7 +14,7 @@ description: |
 
 grade:       stable
 confinement: strict
-icon:        gui/exhale.png
+icon:        snap/gui/exhale.png
 
 license: MIT
 
