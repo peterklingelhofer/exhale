@@ -39,7 +39,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
+  # Do NOT set `RUSTFLAGS: -D warnings` here — third-party macro crates
+  # (e.g. `objc`) emit check-cfg warnings that we can't suppress from our
+  # side, and escalating those to errors breaks the macOS / Linux builds.
 
 jobs:
   # ─── Derive one consistent version string for all downstream jobs ──────────
