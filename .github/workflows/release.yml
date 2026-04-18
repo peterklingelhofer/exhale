@@ -211,8 +211,17 @@ jobs:
         with:
           workspaces: rust
 
-      - name: Install snapcraft
-        run: sudo snap install --classic snapcraft
+      - name: Install snapcraft and build-snap dependencies
+        run: |
+          sudo snap install --classic snapcraft
+          # snapcraft.yaml uses `extensions: [gnome]`, which pulls the
+          # `gnome-42-2204` content snap at build time.  In destructive
+          # mode, snapcraft tries to install it on the host and sometimes
+          # fails with a generic "Error installing snap" that gives no
+          # detail — preinstalling it here makes the failure surface early
+          # and lets snapcraft skip the install step.
+          sudo snap install core22
+          sudo snap install gnome-42-2204
 
       - name: Override snapcraft version
         run: |
