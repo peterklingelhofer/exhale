@@ -1,0 +1,20 @@
+[package]
+name    = "exhale-render"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+exhale-core = { workspace = true }
+wgpu        = { workspace = true }
+bytemuck    = { version = "1", features = ["derive"] }
+anyhow      = { workspace = true }
+log         = { workspace = true }
+pollster    = { workspace = true }
+
+[dev-dependencies]
+libc        = "0.2"
+env_logger  = { workspace = true }
+
+[[example]]
+name = "cpu_bench"
+path = "examples/cpu_bench.rs"

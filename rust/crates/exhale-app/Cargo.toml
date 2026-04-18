@@ -1,0 +1,44 @@
+[package]
+name    = "exhale-app"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "exhale"
+path = "src/main.rs"
+
+[dependencies]
+exhale-core   = { workspace = true }
+exhale-render = { workspace = true }
+wgpu          = { workspace = true }
+winit         = { workspace = true }
+pollster      = { workspace = true }
+anyhow        = { workspace = true }
+log           = { workspace = true }
+env_logger    = { workspace = true }
+egui          = { workspace = true }
+egui-winit    = { workspace = true }
+egui-wgpu     = { workspace = true }
+tray-icon     = { workspace = true }
+global-hotkey = { workspace = true }
+notify-rust   = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc  = "0.2"
+block = "0.1"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Shell",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+] }
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+# X11 click-through + shape input region for Linux overlay windows.
+# x11-dl loads libX11 / libXfixes at runtime, so the Rust build doesn't need
+# X11 development headers installed — only the runtime libraries (which are
+# pre-installed on every X11 desktop distro).
+x11-dl = "2.21"
