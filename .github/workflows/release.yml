@@ -179,31 +179,52 @@ jobs:
           if-no-files-found: error
 
   # ─── Ubuntu: snap for the Snap Store ──────────────────────────────────────
-  # snapcore/action-build@v1 runs snapcraft inside LXD on the GHA runner.
-  # Must run on ubuntu-24.04: on ubuntu-22.04 LXD aborts during stage-
-  # package extraction with `/sys/kernel/mm/page_idle/bitmap: Permission
-  # denied` (kernel cgroup-v2 / page_idle restriction that the 22.04 runner
-  # image ships with).  24.04's kernel exposes the bitmap to unprivileged
-  # containers, so snapcraft's stage-package extraction succeeds.
+  # GHA's kernel blocks /sys/kernel/mm/page_idle/bitmap inside LXD, which
+  # snapcraft's default managed-mode requires for stage-package extraction.
+  # Neither ubuntu-22.04 nor ubuntu-24.04 exposes it.  Workaround: run
+  # `snapcraft pack --destructive-mode` directly on the runner (no LXD,
+  # no Multipass) and pre-install the base/runtime build-snaps that the
+  # `gnome` extension pulls in, so snapcraft doesn't have to.
   # Store upload is still manual (requires SNAPCRAFT_STORE_CREDENTIALS).
   linux-snap:
     needs: prepare
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build snap
-        id: build
-        uses: snapcore/action-build@v1
-        with:
-          path: rust/packaging/linux
+      - name: Install snapcraft + build-snaps
+        run: |
+          set -euxo pipefail
+          sudo snap install snapcraft --classic
+          # Pre-install what the `gnome` extension would otherwise fetch
+          # mid-build.  Previous destructive-mode attempts died with a
+          # bare "Error installing snap" when snapcraft tried to install
+          # these itself; pre-staging sidesteps that.
+          sudo snap install core22
+          sudo snap install gnome-42-2204
+          sudo snap install gtk-common-themes
+          # Build deps for the cargo compilation inside destructive-mode
+          # (the snap will package its own lib runtimes via stage-packages,
+          # but the cargo build itself needs headers on the host).
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config build-essential \
+            libx11-dev libxcb1-dev libxkbcommon-dev libwayland-dev \
+            libglib2.0-dev libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            libvulkan-dev \
+            libxdo-dev
+
+      - name: Pack snap (destructive-mode)
+        working-directory: rust/packaging/linux
+        run: sudo snapcraft pack --destructive-mode --verbose
 
       - uses: actions/upload-artifact@v4
         with:
           name: linux-snap-${{ env.VERSION }}
-          path: ${{ steps.build.outputs.snap }}
+          path: rust/packaging/linux/*.snap
           if-no-files-found: error
 
   # ─── Windows: signed .msix for Microsoft Store ────────────────────────────
