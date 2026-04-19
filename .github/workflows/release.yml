@@ -178,25 +178,32 @@ jobs:
             rust/target/appimage/*.AppImage
           if-no-files-found: error
 
-  # ─── Ubuntu: snap for the Snap Store (DEFERRED — Phase 2) ────────────────
-  # Snap packaging is deferred until we have Snap Store credentials wired up.
-  # The snapcraft.yaml + snap/gui assets are kept in-tree so Phase 2 can
-  # flip this back on.  Two build paths have both been tried and neither
-  # works on GH Actions' `ubuntu-22.04` runner:
-  #   1. snapcore/action-build@v1 (LXD mode) — the build container aborts
-  #      with a bare "Failed to execute pack in instance" during stage-
-  #      package extraction (cgroup-v2 / page_idle/bitmap permission issue).
-  #   2. `snapcraft pack --destructive-mode` — snapcraft cascades through
-  #      build-snaps (gnome-42-2204, gtk-common-themes, …) and each fails
-  #      with a bare "Error installing snap" that gives no detail.
-  # Both are known snapcraft/GHA issues that keep changing; re-test when
-  # we're ready to publish.  Linux users are covered by the .deb and
-  # .AppImage artefacts from the `linux-direct` job in the meantime.
-  #
-  # linux-snap:
-  #   needs: prepare
-  #   runs-on: ubuntu-22.04
-  #   ...
+  # ─── Ubuntu: snap for the Snap Store ──────────────────────────────────────
+  # snapcore/action-build@v1 runs snapcraft inside LXD on the GHA runner.
+  # Earlier attempts failed with "Failed to execute pack in instance" during
+  # stage-package extraction — the snapcraft.yaml has since been slimmed
+  # (stage-packages: libayatana-appindicator3-1, libxdo3 only) which should
+  # fit within LXD's memory / cgroup-v2 constraints on ubuntu-22.04.
+  # Store upload is still manual (requires SNAPCRAFT_STORE_CREDENTIALS).
+  linux-snap:
+    needs: prepare
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build snap
+        id: build
+        uses: snapcore/action-build@v1
+        with:
+          path: rust/packaging/linux
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-snap-${{ env.VERSION }}
+          path: ${{ steps.build.outputs.snap }}
+          if-no-files-found: error
 
   # ─── Windows: signed .msix for Microsoft Store ────────────────────────────
   windows:
@@ -254,7 +261,7 @@ jobs:
 
   # ─── Attach all artefacts to a GitHub Release ─────────────────────────────
   release:
-    needs: [prepare, macos, linux-direct, windows]
+    needs: [prepare, macos, linux-direct, linux-snap, windows]
     if:    startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
