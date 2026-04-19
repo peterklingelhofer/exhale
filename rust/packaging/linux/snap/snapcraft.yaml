@@ -42,8 +42,8 @@ parts:
     plugin: nil
     # snapcraft.yaml sits at rust/packaging/linux/snap/snapcraft.yaml, so the
     # snapcraft project dir (`snap/` parent) is rust/packaging/linux/.  We
-    # need the entire repo, so walk up three levels.
-    source: ../../../../
+    # need the entire repo, so walk up three levels to the repo root.
+    source: ../../../
     source-type: local
     build-packages:
       - curl
