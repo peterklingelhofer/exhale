@@ -218,13 +218,12 @@ jobs:
             libxdo-dev
 
       - name: Pack snap (destructive-mode)
-        working-directory: rust/packaging/linux
         run: sudo snapcraft pack --destructive-mode --verbose
 
       - uses: actions/upload-artifact@v4
         with:
           name: linux-snap-${{ env.VERSION }}
-          path: rust/packaging/linux/*.snap
+          path: ./*.snap
           if-no-files-found: error
 
   # ─── Windows: signed .msix for Microsoft Store ────────────────────────────
