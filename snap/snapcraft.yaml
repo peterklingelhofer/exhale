@@ -1,0 +1,92 @@
+name: exhale
+base: core22
+version: '2.0.8'
+summary: A full-screen breathing overlay for mindful breathing.
+description: |
+  exhale is a calming full-screen overlay that paces your breathing with a
+  tunable inhale/exhale/hold rhythm.  Runs as a menu-bar / system-tray app
+  with customisable colours, shapes, and cadence, and optional reminder
+  notifications.
+
+  Controls live in the system tray: Start/Stop animation, toggle pause,
+  reset to defaults, open preferences.  The overlay itself is click-through
+  so it never interrupts whatever you're doing.
+
+grade:       stable
+confinement: strict
+icon:        snap/gui/exhale.png
+
+license: MIT
+
+apps:
+  exhale:
+    command: usr/bin/exhale
+    extensions: [gnome]
+    plugs:
+      - wayland
+      - x11
+      - opengl
+      - desktop
+      - desktop-legacy
+      - home
+      - unity7            # legacy AppIndicator tray protocol
+    desktop: usr/share/applications/exhale.desktop
+
+parts:
+  # The `rust` plugin can build workspace members directly, but we lean on
+  # `override-build` so the invocation mirrors `cargo-deb` / CI exactly and
+  # so we can pin to `--no-default-features` (global-hotkeys off — matches
+  # the Mac App Store policy; snap confinement wouldn't grant global-hotkey
+  # access anyway).
+  exhale:
+    plugin: nil
+    # snapcraft.yaml lives at snap/snapcraft.yaml so the project dir is the
+    # repo root; source the whole tree so `override-build` can `cd rust`.
+    source: .
+    source-type: local
+    build-packages:
+      - curl
+      - ca-certificates
+      - build-essential
+      - pkg-config
+      - libssl-dev
+      - libx11-dev
+      - libxcb1-dev
+      - libxkbcommon-dev
+      - libwayland-dev
+      - libglib2.0-dev
+      - libgtk-3-dev
+      - libayatana-appindicator3-dev
+      - libvulkan-dev
+      - libxdo-dev
+    # Keep this list minimal — the `gnome` extension brings in gtk/glib and
+    # most display stack runtimes.  Extra packages here balloon the built
+    # snap and have been linked to LXD "Failed to execute pack in instance"
+    # failures on CI. Drop mesa-vulkan-drivers (wgpu falls back to GL).
+    stage-packages:
+      - libayatana-appindicator3-1
+      - libxdo3
+    override-build: |
+      set -euo pipefail
+
+      # Install a pinned stable rustup toolchain into the build container.
+      # snapcraft's build hosts don't ship rust; this mirrors what
+      # `.github/workflows/release.yml` does for the Linux snap job.
+      if ! command -v cargo >/dev/null 2>&1; then
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+          | sh -s -- -y --default-toolchain stable --profile minimal
+      fi
+      # shellcheck disable=SC1090
+      . "${HOME}/.cargo/env"
+
+      cd rust
+      cargo build --release --no-default-features -p exhale-app
+
+      install -D -m 755 target/release/exhale \
+        "${CRAFT_PART_INSTALL}/usr/bin/exhale"
+      install -D -m 644 packaging/linux/exhale.desktop \
+        "${CRAFT_PART_INSTALL}/usr/share/applications/exhale.desktop"
+      install -D -m 644 packaging/linux/icons/256x256/exhale.png \
+        "${CRAFT_PART_INSTALL}/usr/share/icons/hicolor/256x256/apps/exhale.png"
+      install -D -m 644 packaging/linux/icons/512x512/exhale.png \
+        "${CRAFT_PART_INSTALL}/usr/share/icons/hicolor/512x512/apps/exhale.png"

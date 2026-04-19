@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Microsoft Store (MSIX) manifest for the Rust port of exhale.
+
+  Fields marked [PARTNER CENTER] are reserved for values that Partner Center
+  assigns when the app listing is created.  Before the first MSIX build:
+
+    1. Reserve the app name at https://partner.microsoft.com/dashboard/windows/overview
+       (bundle ID on Windows is called "Identity Name").
+    2. From App identity → copy:
+         Package/Identity/@Name      ← "Name"
+         Package/Identity/@Publisher ← "Publisher"
+         Package/Properties/PublisherDisplayName ← "Publisher display name"
+       Replace the three placeholders below.
+    3. Version must increase monotonically per Store submission (A.B.C.D;
+       keep D=0 and bump C — or match Cargo.toml).
+
+  Reference:
+    https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/root-elements
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="PeterKlingelhofer.exhale"
+    Publisher="CN=Peter Klingelhofer"
+    Version="2.0.8.0" />
+
+  <Properties>
+    <DisplayName>exhale</DisplayName>
+    <PublisherDisplayName>Peter Klingelhofer</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>A full-screen breathing overlay for mindful breathing.</Description>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop"
+                        MinVersion="10.0.17763.0"
+                        MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application
+      Id="App"
+      Executable="exhale.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="exhale"
+        Description="A full-screen breathing overlay for mindful breathing."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- The app is a traditional Win32 desktop binary wrapped in MSIX,
+         so it needs `runFullTrust` to run outside the UWP sandbox.
+         No network, no filesystem, no location — matches macOS. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>
