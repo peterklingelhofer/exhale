@@ -178,83 +178,25 @@ jobs:
             rust/target/appimage/*.AppImage
           if-no-files-found: error
 
-  # ─── Ubuntu: snap for the Snap Store ──────────────────────────────────────
-  # Uses `--destructive-mode` — i.e. snapcraft runs directly on the runner
-  # VM rather than spawning an LXD container.  On `ubuntu-22.04` the LXD
-  # path fails inside stage-package extraction with "Failed to execute pack
-  # in instance" (cgroup-v2 / page_idle/bitmap permission issue) and the
-  # real error never surfaces.  Destructive mode skips the container layer
-  # and just works, at the cost of pulling build deps onto the host.
-  linux-snap:
-    needs: prepare
-    runs-on: ubuntu-22.04
-    env:
-      VERSION: ${{ needs.prepare.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Host build deps (destructive mode needs them on the runner)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential pkg-config libssl-dev \
-            libx11-dev libxcb1-dev libxkbcommon-dev libwayland-dev \
-            libglib2.0-dev libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            libvulkan-dev libxdo-dev
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-gnu
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust
-
-      - name: Install snapcraft and build-snap dependencies
-        run: |
-          sudo snap install --classic snapcraft
-          # snapcraft.yaml uses `extensions: [gnome]`, which pulls the
-          # `gnome-42-2204` content snap at build time.  In destructive
-          # mode, snapcraft tries to install it on the host and sometimes
-          # fails with a generic "Error installing snap" that gives no
-          # detail — preinstalling it here makes the failure surface early
-          # and lets snapcraft skip the install step.
-          sudo snap install core22
-          sudo snap install gnome-42-2204
-
-      - name: Override snapcraft version
-        run: |
-          # snapcraft.yaml is pinned at 2.0.8; override to the resolved
-          # release version so each tag produces a distinct snap revision.
-          sed -i "s/^version: .*/version: '${VERSION}'/" \
-            rust/packaging/linux/snap/snapcraft.yaml
-
-      - name: Build snap (destructive mode)
-        id: snapcraft
-        working-directory: rust/packaging/linux
-        run: |
-          snapcraft pack --destructive-mode --output exhale_${VERSION}_amd64.snap
-          echo "snap=$(pwd)/exhale_${VERSION}_amd64.snap" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux-snap-${{ env.VERSION }}
-          path: ${{ steps.snapcraft.outputs.snap }}
-          if-no-files-found: error
-
-      # TODO(store): enable once you've run
-      #   snapcraft export-login - | base64
-      # and set the output as SNAPCRAFT_STORE_CREDENTIALS in repo secrets.
-      #
-      # - uses: snapcore/action-publish@v1
-      #   if: env.HAS_CREDS == 'true'
-      #   env:
-      #     HAS_CREDS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS != '' }}
-      #     SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
-      #   with:
-      #     snap:    ${{ steps.snapcraft.outputs.snap }}
-      #     release: edge
+  # ─── Ubuntu: snap for the Snap Store (DEFERRED — Phase 2) ────────────────
+  # Snap packaging is deferred until we have Snap Store credentials wired up.
+  # The snapcraft.yaml + snap/gui assets are kept in-tree so Phase 2 can
+  # flip this back on.  Two build paths have both been tried and neither
+  # works on GH Actions' `ubuntu-22.04` runner:
+  #   1. snapcore/action-build@v1 (LXD mode) — the build container aborts
+  #      with a bare "Failed to execute pack in instance" during stage-
+  #      package extraction (cgroup-v2 / page_idle/bitmap permission issue).
+  #   2. `snapcraft pack --destructive-mode` — snapcraft cascades through
+  #      build-snaps (gnome-42-2204, gtk-common-themes, …) and each fails
+  #      with a bare "Error installing snap" that gives no detail.
+  # Both are known snapcraft/GHA issues that keep changing; re-test when
+  # we're ready to publish.  Linux users are covered by the .deb and
+  # .AppImage artefacts from the `linux-direct` job in the meantime.
+  #
+  # linux-snap:
+  #   needs: prepare
+  #   runs-on: ubuntu-22.04
+  #   ...
 
   # ─── Windows: signed .msix for Microsoft Store ────────────────────────────
   windows:
@@ -312,7 +254,7 @@ jobs:
 
   # ─── Attach all artefacts to a GitHub Release ─────────────────────────────
   release:
-    needs: [prepare, macos, linux-direct, linux-snap, windows]
+    needs: [prepare, macos, linux-direct, windows]
     if:    startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
