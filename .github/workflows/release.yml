@@ -180,14 +180,15 @@ jobs:
 
   # ─── Ubuntu: snap for the Snap Store ──────────────────────────────────────
   # snapcore/action-build@v1 runs snapcraft inside LXD on the GHA runner.
-  # Earlier attempts failed with "Failed to execute pack in instance" during
-  # stage-package extraction — the snapcraft.yaml has since been slimmed
-  # (stage-packages: libayatana-appindicator3-1, libxdo3 only) which should
-  # fit within LXD's memory / cgroup-v2 constraints on ubuntu-22.04.
+  # Must run on ubuntu-24.04: on ubuntu-22.04 LXD aborts during stage-
+  # package extraction with `/sys/kernel/mm/page_idle/bitmap: Permission
+  # denied` (kernel cgroup-v2 / page_idle restriction that the 22.04 runner
+  # image ships with).  24.04's kernel exposes the bitmap to unprivileged
+  # containers, so snapcraft's stage-package extraction succeeds.
   # Store upload is still manual (requires SNAPCRAFT_STORE_CREDENTIALS).
   linux-snap:
     needs: prepare
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
