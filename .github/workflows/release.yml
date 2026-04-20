@@ -185,12 +185,15 @@ jobs:
   # `snapcraft pack --destructive-mode` directly on the runner (no LXD,
   # no Multipass) and pre-install the base/runtime build-snaps that the
   # `gnome` extension pulls in, so snapcraft doesn't have to.
-  # Store upload is still manual (requires SNAPCRAFT_STORE_CREDENTIALS).
+  # Auto-uploads to the `edge` channel when SNAPCRAFT_STORE_CREDENTIALS is set
+  # (exported macaroon with package_access,package_push,package_update,package_release
+  #  ACLs for the `exhale-app` snap — produced by `snapcraft export-login`).
   linux-snap:
     needs: prepare
     runs-on: ubuntu-22.04
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
+      HAS_SNAP_CREDS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS != '' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -225,6 +228,15 @@ jobs:
           name: linux-snap-${{ env.VERSION }}
           path: ./*.snap
           if-no-files-found: error
+
+      - name: Upload to Snap Store (edge channel)
+        if: env.HAS_SNAP_CREDS == 'true'
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          set -euxo pipefail
+          snap=$(ls exhale_*.snap | head -1)
+          snapcraft upload --release=edge "$snap"
 
   # ─── Windows: signed .msix for Microsoft Store ────────────────────────────
   windows:

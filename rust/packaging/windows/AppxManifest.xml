@@ -2,18 +2,14 @@
 <!--
   Microsoft Store (MSIX) manifest for the Rust port of exhale.
 
-  Fields marked [PARTNER CENTER] are reserved for values that Partner Center
-  assigns when the app listing is created.  Before the first MSIX build:
+  Identity values below are the ones assigned by Partner Center for the
+  "exhale" listing (Store ID 9P79Z1NJMZB3, Package Family
+  `PeterKlingelhofer.exhale_rrj7wxvvetjy2`).  They MUST match exactly or
+  Store submission rejects with "publisher does not match".
 
-    1. Reserve the app name at https://partner.microsoft.com/dashboard/windows/overview
-       (bundle ID on Windows is called "Identity Name").
-    2. From App identity → copy:
-         Package/Identity/@Name      ← "Name"
-         Package/Identity/@Publisher ← "Publisher"
-         Package/Properties/PublisherDisplayName ← "Publisher display name"
-       Replace the three placeholders below.
-    3. Version must increase monotonically per Store submission (A.B.C.D;
-       keep D=0 and bump C — or match Cargo.toml).
+  Version must increase monotonically per Store submission (A.B.C.D; keep
+  D=0 and bump the short version in Cargo.toml — the bundle-msix.ps1
+  script derives A.B.C from there).
 
   Reference:
     https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/root-elements
@@ -26,7 +22,7 @@
 
   <Identity
     Name="PeterKlingelhofer.exhale"
-    Publisher="CN=Peter Klingelhofer"
+    Publisher="CN=9A8CF6D1-0FEC-465C-AC4E-ED194AFC84A1"
     Version="2.0.9.0" />
 
   <Properties>
