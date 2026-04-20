@@ -59,7 +59,7 @@ jobs:
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             V="${GITHUB_REF#refs/tags/v}"
           else
-            V="2.0.9"
+            V="2.0.11"
           fi
           echo "version=$V"                  >> "$GITHUB_OUTPUT"
           echo "build=${V//./}"              >> "$GITHUB_OUTPUT"
@@ -200,7 +200,7 @@ jobs:
       - name: Install snapcraft + build-snaps
         run: |
           set -euxo pipefail
-          sudo snap install snapcraft --classic --channel=8.x/stable
+          sudo snap install snapcraft --classic --channel=7.x/stable
           # Pre-install what the `gnome` extension would otherwise fetch
           # mid-build.  Previous destructive-mode attempts died with a
           # bare "Error installing snap" when snapcraft tried to install
