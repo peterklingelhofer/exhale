@@ -136,14 +136,15 @@ mod mac {
     }
 
     /// Toggle the macOS activation policy.
-    ///   DockOnly → regular (Dock icon shown)
-    ///   others   → accessory (menu-bar only)
+    ///   DockOnly / Both → regular (Dock icon shown; tray still works because
+    ///                     NSStatusItem is independent of activation policy)
+    ///   TopBarOnly      → accessory (menu-bar only, no Dock)
     pub fn apply_app_visibility(vis: AppVisibility, _settings: Option<&Window>) {
         use objc::{msg_send, runtime::Object, sel, sel_impl};
 
         let value: i64 = match vis {
-            AppVisibility::DockOnly => 0, // regular
-            _                       => 1, // accessory
+            AppVisibility::TopBarOnly => 1, // accessory
+            _                         => 0, // regular
         };
         unsafe {
             let cls = objc::runtime::Class::get("NSApplication").unwrap();
