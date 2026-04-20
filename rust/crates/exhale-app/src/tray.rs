@@ -65,6 +65,11 @@ pub fn build_tray() -> Result<(TrayIcon, TrayMenuIds)> {
 
     let tray = TrayIconBuilder::new()
         .with_icon(icon)
+        // Treat the ring glyph as a template image on macOS: AppKit re-tints
+        // template NSImages (white + alpha) based on menu-bar appearance, so
+        // the icon reads correctly in both light and dark mode. No-op on
+        // Windows/Linux.
+        .with_icon_as_template(true)
         .with_menu(Box::new(menu))
         .with_tooltip("exhale")
         .build()?;
@@ -92,7 +97,9 @@ fn make_icon() -> tray_icon::Icon {
             let aa_outer = (outer - d).clamp(0.0, 1.0);
             let aa_inner = (d - inner).clamp(0.0, 1.0);
             let alpha = (aa_outer.min(aa_inner) * 255.0) as u8;
-            [0x20, 0x20, 0x20, alpha]
+            // White RGB so template-image tinting on macOS and plain display
+            // on Windows/Linux both come out legible; alpha carries the shape.
+            [0xFF, 0xFF, 0xFF, alpha]
         }))
         .collect();
 

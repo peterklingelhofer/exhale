@@ -9,11 +9,12 @@ use exhale_core::{
     types::{AnimationMode, AnimationShape, AppVisibility, ColorFillGradient, HoldRippleMode},
 };
 use exhale_render::GpuContext;
+use egui::ThemePreference;
 use winit::{
     dpi::PhysicalSize,
     event::WindowEvent,
     event_loop::ActiveEventLoop,
-    window::Window,
+    window::{Theme, Window},
 };
 
 use crate::platform;
@@ -33,13 +34,18 @@ pub struct SettingsWindow {
     /// content height.  We do this on the first frame after egui can
     /// actually measure the content — before that the max is unknown.
     natural_height_applied: bool,
+    /// Tracks the OS appearance so egui visuals + the wgpu clear color stay
+    /// in sync with Light/Dark mode.  `None` means the platform doesn't
+    /// report a theme (some Linux desktops); we default to Dark there.
+    theme: Theme,
 }
 
-// Fixed logical width of the settings window — wider than the Swift 246 pt
-// reference because egui reserves a few pixels for a scrollbar track even
-// when no bar is visible, and our right-aligned DragValues would otherwise
-// clip at 260 pt.
-const SETTINGS_WIDTH:      u32 = 300;
+// Fixed logical width of the settings window.  Wider than the Swift 246 pt
+// reference so the segmented-picker column (right-aligned, uniform width
+// across every row) has room for "Rectangle" / "Sinusoidal" without
+// truncation while still leaving a visible gap between the left-aligned
+// label column and the right-aligned picker column.
+const SETTINGS_WIDTH:      u32 = 360;
 /// User-imposed lower bound when dragging the bottom edge; matches the
 /// request that "min height is maybe 400px".
 const SETTINGS_MIN_HEIGHT: u32 = 400;
@@ -123,11 +129,21 @@ impl SettingsWindow {
 
         let egui_ctx = egui::Context::default();
 
-        // Apply a style close to the native macOS HUD look.
-        let mut visuals = egui::Visuals::dark();
-        visuals.window_rounding = 10.0.into();
-        visuals.panel_fill = egui::Color32::from_rgba_unmultiplied(30, 30, 30, 245);
-        egui_ctx.set_visuals(visuals);
+        // Pre-populate both style buckets with our custom visuals.  egui owns
+        // separate dark_style / light_style slots and picks one per-frame
+        // based on `ThemePreference` + `system_theme`.  Populating both up
+        // front means whichever bucket egui selects already contains the
+        // correct visuals — no rewrite-on-switch, no risk of writing to the
+        // wrong bucket under a rapid toggle race.
+        egui_ctx.set_visuals_of(egui::Theme::Dark,  visuals_for_theme(Theme::Dark));
+        egui_ctx.set_visuals_of(egui::Theme::Light, visuals_for_theme(Theme::Light));
+
+        // Pin the theme preference explicitly (not `System`) so egui never
+        // flips styles on our behalf based on a stale egui_winit `system_theme`
+        // — we remain the single authoritative source, driven by the
+        // render-time `window.theme()` poll below.
+        let theme = window.theme().unwrap_or(Theme::Dark);
+        egui_ctx.set_theme(theme_preference(theme));
 
         let egui_state = egui_winit::State::new(
             egui_ctx.clone(),
@@ -144,6 +160,7 @@ impl SettingsWindow {
             window, surface, config, egui_ctx, egui_state, egui_renderer, gpu,
             pending_reset: false,
             natural_height_applied: false,
+            theme,
         })
     }
 
@@ -152,8 +169,16 @@ impl SettingsWindow {
     /// to drive redraws instead of polling every idle tick.
     pub fn on_window_event(&mut self, event: &WindowEvent) -> (bool, bool) {
         let response = self.egui_state.on_window_event(&*self.window, event);
-        if let WindowEvent::Resized(size) = event {
-            self.resize(*size);
+        match event {
+            WindowEvent::Resized(size) => self.resize(*size),
+            // We intentionally do NOT use the event's Theme payload: during
+            // rapid System Settings toggles the queue can hold an in-flight
+            // event whose value is already stale by the time we dequeue it,
+            // leaving the window inverted for one frame.  Instead, just
+            // schedule a redraw — the render-time poll of `window.theme()`
+            // is the single authoritative source.
+            WindowEvent::ThemeChanged(_) => self.window.request_redraw(),
+            _ => {}
         }
         (response.consumed, response.repaint)
     }
@@ -185,6 +210,26 @@ impl SettingsWindow {
         settings:         &mut Settings,
         settings_manager: &Arc<SettingsManager>,
     ) -> Result<std::time::Duration> {
+        // Reconcile against the authoritative OS theme every frame.
+        // `WindowEvent::ThemeChanged` can coalesce or drop during rapid
+        // System Settings toggles on macOS/Windows, which leaves the egui
+        // visuals inverted from the real appearance.  Re-querying here
+        // guarantees the window can never stay out of sync for more than
+        // one frame regardless of how events were delivered.
+        //
+        // We flip egui's `ThemePreference` (not `set_visuals`) because both
+        // style buckets were pre-populated in `new()`.  `set_visuals` would
+        // write into whichever bucket `ctx.theme()` currently resolves to —
+        // and under a rapid toggle that can be the wrong bucket (egui_winit
+        // may not have fed the latest `system_theme` yet), leaving the
+        // wrong-colour visuals stuck in the bucket egui later selects.
+        if let Some(current) = self.window.theme() {
+            if current != self.theme {
+                self.theme = current;
+                self.egui_ctx.set_theme(theme_preference(current));
+            }
+        }
+
         let output = match self.surface.get_current_texture() {
             Ok(t)  => t,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
@@ -272,7 +317,7 @@ impl SettingsWindow {
                     view:           &view,
                     resolve_target: None,
                     ops:            wgpu::Operations {
-                        load:  wgpu::LoadOp::Clear(wgpu::Color { r: 0.12, g: 0.12, b: 0.12, a: 1.0 }),
+                        load:  wgpu::LoadOp::Clear(clear_color_for_theme(self.theme)),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -317,6 +362,20 @@ fn settings_ui(
     egui::CentralPanel::default().show(ctx, |ui| {
         let scroll_out = egui::ScrollArea::vertical().show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 6.0;
+
+            // Measure every segmented picker in the Appearance section once,
+            // pick the widest natural width, and use it as the uniform column
+            // width for all of them.  This guarantees the leftmost option of
+            // every picker lands on the same X, regardless of option count
+            // or text length — and the column only extends as far left as
+            // the widest picker requires.
+            let picker_column_w = uniform_picker_column_width(ui, &[
+                &["Rectangle", "Circle", "Full"],
+                &["Inner", "Off", "On"],
+                &["Linear", "Sinusoidal"],
+                &["Gradient", "Stark", "Off"],
+                &["Top Bar", "Dock", "Both"],
+            ]);
 
             // ── Controls (no header — matches Swift's top SectionCard) ───────
             section(ui, "", |ui| {
@@ -416,7 +475,7 @@ fn settings_ui(
                 if segmented_row(
                     ui, "Shape",
                     "Shape of the animation: Fullscreen, Rectangle, or Circle.",
-                    true,
+                    true, picker_column_w,
                     &mut settings.shape,
                     &[
                         ("Rectangle", AnimationShape::Rectangle),
@@ -430,7 +489,7 @@ fn settings_ui(
                 if segmented_row(
                     ui, "Gradient",
                     "Gradient color effect. No effect when Shape is Fullscreen.",
-                    settings.shape != AnimationShape::Fullscreen,
+                    settings.shape != AnimationShape::Fullscreen, picker_column_w,
                     &mut settings.color_fill_gradient,
                     &[
                         ("Inner", ColorFillGradient::Inner),
@@ -443,7 +502,7 @@ fn settings_ui(
                 if segmented_row(
                     ui, "Animation",
                     "Sinusoidal eases in/out naturally. Linear is constant speed.",
-                    true,
+                    true, picker_column_w,
                     &mut settings.animation_mode,
                     &[
                         ("Linear",     AnimationMode::Linear),
@@ -456,7 +515,7 @@ fn settings_ui(
                 if segmented_row(
                     ui, "Hold Ripple",
                     "Hold phase ripple: Gradient (smooth glow), Stark (solid edge), or Off.",
-                    true,
+                    true, picker_column_w,
                     &mut settings.hold_ripple_mode,
                     &[
                         ("Gradient", HoldRippleMode::Gradient),
@@ -469,7 +528,7 @@ fn settings_ui(
                 if segmented_row(
                     ui, "Show In",
                     "Where exhale appears: Top Bar, Dock, or Both.",
-                    true,
+                    true, picker_column_w,
                     &mut settings.app_visibility,
                     &[
                         ("Top Bar", AppVisibility::TopBarOnly),
@@ -608,13 +667,80 @@ fn section(ui: &mut egui::Ui, header: &str, add_contents: impl FnOnce(&mut egui:
     });
 }
 
+const LABEL_W:  f32 = 120.0;
+const ROW_H:    f32 = 20.0;
+
+/// Resolve the OS-appearance-aware egui visuals used by the settings window.
+fn visuals_for_theme(theme: Theme) -> egui::Visuals {
+    let mut v = match theme {
+        Theme::Dark  => egui::Visuals::dark(),
+        Theme::Light => egui::Visuals::light(),
+    };
+    v.window_rounding = 10.0.into();
+    // Light mode's default inactive widget stroke is near-invisible, so
+    // segmented-picker segments bleed into the panel background.  Bump the
+    // inactive stroke to a faint mid-gray so each segment's edge reads at
+    // rest — matching the legibility we already get in dark mode and the
+    // Swift `NSSegmentedControl` look.
+    if matches!(theme, Theme::Light) {
+        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_gray(180));
+    }
+    v
+}
+
+/// Map winit's `Theme` onto egui's `ThemePreference` so the context can be
+/// pinned to the exact OS appearance we just polled (bypassing egui's own
+/// `System` auto-detect, which runs one frame behind).
+fn theme_preference(theme: Theme) -> ThemePreference {
+    match theme {
+        Theme::Dark  => ThemePreference::Dark,
+        Theme::Light => ThemePreference::Light,
+    }
+}
+
+/// wgpu clear colour that matches egui's panel fill for the chosen theme, so
+/// there is no visible flash behind the CentralPanel before egui paints.
+fn clear_color_for_theme(theme: Theme) -> wgpu::Color {
+    match theme {
+        Theme::Dark  => wgpu::Color { r: 0.12, g: 0.12, b: 0.12, a: 1.0 },
+        Theme::Light => wgpu::Color { r: 0.96, g: 0.96, b: 0.96, a: 1.0 },
+    }
+}
+
+/// Measure every segmented picker in a single frame and return the largest
+/// natural column width across them.  Buttons within a single picker get
+/// equal width (so all options in that picker fit their widest text); the
+/// column width is then max-of-natural-widths so that every picker in the
+/// settings window shares the same left AND right bounds.
+fn uniform_picker_column_width(ui: &egui::Ui, pickers: &[&[&str]]) -> f32 {
+    let pad_x   = ui.spacing().button_padding.x * 2.0;
+    let font_id = egui::TextStyle::Button.resolve(ui.style());
+    let measure = |s: &str| ui.fonts(|f|
+        f.layout_no_wrap(s.to_string(), font_id.clone(), egui::Color32::WHITE).size().x
+    );
+
+    // Segments sit flush with no inter-segment spacing, so the column only
+    // needs to fit `btn_w * n` — the widest text in each picker, plus its
+    // button padding, times the segment count.
+    let mut max_col: f32 = 0.0;
+    for opts in pickers {
+        if opts.is_empty() { continue; }
+        let max_text = opts.iter().map(|&s| measure(s)).fold(0.0_f32, f32::max);
+        let btn_w    = (max_text + pad_x).ceil();
+        let col_w    = btn_w * opts.len() as f32;
+        if col_w > max_col { max_col = col_w; }
+    }
+    max_col.ceil()
+}
+
+/// Two-cell row layout for non-picker rows: fixed-width label on the left,
+/// DragValue / ColorPicker / etc. right-aligned against the row's trailing
+/// edge.  Everything to the right of the label cell sits in a `right_to_left`
+/// layout so the widget hugs the right edge exactly like Swift's Form.
 fn labeled_row(ui: &mut egui::Ui, label: &str, add_widget: impl FnOnce(&mut egui::Ui)) -> egui::Response {
     ui.horizontal(|ui| {
-        // Force the label to sit at the left edge of a fixed-width cell so
-        // every row in the window aligns on the same column.  `add_sized`
-        // centers by default — use a left-to-right layout instead.
         ui.allocate_ui_with_layout(
-            egui::vec2(130.0, 20.0),
+            egui::vec2(LABEL_W, ROW_H),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| { ui.label(label); },
         );
@@ -622,43 +748,120 @@ fn labeled_row(ui: &mut egui::Ui, label: &str, add_widget: impl FnOnce(&mut egui
     }).response
 }
 
-/// Segmented picker row.  All segmented pickers in this window occupy the
-/// full remaining column width (after the label cell) and divide it equally
-/// between their options, so 2-option and 3-option rows line up on the same
-/// left AND right bounds — matching Swift's `.pickerStyle(.segmented)`.
+/// Segmented picker row.  Label on the left; a right-aligned picker cell
+/// of `column_w` wide on the right.  `column_w` is measured once per frame
+/// (see `uniform_picker_column_width`) and passed identically to every
+/// picker in the Appearance section, so the leftmost option button lands
+/// on the same X coordinate regardless of the picker's option count or
+/// text length.
 fn segmented_row<T: Copy + PartialEq>(
-    ui:      &mut egui::Ui,
-    label:   &str,
-    help:    &str,
-    enabled: bool,
-    current: &mut T,
-    options: &[(&str, T)],
+    ui:       &mut egui::Ui,
+    label:    &str,
+    help:     &str,
+    enabled:  bool,
+    column_w: f32,
+    current:  &mut T,
+    options:  &[(&str, T)],
 ) -> bool {
     let mut changed = false;
-    labeled_row(ui, label, |ui| {
+    let response = ui.horizontal(|ui| {
+        ui.allocate_ui_with_layout(
+            egui::vec2(LABEL_W, ROW_H),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| { ui.label(label); },
+        );
+        // Right-align the picker cell.  Clamp to whatever width is left if
+        // the user has narrowed the window below the natural column size.
+        let remaining = ui.available_width();
+        let picker_w  = column_w.min(remaining).max(1.0);
+        let gap       = (remaining - picker_w).max(0.0);
+        if gap > 0.0 { ui.add_space(gap); }
+
         ui.add_enabled_ui(enabled, |ui| {
-            let total_w = ui.available_width();
-            let n       = options.len() as f32;
-            let spacing = ui.spacing().item_spacing.x;
-            let per_w   = ((total_w - spacing * (n - 1.0)) / n).max(1.0);
-            ui.allocate_ui_with_layout(
-                egui::vec2(total_w, 20.0),
+            let n = options.len();
+            // Flush segments: buttons sit edge-to-edge so the whole picker
+            // reads as one cohesive control, with a single outline around
+            // the outer bounds (drawn below) marking the shared left/right
+            // column edges.  Sub-pixel remainder gets absorbed into the
+            // last segment so the rightmost edge lands exactly on picker_w.
+            let per_w  = (picker_w / n as f32).floor().max(1.0);
+            let last_w = per_w + (picker_w - per_w * n as f32).max(0.0);
+
+            let outer = ui.allocate_ui_with_layout(
+                egui::vec2(picker_w, ROW_H),
                 egui::Layout::left_to_right(egui::Align::Center),
                 |ui| {
-                    for (text, variant) in options {
+                    // Zero inter-segment spacing + zero per-segment stroke
+                    // and rounding: adjacent buttons meet flush so there
+                    // are no interior dividers between segments.  The only
+                    // border is the outer frame stroke painted after this
+                    // closure returns.
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    let dark_mode = ui.visuals().dark_mode;
+                    // Subtle hover/press overlays so the user can see which
+                    // segment will be selected on click.  Theme-aware: a
+                    // faint white wash on dark panels, faint black on
+                    // light panels — mirroring NSSegmentedControl's own
+                    // rollover feedback.
+                    let (hover_fill, press_fill) = if dark_mode {
+                        (
+                            egui::Color32::from_white_alpha(22),
+                            egui::Color32::from_white_alpha(36),
+                        )
+                    } else {
+                        (
+                            egui::Color32::from_black_alpha(18),
+                            egui::Color32::from_black_alpha(30),
+                        )
+                    };
+                    let widgets = &mut ui.visuals_mut().widgets;
+                    widgets.inactive.bg_stroke    = egui::Stroke::NONE;
+                    widgets.hovered.bg_stroke     = egui::Stroke::NONE;
+                    widgets.active.bg_stroke      = egui::Stroke::NONE;
+                    widgets.inactive.rounding     = egui::Rounding::ZERO;
+                    widgets.hovered.rounding      = egui::Rounding::ZERO;
+                    widgets.active.rounding       = egui::Rounding::ZERO;
+                    // Kill the default 1 px hover/press expansion so the
+                    // hovered segment doesn't bulge past its neighbours.
+                    widgets.hovered.expansion     = 0.0;
+                    widgets.active.expansion      = 0.0;
+                    // Transparent at rest so unselected segments blend
+                    // into the panel — only hover / press add colour.
+                    widgets.inactive.weak_bg_fill = egui::Color32::TRANSPARENT;
+                    widgets.hovered.weak_bg_fill  = hover_fill;
+                    widgets.active.weak_bg_fill   = press_fill;
+
+                    for (i, (text, variant)) in options.iter().enumerate() {
                         let is_selected = *current == *variant;
-                        if ui.add_sized(
-                            [per_w, 20.0],
-                            egui::SelectableLabel::new(is_selected, *text),
-                        ).clicked() {
+                        let w = if i + 1 == n { last_w } else { per_w };
+                        let v = ui.visuals();
+                        let label = if is_selected {
+                            egui::RichText::new(*text).color(v.selection.stroke.color)
+                        } else {
+                            egui::RichText::new(*text).color(v.text_color())
+                        };
+                        let mut btn = egui::Button::new(label).min_size(egui::vec2(w, ROW_H));
+                        if is_selected { btn = btn.fill(v.selection.bg_fill); }
+                        if ui.add_sized([w, ROW_H], btn).clicked() {
                             *current = *variant;
                             changed  = true;
                         }
                     }
                 },
             );
+
+            // Single outline around the outer bounds of the picker so the
+            // shared left/right column edges are explicit — without
+            // drawing dividers between individual segments.
+            let stroke_color = ui.visuals().widgets.noninteractive.bg_stroke.color;
+            ui.painter().rect_stroke(
+                outer.response.rect,
+                0.0,
+                egui::Stroke::new(1.0, stroke_color),
+            );
         });
-    }).on_hover_text(help);
+    }).response;
+    response.on_hover_text(help);
     changed
 }
 

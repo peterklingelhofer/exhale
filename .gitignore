@@ -34,3 +34,8 @@ rust/signing/
 *.provisionprofile
 *.p12
 *.cer
+
+# Local secrets — release credentials (base64 of p12s, passwords, etc.)
+.env
+.env.*
+!.env.example
