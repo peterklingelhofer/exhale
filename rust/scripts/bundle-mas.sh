@@ -14,9 +14,13 @@
 #     Installed automatically on first run.
 #   - Two signing identities in the login keychain (from Apple Developer
 #     → "Certificates, IDs & Profiles"):
-#         "3rd Party Mac Developer Application: …"   — signs the .app
-#         "3rd Party Mac Developer Installer:  …"    — signs the .pkg
-#     Check with: `security find-identity -v -p codesigning`.
+#         "Apple Distribution: …"                    — signs the .app
+#         "3rd Party Mac Developer Installer: …"     — signs the .pkg
+#     Check with: `security find-identity -v -p basic`.
+#     ("Apple Distribution" is the modern unified iOS+macOS App Store cert;
+#      the legacy "3rd Party Mac Developer Application" still works but
+#      Apple no longer issues it — select "Apple Distribution" in the
+#      portal when creating new certs.)
 #   - A Mac App Store provisioning profile for bundle ID
 #     `peterklingelhofer.exhale`, download from developer.apple.com and
 #     save as `rust/signing/exhale.provisionprofile`  (or point
@@ -29,8 +33,8 @@
 #       rust/scripts/bundle-mas.sh                       # override profile
 #
 # Environment overrides:
-#   APP_IDENT       default: "3rd Party Mac Developer Application: …VZCHHV7VNW…"
-#   INSTALLER_IDENT default: "3rd Party Mac Developer Installer:  …VZCHHV7VNW…"
+#   APP_IDENT       default: "Apple Distribution: …VZCHHV7VNW…"
+#   INSTALLER_IDENT default: "3rd Party Mac Developer Installer: …VZCHHV7VNW…"
 #   VERSION         default: cargo version from Cargo.toml (bumped manually)
 #   BUILD           default: VERSION with dots stripped
 #   PROVISION_PROFILE default: rust/signing/exhale.provisionprofile
@@ -60,7 +64,7 @@ APP_BUNDLE="$OUT_DIR/$APP_NAME.app"
 OUT_PKG="$OUT_DIR/$APP_NAME.pkg"
 
 # ── Overrides ────────────────────────────────────────────────────────────────
-APP_IDENT="${APP_IDENT:-3rd Party Mac Developer Application: Peter Klingelhofer ($TEAM_ID)}"
+APP_IDENT="${APP_IDENT:-Apple Distribution: Peter Klingelhofer ($TEAM_ID)}"
 INSTALLER_IDENT="${INSTALLER_IDENT:-3rd Party Mac Developer Installer: Peter Klingelhofer ($TEAM_ID)}"
 PROVISION_PROFILE="${PROVISION_PROFILE:-$RUST_ROOT/signing/exhale.provisionprofile}"
 
@@ -68,7 +72,7 @@ PROVISION_PROFILE="${PROVISION_PROFILE:-$RUST_ROOT/signing/exhale.provisionprofi
 # reads 0.1.0, so users will almost always want to override — but we match the
 # Swift 2.0.7 → 2.0.8 expectation by default so a fresh run produces a
 # submission one higher than the current MAS listing.
-VERSION="${VERSION:-2.0.8}"
+VERSION="${VERSION:-2.0.9}"
 BUILD="${BUILD:-${VERSION//./}}"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -87,8 +91,8 @@ if [[ "$DRY_RUN" != "1" ]]; then
   → download from developer.apple.com → Certificates → Profiles, save as that path
   → or export PROVISION_PROFILE=/path/to/file.provisionprofile before re-running"
 
-    security find-identity -v -p codesigning | grep -q "$APP_IDENT"       || die "signing identity not found: $APP_IDENT"
-    security find-identity -v -p basic       | grep -q "$INSTALLER_IDENT" || die "installer identity not found: $INSTALLER_IDENT"
+    security find-identity -v -p basic | grep -q "$APP_IDENT"       || die "signing identity not found: $APP_IDENT"
+    security find-identity -v -p basic | grep -q "$INSTALLER_IDENT" || die "installer identity not found: $INSTALLER_IDENT"
 else
     log "DRY_RUN=1: skipping provisioning-profile + signing-identity checks"
 fi
@@ -171,11 +175,31 @@ plutil -lint "$CONTENTS/Info.plist" >/dev/null || die "Info.plist failed plutil 
 # Entitlements — mirror the Swift app exactly (sandbox + user-selected
 # read-only).  No network, no camera, no hotkey entitlement (we ship the
 # MAS build with `--no-default-features`, which drops the hotkey crate).
+#
+# `application-identifier` + `team-identifier` MUST be present in the
+# binary's code signature and must match the embedded provisioning profile
+# exactly, or App Store Connect rejects with error 90886.  Derive both
+# from the profile itself so renames/team-changes propagate automatically.
+# Use PlistBuddy instead of `plutil -extract`: plutil's key-path syntax
+# uses `.` as the separator, which collides with the dotted key names
+# (`com.apple.application-identifier` etc.) that the entitlements plist
+# actually uses.  PlistBuddy uses `:` and handles the real key names.
+PROF_PLIST=$(mktemp)
+trap 'rm -f "$PROF_PLIST"' EXIT
+security cms -D -i "$PROVISION_PROFILE" > "$PROF_PLIST" \
+    || die "could not decode $PROVISION_PROFILE"
+APP_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "$PROF_PLIST") \
+    || die "could not read application-identifier from $PROVISION_PROFILE"
+TEAM_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.team-identifier" "$PROF_PLIST") \
+    || die "could not read team-identifier from $PROVISION_PROFILE"
+
 cat > "$BUILD_DIR/exhale.entitlements" <<ENT
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>com.apple.application-identifier</key>                 <string>$APP_IDENTIFIER</string>
+    <key>com.apple.developer.team-identifier</key>              <string>$TEAM_IDENTIFIER</string>
     <key>com.apple.security.app-sandbox</key>                   <true/>
     <key>com.apple.security.files.user-selected.read-only</key> <true/>
 </dict>
@@ -186,6 +210,12 @@ ENT
 # profile's entitlements are a superset of the binary's entitlements.
 if [[ "$DRY_RUN" != "1" ]]; then
     cp "$PROVISION_PROFILE" "$CONTENTS/embedded.provisionprofile"
+    # App Store Connect rejects bundles containing `com.apple.quarantine`
+    # (set automatically by browsers on downloaded files like the
+    # provisioning profile) with error 91109.  Wipe every xattr from the
+    # whole bundle before signing — any attribute Apple doesn't explicitly
+    # strip is treated as a package-contents violation.
+    xattr -cr "$APP_BUNDLE"
 fi
 
 # ── 5. Sign the .app ─────────────────────────────────────────────────────────

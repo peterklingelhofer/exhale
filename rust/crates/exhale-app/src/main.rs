@@ -755,14 +755,19 @@ impl App {
 
 const INSTANCE_PORT: u16 = 47462;
 
-/// Bind a localhost port to enforce a single running instance.
-/// Returns the listener (must stay alive for the lifetime of the process).
-/// If another instance is already running, signals it to show settings, then returns None.
-fn single_instance_guard(proxy: &EventLoopProxy<AppEvent>) -> Option<std::net::TcpListener> {
+enum InstanceGuard {
+    /// First instance; holds the listener alive for the process lifetime.
+    First(std::net::TcpListener),
+    /// Another instance is already running; it has been signalled.
+    Secondary,
+    /// Neither bind nor connect succeeded. Most likely a sandboxed build
+    /// (macOS MAS) where BSD sockets are denied. Proceed without the guard.
+    Unavailable,
+}
+
+fn single_instance_guard(proxy: &EventLoopProxy<AppEvent>) -> InstanceGuard {
     match std::net::TcpListener::bind(format!("127.0.0.1:{INSTANCE_PORT}")) {
         Ok(listener) => {
-            // Start a thread that accepts one-shot "show-settings" signals from
-            // secondary launches, matching Swift's DistributedNotification behavior.
             let proxy = proxy.clone();
             let listener2 = listener.try_clone().expect("clone listener");
             std::thread::spawn(move || {
@@ -778,15 +783,17 @@ fn single_instance_guard(proxy: &EventLoopProxy<AppEvent>) -> Option<std::net::T
                     }
                 }
             });
-            Some(listener)
+            InstanceGuard::First(listener)
         }
         Err(_) => {
-            // Signal the running instance to surface its settings window, then exit.
             use std::io::Write;
-            if let Ok(mut s) = std::net::TcpStream::connect(format!("127.0.0.1:{INSTANCE_PORT}")) {
-                let _ = s.write_all(b"show");
+            match std::net::TcpStream::connect(format!("127.0.0.1:{INSTANCE_PORT}")) {
+                Ok(mut s) => {
+                    let _ = s.write_all(b"show");
+                    InstanceGuard::Secondary
+                }
+                Err(_) => InstanceGuard::Unavailable,
             }
-            None
         }
     }
 }
@@ -803,8 +810,9 @@ fn main() -> Result<()> {
     let proxy      = event_loop.create_proxy();
 
     let _instance_guard = match single_instance_guard(&proxy) {
-        Some(g) => g,
-        None    => return Ok(()),
+        InstanceGuard::First(g)    => Some(g),
+        InstanceGuard::Secondary   => return Ok(()),
+        InstanceGuard::Unavailable => None,
     };
 
     let mut app = App::new(proxy, settings_manager);

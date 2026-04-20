@@ -27,7 +27,7 @@
   <Identity
     Name="PeterKlingelhofer.exhale"
     Publisher="CN=Peter Klingelhofer"
-    Version="2.0.8.0" />
+    Version="2.0.9.0" />
 
   <Properties>
     <DisplayName>exhale</DisplayName>
