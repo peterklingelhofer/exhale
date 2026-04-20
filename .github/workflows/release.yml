@@ -200,7 +200,7 @@ jobs:
       - name: Install snapcraft + build-snaps
         run: |
           set -euxo pipefail
-          sudo snap install snapcraft --classic
+          sudo snap install snapcraft --classic --channel=8.x/stable
           # Pre-install what the `gnome` extension would otherwise fetch
           # mid-build.  Previous destructive-mode attempts died with a
           # bare "Error installing snap" when snapcraft tried to install
