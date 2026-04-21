@@ -1,6 +1,6 @@
 name: exhale-app
 base: core22
-version: '2.0.17'
+version: '2.0.18'
 summary: A full-screen breathing overlay for mindful breathing.
 description: |
   exhale is a calming full-screen overlay that paces your breathing with a

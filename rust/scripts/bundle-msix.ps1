@@ -28,8 +28,8 @@
 
 [CmdletBinding()]
 param(
-    [string] $Version         = "2.0.17",
-    [string] $Build           = "2017",
+    [string] $Version         = "2.0.18",
+    [string] $Build           = "2018",
     [string] $CertPath        = "",
     [SecureString] $CertPassword = $null,
     [switch] $DryRun
@@ -114,9 +114,11 @@ $manifestText = [System.IO.File]::ReadAllText($ManifestSrc)
 $numericVersion = ($Version -split '-')[0]
 # Case-sensitive replace (-creplace) so we only hit the <Identity Version="…">
 # attribute and leave the lowercase XML declaration `<?xml version="1.0"?>`
-# untouched.  Otherwise makeappx rejects the manifest with "Incorrect xml
-# declaration syntax" because `<?xml Version="2.0.8.0" …?>` is not valid XML.
-$manifestText = $manifestText -creplace 'Version="[^"]+"', "Version=`"$numericVersion.0`""
+# untouched.  Negative-lookbehind `(?<!\w)` prevents matching inside
+# `MinVersion="…"` or `MaxVersionTested="…"` on the TargetDeviceFamily —
+# otherwise Partner Center rejects the MSIX with "targets Windows MinVersion
+# <= 10.0.17134.0" because MinVersion got clobbered to the app version.
+$manifestText = $manifestText -creplace '(?<!\w)Version="[^"]+"', "Version=`"$numericVersion.0`""
 [System.IO.File]::WriteAllText($ManifestDst, $manifestText, [System.Text.UTF8Encoding]::new($false))
 
 # ── 4. Pack the MSIX ─────────────────────────────────────────────────────────
