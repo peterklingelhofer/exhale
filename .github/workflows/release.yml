@@ -58,7 +58,7 @@ jobs:
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             V="${GITHUB_REF#refs/tags/v}"
           else
-            V="2.0.16"
+            V="2.0.17"
           fi
           echo "version=$V"                  >> "$GITHUB_OUTPUT"
           echo "build=${V//./}"              >> "$GITHUB_OUTPUT"
@@ -191,9 +191,9 @@ jobs:
   # the .snap as an artifact; download it and run on a local Multipass VM:
   #
   #   gh run download <run-id> -n linux-snap-<VERSION>
-  #   multipass transfer exhale_<VERSION>_amd64.snap snap-creds:/tmp/
+  #   multipass transfer exhale-app_<VERSION>_amd64.snap snap-creds:/tmp/
   #   multipass exec snap-creds -- snapcraft upload \
-  #       --release=edge /tmp/exhale_<VERSION>_amd64.snap
+  #       --release=edge /tmp/exhale-app_<VERSION>_amd64.snap
   linux-snap:
     needs: prepare
     runs-on: ubuntu-22.04
