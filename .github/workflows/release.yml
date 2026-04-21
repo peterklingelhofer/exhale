@@ -8,8 +8,8 @@
 #
 # Store submission (Mac App Store / Microsoft Store / Snap Store) is NOT
 # automated here — those require interactive secret setup (Apple App-Store-
-# Connect API key, Partner Center MSIX submission, snapcraft `edge` channel
-# push).  Hooks for each are left as clearly-marked TODO blocks.
+# Connect API key, Partner Center MSIX submission).  Snap Store upload is
+# manual: see the linux-snap job below for the one-line multipass command.
 #
 # Secrets referenced (all optional; jobs gracefully degrade if missing):
 #   MACOS_APP_IDENT_P12       base64 of the Mac App Distribution .p12
@@ -20,7 +20,6 @@
 #   MACOS_KEYCHAIN_PASSWORD   any string — used for the temporary CI keychain
 #   WINDOWS_CERT_PFX          base64 of a Windows code-signing PFX
 #   WINDOWS_CERT_PASSWORD     password for the PFX
-#   SNAPCRAFT_STORE_CREDENTIALS  output of `snapcraft export-login -`
 #
 
 name: Release
@@ -59,7 +58,7 @@ jobs:
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             V="${GITHUB_REF#refs/tags/v}"
           else
-            V="2.0.15"
+            V="2.0.16"
           fi
           echo "version=$V"                  >> "$GITHUB_OUTPUT"
           echo "build=${V//./}"              >> "$GITHUB_OUTPUT"
@@ -185,16 +184,21 @@ jobs:
   # `snapcraft pack --destructive-mode` directly on the runner (no LXD,
   # no Multipass) and pre-install the base/runtime build-snaps that the
   # `gnome` extension pulls in, so snapcraft doesn't have to.
-  # Auto-uploads to the `edge` channel when SNAPCRAFT_STORE_CREDENTIALS is set.
-  # The snapcraft *snap* (and snapcore/action-publish which wraps it) bundles
-  # a stale pymacaroons that can't parse the modern `u1-macaroon` credential,
-  # so the upload step installs snapcraft from PyPI to get a working pymacaroons.
+  #
+  # Upload is MANUAL — every snapcraft path we tried (snap @ latest/7.x/8.x,
+  # snapcore/action-publish, `pip install snapcraft`, direct curl REST API)
+  # crashed with the same `018h` byte in the discharge macaroon. CI builds
+  # the .snap as an artifact; download it and run on a local Multipass VM:
+  #
+  #   gh run download <run-id> -n linux-snap-<VERSION>
+  #   multipass transfer exhale_<VERSION>_amd64.snap snap-creds:/tmp/
+  #   multipass exec snap-creds -- snapcraft upload \
+  #       --release=edge /tmp/exhale_<VERSION>_amd64.snap
   linux-snap:
     needs: prepare
     runs-on: ubuntu-22.04
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
-      HAS_SNAP_CREDS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS != '' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -229,69 +233,6 @@ jobs:
           name: linux-snap-${{ env.VERSION }}
           path: ./*.snap
           if-no-files-found: error
-
-      # Every snapcraft path (snap `latest/stable`, `7.x/stable`, `8.x/stable`,
-      # snapcore/action-publish, `pip install snapcraft`) crashes in
-      # `pymacaroons 0.13.0` trying to parse the modern `u1-macaroon` blob —
-      # and 0.13.0 is the only release on PyPI (last updated 2015).
-      # Workaround: talk to the Snap Store REST API directly with curl.
-      # `snapcraft export-login` emits discharges already bound to the root,
-      # so we can skip the binding step that would otherwise need pymacaroons.
-      - name: Upload to Snap Store (edge channel)
-        if: env.HAS_SNAP_CREDS == 'true'
-        env:
-          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
-          SNAP_NAME: exhale-app
-        run: |
-          set -euxo pipefail
-
-          BLOB=$(printf '%s' "$SNAPCRAFT_STORE_CREDENTIALS" | base64 -d)
-          ROOT=$(printf '%s' "$BLOB"  | jq -r '.v.r')
-          DISCH=$(printf '%s' "$BLOB" | jq -r '.v.d')
-          AUTH="Macaroon root=\"$ROOT\", discharge=\"$DISCH\""
-
-          SNAP=$(ls exhale_*.snap | head -1)
-          SIZE=$(stat -c %s "$SNAP")
-
-          echo "[1/4] upload .snap blob"
-          UPLOAD=$(curl --fail-with-body -sS -X POST \
-            -F "binary=@$SNAP" \
-            https://storage.snapcraftcontent.com/unscanned-upload/)
-          UPLOAD_ID=$(printf '%s' "$UPLOAD" | jq -r .upload_id)
-
-          echo "[2/4] snap-push"
-          PUSH=$(curl --fail-with-body -sS -X POST \
-            -H "Authorization: $AUTH" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json" \
-            -d "{\"name\":\"$SNAP_NAME\",\"series\":\"16\",\"updown_id\":\"$UPLOAD_ID\",\"binary_filesize\":$SIZE,\"source_uploaded\":false}" \
-            https://dashboard.snapcraft.io/dev/api/snap-push/)
-          STATUS_URL=$(printf '%s' "$PUSH" | jq -r .status_url)
-          echo "  status_url = $STATUS_URL"
-
-          echo "[3/4] poll until processed"
-          REV=""
-          for _ in $(seq 1 40); do
-            sleep 10
-            STATUS=$(curl --fail-with-body -sS \
-              -H "Authorization: $AUTH" \
-              -H "Accept: application/json" "$STATUS_URL")
-            CAN_RELEASE=$(printf '%s' "$STATUS" | jq -r .can_release)
-            if [[ "$CAN_RELEASE" == "true" ]]; then
-              REV=$(printf '%s' "$STATUS" | jq -r .revision)
-              echo "  processed, revision=$REV"
-              break
-            fi
-          done
-          [[ -n "$REV" ]] || { echo "timed out waiting for scan"; exit 1; }
-
-          echo "[4/4] release revision $REV to edge"
-          curl --fail-with-body -sS -X POST \
-            -H "Authorization: $AUTH" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json" \
-            -d "{\"name\":\"$SNAP_NAME\",\"revision\":\"$REV\",\"channels\":[\"edge\"]}" \
-            https://dashboard.snapcraft.io/dev/api/snap-release/
 
   # ─── Windows: signed .msix for Microsoft Store ────────────────────────────
   windows:
