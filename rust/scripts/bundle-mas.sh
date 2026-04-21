@@ -72,7 +72,7 @@ PROVISION_PROFILE="${PROVISION_PROFILE:-$RUST_ROOT/signing/exhale.provisionprofi
 # reads 0.1.0, so users will almost always want to override — but we match the
 # Swift 2.0.7 → 2.0.8 expectation by default so a fresh run produces a
 # submission one higher than the current MAS listing.
-VERSION="${VERSION:-2.0.17}"
+VERSION="${VERSION:-2.0.18}"
 BUILD="${BUILD:-${VERSION//./}}"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
