@@ -59,7 +59,7 @@ jobs:
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             V="${GITHUB_REF#refs/tags/v}"
           else
-            V="2.0.14"
+            V="2.0.15"
           fi
           echo "version=$V"                  >> "$GITHUB_OUTPUT"
           echo "build=${V//./}"              >> "$GITHUB_OUTPUT"
@@ -230,30 +230,68 @@ jobs:
           path: ./*.snap
           if-no-files-found: error
 
-      # The snapcraft *snap* (latest, 7.x, 8.x) and snapcore/action-publish
-      # all ship a stale pymacaroons (rev 15977, Python 3.8) that cannot
-      # deserialize the modern `u1-macaroon` credential blob produced by
-      # `snapcraft export-login` and crash with
-      # `ValueError: invalid literal for int() with base 16: b'018h'`.
-      # Install snapcraft from PyPI so pip resolves the current pymacaroons
-      # (0.13+) against the runner's system Python, avoiding the bundled copy.
+      # Every snapcraft path (snap `latest/stable`, `7.x/stable`, `8.x/stable`,
+      # snapcore/action-publish, `pip install snapcraft`) crashes in
+      # `pymacaroons 0.13.0` trying to parse the modern `u1-macaroon` blob —
+      # and 0.13.0 is the only release on PyPI (last updated 2015).
+      # Workaround: talk to the Snap Store REST API directly with curl.
+      # `snapcraft export-login` emits discharges already bound to the root,
+      # so we can skip the binding step that would otherwise need pymacaroons.
       - name: Upload to Snap Store (edge channel)
         if: env.HAS_SNAP_CREDS == 'true'
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+          SNAP_NAME: exhale-app
         run: |
           set -euxo pipefail
-          # Uninstall the snap version so `snapcraft` resolves to the pip one.
-          sudo snap remove --purge snapcraft || true
-          sudo apt-get install -y python3-pip
-          python3 -m pip install --upgrade pip
-          # Force fresh pymacaroons regardless of what snapcraft wants.
-          python3 -m pip install --user --upgrade pymacaroons
-          python3 -m pip install --user snapcraft
-          export PATH="$HOME/.local/bin:$PATH"
-          snapcraft --version
-          snap=$(ls exhale_*.snap | head -1)
-          snapcraft upload --release=edge "$snap"
+
+          BLOB=$(printf '%s' "$SNAPCRAFT_STORE_CREDENTIALS" | base64 -d)
+          ROOT=$(printf '%s' "$BLOB"  | jq -r '.v.r')
+          DISCH=$(printf '%s' "$BLOB" | jq -r '.v.d')
+          AUTH="Macaroon root=\"$ROOT\", discharge=\"$DISCH\""
+
+          SNAP=$(ls exhale_*.snap | head -1)
+          SIZE=$(stat -c %s "$SNAP")
+
+          echo "[1/4] upload .snap blob"
+          UPLOAD=$(curl --fail-with-body -sS -X POST \
+            -F "binary=@$SNAP" \
+            https://storage.snapcraftcontent.com/unscanned-upload/)
+          UPLOAD_ID=$(printf '%s' "$UPLOAD" | jq -r .upload_id)
+
+          echo "[2/4] snap-push"
+          PUSH=$(curl --fail-with-body -sS -X POST \
+            -H "Authorization: $AUTH" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"$SNAP_NAME\",\"series\":\"16\",\"updown_id\":\"$UPLOAD_ID\",\"binary_filesize\":$SIZE,\"source_uploaded\":false}" \
+            https://dashboard.snapcraft.io/dev/api/snap-push/)
+          STATUS_URL=$(printf '%s' "$PUSH" | jq -r .status_url)
+          echo "  status_url = $STATUS_URL"
+
+          echo "[3/4] poll until processed"
+          REV=""
+          for _ in $(seq 1 40); do
+            sleep 10
+            STATUS=$(curl --fail-with-body -sS \
+              -H "Authorization: $AUTH" \
+              -H "Accept: application/json" "$STATUS_URL")
+            CAN_RELEASE=$(printf '%s' "$STATUS" | jq -r .can_release)
+            if [[ "$CAN_RELEASE" == "true" ]]; then
+              REV=$(printf '%s' "$STATUS" | jq -r .revision)
+              echo "  processed, revision=$REV"
+              break
+            fi
+          done
+          [[ -n "$REV" ]] || { echo "timed out waiting for scan"; exit 1; }
+
+          echo "[4/4] release revision $REV to edge"
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: $AUTH" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"$SNAP_NAME\",\"revision\":\"$REV\",\"channels\":[\"edge\"]}" \
+            https://dashboard.snapcraft.io/dev/api/snap-release/
 
   # ─── Windows: signed .msix for Microsoft Store ────────────────────────────
   windows:
