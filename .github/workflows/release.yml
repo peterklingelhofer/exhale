@@ -59,7 +59,7 @@ jobs:
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             V="${GITHUB_REF#refs/tags/v}"
           else
-            V="2.0.12"
+            V="2.0.14"
           fi
           echo "version=$V"                  >> "$GITHUB_OUTPUT"
           echo "build=${V//./}"              >> "$GITHUB_OUTPUT"
@@ -185,9 +185,10 @@ jobs:
   # `snapcraft pack --destructive-mode` directly on the runner (no LXD,
   # no Multipass) and pre-install the base/runtime build-snaps that the
   # `gnome` extension pulls in, so snapcraft doesn't have to.
-  # Auto-uploads to the `edge` channel when SNAPCRAFT_STORE_CREDENTIALS is set
-  # (exported macaroon with package_access,package_push,package_update,package_release
-  #  ACLs for the `exhale-app` snap — produced by `snapcraft export-login`).
+  # Auto-uploads to the `edge` channel when SNAPCRAFT_STORE_CREDENTIALS is set.
+  # The snapcraft *snap* (and snapcore/action-publish which wraps it) bundles
+  # a stale pymacaroons that can't parse the modern `u1-macaroon` credential,
+  # so the upload step installs snapcraft from PyPI to get a working pymacaroons.
   linux-snap:
     needs: prepare
     runs-on: ubuntu-22.04
@@ -200,7 +201,7 @@ jobs:
       - name: Install snapcraft + build-snaps
         run: |
           set -euxo pipefail
-          sudo snap install snapcraft --classic --channel=7.x/stable
+          sudo snap install snapcraft --classic
           # Pre-install what the `gnome` extension would otherwise fetch
           # mid-build.  Previous destructive-mode attempts died with a
           # bare "Error installing snap" when snapcraft tried to install
@@ -229,12 +230,28 @@ jobs:
           path: ./*.snap
           if-no-files-found: error
 
+      # The snapcraft *snap* (latest, 7.x, 8.x) and snapcore/action-publish
+      # all ship a stale pymacaroons (rev 15977, Python 3.8) that cannot
+      # deserialize the modern `u1-macaroon` credential blob produced by
+      # `snapcraft export-login` and crash with
+      # `ValueError: invalid literal for int() with base 16: b'018h'`.
+      # Install snapcraft from PyPI so pip resolves the current pymacaroons
+      # (0.13+) against the runner's system Python, avoiding the bundled copy.
       - name: Upload to Snap Store (edge channel)
         if: env.HAS_SNAP_CREDS == 'true'
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
         run: |
           set -euxo pipefail
+          # Uninstall the snap version so `snapcraft` resolves to the pip one.
+          sudo snap remove --purge snapcraft || true
+          sudo apt-get install -y python3-pip
+          python3 -m pip install --upgrade pip
+          # Force fresh pymacaroons regardless of what snapcraft wants.
+          python3 -m pip install --user --upgrade pymacaroons
+          python3 -m pip install --user snapcraft
+          export PATH="$HOME/.local/bin:$PATH"
+          snapcraft --version
           snap=$(ls exhale_*.snap | head -1)
           snapcraft upload --release=edge "$snap"
 
