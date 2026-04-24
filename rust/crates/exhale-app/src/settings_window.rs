@@ -38,6 +38,12 @@ pub struct SettingsWindow {
     /// in sync with Light/Dark mode.  `None` means the platform doesn't
     /// report a theme (some Linux desktops); we default to Dark there.
     theme: Theme,
+    /// Raw pointer to the NSVisualEffectView installed on macOS.  0 when
+    /// not applicable (non-macOS, or EXHALE_DISABLE_VIBRANCY set).  When
+    /// the theme changes we call `platform::update_settings_vibrancy`
+    /// with this pointer so the blur material/appearance follows the
+    /// system's Light/Dark toggle.
+    vev_ptr: usize,
 }
 
 // Fixed logical width of the settings window.  Wider than the Swift 246 pt
@@ -46,9 +52,10 @@ pub struct SettingsWindow {
 // truncation while still leaving a visible gap between the left-aligned
 // label column and the right-aligned picker column.
 const SETTINGS_WIDTH:      u32 = 360;
-/// User-imposed lower bound when dragging the bottom edge; matches the
-/// request that "min height is maybe 400px".
-const SETTINGS_MIN_HEIGHT: u32 = 400;
+/// Lower bound when dragging the bottom edge.  Tuned so the window can
+/// shrink down to roughly "Controls + Appearance card top", with everything
+/// below the drag point scrollable — matches Swift's resize behaviour.
+const SETTINGS_MIN_HEIGHT: u32 = 428;
 
 impl SettingsWindow {
     pub fn new(
@@ -145,7 +152,14 @@ impl SettingsWindow {
         };
         surface.configure(&gpu.device, &config);
 
-        platform::install_settings_vibrancy(&window);
+        // Install the NSVisualEffectView with a theme-appropriate material
+        // so the Dark-mode vibrancy uses a neutral blend (underWindowBackground)
+        // that doesn't lighten dark backdrops, while Light mode uses hudWindow
+        // for a visibly translucent blur over bright desktops.
+        let initial_theme = window.theme().unwrap_or(Theme::Dark);
+        let vev_ptr = platform::install_settings_vibrancy(
+            &window, matches!(initial_theme, Theme::Dark),
+        );
 
         let egui_ctx = egui::Context::default();
 
@@ -162,7 +176,7 @@ impl SettingsWindow {
         // flips styles on our behalf based on a stale egui_winit `system_theme`
         // — we remain the single authoritative source, driven by the
         // render-time `window.theme()` poll below.
-        let theme = window.theme().unwrap_or(Theme::Dark);
+        let theme = initial_theme;
         egui_ctx.set_theme(theme_preference(theme));
 
         let egui_state = egui_winit::State::new(
@@ -181,6 +195,7 @@ impl SettingsWindow {
             pending_reset: false,
             natural_height_applied: false,
             theme,
+            vev_ptr,
         })
     }
 
@@ -247,6 +262,16 @@ impl SettingsWindow {
             if current != self.theme {
                 self.theme = current;
                 self.egui_ctx.set_theme(theme_preference(current));
+                // Sync the NSVisualEffectView's material + appearance so
+                // the vibrancy blur tint follows the Light/Dark toggle.
+                // We do this ourselves because `install_settings_vibrancy`
+                // pinned the VEV's appearance explicitly (to avoid the
+                // AppKit auto-propagation crash) — without this call the
+                // blur would stay frozen at its install-time theme.
+                platform::update_settings_vibrancy(
+                    self.vev_ptr,
+                    matches!(current, Theme::Dark),
+                );
             }
         }
 
@@ -1389,8 +1414,18 @@ fn stepper_row(
         // Gap between field and ± buttons (now explicit since item_spacing = 0).
         ui.add_space(field_gap);
 
-        // Stepper buttons (right of field)
-        let stepper_changed = stepper_buttons(ui, &scale.to_display(*value), step, min, max_disp);
+        // Stepper buttons (right of field) — pass the TextEdit's actual
+        // rendered rect so the stepper's vertical bounds match the field's
+        // visible bounds exactly (otherwise `ROW_H`-sized stepper overhangs
+        // the TextEdit's slightly-shorter visible rectangle).
+        let field_rect = field_resp.rect;
+        let stepper_changed = stepper_buttons(
+            ui,
+            field_rect,
+            label,  // row_salt — makes interact IDs unique per stepper row
+            &scale.to_display(*value),
+            step, min, max_disp,
+        );
         if let Some(new_disp) = stepper_changed {
             let v = scale.from_display(new_disp);
             if (v - *value).abs() > f64::EPSILON {
@@ -1411,56 +1446,125 @@ fn stepper_row(
     changed
 }
 
-/// Vertically stacked ▲/▼ Stepper buttons sized to match the TextEdit's
-/// physical height exactly.  Uses `ui.put` to place two `egui::Button`s into
-/// pre-computed sub-rects — this is more robust than the earlier painter +
-/// `ui.interact` approach, which was implicated in a sporadic macOS bus
-/// error during settings window rendering on some user machines.
+/// Vertically stacked ▲/▼ Stepper buttons sized to match the adjacent
+/// TextEdit's physical rect exactly.  `field_rect` is the TextEdit's
+/// response rect — we use its `top()` and `bottom()` directly rather than
+/// the parent UI's `ROW_H` so the stepper's top and bottom edges align with
+/// the field's visible frame, never overhanging top or bottom.
+///
+/// Button widgets handle clicks and draw the chrome (fill + stroke +
+/// hover/press states); triangles are drawn geometrically with the painter
+/// because egui's default font (Ubuntu) doesn't include the ▲ U+25B2 /
+/// ▼ U+25BC glyphs — they rendered as missing-glyph tofu boxes.
 fn stepper_buttons(
-    ui:    &mut egui::Ui,
-    value: &f64,
-    step:  f64,
-    min:   f64,
-    max:   Option<f64>,
+    ui:         &mut egui::Ui,
+    field_rect: egui::Rect,
+    row_salt:   &str,
+    value:      &f64,
+    step:       f64,
+    min:        f64,
+    max:        Option<f64>,
 ) -> Option<f64> {
     let max_v = max.unwrap_or(f64::MAX);
     let btn_w: f32 = 13.0;
-    let (rect, _) = ui.allocate_exact_size(
-        egui::vec2(btn_w, ROW_H),
-        egui::Sense::hover(),
+    let total_h = field_rect.height();
+
+    // Reserve horizontal space WITHOUT creating a widget response at the
+    // full rect — `allocate_exact_size(Sense::hover())` was registering an
+    // interaction zone at the whole column that could absorb pointer
+    // events ahead of the per-half `ui.interact` calls below, resulting
+    // in clicks never registering for the stepper halves.  `allocate_space`
+    // only advances the cursor; the actual hit-testing is done exclusively
+    // by the two `ui.interact` calls, whose IDs are unique to each half.
+    let (_, alloc_rect) = ui.allocate_space(egui::vec2(btn_w, total_h));
+    let rect = egui::Rect::from_min_size(
+        egui::pos2(alloc_rect.left(), field_rect.top()),
+        egui::vec2(btn_w, total_h),
     );
-    let half_h = (rect.height() * 0.5).floor();
+    let half_h  = (total_h * 0.5).floor();
     let top_rect = egui::Rect::from_min_size(
         rect.min,
         egui::vec2(btn_w, half_h),
     );
     let bot_rect = egui::Rect::from_min_size(
         egui::pos2(rect.left(), rect.top() + half_h),
-        egui::vec2(btn_w, rect.height() - half_h),
+        egui::vec2(btn_w, total_h - half_h),
     );
 
-    // Kill default expansion on the Buttons placed via `ui.put` so hovering
-    // doesn't bulge them past the allocated rects.
-    let mut scoped = ui.new_child(egui::UiBuilder::new().max_rect(rect));
-    scoped.visuals_mut().widgets.hovered.expansion = 0.0;
-    scoped.visuals_mut().widgets.active.expansion  = 0.0;
-    scoped.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+    // Hit-testing via `ui.interact` — this is the ONLY way to get pixel-
+    // perfect sub_rects.  Debug logs proved `egui::Button` ignores
+    // ui.put's max_rect and draws at its own desired_size (empty-text
+    // galley line-height ≈ 15 px), overhanging the 9 px sub_rect by 6 px
+    // below — exactly the "gray below the input" artifact.  With raw
+    // interact + painter chrome, the rect we pass IS the rect drawn.
+    // Scope the interact IDs by `row_salt` (the stepper_row's label) so
+    // every stepper in the window has a unique ID pair.  Using `ui.id()`
+    // alone gave every stepper the SAME id because egui 0.29's default
+    // UiBuilder has no id_salt, so sibling `ui.horizontal()` children of
+    // a given parent all share the parent's id.  That caused egui's
+    // click-tracking to silently drop every click because it couldn't
+    // disambiguate which stepper was hit.
+    let row_id  = ui.id().with(row_salt);
+    let up_resp = ui.interact(top_rect, row_id.with("stepper_up"), egui::Sense::click());
+    let dn_resp = ui.interact(bot_rect, row_id.with("stepper_dn"), egui::Sense::click());
+    #[cfg(test)]
+    test_hooks::record_stepper_rects(top_rect, bot_rect);
 
-    let up_resp = scoped.put(
-        top_rect,
-        egui::Button::new(egui::RichText::new("\u{25B2}").size(7.0))
-            .rounding(0.0),
-    );
-    let dn_resp = scoped.put(
-        bot_rect,
-        egui::Button::new(egui::RichText::new("\u{25BC}").size(7.0))
-            .rounding(0.0),
-    );
+    paint_stepper_chrome(ui, top_rect, up_resp.hovered(), up_resp.is_pointer_button_down_on());
+    paint_stepper_chrome(ui, bot_rect, dn_resp.hovered(), dn_resp.is_pointer_button_down_on());
+
+    // Triangles as small filled polygons (font-independent).
+    let tri_color = ui.visuals().text_color();
+    paint_triangle(ui, top_rect, StepperDir::Up,   tri_color);
+    paint_triangle(ui, bot_rect, StepperDir::Down, tri_color);
 
     let mut new_val = None;
     if up_resp.clicked() { new_val = Some((*value + step).clamp(min, max_v)); }
     if dn_resp.clicked() { new_val = Some((*value - step).clamp(min, max_v)); }
     new_val
+}
+
+fn paint_stepper_chrome(ui: &egui::Ui, rect: egui::Rect, hovered: bool, pressed: bool) {
+    let v = ui.visuals();
+    let style = if pressed {
+        &v.widgets.active
+    } else if hovered {
+        &v.widgets.hovered
+    } else {
+        &v.widgets.inactive
+    };
+    ui.painter().rect(
+        rect,
+        0.0,
+        style.weak_bg_fill,
+        style.bg_stroke,
+    );
+}
+
+#[derive(Copy, Clone)]
+enum StepperDir { Up, Down }
+
+fn paint_triangle(ui: &egui::Ui, rect: egui::Rect, dir: StepperDir, color: egui::Color32) {
+    let c = rect.center();
+    let half_w: f32 = 3.0;
+    let half_h: f32 = 2.0;
+    let points = match dir {
+        StepperDir::Up => vec![
+            egui::pos2(c.x - half_w, c.y + half_h),
+            egui::pos2(c.x + half_w, c.y + half_h),
+            egui::pos2(c.x,          c.y - half_h),
+        ],
+        StepperDir::Down => vec![
+            egui::pos2(c.x - half_w, c.y - half_h),
+            egui::pos2(c.x + half_w, c.y - half_h),
+            egui::pos2(c.x,          c.y + half_h),
+        ],
+    };
+    ui.painter().add(egui::Shape::convex_polygon(
+        points,
+        color,
+        egui::Stroke::NONE,
+    ));
 }
 
 /// Swift NumberFormatter equivalent: decimal with `maximumFractionDigits: 3`,
@@ -1512,4 +1616,187 @@ fn from_color32_opaque(c: egui::Color32) -> [f32; 4] {
         c.b() as f32 / 255.0,
         1.0,
     ]
+}
+
+// ─── Test hooks ─────────────────────────────────────────────────────────
+//
+// A handful of test-only atomics and helpers so unit tests can observe
+// where stepper_buttons actually placed its interact rects during the
+// previous frame.  Used only under `#[cfg(test)]`.
+#[cfg(test)]
+mod test_hooks {
+    use std::cell::RefCell;
+    thread_local! {
+        static LAST: RefCell<Option<(egui::Rect, egui::Rect)>> = RefCell::new(None);
+    }
+
+    pub fn record_stepper_rects(top: egui::Rect, bot: egui::Rect) {
+        LAST.with(|c| *c.borrow_mut() = Some((top, bot)));
+    }
+
+    pub fn take_stepper_rects() -> Option<(egui::Rect, egui::Rect)> {
+        LAST.with(|c| c.borrow_mut().take())
+    }
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────────
+//
+// These tests drive a minimal egui::Context directly (no winit, no wgpu),
+// feeding synthetic pointer events to verify the stepper_row widgets
+// respond to clicks without panicking.  That exercises the exact code
+// path the user complained about: "click the up and down stepper buttons
+// they do nothing".
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{Context, Event, PointerButton, Pos2, Rect, RawInput, Vec2};
+
+    /// Build a single RawInput frame with a pointer move to `pos` followed
+    /// by a down+up primary click at that position.  egui requires BOTH
+    /// the down and up within the same frame to register as a `clicked()`.
+    fn click_input(pos: Pos2) -> RawInput {
+        RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 800.0))),
+            events: vec![
+                Event::PointerMoved(pos),
+                Event::PointerButton { pos, button: PointerButton::Primary, pressed: true,  modifiers: Default::default() },
+                Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, modifiers: Default::default() },
+            ],
+            ..Default::default()
+        }
+    }
+
+    /// Run a single frame of the stepper_row helper, returning the
+    /// TextEdit's rect so tests can target the stepper rect relative to
+    /// it.  `click` is fed as the RawInput for this frame.
+    fn run_stepper_frame(
+        ctx:     &Context,
+        raw_in:  RawInput,
+        value:   &mut f64,
+        label:   &str,
+    ) -> bool {
+        let mut changed = false;
+        ctx.run(raw_in, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                // Force the ui wide enough that stepper_row's layout is
+                // the same as in the real app.
+                ui.set_width(332.0);
+                changed = stepper_row(
+                    ui,
+                    label,
+                    "help",
+                    None,
+                    value,
+                    1.0,
+                    0.0,
+                    None,
+                    ValueScale::Identity,
+                );
+            });
+        });
+        changed
+    }
+
+    /// Locate the stepper's click rect by finding the TextEdit's response
+    /// in the previous frame's widget list and offsetting by the known
+    /// geometry: stepper is placed `field_gap=2` px right of the field and
+    /// matches its vertical bounds.  For a test we fudge by targeting the
+    /// right ~7 px of the row above the field's vertical midline (UP) or
+    /// below (DOWN).  In practice the rect will be to the right of the
+    /// field, centered on the field's row_y.
+    fn stepper_click_positions(field_rect: Rect) -> (Pos2, Pos2) {
+        let btn_w: f32 = 13.0;
+        let field_gap: f32 = 2.0;
+        // The stepper column starts at field_rect.right() + field_gap.
+        let x = field_rect.right() + field_gap + btn_w * 0.5;
+        let half_h = field_rect.height() * 0.5;
+        let up_y = field_rect.top() + half_h * 0.5;
+        let dn_y = field_rect.bottom() - half_h * 0.5;
+        (Pos2::new(x, up_y), Pos2::new(x, dn_y))
+    }
+
+    /// Warm-up frame registers the stepper's interact rects in egui's
+    /// memory AND records the exact top/bot rects via the `test_hooks`
+    /// side channel.  Then the click frame targets the center of the
+    /// recorded up/down half.
+    fn simulate_click_on_stepper(ctx: &Context, value: &mut f64, click_up: bool) -> bool {
+        // Frame A (warmup): no input, just run stepper_row to register
+        // widgets and capture sub-rects.
+        let mut value_probe = *value;
+        let _ = ctx.run(RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 800.0))),
+            ..Default::default()
+        }, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.set_width(332.0);
+                let _ = stepper_row(
+                    ui, "Test", "help", None,
+                    &mut value_probe,
+                    1.0, 0.0, None,
+                    ValueScale::Identity,
+                );
+            });
+        });
+        let (top_rect, bot_rect) = super::test_hooks::take_stepper_rects()
+            .expect("stepper_buttons should have recorded its rects during warmup frame");
+
+        // Frame B: click the center of the desired half.
+        let target = if click_up { top_rect } else { bot_rect };
+        let click_pos = target.center();
+        run_stepper_frame(ctx, click_input(click_pos), value, "Test")
+    }
+
+    #[test]
+    fn stepper_up_increments() {
+        let ctx = Context::default();
+        let mut value = 5.0_f64;
+        // simulate_click_on_stepper runs a warmup frame (registers the
+        // stepper's interact rects in egui memory) followed by a click
+        // frame.  Exactly one click per invocation.
+        let changed = simulate_click_on_stepper(&ctx, &mut value, true);
+        assert!(changed, "UP click should change the value");
+        assert_eq!(value, 6.0, "UP click should increment by step=1.0 (5 → 6)");
+    }
+
+    #[test]
+    fn stepper_down_decrements() {
+        let ctx = Context::default();
+        let mut value = 5.0_f64;
+        let changed = simulate_click_on_stepper(&ctx, &mut value, false);
+        assert!(changed, "DOWN click should change the value");
+        assert_eq!(value, 4.0, "DOWN click should decrement by step=1.0 (5 → 4)");
+    }
+
+    #[test]
+    fn stepper_down_clamps_at_min() {
+        let ctx = Context::default();
+        let mut value = 0.0_f64;
+        let _ = simulate_click_on_stepper(&ctx, &mut value, false);
+        assert_eq!(value, 0.0, "DOWN click at min should not go below 0.0");
+    }
+
+    #[test]
+    fn stepper_many_clicks_no_crash() {
+        // Regression test for the user-reported "after a few clicks it
+        // crashes": drive ~50 alternating UP/DOWN clicks and make sure
+        // nothing panics and the value stays finite.
+        let ctx = Context::default();
+        let mut value = 10.0_f64;
+        for i in 0..50 {
+            let _ = simulate_click_on_stepper(&ctx, &mut value, i % 2 == 0);
+        }
+        assert!(value.is_finite(), "value should remain finite across 50 alternating clicks");
+    }
+
+    #[test]
+    fn stepper_repeated_ups_accumulate() {
+        // Each call to simulate_click_on_stepper performs ONE click,
+        // so N invocations should give N increments (5 + 3 = 8).
+        let ctx = Context::default();
+        let mut value = 5.0_f64;
+        for _ in 0..3 {
+            let _ = simulate_click_on_stepper(&ctx, &mut value, true);
+        }
+        assert_eq!(value, 8.0, "three UP clicks should give 5 + 3*1 = 8");
+    }
 }
