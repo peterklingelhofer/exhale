@@ -199,7 +199,14 @@ mod mac {
             let material: i64 = if dark_mode { 6 } else { 8 };
             let _: () = msg_send![vev, setMaterial:         material];
             let _: () = msg_send![vev, setBlendingMode:     0i64];  // behindWindow
-            let _: () = msg_send![vev, setState:            1i64];  // active
+            // `NSVisualEffectState.followsWindowActiveState` = 0.  With
+            // `active` (1) the blur runs at the display refresh rate even
+            // when the user has clicked away to another app — burning
+            // WindowServer CPU on a blur that isn't being looked at.
+            // `followsWindowActiveState` stops the blur whenever the
+            // settings window isn't key.  Drops idle WindowServer load
+            // from ~30 % back toward the ~10 % baseline.
+            let _: () = msg_send![vev, setState:            0i64];
             let _: () = msg_send![vev, setAutoresizingMask: 18u64];
 
             // Pin the NSVisualEffectView's NSAppearance explicitly so the

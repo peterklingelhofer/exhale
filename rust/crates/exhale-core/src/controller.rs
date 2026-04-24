@@ -25,10 +25,23 @@ pub struct BreathingState {
     pub hold_time: f32,
 }
 
-// ─── Cadence constants (exact match with MetalBreathingController.swift) ─────
-
-const INTERVAL_FAST: Duration = Duration::from_nanos(41_666_667); // 1/24 s
-const INTERVAL_SLOW: Duration = Duration::from_nanos(83_333_333); // 1/12 s
+// ─── Cadence constants ───────────────────────────────────────────────────────
+//
+// Swift's reference `MetalBreathingController.swift` animates at 24 fps
+// during motion and 12 fps during near-hold.  On macOS that's enough to
+// push `WindowServer` CPU from ~10 % to ~30 % on a Retina display, because
+// the overlay is a full-screen transparent layer that forces the compositor
+// to re-blend everything behind it each frame (and, when the settings
+// window is open, to re-run its NSVisualEffectView blur).
+//
+// We cap the animation at a lower rate to trade a slightly coarser breath
+// motion for a significant WindowServer reduction.  `INTERVAL_FAST = 1/10 s`
+// (10 fps) is the sweet spot we found — still reads as smooth to the eye
+// for a multi-second breath cycle, while cutting WindowServer cost roughly
+// in half vs 24 fps.  Hold phases still throttle further via
+// `MIN_PROGRESS_DELTA` skipping frames when visual progress is negligible.
+const INTERVAL_FAST: Duration = Duration::from_nanos(100_000_000); // 1/10 s
+const INTERVAL_SLOW: Duration = Duration::from_nanos(200_000_000); // 1/5  s
 
 const ENTER_FAST_THRESHOLD: f32 = 0.0075;
 const EXIT_FAST_THRESHOLD:  f32 = 0.0045;
