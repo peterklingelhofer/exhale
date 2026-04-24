@@ -65,10 +65,125 @@ mod mac {
     pub fn setup_settings_window(window: &Window) {
         use objc::{msg_send, sel, sel_impl};
 
+        // Window level only — the vibrancy install runs post-wgpu-surface via
+        // `install_settings_vibrancy` so we don't re-parent winit's NSView
+        // before its CAMetalLayer has been attached (which would crash wgpu
+        // with a 0×0 initial drawable and a detached layer hierarchy).
         let ns_win = get_ns_window(window);
         if ns_win.is_null() { return; }
+        unsafe { let _: () = msg_send![ns_win, setLevel: 1001i64]; }
+    }
+
+    /// Swap the NSWindow's contentView for an NSVisualEffectView with
+    /// `.hudWindow` material + `.behindWindow` blending, mirroring Swift's
+    /// `AppDelegate.applicationDidFinishLaunching`.  Called AFTER the wgpu
+    /// surface has been created so winit's NSView already has a sized
+    /// CAMetalLayer — we only re-parent the view in the hierarchy, we don't
+    /// touch its layer.
+    ///
+    /// Constants (raw Cocoa NSInteger / NSUInteger):
+    ///   NSVisualEffectMaterial.hudWindow        = 8
+    ///   NSVisualEffectBlendingMode.behindWindow = 0
+    ///   NSVisualEffectState.active              = 1
+    ///   NSAutoresizingMaskOptions width|height  = 2 | 16 = 18
+    pub fn install_settings_vibrancy(window: &Window) {
+        use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+        use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+        let ns_win = get_ns_window(window);
+        if ns_win.is_null() { return; }
+
         unsafe {
-            let _: () = msg_send![ns_win, setLevel: 1001i64];
+            let handle = match window.window_handle() {
+                Ok(h) => h,
+                Err(_) => return,
+            };
+            let RawWindowHandle::AppKit(h) = handle.as_raw() else { return; };
+            let ns_view = h.ns_view.as_ptr() as *mut Object;
+            if ns_view.is_null() { return; }
+
+            // Non-opaque window + clear backgroundColor so the compositor
+            // honours the Metal layer's alpha over the VEV behind it.
+            let _: () = msg_send![ns_win, setOpaque: false];
+            let clear: *mut Object = msg_send![class!(NSColor), clearColor];
+            let _: () = msg_send![ns_win, setBackgroundColor: clear];
+
+            // Container-view approach: swap the window's contentView for a
+            // plain, layer-backed NSView that holds *both* the NSVisualEffectView
+            // AND winit's NSView as **siblings**.  This is the key invariant —
+            // adding VEV as a subview of winit's view (which has a CAMetalLayer)
+            // puts VEV's layer UNDER the Metal layer's sublayer tree, so the
+            // blur ends up drawn ON TOP of egui's pixels.  Making them siblings
+            // in a plain container places their layers next to each other,
+            // with VEV at z=0 and the Metal layer at z=1 — exactly what Swift's
+            // `settingsWindow.contentView = visualEffect; visualEffect.addSubview(hostingView)`
+            // achieves, adapted to avoid the SIGSEGV we hit when VEV itself
+            // became the immediate parent of the Metal-hosting NSView.
+            let bounds: NSRect = msg_send![ns_view, bounds];
+
+            let container: *mut Object = msg_send![class!(NSView), alloc];
+            let container: *mut Object = msg_send![container, initWithFrame: bounds];
+            if container.is_null() { return; }
+            let _: () = msg_send![container, setWantsLayer:         true];
+            let _: () = msg_send![container, setAutoresizesSubviews: true];
+            let _: () = msg_send![container, setAutoresizingMask:   18u64];
+
+            let vev: *mut Object = msg_send![class!(NSVisualEffectView), alloc];
+            let vev: *mut Object = msg_send![vev, initWithFrame: bounds];
+            if vev.is_null() { return; }
+            // Match Swift's `AppDelegate.applicationDidFinishLaunching`:
+            // NSVisualEffectMaterial.hudWindow = 8.  Backdrop text from
+            // other windows is masked by the semi-opaque panel_fill painted
+            // in settings_window.rs on top of this vibrancy, so we don't
+            // need a denser material to block it.
+            let _: () = msg_send![vev, setMaterial:         8i64];  // hudWindow
+            let _: () = msg_send![vev, setBlendingMode:     0i64];  // behindWindow
+            let _: () = msg_send![vev, setState:            1i64];  // active
+            let _: () = msg_send![vev, setAutoresizingMask: 18u64];
+
+            // Retain winit's NSView so NSWindow.setContentView:container —
+            // which releases the outgoing contentView — doesn't drop it to
+            // refcount zero before we re-insert it under the container.
+            let _: () = msg_send![ns_view,   retain];
+            let _: () = msg_send![ns_win,    setContentView:        container];
+            let _: () = msg_send![container, addSubview:            vev];
+            let _: () = msg_send![container, addSubview:            ns_view];
+            let _: () = msg_send![ns_view,   setFrame:              bounds];
+            let _: () = msg_send![ns_view,   setAutoresizingMask:   18u64];
+            let _: () = msg_send![ns_view,   release];
+
+            // Note: we deliberately do NOT call `makeFirstResponder: ns_view`
+            // here.  Doing so synchronously triggers window_did_resign_key on
+            // the old first responder (the window itself), which re-enters
+            // winit's event handler and panics with "tried to handle event
+            // while another event is currently being handled".  winit picks
+            // winit's view back up as first responder on the next mouse
+            // click, which is close enough to Swift's behaviour — the stepper
+            // TextEdits require one click before they accept keystrokes.
+        }
+    }
+
+    // Minimal CGRect / NSRect encoding so we can round-trip `bounds` / `frame`
+    // through objc messages without pulling in the cocoa or objc2 crates.
+    #[repr(C)]
+    #[derive(Copy, Clone, Default)]
+    struct NSPoint { x: f64, y: f64 }
+    #[repr(C)]
+    #[derive(Copy, Clone, Default)]
+    struct NSSize { width: f64, height: f64 }
+    #[repr(C)]
+    #[derive(Copy, Clone, Default)]
+    struct NSRect { origin: NSPoint, size: NSSize }
+
+    unsafe impl objc::Encode for NSPoint {
+        fn encode() -> objc::Encoding { unsafe { objc::Encoding::from_str("{CGPoint=dd}") } }
+    }
+    unsafe impl objc::Encode for NSSize {
+        fn encode() -> objc::Encoding { unsafe { objc::Encoding::from_str("{CGSize=dd}") } }
+    }
+    unsafe impl objc::Encode for NSRect {
+        fn encode() -> objc::Encoding {
+            unsafe { objc::Encoding::from_str("{CGRect={CGPoint=dd}{CGSize=dd}}") }
         }
     }
 
@@ -156,8 +271,8 @@ mod mac {
 
 #[cfg(target_os = "macos")]
 pub use mac::{
-    apply_app_visibility, register_reopen_handler, request_notification_permission,
-    setup_overlay_window, setup_settings_window,
+    apply_app_visibility, install_settings_vibrancy, register_reopen_handler,
+    request_notification_permission, setup_overlay_window, setup_settings_window,
 };
 
 // ─── Windows ─────────────────────────────────────────────────────────────────
@@ -209,6 +324,11 @@ mod win {
         // AppVisibility controls taskbar presence via apply_app_visibility.
     }
 
+    /// Windows has no first-class vibrancy primitive; DWM's blur-behind is a
+    /// follow-up (see TODO in CHANGELOG).  No-op for now so the settings
+    /// window stays opaque with its solid egui panel fill.
+    pub fn install_settings_vibrancy(_window: &Window) {}
+
     pub fn request_notification_permission() {
         // notify-rust on Windows uses WinRT ToastNotifications which don't
         // require explicit permission from the app.
@@ -242,8 +362,8 @@ mod win {
 
 #[cfg(target_os = "windows")]
 pub use win::{
-    apply_app_visibility, register_reopen_handler, request_notification_permission,
-    setup_overlay_window, setup_settings_window,
+    apply_app_visibility, install_settings_vibrancy, register_reopen_handler,
+    request_notification_permission, setup_overlay_window, setup_settings_window,
 };
 
 // ─── Linux / BSD (X11) ───────────────────────────────────────────────────────
@@ -360,6 +480,11 @@ mod nix {
         // taskbar presence for the Top-Bar-only mode.
     }
 
+    /// X11 has no portable blur; KWin honours `_KDE_NET_WM_BLUR_BEHIND_REGION`
+    /// but it's KWin-specific and GNOME/Mutter ignore it.  Leave as no-op for
+    /// now — the opaque panel fill is a graceful fallback on every WM.
+    pub fn install_settings_vibrancy(_window: &Window) {}
+
     pub fn request_notification_permission() {
         // D-Bus org.freedesktop.Notifications needs no per-app permission.
     }
@@ -380,6 +505,6 @@ mod nix {
 
 #[cfg(all(unix, not(target_os = "macos")))]
 pub use nix::{
-    apply_app_visibility, register_reopen_handler, request_notification_permission,
-    setup_overlay_window, setup_settings_window,
+    apply_app_visibility, install_settings_vibrancy, register_reopen_handler,
+    request_notification_permission, setup_overlay_window, setup_settings_window,
 };
