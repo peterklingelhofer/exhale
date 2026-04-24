@@ -74,33 +74,89 @@ mod mac {
         unsafe { let _: () = msg_send![ns_win, setLevel: 1001i64]; }
     }
 
-    /// Swap the NSWindow's contentView for an NSVisualEffectView with
-    /// `.hudWindow` material + `.behindWindow` blending, mirroring Swift's
-    /// `AppDelegate.applicationDidFinishLaunching`.  Called AFTER the wgpu
-    /// surface has been created so winit's NSView already has a sized
-    /// CAMetalLayer — we only re-parent the view in the hierarchy, we don't
-    /// touch its layer.
+    /// Update the VEV's material + appearance when the system theme
+    /// changes.  Called from the settings window's render loop when
+    /// `window.theme()` reports a different value than before.  The VEV
+    /// pointer must be the one installed by `install_settings_vibrancy`.
+    ///
+    /// Doing the update ourselves (instead of letting AppKit's
+    /// `_systemAppearanceDidChange` auto-propagate) avoids the
+    /// `NSCursor makeObjectsPerformSelector:` crash we hit when AppKit
+    /// walked our re-parented view hierarchy.  Safe because `setAppearance:`
+    /// and `setMaterial:` are simple property setters that don't trigger
+    /// the recursive `_layoutSubtreeWithOldSize:` propagation.
+    pub fn update_settings_vibrancy(vev_ptr: usize, dark_mode: bool) {
+        use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+        if vev_ptr == 0 { return; }
+        let vev = vev_ptr as *mut Object;
+        unsafe {
+            let material: i64 = if dark_mode { 6 } else { 8 };
+            let _: () = msg_send![vev, setMaterial: material];
+
+            let appearance_name_c = if dark_mode {
+                b"NSAppearanceNameDarkAqua\0".as_ptr() as *const i8
+            } else {
+                b"NSAppearanceNameAqua\0".as_ptr() as *const i8
+            };
+            let ns_appearance_name: *mut Object = msg_send![
+                class!(NSString), stringWithUTF8String: appearance_name_c
+            ];
+            let appearance: *mut Object = msg_send![
+                class!(NSAppearance), appearanceNamed: ns_appearance_name
+            ];
+            if !appearance.is_null() {
+                let _: () = msg_send![vev, setAppearance: appearance];
+            }
+        }
+    }
+
+    /// Swap the NSWindow's contentView for an NSVisualEffectView with a
+    /// theme-appropriate material + `.behindWindow` blending, mirroring
+    /// Swift's `AppDelegate.applicationDidFinishLaunching`.  Called AFTER
+    /// the wgpu surface has been created so winit's NSView already has a
+    /// sized CAMetalLayer — we only re-parent the view in the hierarchy,
+    /// we don't touch its layer.
+    ///
+    /// Material selection:
+    ///   Light  → hudWindow (8)  — strong blur, subtle light tint that reads
+    ///                             as "translucent over the desktop" when
+    ///                             the backdrop is bright.
+    ///   Dark   → popover (6)    — designed for translucent popovers.  More
+    ///                             transparent than underWindowBackground
+    ///                             (which was too dense in Dark mode) and
+    ///                             more neutral than hudWindow (which
+    ///                             brightened dark backdrops).  Strong
+    ///                             native blur + dark-mode tint that blends
+    ///                             into dark apps/desktop without reading
+    ///                             as lighter than what's behind.
     ///
     /// Constants (raw Cocoa NSInteger / NSUInteger):
-    ///   NSVisualEffectMaterial.hudWindow        = 8
     ///   NSVisualEffectBlendingMode.behindWindow = 0
     ///   NSVisualEffectState.active              = 1
     ///   NSAutoresizingMaskOptions width|height  = 2 | 16 = 18
-    pub fn install_settings_vibrancy(window: &Window) {
+    pub fn install_settings_vibrancy(window: &Window, dark_mode: bool) -> usize {
         use objc::{class, msg_send, runtime::Object, sel, sel_impl};
         use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
+        // Opt-out escape hatch — setting `EXHALE_DISABLE_VIBRANCY=1` in
+        // the environment skips the contentView swap entirely and leaves
+        // winit's NSView as the window's direct contentView.  No vibrancy
+        // blur, but no firstResponder / inputContext crashes either.
+        if std::env::var_os("EXHALE_DISABLE_VIBRANCY").is_some() {
+            return 0;
+        }
+
         let ns_win = get_ns_window(window);
-        if ns_win.is_null() { return; }
+        if ns_win.is_null() { return 0; }
 
         unsafe {
             let handle = match window.window_handle() {
                 Ok(h) => h,
-                Err(_) => return,
+                Err(_) => return 0,
             };
-            let RawWindowHandle::AppKit(h) = handle.as_raw() else { return; };
+            let RawWindowHandle::AppKit(h) = handle.as_raw() else { return 0; };
             let ns_view = h.ns_view.as_ptr() as *mut Object;
-            if ns_view.is_null() { return; }
+            if ns_view.is_null() { return 0; }
 
             // Non-opaque window + clear backgroundColor so the compositor
             // honours the Metal layer's alpha over the VEV behind it.
@@ -123,23 +179,52 @@ mod mac {
 
             let container: *mut Object = msg_send![class!(NSView), alloc];
             let container: *mut Object = msg_send![container, initWithFrame: bounds];
-            if container.is_null() { return; }
+            if container.is_null() { return 0; }
             let _: () = msg_send![container, setWantsLayer:         true];
             let _: () = msg_send![container, setAutoresizesSubviews: true];
             let _: () = msg_send![container, setAutoresizingMask:   18u64];
 
             let vev: *mut Object = msg_send![class!(NSVisualEffectView), alloc];
             let vev: *mut Object = msg_send![vev, initWithFrame: bounds];
-            if vev.is_null() { return; }
-            // Match Swift's `AppDelegate.applicationDidFinishLaunching`:
-            // NSVisualEffectMaterial.hudWindow = 8.  Backdrop text from
-            // other windows is masked by the semi-opaque panel_fill painted
-            // in settings_window.rs on top of this vibrancy, so we don't
-            // need a denser material to block it.
-            let _: () = msg_send![vev, setMaterial:         8i64];  // hudWindow
+            if vev.is_null() { return 0; }
+            // Per-theme material selection (see doc comment above):
+            //   Light: hudWindow (8) — strong blur + subtle tint, visibly
+            //                          translucent over bright desktops.
+            //   Dark:  popover   (6) — translucent, blurred, neutral tint
+            //                          over dark backdrops.
+            //
+            // `alphaValue` is not set (default is 1.0) — setting it
+            // synchronously fires a key-resign notification that re-enters
+            // winit's event loop and panics.
+            let material: i64 = if dark_mode { 6 } else { 8 };
+            let _: () = msg_send![vev, setMaterial:         material];
             let _: () = msg_send![vev, setBlendingMode:     0i64];  // behindWindow
             let _: () = msg_send![vev, setState:            1i64];  // active
             let _: () = msg_send![vev, setAutoresizingMask: 18u64];
+
+            // Pin the NSVisualEffectView's NSAppearance explicitly so the
+            // system's appearance-change notification doesn't propagate
+            // through this view's _layoutSubtreeWithOldSize: — AppKit's
+            // propagation walks tracking-area / cursor-rect arrays and
+            // corrupts under our re-parented view hierarchy, raising
+            // `NSCursor does not respond to makeObjectsPerformSelector:`
+            // and aborting the app when the user toggles Light/Dark.
+            // With an explicit appearance set, the VEV declines the
+            // propagation and the iteration stops safely.
+            let appearance_name_c = if dark_mode {
+                b"NSAppearanceNameDarkAqua\0".as_ptr() as *const i8
+            } else {
+                b"NSAppearanceNameAqua\0".as_ptr() as *const i8
+            };
+            let ns_appearance_name: *mut Object = msg_send![
+                class!(NSString), stringWithUTF8String: appearance_name_c
+            ];
+            let appearance: *mut Object = msg_send![
+                class!(NSAppearance), appearanceNamed: ns_appearance_name
+            ];
+            if !appearance.is_null() {
+                let _: () = msg_send![vev, setAppearance: appearance];
+            }
 
             // Retain winit's NSView so NSWindow.setContentView:container —
             // which releases the outgoing contentView — doesn't drop it to
@@ -152,14 +237,14 @@ mod mac {
             let _: () = msg_send![ns_view,   setAutoresizingMask:   18u64];
             let _: () = msg_send![ns_view,   release];
 
-            // Note: we deliberately do NOT call `makeFirstResponder: ns_view`
-            // here.  Doing so synchronously triggers window_did_resign_key on
-            // the old first responder (the window itself), which re-enters
-            // winit's event handler and panics with "tried to handle event
-            // while another event is currently being handled".  winit picks
-            // winit's view back up as first responder on the next mouse
-            // click, which is close enough to Swift's behaviour — the stepper
-            // TextEdits require one click before they accept keystrokes.
+            // NOTE: we deliberately do NOT call `makeFirstResponder:
+            // ns_view` here.  Every variant we tried (synchronous,
+            // performSelector:afterDelay:0, dispatch_async) either panics
+            // winit from reentrancy or segfaults mid-frame.  Winit picks
+            // its view back up as first responder on the next mouse
+            // click organically, which is close enough to Swift's
+            // behaviour.
+            vev as usize
         }
     }
 
@@ -271,7 +356,7 @@ mod mac {
 
 #[cfg(target_os = "macos")]
 pub use mac::{
-    apply_app_visibility, install_settings_vibrancy, register_reopen_handler,
+    apply_app_visibility, install_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
 };
 
@@ -325,9 +410,11 @@ mod win {
     }
 
     /// Windows has no first-class vibrancy primitive; DWM's blur-behind is a
-    /// follow-up (see TODO in CHANGELOG).  No-op for now so the settings
-    /// window stays opaque with its solid egui panel fill.
-    pub fn install_settings_vibrancy(_window: &Window) {}
+    /// follow-up.  No-op for now.
+    pub fn install_settings_vibrancy(_window: &Window, _dark_mode: bool) -> usize { 0 }
+
+    /// No-op on Windows (no VEV to update).
+    pub fn update_settings_vibrancy(_vev_ptr: usize, _dark_mode: bool) {}
 
     pub fn request_notification_permission() {
         // notify-rust on Windows uses WinRT ToastNotifications which don't
@@ -362,7 +449,7 @@ mod win {
 
 #[cfg(target_os = "windows")]
 pub use win::{
-    apply_app_visibility, install_settings_vibrancy, register_reopen_handler,
+    apply_app_visibility, install_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
 };
 
@@ -481,9 +568,11 @@ mod nix {
     }
 
     /// X11 has no portable blur; KWin honours `_KDE_NET_WM_BLUR_BEHIND_REGION`
-    /// but it's KWin-specific and GNOME/Mutter ignore it.  Leave as no-op for
-    /// now — the opaque panel fill is a graceful fallback on every WM.
-    pub fn install_settings_vibrancy(_window: &Window) {}
+    /// but it's KWin-specific and GNOME/Mutter ignore it.  Leave as no-op.
+    pub fn install_settings_vibrancy(_window: &Window, _dark_mode: bool) -> usize { 0 }
+
+    /// No-op on X11 (no VEV to update).
+    pub fn update_settings_vibrancy(_vev_ptr: usize, _dark_mode: bool) {}
 
     pub fn request_notification_permission() {
         // D-Bus org.freedesktop.Notifications needs no per-app permission.
@@ -505,6 +594,6 @@ mod nix {
 
 #[cfg(all(unix, not(target_os = "macos")))]
 pub use nix::{
-    apply_app_visibility, install_settings_vibrancy, register_reopen_handler,
+    apply_app_visibility, install_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
 };
