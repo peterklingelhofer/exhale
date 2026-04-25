@@ -151,6 +151,17 @@ fn run_controller(
     let inhale_dur = settings.read().unwrap().inhale_duration;
     let mut inner  = fresh_inner(Instant::now(), inhale_dur);
 
+    // Deadline the next iteration should fire at.  We advance this by the
+    // tick's requested `next_interval` after every iteration, then sleep
+    // until that deadline rather than sleeping `next_interval` from "now".
+    // Without this, every `thread::sleep` overshoot (typically 0-10 ms on
+    // macOS) accumulated into perceived choppiness even at the same fps —
+    // frames landed at irregular wall-clock times.  Deadline-based
+    // scheduling means a 5-ms-late wake-up is followed by a 5-ms-shorter
+    // sleep, so the long-run cadence stays exact and the eye reads the
+    // motion as smooth at the same render rate / CPU cost.
+    let mut next_wakeup = Instant::now();
+
     loop {
         if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
             break;
@@ -161,6 +172,7 @@ fn run_controller(
         if reset_flag.swap(false, std::sync::atomic::Ordering::Relaxed) {
             let inhale_dur = settings.read().unwrap().inhale_duration;
             inner = fresh_inner(Instant::now(), inhale_dur);
+            next_wakeup = Instant::now();
         }
 
         let (should_draw, next_interval) = tick(
@@ -176,7 +188,18 @@ fn run_controller(
             (request_draw)();
         }
 
-        let sleep_for = next_interval.max(Duration::from_millis(1));
+        // Advance the target deadline by exactly `next_interval`.  Catch-up
+        // clamp: if a long pause (laptop sleep, app backgrounded) put us
+        // more than 1 second past the target, snap forward instead of
+        // burst-rendering frames to "make up" the missed time.
+        next_wakeup += next_interval;
+        let now = Instant::now();
+        if next_wakeup + Duration::from_secs(1) < now {
+            next_wakeup = now + next_interval;
+        }
+        let sleep_for = next_wakeup
+            .saturating_duration_since(now)
+            .max(Duration::from_millis(1));
         thread::sleep(sleep_for);
     }
 }
