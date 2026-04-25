@@ -918,12 +918,51 @@ fn control_button(
     };
 
     let painter = ui.painter().clone();
+
+    // Soft drop-shadow halo: stack ~6 filled rounded rects at progressively
+    // larger expansions with a decaying alpha, then paint the button fill
+    // on top.  Because the fill is opaque, only the outer pixels of each
+    // shadow ring are visible, producing a smooth multi-pixel gradient
+    // instead of the earlier near-invisible 2-px rings.
+    //
+    // Dark mode: halo is white-alpha (lighter rim-light over the dark
+    // card).  Light mode: halo is black-alpha (darker soft shadow).
+    // `HALO_PX` controls total fade width; tuned so adjacent buttons'
+    // halos don't meet (`item_spacing.x = 8`, halos extend HALO_PX each
+    // side, so HALO_PX ≤ 4).
+    let halo_base = primary;
+    const HALO_PX: i32 = 4;
+    // Peak alpha at the innermost halo ring (1 px outside the button).
+    // Hover / press states brighten the halo as visual feedback.
+    let peak_alpha: f32 = match (hovered, pressed) {
+        (_, true)      => 180.0,
+        (true,  false) => 140.0,
+        (false, false) => 110.0,
+    };
+    // Draw from outermost → innermost so each ring overpaints only the
+    // pixels inside the previous.  Linear alpha falloff `(1 − i/(HALO_PX+1))`
+    // gives every ring a visible alpha (no 0-alpha outermost invisible
+    // ring) and a clean smooth gradient from `peak_alpha` at the button
+    // edge down to `~peak_alpha/(HALO_PX+1)` at the outermost pixel.
+    for i in (1..=HALO_PX).rev() {
+        let t      = i as f32 / (HALO_PX as f32 + 1.0); // 0..<1
+        let a      = (peak_alpha * (1.0 - t)).round().max(1.0) as u8;
+        let expand = i as f32;
+        painter.rect_filled(
+            rect.expand(expand),
+            BUTTON_RADIUS + expand,
+            with_alpha(halo_base, a),
+        );
+    }
+
     painter.rect(
         rect,
         BUTTON_RADIUS,
         with_alpha(fill_base, fill_a),
-        egui::Stroke::new(1.0, with_alpha(stroke_base, stroke_a)),
+        egui::Stroke::NONE,
     );
+    let _ = stroke_base;
+    let _ = stroke_a;
 
     // Pressed state: Swift uses `.opacity(0.7)` + `.scaleEffect(0.97)`.  Scale
     // is awkward in immediate-mode; drop opacity instead — the user still gets
