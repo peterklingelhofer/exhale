@@ -325,6 +325,135 @@ mod mac {
         }
     }
 
+    /// Rasterise an SF Symbol into a pixel buffer egui can upload as a
+    /// texture.  Returns `(rgba_bytes, width_px, height_px)` on success
+    /// or `None` if the symbol isn't found / rasterisation fails.
+    ///
+    /// The bytes are interleaved RGBA, **non-premultiplied** alpha, 8
+    /// bits per channel — egui's `ColorImage::from_rgba_unmultiplied`
+    /// can ingest them directly.  Drawing happens at 2× scale relative
+    /// to `point_size` so the texture stays crisp on Retina displays;
+    /// at egui-paint time the image is sized back down to its point
+    /// dimensions, and the GPU sampler handles the downsample.
+    ///
+    /// `dark_mode` controls the tint colour: white in dark, black in
+    /// light — matching `Color.primary` from SwiftUI's ControlButton.
+    /// We tint by drawing the symbol into a graphics context with
+    /// default `sourceOver`, then filling the same rect with the tint
+    /// colour using `sourceAtop` so only the alpha-non-zero pixels of
+    /// the symbol get coloured in.
+    pub fn render_sf_symbol(
+        name: &str,
+        point_size: f64,
+        dark_mode: bool,
+    ) -> Option<(Vec<u8>, u32, u32)> {
+        use objc::{class, msg_send, runtime::{Class, Object}, sel, sel_impl};
+
+        unsafe {
+            // NSString *symbolName = @"<name>"
+            let cstr = std::ffi::CString::new(name).ok()?;
+            let symbol_name: *mut Object = msg_send![
+                class!(NSString), stringWithUTF8String: cstr.as_ptr()
+            ];
+            if symbol_name.is_null() { return None; }
+
+            // [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil]
+            let nil_obj: *mut Object = std::ptr::null_mut();
+            let image: *mut Object = msg_send![
+                class!(NSImage),
+                imageWithSystemSymbolName: symbol_name
+                accessibilityDescription: nil_obj
+            ];
+            if image.is_null() { return None; }
+
+            // [NSImageSymbolConfiguration configurationWithPointSize:weight:scale:]
+            // weight = NSFontWeightRegular (0.0) ; scale = NSImageSymbolScaleMedium (2)
+            let config_cls = Class::get("NSImageSymbolConfiguration")?;
+            let config: *mut Object = msg_send![
+                config_cls,
+                configurationWithPointSize: point_size
+                weight: 0.0_f64
+                scale: 2_i64
+            ];
+            let image: *mut Object = msg_send![image, imageWithSymbolConfiguration: config];
+            if image.is_null() { return None; }
+
+            // Render at 2x for Retina; egui downsamples at sample time.
+            let size: NSSize = msg_send![image, size];
+            const SCALE: f64 = 2.0;
+            let pixel_w = ((size.width  * SCALE).ceil() as u32).max(1);
+            let pixel_h = ((size.height * SCALE).ceil() as u32).max(1);
+
+            // NSBitmapImageRep — `initWithBitmapDataPlanes:..:bitmapFormat:..`
+            // variant lets us request `NSBitmapFormatAlphaNonpremultiplied`
+            // (= 2), which is the format egui's `from_rgba_unmultiplied`
+            // expects.  The default init (without bitmapFormat) gives
+            // premultiplied alpha and would force us to unpremultiply
+            // every pixel after the fact.
+            let cs_name = b"NSCalibratedRGBColorSpace\0".as_ptr() as *const i8;
+            let space: *mut Object = msg_send![
+                class!(NSString), stringWithUTF8String: cs_name
+            ];
+            let rep: *mut Object = msg_send![class!(NSBitmapImageRep), alloc];
+            let rep: *mut Object = msg_send![rep,
+                initWithBitmapDataPlanes: std::ptr::null_mut::<*mut u8>()
+                pixelsWide: pixel_w as i64
+                pixelsHigh: pixel_h as i64
+                bitsPerSample: 8_i64
+                samplesPerPixel: 4_i64
+                hasAlpha: 1_i8
+                isPlanar: 0_i8
+                colorSpaceName: space
+                bitmapFormat: 2_u64  // NSBitmapFormatAlphaNonpremultiplied
+                bytesPerRow: (pixel_w * 4) as i64
+                bitsPerPixel: 32_i64
+            ];
+            if rep.is_null() { return None; }
+
+            // Logical point size on the rep — drawing routines render at
+            // points and the rep's pixel buffer is 2× that.
+            let _: () = msg_send![rep, setSize: size];
+
+            // Bind a graphics context backed by the rep, save state.
+            let ctx_cls = class!(NSGraphicsContext);
+            let ctx: *mut Object = msg_send![ctx_cls, graphicsContextWithBitmapImageRep: rep];
+            if ctx.is_null() { return None; }
+            let _: () = msg_send![ctx_cls, saveGraphicsState];
+            let _: () = msg_send![ctx_cls, setCurrentContext: ctx];
+
+            // Draw the symbol.
+            let dst = NSRect {
+                origin: NSPoint { x: 0.0, y: 0.0 },
+                size,
+            };
+            let _: () = msg_send![image, drawInRect: dst];
+
+            // Tint via `NSCompositingOperationSourceAtop` (= 5): fills
+            // only the pixels the symbol drew into, preserving its alpha
+            // channel for anti-aliased edges.
+            let tint_color: *mut Object = if dark_mode {
+                msg_send![class!(NSColor), whiteColor]
+            } else {
+                msg_send![class!(NSColor), blackColor]
+            };
+            let _: () = msg_send![tint_color, set];
+            let _: () = msg_send![ctx, setCompositingOperation: 5_i64];
+            let path: *mut Object = msg_send![class!(NSBezierPath), bezierPathWithRect: dst];
+            let _: () = msg_send![path, fill];
+
+            // Restore.
+            let _: () = msg_send![ctx_cls, restoreGraphicsState];
+
+            // Pull bytes out.
+            let bitmap_data: *const u8 = msg_send![rep, bitmapData];
+            if bitmap_data.is_null() { return None; }
+            let total = (pixel_w * pixel_h * 4) as usize;
+            let bytes = std::slice::from_raw_parts(bitmap_data, total).to_vec();
+
+            Some((bytes, pixel_w, pixel_h))
+        }
+    }
+
     /// Build a stretchable rounded-rect NSImage suitable for
     /// `NSVisualEffectView.maskImage`.  The image is `2*radius + 1`
     /// square, drawn as a single rounded rect filled black so the alpha
@@ -520,10 +649,17 @@ mod mac {
 
 #[cfg(target_os = "macos")]
 pub use mac::{
-    apply_app_visibility, install_settings_vibrancy, sync_settings_backdrop_frame,
-    update_settings_vibrancy, register_reopen_handler,
+    apply_app_visibility, install_settings_vibrancy, render_sf_symbol,
+    sync_settings_backdrop_frame, update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
 };
+
+/// Non-macOS stub for `render_sf_symbol` — SF Symbols are AppKit-only.
+/// Callers fall back to Unicode glyphs when this returns `None`.
+#[cfg(not(target_os = "macos"))]
+pub fn render_sf_symbol(_name: &str, _point_size: f64, _dark_mode: bool) -> Option<(Vec<u8>, u32, u32)> {
+    None
+}
 
 // ─── Windows ─────────────────────────────────────────────────────────────────
 

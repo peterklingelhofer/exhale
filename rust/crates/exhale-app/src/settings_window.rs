@@ -40,6 +40,60 @@ pub struct SettingsWindow {
     /// with this pointer so the blur material/appearance follows the
     /// system's Light/Dark toggle.
     vev_ptr: usize,
+    /// Lazy-loaded SF Symbol textures for the Start / Stop / Reset
+    /// buttons in dark and light themes.  None on non-macOS or when the
+    /// rasteriser fails — callers fall back to Unicode glyphs.
+    icon_cache: IconCache,
+}
+
+/// Holds the texture handles for each control-button icon × theme.  We
+/// load both themes up-front (cheap: 6 × ~32×32 RGBA = ~24 KB) so the
+/// theme toggle doesn't have to re-rasterise on first paint.
+#[derive(Default)]
+struct IconCache {
+    play_dark:    Option<egui::TextureHandle>,
+    play_light:   Option<egui::TextureHandle>,
+    stop_dark:    Option<egui::TextureHandle>,
+    stop_light:   Option<egui::TextureHandle>,
+    reset_dark:   Option<egui::TextureHandle>,
+    reset_light:  Option<egui::TextureHandle>,
+}
+
+impl IconCache {
+    fn load(ctx: &egui::Context) -> Self {
+        Self {
+            play_dark:   load_sf_icon(ctx, "play.circle.fill",                  true),
+            play_light:  load_sf_icon(ctx, "play.circle.fill",                  false),
+            stop_dark:   load_sf_icon(ctx, "stop.circle.fill",                  true),
+            stop_light:  load_sf_icon(ctx, "stop.circle.fill",                  false),
+            reset_dark:  load_sf_icon(ctx, "arrow.counterclockwise.circle.fill", true),
+            reset_light: load_sf_icon(ctx, "arrow.counterclockwise.circle.fill", false),
+        }
+    }
+
+    fn play(&self, dark: bool) -> Option<&egui::TextureHandle> {
+        if dark { self.play_dark.as_ref() } else { self.play_light.as_ref() }
+    }
+    fn stop(&self, dark: bool) -> Option<&egui::TextureHandle> {
+        if dark { self.stop_dark.as_ref() } else { self.stop_light.as_ref() }
+    }
+    fn reset(&self, dark: bool) -> Option<&egui::TextureHandle> {
+        if dark { self.reset_dark.as_ref() } else { self.reset_light.as_ref() }
+    }
+}
+
+/// Rasterise an SF Symbol via AppKit, upload as an egui texture.  The
+/// 16-pt point size matches the medium SF Symbol scale used in
+/// SwiftUI's `Image(systemName:).imageScale(.medium)`.  Returns `None`
+/// off-macOS or if the symbol isn't found.
+fn load_sf_icon(ctx: &egui::Context, name: &str, dark_mode: bool) -> Option<egui::TextureHandle> {
+    let (bytes, w, h) = platform::render_sf_symbol(name, 16.0, dark_mode)?;
+    let image = egui::ColorImage::from_rgba_unmultiplied(
+        [w as usize, h as usize],
+        &bytes,
+    );
+    let id = format!("sf:{}:{}", name, if dark_mode { "d" } else { "l" });
+    Some(ctx.load_texture(id, image, egui::TextureOptions::LINEAR))
 }
 
 // Fixed logical width of the settings window.  Wider than the Swift 246 pt
@@ -208,11 +262,17 @@ impl SettingsWindow {
 
         let egui_renderer = egui_wgpu::Renderer::new(&*gpu.device, format, None, 1, false);
 
+        // Pre-rasterise SF Symbol icons for both themes — cheap one-shot
+        // cost (~6 small RGBA blobs uploaded as textures) so the theme
+        // toggle doesn't have to lock-focus into AppKit on the hot path.
+        let icon_cache = IconCache::load(&egui_ctx);
+
         Ok(Self {
             window, surface, config, egui_ctx, egui_state, egui_renderer, gpu,
             pending_reset: false,
             theme,
             vev_ptr,
+            icon_cache,
         })
     }
 
@@ -314,6 +374,7 @@ impl SettingsWindow {
             content_height = settings_ui(
                 ctx, settings, settings_manager,
                 &mut self.pending_reset,
+                &self.icon_cache,
             );
         });
 
@@ -447,6 +508,7 @@ fn settings_ui(
     settings:         &mut Settings,
     settings_manager: &Arc<SettingsManager>,
     pending_reset:    &mut bool,
+    icons:            &IconCache,
 ) -> f32 {
     let mut dirty = false;
     let mut content_height = 0.0f32;
@@ -543,22 +605,35 @@ fn settings_ui(
                                 .floor()
                                 .max(1.0);
 
-                    if control_button(ui, btn_w, "\u{25B6}", "Start",
-                        "Start the app and re-initialize animation.").clicked()
+                    let dark = ui.visuals().dark_mode;
+                    if control_button(
+                        ui, btn_w,
+                        "\u{25B6}", icons.play(dark),
+                        "Start",
+                        "Start the app and re-initialize animation.",
+                    ).clicked()
                     {
                         settings.is_animating = true;
                         settings.is_paused    = false;
                         dirty = true;
                     }
-                    if control_button(ui, btn_w, "\u{25A0}", "Stop",
-                        "Stop the animation and remove all screen tints.").clicked()
+                    if control_button(
+                        ui, btn_w,
+                        "\u{25A0}", icons.stop(dark),
+                        "Stop",
+                        "Stop the animation and remove all screen tints.",
+                    ).clicked()
                     {
                         settings.is_animating = false;
                         settings.is_paused    = false;
                         dirty = true;
                     }
-                    if control_button(ui, btn_w, "\u{21BA}", "Reset",
-                        "Reset all settings to their default values.").clicked()
+                    if control_button(
+                        ui, btn_w,
+                        "\u{21BA}", icons.reset(dark),
+                        "Reset",
+                        "Reset all settings to their default values.",
+                    ).clicked()
                     {
                         let was_animating   = settings.is_animating;
                         let was_paused      = settings.is_paused;
@@ -887,14 +962,22 @@ fn section_header(ui: &mut egui::Ui, text: &str) {
 /// (`.frame(maxWidth: .infinity)` in Swift) — we achieve that by dividing the
 /// ui's available width by the number of siblings, which egui's horizontal
 /// layout with equal allocations gives us for free via `allocate_exact_size`.
+/// `icon` is the Unicode fallback glyph used when `icon_texture` is
+/// `None` (non-macOS, or symbol rasterisation failed).  When a texture
+/// is supplied we render the real SF Symbol bitmap instead.
 fn control_button(
-    ui:   &mut egui::Ui,
-    width: f32,
-    icon: &str,
-    text: &str,
-    help: &str,
+    ui:           &mut egui::Ui,
+    width:        f32,
+    icon:         &str,
+    icon_texture: Option<&egui::TextureHandle>,
+    text:         &str,
+    help:         &str,
 ) -> egui::Response {
-    let button_h = ROW_H + 10.0; // padding vertical 6 + 16 text height ≈ 28
+    // Match Swift's `.padding(.vertical, 6)` around a 16-pt SF Symbol +
+    // 12-pt label.  ROW_H + 6 ≈ 28 lands on the same physical button
+    // height as `ControlButton.swift`.  We were at +10 (= 32) before,
+    // which read as too tall next to AppKit's standard pushbutton.
+    let button_h = ROW_H + 6.0;
     let size     = egui::vec2(width, button_h);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
 
@@ -921,27 +1004,31 @@ fn control_button(
     // button is a translucent wash + outline of the *foreground* colour
     // over whatever's behind (the card fill).
     let primary = if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK };
-    // Swift's exact `Color.primary.opacity(...)` translates to alpha 13/26/38
-    // for fill (rest/hover/press) and 31/51/64 for stroke.  Light mode uses
-    // those values verbatim — a black wash over a pale-vibrancy backdrop
-    // matches Swift exactly.  Dark mode buttons came out noticeably brighter
-    // than their AppKit counterparts (white wash composites differently
-    // through egui's premultiplied pipeline against our `(30,30,30,140)`
-    // card on top of `popover` vibrancy than SwiftUI does over its own
-    // `controlBackgroundColor.opacity(0.55)` chain), so dark-mode alphas are
-    // trimmed ~40% to land on the same perceived brightness.
-    let (fill_a, stroke_a): (u8, u8) = if dark_mode {
-        match (hovered, pressed) {
-            (_, true)      => (22, 38),
-            (true,  false) => (15, 30),
-            (false, false) => ( 8, 18),
-        }
+    // Light mode keeps Swift's exact `Color.primary.opacity(...)` —
+    // black wash over the light card / vibrancy reads as a faint
+    // depressed tile, matching ControlButton.swift.
+    //
+    // Dark mode deliberately deviates: instead of Swift's white wash
+    // (which our compositing path makes brighter than the AppKit
+    // version), we use a BLACK wash so the buttons land slightly
+    // DARKER than the card behind.  That matches the user's "match the
+    // Swift button" goal while keeping the buttons readable as
+    // distinct tiles.  Stroke stays as `primary` (white in dark) at a
+    // muted alpha for a subtle outline.
+    let (fill_color, stroke_a): (egui::Color32, u8) = if dark_mode {
+        let (fa, sa) = match (hovered, pressed) {
+            (_, true)      => (70, 38),
+            (true,  false) => (45, 26),
+            (false, false) => (28, 16),
+        };
+        (egui::Color32::from_rgba_unmultiplied(0, 0, 0, fa), sa)
     } else {
-        match (hovered, pressed) {
+        let (fa, sa) = match (hovered, pressed) {
             (_, true)      => (38, 64),
             (true,  false) => (26, 51),
             (false, false) => (13, 31),
-        }
+        };
+        (egui::Color32::from_rgba_unmultiplied(0, 0, 0, fa), sa)
     };
     let with_alpha = |base: egui::Color32, a: u8| {
         egui::Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), a)
@@ -951,7 +1038,7 @@ fn control_button(
     painter.rect(
         rect,
         BUTTON_RADIUS,
-        with_alpha(primary, fill_a),
+        fill_color,
         egui::Stroke::new(1.0, with_alpha(primary, stroke_a)),
     );
 
@@ -961,23 +1048,52 @@ fn control_button(
     let content_alpha: u8 = if pressed { 178 } else if enabled { 255 } else { 110 };
     let content_color = with_alpha(primary, content_alpha);
 
-    // Icon + label, centered inside the button rect.  Icons are Unicode
-    // approximations of SwiftUI SF Symbols (▶ ■ ⏸ ↺).
-    let font_icon  = egui::FontId::proportional(14.0);
+    // Icon + label, centered inside the button rect.  When a real SF
+    // Symbol texture is available (macOS only) we paint that; otherwise
+    // we fall back to the Unicode glyph (▶ ■ ↺).
     let font_label = egui::FontId::proportional(12.0);
-    let icon_size  = ui.fonts(|f| f.layout_no_wrap(icon.to_string(), font_icon.clone(), content_color).size());
+    // Match Swift's `.imageScale(.medium)` — 16 pt SF Symbol next to a
+    // 12-pt label.
+    let icon_w     = if icon_texture.is_some() { 16.0 } else {
+        ui.fonts(|f| f.layout_no_wrap(icon.to_string(), egui::FontId::proportional(14.0), content_color).size()).x
+    };
     let label_size = ui.fonts(|f| f.layout_no_wrap(text.to_string(), font_label.clone(), content_color).size());
     let gap        = 6.0_f32;
-    let total_w    = icon_size.x + gap + label_size.x;
+    let total_w    = icon_w + gap + label_size.x;
     let start_x    = rect.center().x - total_w * 0.5;
     let baseline_y = rect.center().y;
+
+    if let Some(tex) = icon_texture {
+        // Render the SF Symbol texture at 16×16 pt centered on its
+        // half-width slot.  `tint(content_color)` re-tints the texture
+        // alpha-channel to match `pressed` / `enabled` state — the
+        // texture itself is a white silhouette in dark mode and a
+        // black silhouette in light mode (see `render_sf_symbol`'s
+        // tint pass), and `tint` modulates that further so the icon
+        // dims when pressed or disabled the same way the label does.
+        let icon_size = 16.0_f32;
+        let icon_rect = egui::Rect::from_min_size(
+            egui::pos2(start_x, baseline_y - icon_size / 2.0),
+            egui::vec2(icon_size, icon_size),
+        );
+        painter.image(
+            tex.id(),
+            icon_rect,
+            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+            content_color,
+        );
+    } else {
+        painter.text(
+            egui::pos2(start_x + icon_w * 0.5, baseline_y),
+            egui::Align2::CENTER_CENTER,
+            icon,
+            egui::FontId::proportional(14.0),
+            content_color,
+        );
+    }
+
     painter.text(
-        egui::pos2(start_x + icon_size.x * 0.5, baseline_y),
-        egui::Align2::CENTER_CENTER,
-        icon, font_icon, content_color,
-    );
-    painter.text(
-        egui::pos2(start_x + icon_size.x + gap + label_size.x * 0.5, baseline_y),
+        egui::pos2(start_x + icon_w + gap + label_size.x * 0.5, baseline_y),
         egui::Align2::CENTER_CENTER,
         text, font_label, content_color,
     );
@@ -1138,6 +1254,35 @@ fn visuals_for_theme(theme: Theme) -> egui::Visuals {
     v.widgets.hovered.rounding        = r;
     v.widgets.active.rounding         = r;
     v.widgets.open.rounding           = r;
+
+    // TextEdit fills + stepper chrome reads against the card-tinted
+    // backdrop.  egui's stock dark mode picks near-black for both
+    // (`extreme_bg_color` ≈ rgb(10,10,10), `widgets.inactive.weak_bg_fill`
+    // ≈ rgb(60,60,60)) which sits darker than the card behind and
+    // disappears against it.  AppKit's `NSTextField` and `NSStepper`
+    // are noticeably LIGHTER than the surrounding controlBackground in
+    // dark mode — they read as raised input affordances.  Match that
+    // by lifting both fills several steps in dark mode; light mode's
+    // defaults are already correct.
+    if matches!(theme, Theme::Dark) {
+        // TextEdit background: rgb(58,58,60) ≈ AppKit's
+        // `controlBackgroundColor` for input fields in dark appearance.
+        v.extreme_bg_color = egui::Color32::from_rgb(58, 58, 60);
+
+        // NSStepper chrome: lighter gray with a subtle outline.  These
+        // widget-state colours flow through `paint_stepper_chrome`'s
+        // `widgets.inactive` / `hovered` / `active` lookup.
+        let stepper_rest    = egui::Color32::from_rgb(78, 78, 80);
+        let stepper_hover   = egui::Color32::from_rgb(96, 96, 98);
+        let stepper_press   = egui::Color32::from_rgb(120, 120, 122);
+        let stepper_stroke  = egui::Stroke::new(1.0, egui::Color32::from_rgb(110, 110, 112));
+        v.widgets.inactive.weak_bg_fill = stepper_rest;
+        v.widgets.inactive.bg_stroke    = stepper_stroke;
+        v.widgets.hovered.weak_bg_fill  = stepper_hover;
+        v.widgets.hovered.bg_stroke     = stepper_stroke;
+        v.widgets.active.weak_bg_fill   = stepper_press;
+        v.widgets.active.bg_stroke      = stepper_stroke;
+    }
 
     v
 }
