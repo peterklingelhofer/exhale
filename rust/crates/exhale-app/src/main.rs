@@ -42,7 +42,6 @@ enum AppEvent {
     ShowSettings,
     StartAnimation,
     StopAnimation,
-    TogglePause,
     ResetDefaults,
     #[cfg(feature = "global-hotkeys")]
     ResetDefaultsWithConfirm,
@@ -176,29 +175,12 @@ impl App {
         self.request_settings_redraw();
     }
 
-    fn do_toggle_pause(&mut self) {
-        let mut s = self.settings.write().unwrap();
-        if s.is_animating {
-            s.is_paused = !s.is_paused;
-            self.settings_manager.mark_dirty();
-            self.update_tray_state(&s);
-            drop(s);
-            // Repaint immediately so the paused/resumed state is visible.
-            self.request_overlay_redraw();
-            self.request_settings_redraw();
-        }
-    }
-
     fn update_tray_state(&self, s: &exhale_core::settings::Settings) {
         if let Some(ids) = &self.tray_ids {
             // Start disabled while animating (matches Swift AppDelegate).
             ids.start_item.set_enabled(!s.is_animating);
             // Stop enabled when animating OR paused (matches Swift AppDelegate).
             ids.stop_item.set_enabled(s.is_animating || s.is_paused);
-            // Pause only meaningful while animating.
-            ids.pause_item.set_enabled(s.is_animating);
-            let label = if s.is_paused { "Resume" } else { "Pause" };
-            ids.pause_item.set_text(label);
         }
     }
 
@@ -446,7 +428,6 @@ impl ApplicationHandler<AppEvent> for App {
             AppEvent::ShowSettings   => self.toggle_settings(event_loop),
             AppEvent::StartAnimation => self.do_start(),
             AppEvent::StopAnimation  => self.do_stop(),
-            AppEvent::TogglePause    => self.do_toggle_pause(),
             AppEvent::ResetDefaults  => self.do_reset(),
             #[cfg(feature = "global-hotkeys")]
             AppEvent::ResetDefaultsWithConfirm => self.do_reset_with_confirm(event_loop),
@@ -667,7 +648,6 @@ impl ApplicationHandler<AppEvent> for App {
                 if id == &ids.preferences { let _ = self.proxy.send_event(AppEvent::ShowSettings); }
                 else if id == &ids.start  { let _ = self.proxy.send_event(AppEvent::StartAnimation); }
                 else if id == &ids.stop   { let _ = self.proxy.send_event(AppEvent::StopAnimation); }
-                else if id == &ids.pause  { let _ = self.proxy.send_event(AppEvent::TogglePause); }
                 else if id == &ids.reset  { let _ = self.proxy.send_event(AppEvent::ResetDefaults); }
                 else if id == &ids.quit   { let _ = self.proxy.send_event(AppEvent::Quit); }
             }

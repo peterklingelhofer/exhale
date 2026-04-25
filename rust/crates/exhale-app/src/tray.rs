@@ -13,13 +13,11 @@ pub struct TrayMenuIds {
     pub preferences: tray_icon::menu::MenuId,
     pub start:       tray_icon::menu::MenuId,
     pub stop:        tray_icon::menu::MenuId,
-    pub pause:       tray_icon::menu::MenuId,
     pub reset:       tray_icon::menu::MenuId,
     pub quit:        tray_icon::menu::MenuId,
     // Handles for dynamic enable/disable.
     pub start_item:  MenuItem,
     pub stop_item:   MenuItem,
-    pub pause_item:  MenuItem,
 }
 
 /// Build the system-tray icon + menu.
@@ -37,7 +35,6 @@ pub fn build_tray() -> Result<(TrayIcon, TrayMenuIds)> {
     let prefs_item = MenuItem::new("Preferences",       true, Some(Accelerator::new(Some(cmd_only),   Code::KeyW)));
     let start_item = MenuItem::new("Start Animation",   true, Some(Accelerator::new(Some(ctrl_shift), Code::KeyA)));
     let stop_item  = MenuItem::new("Stop Animation",    true, Some(Accelerator::new(Some(ctrl_shift), Code::KeyS)));
-    let pause_item = MenuItem::new("Pause",             true, None);
     let reset_item = MenuItem::new("Reset to Defaults", true, Some(Accelerator::new(Some(ctrl_shift), Code::KeyF)));
     let quit_item  = MenuItem::new("Quit exhale",       true, Some(Accelerator::new(Some(cmd_only),   Code::KeyQ)));
 
@@ -45,12 +42,10 @@ pub fn build_tray() -> Result<(TrayIcon, TrayMenuIds)> {
         preferences: prefs_item.id().clone(),
         start:       start_item.id().clone(),
         stop:        stop_item.id().clone(),
-        pause:       pause_item.id().clone(),
         reset:       reset_item.id().clone(),
         quit:        quit_item.id().clone(),
         start_item:  start_item,
         stop_item:   stop_item,
-        pause_item:  pause_item,
     };
 
     let menu = Menu::new();
@@ -58,7 +53,6 @@ pub fn build_tray() -> Result<(TrayIcon, TrayMenuIds)> {
     menu.append(&PredefinedMenuItem::separator())?;
     menu.append(&ids.start_item)?;
     menu.append(&ids.stop_item)?;
-    menu.append(&ids.pause_item)?;
     menu.append(&reset_item)?;
     menu.append(&PredefinedMenuItem::separator())?;
     menu.append(&quit_item)?;

@@ -479,17 +479,17 @@ fn settings_ui(
             ]);
 
             // ── Controls (no header — matches Swift's top SectionCard) ───────
+            // Swift has only THREE buttons: Start, Stop, Reset.  Pause is
+            // implemented in `SettingsModel` but isn't exposed in the
+            // SwiftUI `SettingsView`, so we omit it here too for 1:1
+            // parity.  `Ctrl+Shift+S` (stop) handles "I want it to halt"
+            // and the breathing controller treats `is_animating=false`
+            // the same as paused for the purposes of stopping renders.
             section(ui, "", |ui| {
                 ui.horizontal(|ui| {
                     const BUTTON_SPACING: f32 = 8.0;
                     ui.spacing_mut().item_spacing.x = BUTTON_SPACING;
-                    // Divide the card's available width into equal flex-1
-                    // cells for the 4 buttons, matching Swift's
-                    // `.frame(maxWidth: .infinity)` on each ControlButton.
-                    // Hardcoding a 72 px min width instead caused 4*72 +
-                    // 3*spacing = 312 > card_inner (308) and grew the card
-                    // past the 332 px right edge.
-                    let n_buttons = 4.0_f32;
+                    let n_buttons = 3.0_f32;
                     let avail = ui.available_width();
                     let btn_w = ((avail - BUTTON_SPACING * (n_buttons - 1.0))
                                  / n_buttons)
@@ -510,25 +510,6 @@ fn settings_ui(
                         settings.is_paused    = false;
                         dirty = true;
                     }
-                    let (pause_icon, pause_label, pause_help) = if settings.is_paused {
-                        ("\u{25B6}", "Resume", "Resume the breathing animation.")
-                    } else {
-                        ("\u{23F8}", "Pause",  "Pause the breathing animation at its current phase.")
-                    };
-                    // Pause/Resume is gated on "is animating" like Swift's AppDelegate.
-                    let mut pause_resp = None;
-                    ui.add_enabled_ui(settings.is_animating, |ui| {
-                        pause_resp = Some(control_button(ui, btn_w, pause_icon, pause_label, pause_help));
-                    });
-                    if pause_resp.map_or(false, |r| r.clicked()) {
-                        settings.is_paused = !settings.is_paused;
-                        dirty = true;
-                    }
-
-                    // In-window Reset — direct (no confirm), matching Swift's
-                    // SettingsView ControlButton.  The confirmation dialog is
-                    // reserved for the Ctrl+Shift+F hotkey path (see
-                    // request_reset_confirmation).
                     if control_button(ui, btn_w, "\u{21BA}", "Reset",
                         "Reset all settings to their default values.").clicked()
                     {
@@ -778,21 +759,19 @@ fn section(ui: &mut egui::Ui, header: &str, add_contents: impl FnOnce(&mut egui:
     // with a hand-tuned premul-unaware fill:
     //   dark  — controlBackgroundColor ≈ #1E1E1E, .55 alpha ≈ 86 out of 255
     //           but vibrancy already tints toward dark, so the visible delta
-    //           is tiny.  Picked by eye against the Swift screenshot.
-    //   light — controlBackgroundColor ≈ #FFFFFF, .55 alpha ≈ 140; light
-    //           vibrancy is already bright so the card needs more alpha to
-    //           read as a distinct surface.
-    // Much higher alpha in Dark mode: the vibrancy blur over a bright desktop
-    // (orange, white, any high-luminance wallpaper) will wash dark labels out
-    // if we let too much of it through.  230 on a near-black card is still a
-    // bit translucent — you can still see the blur bleed at the card edges —
-    // but the interior gives white labels a solid dark backdrop to read
-    // against.  Light mode stays at 130 so the card reads as a distinct
-    // surface against the bright vibrancy without overpowering it.
+    // EXACT match for Swift's `SectionCard.fill`:
+    //   Color(NSColor.controlBackgroundColor).opacity(0.55)
+    // `controlBackgroundColor`:
+    //   dark  → (0.118, 0.118, 0.118, 1.0) ≈ #1E1E1E (RGB 30, 30, 30)
+    //   light → #FFFFFF (RGB 255, 255, 255)
+    // `.opacity(0.55)` → alpha = 140 / 255.  Composited over the
+    // NSVisualEffectView's popover/hudWindow material, this gives
+    // Swift's "dark dark gray" card in dark mode and a translucent
+    // white card in light mode.
     let fill = if dark_mode {
-        egui::Color32::from_rgba_unmultiplied(28, 28, 32, 230)
+        egui::Color32::from_rgba_unmultiplied(30, 30, 30, 140)
     } else {
-        egui::Color32::from_rgba_unmultiplied(255, 255, 255, 190)
+        egui::Color32::from_rgba_unmultiplied(255, 255, 255, 140)
     };
     // Constrain the card to exactly the scroll area's viewport width so every
     // section (Controls, Appearance, Timing, Randomization, Timers) aligns at
@@ -888,81 +867,29 @@ fn control_button(
     // Light mode: card is #F0F0F2; button surface slightly darker (#D8D8DC)
     //             for the same "distinct tile" effect; border and text pure
     //             black.
+    // EXACT match for Swift's `ControlButton`:
+    //   .background(RoundedRectangle(7).fill(Color.primary.opacity(rest:0.05/hover:0.10)))
+    //   .overlay(RoundedRectangle(7).strokeBorder(Color.primary.opacity(rest:0.12/hover:0.20), lineWidth: 1))
+    // `Color.primary` is white in dark mode and black in light mode, so the
+    // button is a translucent wash + outline of the *foreground* colour
+    // over whatever's behind (the card fill).
     let primary = if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK };
-    let (fill_rest, fill_hover, fill_pressed) = if dark_mode {
-        (
-            egui::Color32::from_rgb(52, 52, 58),
-            egui::Color32::from_rgb(72, 72, 80),
-            egui::Color32::from_rgb(92, 92, 100),
-        )
-    } else {
-        (
-            egui::Color32::from_rgb(216, 216, 220),
-            egui::Color32::from_rgb(198, 198, 204),
-            egui::Color32::from_rgb(180, 180, 186),
-        )
-    };
-    let fill_base   = match (hovered, pressed) {
-        (_, true)      => fill_pressed,
-        (true,  false) => fill_hover,
-        (false, false) => fill_rest,
-    };
-    let stroke_base = primary;
-    let (fill_a, stroke_a) = match (hovered, pressed) {
-        (_, true)      => (255, 140),
-        (true,  false) => (255, 110),
-        (false, false) => (255, 70),
+    let (fill_a, stroke_a): (u8, u8) = match (hovered, pressed) {
+        (_, true)      => (38, 64),  // pressed nudges both alphas up slightly
+        (true,  false) => (26, 51),  // hover  = primary.opacity(0.10 / 0.20)
+        (false, false) => (13, 31),  // rest   = primary.opacity(0.05 / 0.12)
     };
     let with_alpha = |base: egui::Color32, a: u8| {
         egui::Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), a)
     };
 
     let painter = ui.painter().clone();
-
-    // Soft drop-shadow halo: stack ~6 filled rounded rects at progressively
-    // larger expansions with a decaying alpha, then paint the button fill
-    // on top.  Because the fill is opaque, only the outer pixels of each
-    // shadow ring are visible, producing a smooth multi-pixel gradient
-    // instead of the earlier near-invisible 2-px rings.
-    //
-    // Dark mode: halo is white-alpha (lighter rim-light over the dark
-    // card).  Light mode: halo is black-alpha (darker soft shadow).
-    // `HALO_PX` controls total fade width; tuned so adjacent buttons'
-    // halos don't meet (`item_spacing.x = 8`, halos extend HALO_PX each
-    // side, so HALO_PX ≤ 4).
-    let halo_base = primary;
-    const HALO_PX: i32 = 4;
-    // Peak alpha at the innermost halo ring (1 px outside the button).
-    // Hover / press states brighten the halo as visual feedback.
-    let peak_alpha: f32 = match (hovered, pressed) {
-        (_, true)      => 180.0,
-        (true,  false) => 140.0,
-        (false, false) => 110.0,
-    };
-    // Draw from outermost → innermost so each ring overpaints only the
-    // pixels inside the previous.  Linear alpha falloff `(1 − i/(HALO_PX+1))`
-    // gives every ring a visible alpha (no 0-alpha outermost invisible
-    // ring) and a clean smooth gradient from `peak_alpha` at the button
-    // edge down to `~peak_alpha/(HALO_PX+1)` at the outermost pixel.
-    for i in (1..=HALO_PX).rev() {
-        let t      = i as f32 / (HALO_PX as f32 + 1.0); // 0..<1
-        let a      = (peak_alpha * (1.0 - t)).round().max(1.0) as u8;
-        let expand = i as f32;
-        painter.rect_filled(
-            rect.expand(expand),
-            BUTTON_RADIUS + expand,
-            with_alpha(halo_base, a),
-        );
-    }
-
     painter.rect(
         rect,
         BUTTON_RADIUS,
-        with_alpha(fill_base, fill_a),
-        egui::Stroke::NONE,
+        with_alpha(primary, fill_a),
+        egui::Stroke::new(1.0, with_alpha(primary, stroke_a)),
     );
-    let _ = stroke_base;
-    let _ = stroke_a;
 
     // Pressed state: Swift uses `.opacity(0.7)` + `.scaleEffect(0.97)`.  Scale
     // is awkward in immediate-mode; drop opacity instead — the user still gets
@@ -1019,6 +946,7 @@ const SECTION_GAP:      f32 = 10.0;
 const ROW_GAP:          f32 = 8.0;
 const CARD_RADIUS:      f32 = 10.0;
 const BUTTON_RADIUS:    f32 = 7.0;
+const TEXT_EDIT_RADIUS: f32 = 5.0;
 const STEPPER_FIELD_W:  f32 = 56.0;
 
 /// Resolve the OS-appearance-aware egui visuals used by the settings window.
@@ -1056,6 +984,19 @@ fn visuals_for_theme(theme: Theme) -> egui::Visuals {
     if matches!(theme, Theme::Light) {
         v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_gray(180));
     }
+
+    // Round egui widget chrome (TextEdit, checkboxes, comboboxes) to match
+    // the macOS-native ~5-6 px corner.  Our hand-painted control buttons,
+    // stepper buttons, and segmented picker draw their own chrome via
+    // `painter.rect_*` and pass their own rounding constants — they aren't
+    // affected by these widget rounding values.
+    let r = egui::Rounding::same(TEXT_EDIT_RADIUS);
+    v.widgets.noninteractive.rounding = r;
+    v.widgets.inactive.rounding       = r;
+    v.widgets.hovered.rounding        = r;
+    v.widgets.active.rounding         = r;
+    v.widgets.open.rounding           = r;
+
     v
 }
 
@@ -1239,65 +1180,112 @@ fn segmented_row<T: Copy + PartialEq>(
             );
 
             let dark_mode = ui.visuals().dark_mode;
-            let (hover_fill, press_fill) = if dark_mode {
-                (
-                    egui::Color32::from_white_alpha(22),
-                    egui::Color32::from_white_alpha(36),
-                )
-            } else {
-                (
-                    egui::Color32::from_black_alpha(18),
-                    egui::Color32::from_black_alpha(30),
-                )
-            };
 
-            // Apply segment styling at the parent ui level so both the
-            // Buttons and their styling scope match.
+            // Disable egui's default Button hover/press fills — we'll paint
+            // a rounded inset pill ourselves for hover/press/selected so all
+            // three states share the same macOS-native pill look.
             {
                 let widgets = &mut ui.visuals_mut().widgets;
                 widgets.inactive.bg_stroke    = egui::Stroke::NONE;
                 widgets.hovered.bg_stroke     = egui::Stroke::NONE;
                 widgets.active.bg_stroke      = egui::Stroke::NONE;
-                widgets.inactive.rounding     = egui::Rounding::ZERO;
-                widgets.hovered.rounding      = egui::Rounding::ZERO;
-                widgets.active.rounding       = egui::Rounding::ZERO;
                 widgets.hovered.expansion     = 0.0;
                 widgets.active.expansion      = 0.0;
                 widgets.inactive.weak_bg_fill = egui::Color32::TRANSPARENT;
-                widgets.hovered.weak_bg_fill  = hover_fill;
-                widgets.active.weak_bg_fill   = press_fill;
+                widgets.hovered.weak_bg_fill  = egui::Color32::TRANSPARENT;
+                widgets.active.weak_bg_fill   = egui::Color32::TRANSPARENT;
             }
             ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
 
-            // Paint each segment button into its fixed sub-rect using ui.put.
+            // macOS-native segmented picker selection: a slightly inset
+            // rounded rect filled in gray (lighter than the picker container
+            // in dark mode, near-white in light mode) — matches AppKit's
+            // NSSegmentedControl `.selectedContentBackground`.
+            let selected_fill = if dark_mode {
+                // ~rgb(110,110,110) at 90% — reads as a clear lighter gray
+                // over the dark vibrancy without going washed-out.
+                egui::Color32::from_rgba_unmultiplied(110, 110, 110, 230)
+            } else {
+                // Near-white selection on a light translucent backdrop —
+                // matches the macOS native picker "selected" pill.
+                egui::Color32::from_rgba_unmultiplied(255, 255, 255, 235)
+            };
+            const SELECTED_INSET:    f32 = 2.0;
+            const SELECTED_ROUNDING: f32 = 5.0;
+
+            // Pre-compute every segment's rect so we can interact + paint
+            // pill chrome BEFORE rendering each label (the pill must sit
+            // under the text, not over it).
+            let mut seg_rects: Vec<egui::Rect> = Vec::with_capacity(n);
             let mut seg_x = outer_rect.min.x;
-            for (i, (text, variant)) in options.iter().enumerate() {
-                let is_selected = *current == *variant;
+            for i in 0..n {
                 let w = if i + 1 == n { last_w } else { per_w };
-                let seg_rect = egui::Rect::from_min_size(
+                seg_rects.push(egui::Rect::from_min_size(
                     egui::pos2(seg_x, outer_rect.min.y),
                     egui::vec2(w, ROW_H),
-                );
-                let v = ui.visuals();
-                let label = if is_selected {
-                    egui::RichText::new(*text).color(v.selection.stroke.color)
+                ));
+                seg_x += w;
+            }
+
+            let font_id = egui::TextStyle::Button.resolve(ui.style());
+
+            for (i, (text, variant)) in options.iter().enumerate() {
+                let is_selected = *current == *variant;
+                let seg_rect    = seg_rects[i];
+
+                // Interact first — gives us hover/press/click without drawing.
+                let seg_id = ui.id().with("seg").with(i).with(*text);
+                let resp = ui.interact(seg_rect, seg_id, egui::Sense::click());
+
+                // Pill chrome (selected > pressed > hovered) drawn under text.
+                let pill_fill: Option<egui::Color32> = if is_selected {
+                    Some(selected_fill)
+                } else if resp.is_pointer_button_down_on() {
+                    Some(if dark_mode {
+                        egui::Color32::from_white_alpha(36)
+                    } else {
+                        egui::Color32::from_black_alpha(30)
+                    })
+                } else if resp.hovered() {
+                    Some(if dark_mode {
+                        egui::Color32::from_white_alpha(22)
+                    } else {
+                        egui::Color32::from_black_alpha(18)
+                    })
                 } else {
-                    egui::RichText::new(*text).color(v.text_color())
+                    None
                 };
-                // `wrap_mode(Extend)` keeps the label on a single line and
-                // lets it render at its natural width — we've sized the
-                // picker column (via `uniform_picker_column_width` + the
-                // `paint_label_with_width` shrink above) to always give
-                // every segment enough room for its widest option, so
-                // extending past the rect shouldn't happen in practice.
-                let mut btn = egui::Button::new(label)
-                    .wrap_mode(egui::TextWrapMode::Extend);
-                if is_selected { btn = btn.fill(v.selection.bg_fill); }
-                if ui.put(seg_rect, btn).clicked() {
+                if let Some(fill) = pill_fill {
+                    let pill = seg_rect.shrink(SELECTED_INSET);
+                    ui.painter().rect_filled(pill, SELECTED_ROUNDING, fill);
+                }
+
+                // Selected text flips to primary; unselected uses default text color.
+                let label_color = if is_selected {
+                    if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK }
+                } else {
+                    ui.visuals().text_color()
+                };
+
+                // Paint the label centered in the segment via the painter,
+                // matching the segment width we measured for the picker
+                // column — `ui.put(rect, Button)` would re-allocate and
+                // grow `min_rect`, which we deliberately avoid in this row.
+                let galley = ui.painter().layout_no_wrap(
+                    text.to_string(),
+                    font_id.clone(),
+                    label_color,
+                );
+                let text_pos = egui::pos2(
+                    seg_rect.center().x - galley.size().x * 0.5,
+                    seg_rect.center().y - galley.size().y * 0.5,
+                );
+                ui.painter().galley(text_pos, galley, label_color);
+
+                if resp.clicked() {
                     *current = *variant;
                     changed  = true;
                 }
-                seg_x += w;
             }
 
             // Explicitly allocate the outer rect so the parent's cursor
