@@ -30,10 +30,6 @@ pub struct SettingsWindow {
     egui_renderer:         egui_wgpu::Renderer,
     gpu:                   Arc<GpuContext>,
     pending_reset:         bool,
-    /// True once we've clamped the window to the natural (fully-visible)
-    /// content height.  We do this on the first frame after egui can
-    /// actually measure the content — before that the max is unknown.
-    natural_height_applied: bool,
     /// Tracks the OS appearance so egui visuals + the wgpu clear color stay
     /// in sync with Light/Dark mode.  `None` means the platform doesn't
     /// report a theme (some Linux desktops); we default to Dark there.
@@ -66,8 +62,17 @@ impl SettingsWindow {
         // Width is fixed; only height is user-resizable.  Max height is set
         // later (once egui has measured the natural content size) so the
         // window can never extend past the last visible setting.
-        let saved_h = settings.settings_window_height.unwrap_or(640);
-        let initial_h = saved_h.max(SETTINGS_MIN_HEIGHT);
+        //
+        // Default height shows Controls + Appearance + Timing + Randomization
+        // comfortably; the Timers section lives just below the fold so the
+        // user has to scroll to reach it, giving a compact settings surface
+        // without hiding the commonly-tweaked rows.  Saved height (when
+        // present) wins over the default — the user's own resize is always
+        // respected on relaunch.
+        const INITIAL_PREFERRED_H: u32 = 796;
+        let initial_h = settings.settings_window_height
+            .unwrap_or(INITIAL_PREFERRED_H)
+            .max(SETTINGS_MIN_HEIGHT);
         // On macOS we render over an NSVisualEffectView (.hudWindow material)
         // installed by `platform::setup_settings_window`, so we ask for a
         // transparent window + alpha-aware surface.  Other platforms use a
@@ -163,6 +168,13 @@ impl SettingsWindow {
 
         let egui_ctx = egui::Context::default();
 
+        // Swap in the OS-native UI font (SF Pro on macOS, Segoe UI on Windows,
+        // Ubuntu/Cantarell/Noto on Linux) so text in our settings window
+        // matches the rest of the OS's system preferences.  Silently falls
+        // back to egui's default Ubuntu font if the platform's system font
+        // isn't locatable — nothing critical breaks.
+        install_system_ui_font(&egui_ctx);
+
         // Pre-populate both style buckets with our custom visuals.  egui owns
         // separate dark_style / light_style slots and picks one per-frame
         // based on `ThemePreference` + `system_theme`.  Populating both up
@@ -193,7 +205,6 @@ impl SettingsWindow {
         Ok(Self {
             window, surface, config, egui_ctx, egui_state, egui_renderer, gpu,
             pending_reset: false,
-            natural_height_applied: false,
             theme,
             vev_ptr,
         })
@@ -223,6 +234,11 @@ impl SettingsWindow {
         self.config.width  = size.width;
         self.config.height = size.height;
         self.surface.configure(&self.gpu.device, &self.config);
+        // Keep the vibrancy backdrop NSWindow the same size as the
+        // settings window — AppKit auto-tracks child-window position but
+        // NOT size, so we copy the parent's frame onto the backdrop here.
+        // No-op on non-macOS or when `EXHALE_DISABLE_BLUR` is set.
+        platform::sync_settings_backdrop_frame(self.vev_ptr);
     }
 
     pub fn request_redraw(&self) {
@@ -288,8 +304,11 @@ impl SettingsWindow {
         let pixels_per_point = self.window.scale_factor() as f32;
 
         let mut content_height: f32 = 0.0;
-        let full_output = self.egui_ctx.run(raw_input, |ctx| {
-            content_height = settings_ui(ctx, settings, settings_manager, &mut self.pending_reset);
+        let mut full_output = self.egui_ctx.run(raw_input, |ctx| {
+            content_height = settings_ui(
+                ctx, settings, settings_manager,
+                &mut self.pending_reset,
+            );
         });
 
         // egui populates a repaint_delay per viewport — respect it so we can
@@ -309,33 +328,55 @@ impl SettingsWindow {
         // settings/added rows grow the max automatically, and stays cheap
         // because winit no-ops redundant set_*_inner_size calls.
         if content_height > 0.0 {
+            // Cap the user-drag upper bound at the exact content height so
+            // they can't drag past the last control (empty space below the
+            // Timers card looks wrong).  Window starts at the compact
+            // `INITIAL_PREFERRED_H`; overflow is handled by the ScrollArea.
             let natural_h = (content_height + 24.0).ceil().max(SETTINGS_MIN_HEIGHT as f32) as u32;
             self.window.set_max_inner_size(Some(
                 winit::dpi::LogicalSize::new(SETTINGS_WIDTH, natural_h),
             ));
-            // First successful measurement — shrink the window to the natural
-            // height (or the user's saved override if smaller) so users don't
-            // see a huge empty pane below the last control.
-            if !self.natural_height_applied {
-                self.natural_height_applied = true;
-                let current_logical_h = (self.config.height as f32 / pixels_per_point).round() as u32;
-                let target = settings.settings_window_height
-                    .map(|h| h.clamp(SETTINGS_MIN_HEIGHT, natural_h))
-                    .unwrap_or(natural_h)
-                    .min(natural_h)
-                    .max(SETTINGS_MIN_HEIGHT);
-                if target != current_logical_h {
-                    let _ = self.window.request_inner_size(
-                        winit::dpi::LogicalSize::new(SETTINGS_WIDTH, target),
-                    );
-                }
-            }
         }
 
-        self.egui_state.handle_platform_output(
-            &*self.window,
-            full_output.platform_output,
-        );
+        // On macOS: bypass `handle_platform_output` entirely and pipe ONLY
+        // the clipboard update through.  `handle_platform_output` internally
+        // calls `window.set_cursor_visible`, `window.set_cursor`, and
+        // `window.set_ime_*`, each of which takes a `borrow_mut()` on the
+        // `cursor_state` RefCell living inside winit's custom NSView
+        // subclass.  AppKit's `resetCursorRects` callback borrows the same
+        // RefCell (shared) during scroll-wheel event dispatch, so any
+        // overlap produces the classic "RefCell already borrowed" panic on
+        // a two-finger scroll.  Separately, the same pipeline has produced
+        // `objc_retain` segfaults mid-session when the ivar backing the
+        // NSCursor reference becomes stale (likely a consequence of our
+        // vibrancy install reparenting winit's NSView under a sibling
+        // container, which winit's cursor tracking doesn't expect).
+        //
+        // Neither hazard is reachable if we never let egui_winit hand the
+        // platform output back to winit.  We do still need clipboard copy
+        // (egui TextEdits write `copied_text` when the user presses ⌘C),
+        // and `set_clipboard_text` is a pure arboard call that never
+        // touches winit state — safe to invoke from here.
+        //
+        // Cost on macOS: no cursor-icon changes (buttons / TextEdits keep
+        // the default arrow), no IME cursor positioning (acceptable for a
+        // Latin-text settings window), and no open_url handling (we don't
+        // generate URL output anywhere).  All other platforms follow the
+        // normal path.
+        #[cfg(target_os = "macos")]
+        {
+            let copied = std::mem::take(&mut full_output.platform_output.copied_text);
+            if !copied.is_empty() {
+                self.egui_state.set_clipboard_text(copied);
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            self.egui_state.handle_platform_output(
+                &*self.window,
+                full_output.platform_output,
+            );
+        }
 
         let primitives = self.egui_ctx.tessellate(full_output.shapes, pixels_per_point);
         let screen_desc = ScreenDescriptor {
@@ -874,10 +915,27 @@ fn control_button(
     // button is a translucent wash + outline of the *foreground* colour
     // over whatever's behind (the card fill).
     let primary = if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK };
-    let (fill_a, stroke_a): (u8, u8) = match (hovered, pressed) {
-        (_, true)      => (38, 64),  // pressed nudges both alphas up slightly
-        (true,  false) => (26, 51),  // hover  = primary.opacity(0.10 / 0.20)
-        (false, false) => (13, 31),  // rest   = primary.opacity(0.05 / 0.12)
+    // Swift's exact `Color.primary.opacity(...)` translates to alpha 13/26/38
+    // for fill (rest/hover/press) and 31/51/64 for stroke.  Light mode uses
+    // those values verbatim — a black wash over a pale-vibrancy backdrop
+    // matches Swift exactly.  Dark mode buttons came out noticeably brighter
+    // than their AppKit counterparts (white wash composites differently
+    // through egui's premultiplied pipeline against our `(30,30,30,140)`
+    // card on top of `popover` vibrancy than SwiftUI does over its own
+    // `controlBackgroundColor.opacity(0.55)` chain), so dark-mode alphas are
+    // trimmed ~40% to land on the same perceived brightness.
+    let (fill_a, stroke_a): (u8, u8) = if dark_mode {
+        match (hovered, pressed) {
+            (_, true)      => (22, 38),
+            (true,  false) => (15, 30),
+            (false, false) => ( 8, 18),
+        }
+    } else {
+        match (hovered, pressed) {
+            (_, true)      => (38, 64),
+            (true,  false) => (26, 51),
+            (false, false) => (13, 31),
+        }
     };
     let with_alpha = |base: egui::Color32, a: u8| {
         egui::Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), a)
@@ -949,6 +1007,84 @@ const BUTTON_RADIUS:    f32 = 7.0;
 const TEXT_EDIT_RADIUS: f32 = 5.0;
 const STEPPER_FIELD_W:  f32 = 56.0;
 
+/// Load the OS-native UI font and register it as the default proportional
+/// font on the egui context.  Each platform's system-preferences app uses a
+/// specific typeface (SF Pro on macOS, Segoe UI on Windows, Ubuntu/Cantarell
+/// on common Linux desktops); matching that here makes our settings window
+/// read as a native part of the OS instead of egui's default Ubuntu fallback.
+///
+/// System fonts are NOT redistributed — we read the font file the OS ships
+/// with, exactly like every native app does (NSFont on macOS, GDI on
+/// Windows, fontconfig on Linux).  No licensing concern.
+///
+/// If no candidate path exists on the current machine, we silently keep
+/// egui's default font — the window still works, it just doesn't blend in
+/// quite as well.
+fn install_system_ui_font(ctx: &egui::Context) {
+    // Ordered list of candidate paths per platform — first-readable wins.
+    // Higher-quality faces go first (e.g. SF Pro over Helvetica fallback).
+    #[cfg(target_os = "macos")]
+    let candidates: &[&str] = &[
+        // Big Sur+ variable SF Pro.  SFNS is a TTC collection; egui 0.29
+        // can load it via `FontData::from_owned` provided we index into
+        // the first face (which we do by default).
+        "/System/Library/Fonts/SFNS.ttf",
+        "/System/Library/Fonts/SFNSDisplay.ttf",
+        "/System/Library/Fonts/SFNSText.ttf",
+        "/Library/Fonts/SF-Pro.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+    ];
+    #[cfg(target_os = "windows")]
+    let candidates: &[&str] = &[
+        r"C:\Windows\Fonts\segoeui.ttf",
+        r"C:\Windows\Fonts\SegoeUI.ttf",
+        r"C:\Windows\Fonts\tahoma.ttf",
+    ];
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    let candidates: &[&str] = &[
+        // Ubuntu desktop default.
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+        // GNOME default on many distros (Fedora, Debian w/ GNOME).
+        "/usr/share/fonts/cantarell/Cantarell-VF.otf",
+        "/usr/share/fonts/cantarell/Cantarell-Regular.otf",
+        // Noto Sans — very broad fallback across distros.
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+        "/usr/share/fonts/noto/NotoSans-Regular.ttf",
+        "/usr/share/fonts/TTF/NotoSans-Regular.ttf",
+        // Last-ditch DejaVu — shipped almost everywhere.
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+    ];
+
+    let Some((path, data)) = candidates.iter().find_map(|p| {
+        std::fs::read(p).ok().map(|d| (*p, d))
+    }) else {
+        log::info!("install_system_ui_font: no candidate font readable; keeping egui default");
+        return;
+    };
+    log::info!("install_system_ui_font: using {path}");
+
+    let mut fonts = egui::FontDefinitions::default();
+    fonts.font_data.insert(
+        "system_ui".to_owned(),
+        egui::FontData::from_owned(data),
+    );
+    // Prepend to both families so proportional AND monospace text pick up the
+    // system face (egui uses monospace for the debug inspector; we don't want
+    // two wildly different typefaces inside the settings window).  The
+    // built-in Ubuntu / Emoji entries remain further down the list as glyph
+    // fallbacks for anything SF Pro / Segoe UI doesn't cover.
+    fonts.families
+        .entry(egui::FontFamily::Proportional)
+        .or_default()
+        .insert(0, "system_ui".to_owned());
+    fonts.families
+        .entry(egui::FontFamily::Monospace)
+        .or_default()
+        .insert(0, "system_ui".to_owned());
+    ctx.set_fonts(fonts);
+}
+
 /// Resolve the OS-appearance-aware egui visuals used by the settings window.
 fn visuals_for_theme(theme: Theme) -> egui::Visuals {
     let mut v = match theme {
@@ -1012,13 +1148,18 @@ fn theme_preference(theme: Theme) -> ThemePreference {
 
 /// wgpu clear colour for the settings surface.
 ///
-/// On macOS the wgpu layer is composited over an NSVisualEffectView sibling,
-/// so we clear with `alpha = 0` — the vibrancy blur fills every pixel egui
-/// hasn't painted over, and the SectionCards (with their own semi-translucent
-/// fills) layer on top.
+/// On macOS the settings NSWindow is transparent and sits ON TOP of a
+/// borderless "backdrop" NSWindow whose contentView is an
+/// NSVisualEffectView (see `platform::install_settings_vibrancy`).  We clear
+/// at alpha 0 so wgpu doesn't paint anything where egui hasn't drawn,
+/// letting the VEV blur below show through.  If the user opts out with
+/// `EXHALE_DISABLE_BLUR=1`, the backdrop isn't installed — in that case
+/// the desktop shows through directly, which still reads as a reasonable
+/// transparent window (and the SectionCards' own semi-opaque fills keep
+/// the content legible).
 ///
-/// On other platforms we clear opaque to egui's panel fill so there's no
-/// flash between surface reconfiguration and the first egui paint.
+/// On other platforms the window is opaque — we clear to egui's panel fill
+/// so there's no flash between surface reconfiguration and the first paint.
 fn clear_color_for_theme(theme: Theme) -> wgpu::Color {
     if cfg!(target_os = "macos") {
         wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }
@@ -1537,8 +1678,8 @@ fn stepper_buttons(
     #[cfg(test)]
     test_hooks::record_stepper_rects(top_rect, bot_rect);
 
-    paint_stepper_chrome(ui, top_rect, up_resp.hovered(), up_resp.is_pointer_button_down_on());
-    paint_stepper_chrome(ui, bot_rect, dn_resp.hovered(), dn_resp.is_pointer_button_down_on());
+    paint_stepper_chrome(ui, top_rect, StepperDir::Up,   up_resp.hovered(), up_resp.is_pointer_button_down_on());
+    paint_stepper_chrome(ui, bot_rect, StepperDir::Down, dn_resp.hovered(), dn_resp.is_pointer_button_down_on());
 
     // Triangles as small filled polygons (font-independent).
     let tri_color = ui.visuals().text_color();
@@ -1551,7 +1692,13 @@ fn stepper_buttons(
     new_val
 }
 
-fn paint_stepper_chrome(ui: &egui::Ui, rect: egui::Rect, hovered: bool, pressed: bool) {
+fn paint_stepper_chrome(
+    ui:      &egui::Ui,
+    rect:    egui::Rect,
+    dir:     StepperDir,
+    hovered: bool,
+    pressed: bool,
+) {
     let v = ui.visuals();
     let style = if pressed {
         &v.widgets.active
@@ -1560,9 +1707,17 @@ fn paint_stepper_chrome(ui: &egui::Ui, rect: egui::Rect, hovered: bool, pressed:
     } else {
         &v.widgets.inactive
     };
+    // Round only the outer corners so the up + down halves merge into a
+    // single rounded-rect column with a flush mid-edge.  A 3-px radius
+    // matches the subtle macOS-native NSStepper look.
+    const STEPPER_RADIUS: f32 = 3.0;
+    let rounding = match dir {
+        StepperDir::Up   => egui::Rounding { nw: STEPPER_RADIUS, ne: STEPPER_RADIUS, sw: 0.0, se: 0.0 },
+        StepperDir::Down => egui::Rounding { nw: 0.0, ne: 0.0, sw: STEPPER_RADIUS, se: STEPPER_RADIUS },
+    };
     ui.painter().rect(
         rect,
-        0.0,
+        rounding,
         style.weak_bg_fill,
         style.bg_stroke,
     );
