@@ -73,11 +73,13 @@ impl SettingsWindow {
         let initial_h = settings.settings_window_height
             .unwrap_or(INITIAL_PREFERRED_H)
             .max(SETTINGS_MIN_HEIGHT);
-        // On macOS we render over an NSVisualEffectView (.hudWindow material)
-        // installed by `platform::setup_settings_window`, so we ask for a
-        // transparent window + alpha-aware surface.  Other platforms use a
-        // solid panel fill and opaque composite.
-        let want_transparent = cfg!(target_os = "macos");
+        // Always request a transparent window so the OS-level blur effect
+        // (macOS VEV child-window, Windows DWM acrylic, KDE blur-behind)
+        // can show through wherever egui doesn't paint.  When the OS
+        // doesn't provide a blur (older Windows, GNOME, opt-out env var),
+        // `clear_color_for_theme` paints opaque so the user sees a normal
+        // settings panel instead of straight through to the desktop.
+        let want_transparent = true;
         let attrs = Window::default_attributes()
             .with_title("exhale")
             .with_inner_size(winit::dpi::LogicalSize::new(SETTINGS_WIDTH, initial_h))
@@ -132,18 +134,22 @@ impl SettingsWindow {
             .find(|f| !f.is_srgb())
             .unwrap_or(caps.formats[0]);
 
-        // On macOS we need PostMultiplied so the CAMetalLayer blends over the
-        // NSVisualEffectView sibling.  PostMultiplied is the only mode Metal
-        // advertises that produces correct alpha compositing on the layer
-        // hierarchy — PreMultiplied isn't in `alpha_modes` on macOS, and
-        // Opaque defeats the whole vibrancy setup.
-        let alpha_mode = if cfg!(target_os = "macos") &&
-            caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::PostMultiplied)
-        {
-            wgpu::CompositeAlphaMode::PostMultiplied
-        } else {
-            wgpu::CompositeAlphaMode::Auto
-        };
+        // Pick `PostMultiplied` whenever the platform supports it so the
+        // OS-level blur (macOS VEV, Windows DWM acrylic, KDE blur-behind)
+        // can composite through transparent pixels in our render.
+        // `PreMultiplied` is the next-best alpha-respecting mode (some
+        // Linux/Wayland adapters expose it instead of PostMultiplied).
+        // Fall back to `Auto` (typically Opaque) if neither is available
+        // — `clear_color_for_theme` handles that case by rendering the
+        // window opaquely.
+        let alpha_mode =
+            if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::PostMultiplied) {
+                wgpu::CompositeAlphaMode::PostMultiplied
+            } else if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::PreMultiplied) {
+                wgpu::CompositeAlphaMode::PreMultiplied
+            } else {
+                wgpu::CompositeAlphaMode::Auto
+            };
 
         let config = wgpu::SurfaceConfiguration {
             usage:                         wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -476,7 +482,7 @@ fn settings_ui(
     // (same as Swift).
     //
     // Other platforms: opaque fallback (they have no vibrancy backend).
-    let panel_fill = if cfg!(target_os = "macos") {
+    let panel_fill = if platform::is_blur_active() {
         egui::Color32::TRANSPARENT
     } else if ctx.style().visuals.dark_mode {
         egui::Color32::from_rgb(24, 24, 28)
@@ -1148,20 +1154,18 @@ fn theme_preference(theme: Theme) -> ThemePreference {
 
 /// wgpu clear colour for the settings surface.
 ///
-/// On macOS the settings NSWindow is transparent and sits ON TOP of a
-/// borderless "backdrop" NSWindow whose contentView is an
-/// NSVisualEffectView (see `platform::install_settings_vibrancy`).  We clear
-/// at alpha 0 so wgpu doesn't paint anything where egui hasn't drawn,
-/// letting the VEV blur below show through.  If the user opts out with
-/// `EXHALE_DISABLE_BLUR=1`, the backdrop isn't installed — in that case
-/// the desktop shows through directly, which still reads as a reasonable
-/// transparent window (and the SectionCards' own semi-opaque fills keep
-/// the content legible).
+/// When `platform::is_blur_active()` is true, the OS is providing a blur
+/// behind the window (macOS VEV child-window, Windows DWM acrylic, KDE
+/// blur-behind region) — we clear at alpha 0 so wgpu doesn't paint
+/// anything where egui hasn't drawn, letting the OS blur show through.
 ///
-/// On other platforms the window is opaque — we clear to egui's panel fill
-/// so there's no flash between surface reconfiguration and the first paint.
+/// When blur isn't active (older Windows, GNOME, opt-out via
+/// `EXHALE_DISABLE_BLUR=1`), the window is rendered opaquely — clear to
+/// egui's panel fill so there's no flash between surface reconfiguration
+/// and the first paint, and the cards sit on a solid theme-coloured
+/// panel rather than a transparent void.
 fn clear_color_for_theme(theme: Theme) -> wgpu::Color {
-    if cfg!(target_os = "macos") {
+    if platform::is_blur_active() {
         wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }
     } else {
         match theme {
