@@ -74,22 +74,19 @@ mod mac {
         unsafe { let _: () = msg_send![ns_win, setLevel: 1001i64]; }
     }
 
-    /// Update the VEV's material + appearance when the system theme
-    /// changes.  Called from the settings window's render loop when
-    /// `window.theme()` reports a different value than before.  The VEV
-    /// pointer must be the one installed by `install_settings_vibrancy`.
-    ///
-    /// Doing the update ourselves (instead of letting AppKit's
-    /// `_systemAppearanceDidChange` auto-propagate) avoids the
-    /// `NSCursor makeObjectsPerformSelector:` crash we hit when AppKit
-    /// walked our re-parented view hierarchy.  Safe because `setAppearance:`
-    /// and `setMaterial:` are simple property setters that don't trigger
-    /// the recursive `_layoutSubtreeWithOldSize:` propagation.
-    pub fn update_settings_vibrancy(vev_ptr: usize, dark_mode: bool) {
+    /// Update the backdrop NSWindow's NSVisualEffectView material +
+    /// appearance when the system theme changes.  Called from the settings
+    /// window's render loop when `window.theme()` reports a different value
+    /// than before.  `backdrop_ptr` is the NSWindow* returned by
+    /// `install_settings_vibrancy`.
+    pub fn update_settings_vibrancy(backdrop_ptr: usize, dark_mode: bool) {
         use objc::{class, msg_send, runtime::Object, sel, sel_impl};
-        if vev_ptr == 0 { return; }
-        let vev = vev_ptr as *mut Object;
+        if backdrop_ptr == 0 { return; }
+        let backdrop = backdrop_ptr as *mut Object;
         unsafe {
+            let vev: *mut Object = msg_send![backdrop, contentView];
+            if vev.is_null() { return; }
+
             let material: i64 = if dark_mode { 6 } else { 8 };
             let _: () = msg_send![vev, setMaterial: material];
 
@@ -110,114 +107,152 @@ mod mac {
         }
     }
 
-    /// Swap the NSWindow's contentView for an NSVisualEffectView with a
-    /// theme-appropriate material + `.behindWindow` blending, mirroring
-    /// Swift's `AppDelegate.applicationDidFinishLaunching`.  Called AFTER
-    /// the wgpu surface has been created so winit's NSView already has a
-    /// sized CAMetalLayer — we only re-parent the view in the hierarchy,
-    /// we don't touch its layer.
+    /// Keep the backdrop NSWindow's frame in lockstep with its parent
+    /// (the settings window).  macOS auto-tracks position for child
+    /// windows via `addChildWindow:ordered:`, but NOT size — we call this
+    /// on every `WindowEvent::Resized` to copy the parent's frame over.
+    pub fn sync_settings_backdrop_frame(backdrop_ptr: usize) {
+        use objc::{msg_send, runtime::Object, sel, sel_impl};
+        if backdrop_ptr == 0 { return; }
+        let backdrop = backdrop_ptr as *mut Object;
+        unsafe {
+            let parent: *mut Object = msg_send![backdrop, parentWindow];
+            if parent.is_null() { return; }
+            let frame: NSRect = msg_send![parent, frame];
+            // `display:true` so the VEV renders at the new size on this
+            // same frame — otherwise there's a one-frame lag where the
+            // blur rect doesn't track the window edge during a drag.
+            let _: () = msg_send![backdrop, setFrame: frame display: YES_BOOL];
+        }
+    }
+
+    /// Install a vibrancy effect behind the settings window by creating a
+    /// second borderless NSWindow (the "backdrop"), anchoring it as a
+    /// child of the settings window via `addChildWindow:ordered:NSWindowBelow`,
+    /// and using an NSVisualEffectView as the backdrop's contentView.
     ///
-    /// Material selection:
-    ///   Light  → hudWindow (8)  — strong blur, subtle light tint that reads
-    ///                             as "translucent over the desktop" when
-    ///                             the backdrop is bright.
-    ///   Dark   → popover (6)    — designed for translucent popovers.  More
-    ///                             transparent than underWindowBackground
-    ///                             (which was too dense in Dark mode) and
-    ///                             more neutral than hudWindow (which
-    ///                             brightened dark backdrops).  Strong
-    ///                             native blur + dark-mode tint that blends
-    ///                             into dark apps/desktop without reading
-    ///                             as lighter than what's behind.
+    /// This gives us the same `.behindWindow` blur the Swift app has, but
+    /// the settings NSWindow itself is untouched — winit's NSView stays
+    /// exactly where winit put it, so the `objc_loadWeakRetained` /
+    /// `cursor_state.borrow_mut` crashes we saw with in-window reparenting
+    /// can't trigger.
     ///
-    /// Constants (raw Cocoa NSInteger / NSUInteger):
-    ///   NSVisualEffectBlendingMode.behindWindow = 0
-    ///   NSVisualEffectState.active              = 1
-    ///   NSAutoresizingMaskOptions width|height  = 2 | 16 = 18
+    /// Returns the backdrop NSWindow pointer (or 0 on failure) so callers
+    /// can:
+    ///   • call `update_settings_vibrancy(ptr, dark)` on theme change
+    ///   • call `sync_settings_backdrop_frame(ptr)` on resize (position
+    ///     auto-tracks via child-window, but size does not).
+    ///
+    /// Opt-out: set `EXHALE_DISABLE_BLUR=1` to skip the backdrop window.
+    /// The window then uses the wgpu tinted-translucent look from
+    /// `clear_color_for_theme` alone.
     pub fn install_settings_vibrancy(window: &Window, dark_mode: bool) -> usize {
         use objc::{class, msg_send, runtime::Object, sel, sel_impl};
         use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-        // Opt-out escape hatch — setting `EXHALE_DISABLE_VIBRANCY=1` in
-        // the environment skips the contentView swap entirely and leaves
-        // winit's NSView as the window's direct contentView.  No vibrancy
-        // blur, but no firstResponder / inputContext crashes either.
-        if std::env::var_os("EXHALE_DISABLE_VIBRANCY").is_some() {
-            return 0;
+        if std::env::var_os("EXHALE_DISABLE_BLUR").is_some() {
+            return setup_transparent_settings_window(window);
         }
 
         let ns_win = get_ns_window(window);
         if ns_win.is_null() { return 0; }
 
         unsafe {
-            let handle = match window.window_handle() {
-                Ok(h) => h,
-                Err(_) => return 0,
-            };
-            let RawWindowHandle::AppKit(h) = handle.as_raw() else { return 0; };
-            let ns_view = h.ns_view.as_ptr() as *mut Object;
-            if ns_view.is_null() { return 0; }
-
-            // Non-opaque window + clear backgroundColor so the compositor
-            // honours the Metal layer's alpha over the VEV behind it.
+            // Settings window itself: transparent + clear background so
+            // wgpu's alpha passes through to whatever the compositor
+            // chooses to render behind (in our case, the backdrop
+            // NSWindow's blurred VEV).
             let _: () = msg_send![ns_win, setOpaque: false];
             let clear: *mut Object = msg_send![class!(NSColor), clearColor];
             let _: () = msg_send![ns_win, setBackgroundColor: clear];
 
-            // Container-view approach: swap the window's contentView for a
-            // plain, layer-backed NSView that holds *both* the NSVisualEffectView
-            // AND winit's NSView as **siblings**.  This is the key invariant —
-            // adding VEV as a subview of winit's view (which has a CAMetalLayer)
-            // puts VEV's layer UNDER the Metal layer's sublayer tree, so the
-            // blur ends up drawn ON TOP of egui's pixels.  Making them siblings
-            // in a plain container places their layers next to each other,
-            // with VEV at z=0 and the Metal layer at z=1 — exactly what Swift's
-            // `settingsWindow.contentView = visualEffect; visualEffect.addSubview(hostingView)`
-            // achieves, adapted to avoid the SIGSEGV we hit when VEV itself
-            // became the immediate parent of the Metal-hosting NSView.
-            let bounds: NSRect = msg_send![ns_view, bounds];
+            // Explicitly mark winit's NSView layer non-opaque.  wgpu-hal
+            // calls `render_layer.set_opaque(false)` when the surface
+            // alpha_mode is `PostMultiplied`, but that's been observed to
+            // sometimes get reset / not take effect — the layer stays
+            // opaque and paints a solid rectangle over the backdrop
+            // window, hiding the VEV blur completely.  Re-asserting
+            // `opaque = NO` here makes the transparency reliable.
+            if let Ok(handle) = window.window_handle() {
+                if let RawWindowHandle::AppKit(h) = handle.as_raw() {
+                    let ns_view = h.ns_view.as_ptr() as *mut Object;
+                    if !ns_view.is_null() {
+                        let layer: *mut Object = msg_send![ns_view, layer];
+                        if !layer.is_null() {
+                            let _: () = msg_send![layer, setOpaque: false];
+                        }
+                    }
+                }
+            }
 
-            let container: *mut Object = msg_send![class!(NSView), alloc];
-            let container: *mut Object = msg_send![container, initWithFrame: bounds];
-            if container.is_null() { return 0; }
-            let _: () = msg_send![container, setWantsLayer:         true];
-            let _: () = msg_send![container, setAutoresizesSubviews: true];
-            let _: () = msg_send![container, setAutoresizingMask:   18u64];
+            // Use the settings window's current screen-space frame so the
+            // backdrop starts out exactly overlapping.  AppKit then keeps
+            // position locked via addChildWindow; we lock size from Rust.
+            let frame: NSRect = msg_send![ns_win, frame];
 
+            // NSBackingStoreBuffered = 2, NSWindowStyleMaskBorderless = 0.
+            let backdrop: *mut Object = msg_send![class!(NSWindow), alloc];
+            let backdrop: *mut Object = msg_send![backdrop,
+                initWithContentRect: frame
+                styleMask: 0u64
+                backing: 2u64
+                defer: NO_BOOL
+            ];
+            if backdrop.is_null() { return 0; }
+
+            // Behave like a passive backdrop — never steal focus, never
+            // eat events, no shadow duplication, follow the parent into
+            // every Space.  `releasedWhenClosed = false` so the NSWindow
+            // survives hide/show cycles.
+            let _: () = msg_send![backdrop, setOpaque:              false];
+            let _: () = msg_send![backdrop, setBackgroundColor:     clear];
+            let _: () = msg_send![backdrop, setHasShadow:           false];
+            let _: () = msg_send![backdrop, setIgnoresMouseEvents:  true];
+            let _: () = msg_send![backdrop, setReleasedWhenClosed:  false];
+            // Match parent's window level (1001 set by setup_settings_window)
+            // so addChildWindow ordering isn't fighting a level mismatch.
+            let parent_level: i64 = msg_send![ns_win, level];
+            let _: () = msg_send![backdrop, setLevel: parent_level];
+            // CanJoinAllSpaces (1) | FullScreenAuxiliary (256) so the
+            // backdrop follows the parent across workspaces / fullscreen.
+            let _: () = msg_send![backdrop, setCollectionBehavior: 1u64 | 256u64];
+
+            // NSVisualEffectView filling the backdrop's contentView.
+            // Material + blending + state mirror the old in-window install,
+            // except now it composites AppKit-natively against the desktop
+            // behind the backdrop window.
+            let content_bounds = NSRect {
+                origin: NSPoint { x: 0.0, y: 0.0 },
+                size:   frame.size,
+            };
             let vev: *mut Object = msg_send![class!(NSVisualEffectView), alloc];
-            let vev: *mut Object = msg_send![vev, initWithFrame: bounds];
+            let vev: *mut Object = msg_send![vev, initWithFrame: content_bounds];
             if vev.is_null() { return 0; }
-            // Per-theme material selection (see doc comment above):
-            //   Light: hudWindow (8) — strong blur + subtle tint, visibly
-            //                          translucent over bright desktops.
-            //   Dark:  popover   (6) — translucent, blurred, neutral tint
-            //                          over dark backdrops.
-            //
-            // `alphaValue` is not set (default is 1.0) — setting it
-            // synchronously fires a key-resign notification that re-enters
-            // winit's event loop and panics.
+
+            // Per-theme material:
+            //   Dark  → popover   (6)  — neutral, translucent blur.
+            //   Light → hudWindow (8)  — strong blur + subtle tint.
             let material: i64 = if dark_mode { 6 } else { 8 };
             let _: () = msg_send![vev, setMaterial:         material];
-            let _: () = msg_send![vev, setBlendingMode:     0i64];  // behindWindow
-            // `NSVisualEffectState.followsWindowActiveState` = 0.  With
-            // `active` (1) the blur runs at the display refresh rate even
-            // when the user has clicked away to another app — burning
-            // WindowServer CPU on a blur that isn't being looked at.
-            // `followsWindowActiveState` stops the blur whenever the
-            // settings window isn't key.  Drops idle WindowServer load
-            // from ~30 % back toward the ~10 % baseline.
-            let _: () = msg_send![vev, setState:            0i64];
+            let _: () = msg_send![vev, setBlendingMode:     0i64];   // behindWindow
+            // State 1 = NSVisualEffectStateActive — always render the
+            // full blur regardless of window key state.  We used to use
+            // `followsWindowActiveState` (0) but that renders an INACTIVE
+            // (flat desaturated) appearance when the VEV's window isn't
+            // key — and since the backdrop is an `ignoresMouseEvents` +
+            // borderless child window, it can NEVER become key.  That
+            // left us with a permanently-inactive VEV painting a solid
+            // grey over the transparent settings window on top, which
+            // looked identical to an opaque window.  `active` always
+            // renders the vibrant blur; CPU cost is bounded because the
+            // VEV only covers the settings window's ~360×880 pt area.
+            let _: () = msg_send![vev, setState:            1i64];
             let _: () = msg_send![vev, setAutoresizingMask: 18u64];
 
-            // Pin the NSVisualEffectView's NSAppearance explicitly so the
-            // system's appearance-change notification doesn't propagate
-            // through this view's _layoutSubtreeWithOldSize: — AppKit's
-            // propagation walks tracking-area / cursor-rect arrays and
-            // corrupts under our re-parented view hierarchy, raising
-            // `NSCursor does not respond to makeObjectsPerformSelector:`
-            // and aborting the app when the user toggles Light/Dark.
-            // With an explicit appearance set, the VEV declines the
-            // propagation and the iteration stops safely.
+            // Pin appearance explicitly — same rationale as the old
+            // in-window install: blocks AppKit's appearance propagation
+            // through tracking-area / cursor-rect walkers that can crash
+            // when they hit layer setups they weren't built to walk.
             let appearance_name_c = if dark_mode {
                 b"NSAppearanceNameDarkAqua\0".as_ptr() as *const i8
             } else {
@@ -233,29 +268,125 @@ mod mac {
                 let _: () = msg_send![vev, setAppearance: appearance];
             }
 
-            // Retain winit's NSView so NSWindow.setContentView:container —
-            // which releases the outgoing contentView — doesn't drop it to
-            // refcount zero before we re-insert it under the container.
-            let _: () = msg_send![ns_view,   retain];
-            let _: () = msg_send![ns_win,    setContentView:        container];
-            let _: () = msg_send![container, addSubview:            vev];
-            let _: () = msg_send![container, addSubview:            ns_view];
-            let _: () = msg_send![ns_view,   setFrame:              bounds];
-            let _: () = msg_send![ns_view,   setAutoresizingMask:   18u64];
-            let _: () = msg_send![ns_view,   release];
+            let _: () = msg_send![backdrop, setContentView: vev];
 
-            // NOTE: we deliberately do NOT call `makeFirstResponder:
-            // ns_view` here.  Every variant we tried (synchronous,
-            // performSelector:afterDelay:0, dispatch_async) either panics
-            // winit from reentrancy or segfaults mid-frame.  Winit picks
-            // its view back up as first responder on the next mouse
-            // click organically, which is close enough to Swift's
-            // behaviour.
-            vev as usize
+            // Apply a rounded-rect mask to the NSVisualEffectView so the
+            // backdrop's blur clips to the same ~10 pt corner radius as
+            // the settings NSWindow above it — without this, the
+            // backdrop's borderless square corners poke past the
+            // settings window's rounded bottom and the user sees a
+            // pointy-cornered blur rectangle behind the cards.
+            //
+            // NSVisualEffectView's documented hook for this is `maskImage`
+            // (a 9-part stretchable NSImage whose alpha channel becomes
+            // the clip mask).  We use this instead of `layer.cornerRadius`
+            // because NSVisualEffectView rebuilds its internal layer
+            // hierarchy on resize and clobbers any cornerRadius we set —
+            // `maskImage` survives those rebuilds because it's a
+            // first-class VEV property the framework owns.
+            let mask = make_rounded_mask_image(10.0);
+            if !mask.is_null() {
+                let _: () = msg_send![vev, setMaskImage: mask];
+            }
+
+            // NSWindowBelow = -1 — order the backdrop just under the
+            // settings window.  AppKit docs: "When invoked, if the child
+            // window isn't visible, this method shows it as part of its
+            // ordering logic." — so no separate orderFront call needed,
+            // and adding one before `addChildWindow` could briefly put
+            // the backdrop IN FRONT of the settings window, which would
+            // occlude the egui content until the next ordering pass.
+            let _: () = msg_send![ns_win, addChildWindow: backdrop ordered: (-1_i64)];
+
+            log::info!(
+                "install_settings_vibrancy: backdrop NSWindow installed at {:?} size {:?}",
+                (frame.origin.x, frame.origin.y),
+                (frame.size.width, frame.size.height),
+            );
+            backdrop as usize
         }
     }
 
-    // Minimal CGRect / NSRect encoding so we can round-trip `bounds` / `frame`
+    /// Build a stretchable rounded-rect NSImage suitable for
+    /// `NSVisualEffectView.maskImage`.  The image is `2*radius + 1`
+    /// square, drawn as a single rounded rect filled black so the alpha
+    /// channel encodes the mask shape (NSVisualEffectView ignores the
+    /// colour).  `capInsets = radius` on every side + `resizingMode =
+    /// stretch` causes AppKit to nine-slice the image when the VEV's
+    /// bounds change: the four corners stay rounded at exactly `radius`
+    /// pt while the four edges and the center stretch flat.  This is
+    /// the same pattern Apple's own apps use for vibrancy with rounded
+    /// edges — survives VEV resize because the image is stored on the
+    /// VEV (not its layer) and AppKit re-applies the mask on every
+    /// re-layout.
+    unsafe fn make_rounded_mask_image(radius: f64) -> *mut objc::runtime::Object {
+        use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+
+        let dim = radius * 2.0 + 1.0;
+        let size = NSSize { width: dim, height: dim };
+
+        // [[NSImage alloc] initWithSize:]
+        let image: *mut Object = msg_send![class!(NSImage), alloc];
+        let image: *mut Object = msg_send![image, initWithSize: size];
+        if image.is_null() { return std::ptr::null_mut(); }
+
+        // [image lockFocus]
+        let _: () = msg_send![image, lockFocus];
+
+        // [[NSColor blackColor] setFill]
+        let black: *mut Object = msg_send![class!(NSColor), blackColor];
+        let _: () = msg_send![black, setFill];
+
+        // [NSBezierPath bezierPathWithRoundedRect:xRadius:yRadius:]
+        let rect = NSRect {
+            origin: NSPoint { x: 0.0, y: 0.0 },
+            size,
+        };
+        let path: *mut Object = msg_send![
+            class!(NSBezierPath),
+            bezierPathWithRoundedRect: rect
+            xRadius: radius
+            yRadius: radius
+        ];
+        let _: () = msg_send![path, fill];
+
+        // [image unlockFocus]
+        let _: () = msg_send![image, unlockFocus];
+
+        // image.capInsets = (radius, radius, radius, radius)
+        // image.resizingMode = NSImageResizingModeStretch (1)
+        let insets = NSEdgeInsets {
+            top: radius, left: radius, bottom: radius, right: radius,
+        };
+        let _: () = msg_send![image, setCapInsets: insets];
+        let _: () = msg_send![image, setResizingMode: 1i64];
+
+        image
+    }
+
+    /// Fallback setup used when `EXHALE_DISABLE_BLUR=1`.  Just makes the
+    /// settings window transparent so the wgpu tinted clear colour is
+    /// visible; no vibrancy, no child window.  Returns 0 so all the
+    /// vibrancy update/resize hooks are no-ops.
+    fn setup_transparent_settings_window(window: &Window) -> usize {
+        use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+        let ns_win = get_ns_window(window);
+        if ns_win.is_null() { return 0; }
+        unsafe {
+            let _: () = msg_send![ns_win, setOpaque: false];
+            let clear: *mut Object = msg_send![class!(NSColor), clearColor];
+            let _: () = msg_send![ns_win, setBackgroundColor: clear];
+        }
+        0
+    }
+
+    // BOOL encodings for objc messages — `setFrame:display:` and
+    // `initWithContentRect:styleMask:backing:defer:` want a C BOOL (i8),
+    // not a Rust `bool`.
+    const YES_BOOL: i8 = 1;
+    const NO_BOOL:  i8 = 0;
+
+    // Minimal CGRect / NSRect encoding so we can round-trip `frame`
     // through objc messages without pulling in the cocoa or objc2 crates.
     #[repr(C)]
     #[derive(Copy, Clone, Default)]
@@ -266,6 +397,9 @@ mod mac {
     #[repr(C)]
     #[derive(Copy, Clone, Default)]
     struct NSRect { origin: NSPoint, size: NSSize }
+    #[repr(C)]
+    #[derive(Copy, Clone, Default)]
+    struct NSEdgeInsets { top: f64, left: f64, bottom: f64, right: f64 }
 
     unsafe impl objc::Encode for NSPoint {
         fn encode() -> objc::Encoding { unsafe { objc::Encoding::from_str("{CGPoint=dd}") } }
@@ -276,6 +410,11 @@ mod mac {
     unsafe impl objc::Encode for NSRect {
         fn encode() -> objc::Encoding {
             unsafe { objc::Encoding::from_str("{CGRect={CGPoint=dd}{CGSize=dd}}") }
+        }
+    }
+    unsafe impl objc::Encode for NSEdgeInsets {
+        fn encode() -> objc::Encoding {
+            unsafe { objc::Encoding::from_str("{NSEdgeInsets=dddd}") }
         }
     }
 
@@ -363,7 +502,8 @@ mod mac {
 
 #[cfg(target_os = "macos")]
 pub use mac::{
-    apply_app_visibility, install_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
+    apply_app_visibility, install_settings_vibrancy, sync_settings_backdrop_frame,
+    update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
 };
 
@@ -423,6 +563,9 @@ mod win {
     /// No-op on Windows (no VEV to update).
     pub fn update_settings_vibrancy(_vev_ptr: usize, _dark_mode: bool) {}
 
+    /// No-op on Windows (no backdrop window to keep in sync).
+    pub fn sync_settings_backdrop_frame(_backdrop_ptr: usize) {}
+
     pub fn request_notification_permission() {
         // notify-rust on Windows uses WinRT ToastNotifications which don't
         // require explicit permission from the app.
@@ -456,7 +599,8 @@ mod win {
 
 #[cfg(target_os = "windows")]
 pub use win::{
-    apply_app_visibility, install_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
+    apply_app_visibility, install_settings_vibrancy, sync_settings_backdrop_frame,
+    update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
 };
 
@@ -581,6 +725,9 @@ mod nix {
     /// No-op on X11 (no VEV to update).
     pub fn update_settings_vibrancy(_vev_ptr: usize, _dark_mode: bool) {}
 
+    /// No-op on X11 (no backdrop window to keep in sync).
+    pub fn sync_settings_backdrop_frame(_backdrop_ptr: usize) {}
+
     pub fn request_notification_permission() {
         // D-Bus org.freedesktop.Notifications needs no per-app permission.
     }
@@ -601,6 +748,7 @@ mod nix {
 
 #[cfg(all(unix, not(target_os = "macos")))]
 pub use nix::{
-    apply_app_visibility, install_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
+    apply_app_visibility, install_settings_vibrancy, sync_settings_backdrop_frame,
+    update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
 };
