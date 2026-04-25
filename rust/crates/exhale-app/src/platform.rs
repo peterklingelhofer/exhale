@@ -20,6 +20,23 @@ use winit::window::Window;
 /// Defined unconditionally so callers don't need `cfg` around the read.
 pub static DOCK_REOPEN: AtomicBool = AtomicBool::new(false);
 
+/// True after `install_settings_vibrancy` has successfully attached a blur
+/// effect to the settings window on the current platform (macOS VEV
+/// child-window, Windows DWM acrylic, Linux KDE blur-behind).  Read from
+/// the egui render path so we know whether to clear at alpha 0 + paint
+/// transparent panels (blur active) or fall back to opaque rendering.
+static BLUR_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Public read-side accessor for [`BLUR_ACTIVE`].
+pub fn is_blur_active() -> bool {
+    BLUR_ACTIVE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+#[allow(dead_code)] // used only on platforms where install_settings_vibrancy succeeds
+fn set_blur_active(active: bool) {
+    BLUR_ACTIVE.store(active, std::sync::atomic::Ordering::Relaxed);
+}
+
 // ─── macOS ────────────────────────────────────────────────────────────────────
 
 #[cfg(target_os = "macos")]
@@ -303,6 +320,7 @@ mod mac {
                 (frame.origin.x, frame.origin.y),
                 (frame.size.width, frame.size.height),
             );
+            super::set_blur_active(true);
             backdrop as usize
         }
     }
@@ -515,6 +533,12 @@ mod win {
     use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
     use windows_sys::Win32::{
         Foundation::HWND,
+        Graphics::Dwm::{
+            DwmSetWindowAttribute,
+            DWMSBT_TRANSIENTWINDOW,
+            DWMWA_SYSTEMBACKDROP_TYPE,
+            DWMWA_USE_IMMERSIVE_DARK_MODE,
+        },
         UI::WindowsAndMessaging::{
             GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos,
             GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
@@ -556,14 +580,81 @@ mod win {
         // AppVisibility controls taskbar presence via apply_app_visibility.
     }
 
-    /// Windows has no first-class vibrancy primitive; DWM's blur-behind is a
-    /// follow-up.  No-op for now.
-    pub fn install_settings_vibrancy(_window: &Window, _dark_mode: bool) -> usize { 0 }
+    /// Enable Windows 11's DWM acrylic backdrop on the settings window
+    /// and flip the title bar to dark mode if the OS is in dark
+    /// appearance.  `DwmSetWindowAttribute` with
+    /// `DWMWA_SYSTEMBACKDROP_TYPE = DWMSBT_TRANSIENTWINDOW` paints a
+    /// frosted-glass acrylic blur of the desktop behind the entire
+    /// window — closest equivalent to macOS's `NSVisualEffectView`
+    /// `.popover` / `.hudWindow` materials.
+    ///
+    /// Both calls return harmless errors on older Windows (the
+    /// attributes were added in Win10 1809 / Win11 22000 respectively),
+    /// so the function degrades gracefully: if the backdrop call fails,
+    /// `BLUR_ACTIVE` stays `false` and the egui render path falls back
+    /// to opaque drawing.
+    ///
+    /// Opt-out: set `EXHALE_DISABLE_BLUR=1` to skip the DWM calls.
+    pub fn install_settings_vibrancy(window: &Window, dark_mode: bool) -> usize {
+        if std::env::var_os("EXHALE_DISABLE_BLUR").is_some() {
+            return 0;
+        }
+        let h = hwnd(window);
+        if h.is_null() { return 0; }
 
-    /// No-op on Windows (no VEV to update).
-    pub fn update_settings_vibrancy(_vev_ptr: usize, _dark_mode: bool) {}
+        unsafe {
+            // Dark-mode title bar (Win10 1809+).  Pass a Win32 BOOL — `i32`
+            // 1 / 0 — by pointer.  Ignored as a "feature not present"
+            // error on earlier builds.
+            let dark_bool: i32 = if dark_mode { 1 } else { 0 };
+            let _ = DwmSetWindowAttribute(
+                h,
+                DWMWA_USE_IMMERSIVE_DARK_MODE as u32,
+                &dark_bool as *const i32 as *const core::ffi::c_void,
+                std::mem::size_of::<i32>() as u32,
+            );
 
-    /// No-op on Windows (no backdrop window to keep in sync).
+            // Acrylic backdrop (Win11 build 22000+).  HRESULT == 0
+            // (S_OK) means the OS accepted the attribute.  Anything
+            // else (e.g. DWM_E_ATTRIBUTENOTSUPPORTED on Win10) → no
+            // blur, render opaquely.
+            let backdrop: i32 = DWMSBT_TRANSIENTWINDOW;
+            let hr = DwmSetWindowAttribute(
+                h,
+                DWMWA_SYSTEMBACKDROP_TYPE as u32,
+                &backdrop as *const i32 as *const core::ffi::c_void,
+                std::mem::size_of::<i32>() as u32,
+            );
+            if hr == 0 {
+                log::info!("install_settings_vibrancy: DWM acrylic enabled");
+                super::set_blur_active(true);
+                return h as usize;
+            } else {
+                log::info!("install_settings_vibrancy: DWM backdrop unsupported (hr=0x{:08x})", hr);
+            }
+        }
+        0
+    }
+
+    /// On Windows the only theme-dependent property is the title bar
+    /// dark-mode flag — re-apply it when the OS appearance changes.
+    /// `handle` is the HWND returned by `install_settings_vibrancy`.
+    pub fn update_settings_vibrancy(handle: usize, dark_mode: bool) {
+        if handle == 0 { return; }
+        unsafe {
+            let h = handle as HWND;
+            let dark_bool: i32 = if dark_mode { 1 } else { 0 };
+            let _ = DwmSetWindowAttribute(
+                h,
+                DWMWA_USE_IMMERSIVE_DARK_MODE as u32,
+                &dark_bool as *const i32 as *const core::ffi::c_void,
+                std::mem::size_of::<i32>() as u32,
+            );
+        }
+    }
+
+    /// No-op on Windows — DWM tracks window size via the HWND, no
+    /// separate backdrop window to resize.
     pub fn sync_settings_backdrop_frame(_backdrop_ptr: usize) {}
 
     pub fn request_notification_permission() {
@@ -718,14 +809,67 @@ mod nix {
         // taskbar presence for the Top-Bar-only mode.
     }
 
-    /// X11 has no portable blur; KWin honours `_KDE_NET_WM_BLUR_BEHIND_REGION`
-    /// but it's KWin-specific and GNOME/Mutter ignore it.  Leave as no-op.
-    pub fn install_settings_vibrancy(_window: &Window, _dark_mode: bool) -> usize { 0 }
+    /// Enable KDE/KWin's `_KDE_NET_WM_BLUR_BEHIND_REGION` on the
+    /// settings window.  Setting the property with empty data tells
+    /// KWin to blur the desktop behind every transparent pixel of the
+    /// window — closest equivalent we have to a portable Wayland or
+    /// X11 blur.  GNOME/Mutter ignore the property, so we gate on
+    /// `XDG_CURRENT_DESKTOP` (KDE / Plasma) up front to avoid leaving a
+    /// window opaque-but-half-rendered on desktops that won't honour
+    /// the hint.
+    ///
+    /// Opt-out: `EXHALE_DISABLE_BLUR=1` skips the X property set.
+    pub fn install_settings_vibrancy(window: &Window, _dark_mode: bool) -> usize {
+        if std::env::var_os("EXHALE_DISABLE_BLUR").is_some() {
+            return 0;
+        }
+        let is_kde = std::env::var("XDG_CURRENT_DESKTOP")
+            .map(|s| s.split(':').any(|tok| tok.eq_ignore_ascii_case("KDE") || tok.eq_ignore_ascii_case("Plasma")))
+            .unwrap_or(false);
+        if !is_kde {
+            log::info!("install_settings_vibrancy: not KDE, skipping blur-behind");
+            return 0;
+        }
+        let Some(xwin) = x11_window(window) else { return 0; };
+        let Ok(xlib) = Xlib::open() else { return 0; };
 
-    /// No-op on X11 (no VEV to update).
+        unsafe {
+            let display = (xlib.XOpenDisplay)(std::ptr::null());
+            if display.is_null() { return 0; }
+
+            // _KDE_NET_WM_BLUR_BEHIND_REGION: empty CARDINAL array =
+            // "blur the entire window behind every transparent pixel".
+            let name = std::ffi::CString::new("_KDE_NET_WM_BLUR_BEHIND_REGION").unwrap();
+            let blur_atom = (xlib.XInternAtom)(display, name.as_ptr(), 0);
+            if blur_atom == 0 {
+                (xlib.XCloseDisplay)(display);
+                return 0;
+            }
+            (xlib.XChangeProperty)(
+                display,
+                xwin,
+                blur_atom,
+                x11_dl::xlib::XA_CARDINAL,
+                32,
+                x11_dl::xlib::PropModeReplace,
+                std::ptr::null(),
+                0,
+            );
+            (xlib.XFlush)(display);
+            (xlib.XCloseDisplay)(display);
+
+            log::info!("install_settings_vibrancy: KDE blur-behind enabled");
+            super::set_blur_active(true);
+            xwin as usize
+        }
+    }
+
+    /// No theme-dependent state to update on X11 — KDE follows the
+    /// system theme automatically once the blur property is set.
     pub fn update_settings_vibrancy(_vev_ptr: usize, _dark_mode: bool) {}
 
-    /// No-op on X11 (no backdrop window to keep in sync).
+    /// No-op on X11 (no backdrop window to keep in sync — the blur
+    /// region attaches to the settings window itself).
     pub fn sync_settings_backdrop_frame(_backdrop_ptr: usize) {}
 
     pub fn request_notification_permission() {
