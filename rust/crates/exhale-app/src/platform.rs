@@ -711,9 +711,29 @@ mod win {
         }
     }
 
-    pub fn setup_settings_window(_window: &Window) {
-        // Keep default styles: titled, focusable, shows in taskbar by default.
-        // AppVisibility controls taskbar presence via apply_app_visibility.
+    pub fn setup_settings_window(window: &Window) {
+        // Mark the settings window topmost so it can rise ABOVE the
+        // breathing overlay (which is also `WS_EX_TOPMOST`).  Windows
+        // doesn't expose explicit z-bands like macOS's window levels, so
+        // both windows share the topmost band and the most-recently-
+        // activated one wins — when the user opens preferences, the
+        // settings window comes to front; when the overlay later starts
+        // animating, settings stays interactable until the user clicks
+        // away from it.  Without `WS_EX_TOPMOST`, the settings window
+        // would render permanently behind the topmost overlay's
+        // (translucent) layer — invisible to the user despite still
+        // technically being focused.
+        let h = hwnd(window);
+        if h.is_null() { return; }
+        unsafe {
+            let ex = GetWindowLongPtrW(h, GWL_EXSTYLE) as isize;
+            let new_ex = ex | WS_EX_TOPMOST as isize;
+            if new_ex != ex {
+                SetWindowLongPtrW(h, GWL_EXSTYLE, new_ex);
+                SetWindowPos(h, HWND_TOPMOST, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        }
     }
 
     /// Enable Windows 11's DWM acrylic backdrop on the settings window
@@ -940,9 +960,24 @@ mod nix {
         x.set_wm_state(b"_NET_WM_STATE_SKIP_PAGER",   true);
     }
 
-    pub fn setup_settings_window(_window: &Window) {
-        // Default X11 settings window is fine; apply_app_visibility handles
-        // taskbar presence for the Top-Bar-only mode.
+    pub fn setup_settings_window(window: &Window) {
+        // Mark the settings window `_NET_WM_STATE_ABOVE` so it can rise
+        // above the breathing overlay (also `ABOVE`).  X11 has no
+        // explicit window levels — among `ABOVE` windows, activation
+        // order determines z-stacking, so opening preferences activates
+        // it and brings it forward.  Without this hint, EWMH-compliant
+        // window managers permanently order the overlay (which is
+        // ABOVE) on top of the settings (NORMAL), even when settings is
+        // focused.  Wayland compositors that ignore EWMH will fall back
+        // to their own stacking — documented limitation, same as the
+        // overlay's click-through hint.
+        //
+        // `apply_app_visibility` still handles `SKIP_TASKBAR/SKIP_PAGER`
+        // for the Top-Bar-only mode, independent of this hint.
+        let Some(xwin) = x11_window(window) else { return; };
+        let Ok(xlib)   = Xlib::open() else { return; };
+        let Some(x)    = X11::open(&xlib, None, xwin) else { return; };
+        x.set_wm_state(b"_NET_WM_STATE_ABOVE", true);
     }
 
     /// Enable KDE/KWin's `_KDE_NET_WM_BLUR_BEHIND_REGION` on the
