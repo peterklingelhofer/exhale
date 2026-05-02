@@ -66,7 +66,7 @@ jobs:
           path: rust/target/aarch64-pc-windows-msvc/release/exhale.exe
           if-no-files-found: warn
 
-  linux:
+  linux-x64:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -98,4 +98,38 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: exhale-linux-x64
+          path: rust/target/release/exhale
+
+  # Native ARM64 Linux build — runs on GitHub's free `ubuntu-22.04-arm`
+  # runner so we don't need cross-compilation gymnastics for the system
+  # dependencies (gtk3, wayland, etc.).  Targets the Ubuntu ARM64
+  # desktop VM used in docs/TESTING.md.
+  linux-arm64:
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: System deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev libwayland-dev libxkbcommon-dev libxdo-dev \
+            libssl-dev libayatana-appindicator3-dev pkg-config
+
+      - name: Cache cargo + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Build
+        working-directory: rust
+        run: cargo build --release -p exhale-app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: exhale-linux-arm64
           path: rust/target/release/exhale
