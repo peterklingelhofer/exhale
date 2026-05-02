@@ -641,6 +641,20 @@ impl ApplicationHandler<AppEvent> for App {
             let _ = self.proxy.send_event(AppEvent::ShowSettings);
         }
 
+        // Linux: pump pending GTK events without blocking so the tray
+        // icon's libayatana-appindicator backend can process clicks /
+        // theme changes.  We run GTK on the main thread alongside winit
+        // (instead of on a dedicated thread) because tray-icon's API
+        // requires the menu to be built and serviced from the same
+        // thread that called `gtk::init()` — which is the main thread
+        // for us.
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            while gtk::events_pending() {
+                gtk::main_iteration_do(false);
+            }
+        }
+
         // Poll tray menu events.
         if let Ok(event) = MenuEvent::receiver().try_recv() {
             if let Some(ids) = &self.tray_ids {
@@ -782,6 +796,19 @@ fn main() -> Result<()> {
     env_logger::Builder::from_env(
         env_logger::Env::default().default_filter_or("info")
     ).init();
+
+    // Linux: initialise GTK before anything in the tray-icon path runs.
+    // `tray-icon` builds on top of GTK + libayatana-appindicator on
+    // Linux; constructing menu items without a prior `gtk::init()`
+    // panics with "GTK has not been initialized".  This call is
+    // cheap when GTK is already up, and we pump its event loop
+    // non-blockingly inside `about_to_wait` so menu clicks dispatch.
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if let Err(e) = gtk::init() {
+            log::error!("gtk::init failed: {e}; tray menu will be unavailable");
+        }
+    }
 
     let settings_manager = Arc::new(SettingsManager::new()?);
     info!("settings: {}", settings_manager.config_path().display());

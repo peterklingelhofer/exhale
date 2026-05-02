@@ -81,3 +81,11 @@ notify-rust = { workspace = true }
 # X11 development headers installed — only the runtime libraries (which are
 # pre-installed on every X11 desktop distro).
 x11-dl = "2.21"
+# `tray-icon` on Linux is built on top of GTK + libayatana-appindicator;
+# GTK has to be initialised before any menu item is constructed and its
+# main loop has to be pumped to dispatch tray clicks.  We call `gtk::init`
+# at startup and run a non-blocking iteration in `about_to_wait` so the
+# tray works without spinning up a second OS thread.  Same major version
+# `tray-icon` 0.19 transitively depends on, to avoid a duplicate gtk in
+# the dep graph.
+gtk = "0.18"
