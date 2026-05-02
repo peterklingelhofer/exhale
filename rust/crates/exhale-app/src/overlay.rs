@@ -65,6 +65,24 @@ impl OverlayHandle {
             .with_decorations(false)
             .with_resizable(false);
 
+        // Windows: route the alpha pipeline through DirectComposition by
+        // requesting `WS_EX_NOREDIRECTIONBITMAP`.  winit's plain
+        // `with_transparent(true)` adds `WS_EX_LAYERED` and calls
+        // `DwmEnableBlurBehindWindow` — that's the legacy Aero/Win7 path,
+        // and DXGI flip-model swap chains don't actually composite alpha
+        // through it on Win11 (the overlay renders solid black instead
+        // of transparent).  NRB tells the OS we have no redirection
+        // bitmap and our content is delivered straight to DWM via
+        // DComposition, which IS alpha-aware and pairs cleanly with our
+        // wgpu surface (`PreMultiplied` alpha mode + premultiplied
+        // shader output).  Click-through still works through
+        // `WS_EX_TRANSPARENT` set in `platform::setup_overlay_window`.
+        #[cfg(target_os = "windows")]
+        {
+            use winit::platform::windows::WindowAttributesExtWindows;
+            attrs = attrs.with_no_redirection_bitmap(true);
+        }
+
         if let Some(m) = monitor.as_ref() {
             let pos  = m.position();
             let size = m.size();
