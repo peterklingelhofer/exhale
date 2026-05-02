@@ -127,13 +127,23 @@ impl SettingsWindow {
         let initial_h = settings.settings_window_height
             .unwrap_or(INITIAL_PREFERRED_H)
             .max(SETTINGS_MIN_HEIGHT);
-        // Always request a transparent window so the OS-level blur effect
-        // (macOS VEV child-window, Windows DWM acrylic, KDE blur-behind)
-        // can show through wherever egui doesn't paint.  When the OS
-        // doesn't provide a blur (older Windows, GNOME, opt-out env var),
-        // `clear_color_for_theme` paints opaque so the user sees a normal
-        // settings panel instead of straight through to the desktop.
-        let want_transparent = true;
+        // Request a transparent window everywhere EXCEPT Windows.  On
+        // macOS / Linux X11, winit's `with_transparent(true)` selects an
+        // alpha-capable visual / clearColor background so the OS-level
+        // blur effect (NSVisualEffectView child window, KDE
+        // blur-behind) can show through where egui doesn't paint.
+        //
+        // Windows is special: winit's transparent flag adds
+        // `WS_EX_LAYERED` to the window, which (a) is incompatible with
+        // `DWMWA_SYSTEMBACKDROP_TYPE` (DWM silently ignores acrylic on
+        // layered windows), and (b) breaks DXGI flip-model swap chains
+        // that wgpu uses — the result is an opaque black window even
+        // though every other transparency knob is set.  On Windows we
+        // get a normal HWND, then DWMWA_SYSTEMBACKDROP_TYPE composes
+        // acrylic behind the entire client area, and our wgpu surface's
+        // `PostMultiplied` alpha mode lets DWM blend our transparent
+        // pixels over that acrylic.  No layered window needed.
+        let want_transparent = !cfg!(target_os = "windows");
         let attrs = Window::default_attributes()
             .with_title("exhale")
             .with_inner_size(winit::dpi::LogicalSize::new(SETTINGS_WIDTH, initial_h))
