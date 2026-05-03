@@ -59,24 +59,34 @@ impl OverlayHandle {
         // supplying explicit position + size and letting
         // `platform::setup_overlay_window` apply the level and collection
         // behavior on macOS (and equivalent flags on Windows / X11).
+        // Window-creation attributes differ on Windows because the
+        // alpha-compositing path is different from macOS / Linux:
+        //
+        //   - macOS / Linux:   `with_transparent(true)` selects an
+        //     alpha-capable visual / clearColor backing and the OS
+        //     compositor blends our wgpu output naturally.
+        //
+        //   - Windows:         `with_transparent(true)` adds
+        //     `WS_EX_LAYERED`, which sounds right but actually breaks
+        //     us — DXGI flip-model swap chains (what wgpu uses) do
+        //     not composite alpha through layered-window bitmaps on
+        //     Win11, and the overlay renders solid black instead of
+        //     transparent.  Instead we keep the window NON-layered and
+        //     request `WS_EX_NOREDIRECTIONBITMAP` so our wgpu output is
+        //     delivered straight to DWM via DirectComposition, which
+        //     IS alpha-aware and pairs cleanly with `PreMultiplied`
+        //     surface alpha + the shader's premultiplied output.
+        //     Critically, `with_transparent(true)` and
+        //     `with_no_redirection_bitmap(true)` together are silently
+        //     contradictory (LAYERED vs NRB), so we mutually-exclude
+        //     them per platform.
+        let want_transparent = !cfg!(target_os = "windows");
         let mut attrs = Window::default_attributes()
             .with_title("exhale-overlay")
-            .with_transparent(true)
+            .with_transparent(want_transparent)
             .with_decorations(false)
             .with_resizable(false);
 
-        // Windows: route the alpha pipeline through DirectComposition by
-        // requesting `WS_EX_NOREDIRECTIONBITMAP`.  winit's plain
-        // `with_transparent(true)` adds `WS_EX_LAYERED` and calls
-        // `DwmEnableBlurBehindWindow` — that's the legacy Aero/Win7 path,
-        // and DXGI flip-model swap chains don't actually composite alpha
-        // through it on Win11 (the overlay renders solid black instead
-        // of transparent).  NRB tells the OS we have no redirection
-        // bitmap and our content is delivered straight to DWM via
-        // DComposition, which IS alpha-aware and pairs cleanly with our
-        // wgpu surface (`PreMultiplied` alpha mode + premultiplied
-        // shader output).  Click-through still works through
-        // `WS_EX_TRANSPARENT` set in `platform::setup_overlay_window`.
         #[cfg(target_os = "windows")]
         {
             use winit::platform::windows::WindowAttributesExtWindows;
