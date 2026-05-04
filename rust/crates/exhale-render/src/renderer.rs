@@ -48,6 +48,19 @@ impl OverlayRenderer {
         let surface_format = prefer_format(&surface_caps);
         let alpha_mode     = pick_alpha_mode(&surface_caps);
 
+        // Diagnostic: log every alpha mode the surface advertises and
+        // the one we picked.  On Windows (especially under WARP / VMs
+        // without GPU passthrough) the surface can be limited to
+        // `Opaque` only — in which case alpha is ignored regardless of
+        // window flags or shader output, and the overlay renders as
+        // solid black.  Surfacing this in the log lets us tell apart
+        // "code wrong" from "platform doesn't support per-pixel alpha
+        // here" without a debugger.
+        log::info!(
+            "overlay surface alpha_modes={:?}, picked={:?}",
+            surface_caps.alpha_modes, alpha_mode,
+        );
+
         let config = wgpu::SurfaceConfiguration {
             usage:                         wgpu::TextureUsages::RENDER_ATTACHMENT,
             format:                        surface_format,

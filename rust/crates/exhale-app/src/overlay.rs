@@ -59,39 +59,22 @@ impl OverlayHandle {
         // supplying explicit position + size and letting
         // `platform::setup_overlay_window` apply the level and collection
         // behavior on macOS (and equivalent flags on Windows / X11).
-        // Window-creation attributes differ on Windows because the
-        // alpha-compositing path is different from macOS / Linux:
-        //
-        //   - macOS / Linux:   `with_transparent(true)` selects an
-        //     alpha-capable visual / clearColor backing and the OS
-        //     compositor blends our wgpu output naturally.
-        //
-        //   - Windows:         `with_transparent(true)` adds
-        //     `WS_EX_LAYERED`, which sounds right but actually breaks
-        //     us — DXGI flip-model swap chains (what wgpu uses) do
-        //     not composite alpha through layered-window bitmaps on
-        //     Win11, and the overlay renders solid black instead of
-        //     transparent.  Instead we keep the window NON-layered and
-        //     request `WS_EX_NOREDIRECTIONBITMAP` so our wgpu output is
-        //     delivered straight to DWM via DirectComposition, which
-        //     IS alpha-aware and pairs cleanly with `PreMultiplied`
-        //     surface alpha + the shader's premultiplied output.
-        //     Critically, `with_transparent(true)` and
-        //     `with_no_redirection_bitmap(true)` together are silently
-        //     contradictory (LAYERED vs NRB), so we mutually-exclude
-        //     them per platform.
-        let want_transparent = !cfg!(target_os = "windows");
+        // Cross-platform transparency: `with_transparent(true)` selects
+        // an alpha-capable visual on macOS / Linux and routes through
+        // `WS_EX_LAYERED` + `DwmEnableBlurBehindWindow` on Windows.  We
+        // tried `WS_EX_NOREDIRECTIONBITMAP` instead on Windows but that
+        // path requires manually creating a DirectComposition visual
+        // tree (`CreateSwapChainForComposition` + bound DComp visual)
+        // for the swap chain to actually appear — wgpu's stock DX12
+        // backend uses `CreateSwapChainForHwnd` which doesn't wire that
+        // up, so NRB-without-DComp produced solid-black output.  The
+        // legacy `WS_EX_LAYERED` + `DwmEnableBlurBehindWindow` route
+        // is the supported wgpu-friendly alpha pipeline on Windows.
         let mut attrs = Window::default_attributes()
             .with_title("exhale-overlay")
-            .with_transparent(want_transparent)
+            .with_transparent(true)
             .with_decorations(false)
             .with_resizable(false);
-
-        #[cfg(target_os = "windows")]
-        {
-            use winit::platform::windows::WindowAttributesExtWindows;
-            attrs = attrs.with_no_redirection_bitmap(true);
-        }
 
         if let Some(m) = monitor.as_ref() {
             let pos  = m.position();
