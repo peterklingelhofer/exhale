@@ -124,7 +124,28 @@ impl SettingsWindow {
         // present) wins over the default — the user's own resize is always
         // respected on relaunch.
         const INITIAL_PREFERRED_H: u32 = 796;
-        let initial_h = settings.settings_window_height
+        // Sanity ceiling on the saved height: no real monitor is taller
+        // than this in logical points, so anything above is corrupt
+        // (typically from older builds that mistakenly persisted
+        // PHYSICAL pixels and then re-multiplied them by the scale
+        // factor every launch).  Falling back to the default lets a
+        // corrupted settings file self-heal on the next save.
+        const SETTINGS_MAX_LOGICAL_H: u32 = 4096;
+        let saved_h = settings.settings_window_height
+            .filter(|&h| h <= SETTINGS_MAX_LOGICAL_H);
+        if settings.settings_window_height
+            .map(|h| h > SETTINGS_MAX_LOGICAL_H)
+            .unwrap_or(false)
+        {
+            log::warn!(
+                "settings_window_height = {:?} pt is larger than {} — \
+                 ignoring (likely corrupted by physical-vs-logical bug \
+                 in older builds); using default",
+                settings.settings_window_height,
+                SETTINGS_MAX_LOGICAL_H,
+            );
+        }
+        let initial_h = saved_h
             .unwrap_or(INITIAL_PREFERRED_H)
             .max(SETTINGS_MIN_HEIGHT);
         // Request a transparent window everywhere EXCEPT Windows.  On
