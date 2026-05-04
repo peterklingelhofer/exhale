@@ -792,10 +792,102 @@ fn single_instance_guard(proxy: &EventLoopProxy<AppEvent>) -> InstanceGuard {
     }
 }
 
+/// `Write` adapter that mirrors every byte to both stderr AND a backing
+/// file.  We use this as `env_logger`'s target so the same log output
+/// appears in the terminal (when there is one) AND on disk next to the
+/// exe — needed for windowed-app debugging where stderr is nowhere
+/// reachable, including the on-Windows scenario where a black-screen
+/// overlay bug renders every other window invisible until the process
+/// is force-killed.  Stderr writes are best-effort: if stderr is closed
+/// or piped to /dev/null we still want the file log to succeed.
+struct TeeLogWriter {
+    file: std::fs::File,
+}
+
+impl std::io::Write for TeeLogWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        // Best-effort stderr — ignore failures so file logging always works.
+        let _ = std::io::Write::write_all(&mut std::io::stderr(), buf);
+        self.file.write(buf)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        let _ = std::io::stderr().flush();
+        self.file.flush()
+    }
+}
+
+/// Pick a path to write the log file at.  Preferred location is right
+/// next to the exe — most users running an unsigned dev build extract
+/// to Downloads / Desktop / similar, which is writable.  Fallbacks
+/// progressively widen the net so we never silently lose logs:
+///   1. `<exe-dir>/exhale.log`
+///   2. `<temp>/exhale.log`
+///   3. `./exhale.log`
+fn pick_log_path() -> std::path::PathBuf {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let candidate = dir.join("exhale.log");
+            if std::fs::OpenOptions::new()
+                .create(true).write(true).truncate(true)
+                .open(&candidate).is_ok()
+            {
+                return candidate;
+            }
+        }
+    }
+    let tmp = std::env::temp_dir().join("exhale.log");
+    if std::fs::OpenOptions::new()
+        .create(true).write(true).truncate(true)
+        .open(&tmp).is_ok()
+    {
+        return tmp;
+    }
+    std::path::PathBuf::from("exhale.log")
+}
+
+/// Install a panic hook that appends panic info + backtrace to the log
+/// file before delegating to the default hook.  Without this, panics
+/// only print to stderr and are lost when stderr isn't captured.
+fn install_panic_logger(log_path: std::path::PathBuf) {
+    use std::sync::OnceLock;
+    static PATH: OnceLock<std::path::PathBuf> = OnceLock::new();
+    let _ = PATH.set(log_path);
+    let prev = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if let Some(path) = PATH.get() {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .append(true).create(true).open(path)
+            {
+                use std::io::Write;
+                let _ = writeln!(f, "\n=== PANIC ===");
+                let _ = writeln!(f, "{info}");
+                let _ = writeln!(
+                    f, "backtrace:\n{}",
+                    std::backtrace::Backtrace::force_capture(),
+                );
+                let _ = f.flush();
+            }
+        }
+        prev(info);
+    }));
+}
+
 fn main() -> Result<()> {
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info")
-    ).init();
+    let log_path = pick_log_path();
+    let mut builder = env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("info"),
+    );
+    if let Ok(file) = std::fs::OpenOptions::new()
+        .create(true).write(true).truncate(true)
+        .open(&log_path)
+    {
+        builder.target(env_logger::Target::Pipe(
+            Box::new(TeeLogWriter { file }),
+        ));
+    }
+    builder.init();
+    install_panic_logger(log_path.clone());
+    info!("logging to {}", log_path.display());
 
     // Linux: initialise GTK before anything in the tray-icon path runs.
     // `tray-icon` builds on top of GTK + libayatana-appindicator on
