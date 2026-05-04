@@ -482,8 +482,20 @@ impl ApplicationHandler<AppEvent> for App {
                         self.settings_manager.mark_dirty();
                     }
                     WindowEvent::Resized(size) => {
+                        // Persist the height as LOGICAL points, not
+                        // physical pixels.  `size.height` is physical;
+                        // the next `SettingsWindow::new` reads this back
+                        // and feeds it into `LogicalSize::new(...)`.  If
+                        // we saved physical, every launch on a 2× display
+                        // would double the value (load-as-logical
+                        // multiplies by the scale factor at window
+                        // creation), eventually blowing past wgpu's
+                        // 16384-pixel surface limit and crashing on
+                        // configure.  Round to nearest integer point.
+                        let scale  = sw.window.scale_factor();
+                        let logical = (size.height as f64 / scale).round() as u32;
                         let mut s = self.settings.write().unwrap();
-                        s.settings_window_height = Some(size.height);
+                        s.settings_window_height = Some(logical);
                         self.settings_manager.mark_dirty();
                     }
                     WindowEvent::RedrawRequested => {
