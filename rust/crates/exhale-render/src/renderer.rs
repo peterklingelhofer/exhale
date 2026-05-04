@@ -140,6 +140,17 @@ impl OverlayRenderer {
     pub fn width(&self)  -> u32 { self.config.width }
     pub fn height(&self) -> u32 { self.config.height }
     pub fn surface_format(&self) -> wgpu::TextureFormat { self.config.format }
+
+    /// `true` when the swap chain advertises a per-pixel-alpha mode
+    /// (`PreMultiplied`, `PostMultiplied`, or `Inherit`).  `false` when
+    /// it could only do `Opaque` — typical for VM environments running
+    /// the Microsoft Basic Render Driver (WARP), where the emulated
+    /// DXGI surface doesn't expose alpha modes.  Callers can use this
+    /// to hide the overlay window in those environments instead of
+    /// painting full-screen opaque black on top of everything.
+    pub fn alpha_capable(&self) -> bool {
+        !matches!(self.config.alpha_mode, wgpu::CompositeAlphaMode::Opaque)
+    }
 }
 
 // ─── Pipeline ─────────────────────────────────────────────────────────────────
