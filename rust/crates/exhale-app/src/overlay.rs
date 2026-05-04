@@ -93,6 +93,26 @@ impl OverlayHandle {
         let surface = gpu.instance.create_surface(Arc::clone(&window))?;
         let renderer = OverlayRenderer::new(Arc::clone(&gpu), surface, size.width, size.height)?;
 
+        // If the swap chain doesn't advertise any per-pixel alpha mode
+        // (typical for VM environments running WARP / Microsoft Basic
+        // Render Driver), hide the overlay window — otherwise it
+        // renders solid black across the entire screen with no way to
+        // see anything else, which makes the VM unusable.  The
+        // breathing animation will be invisible on this machine, but
+        // the rest of the app (settings window, tray, hotkeys) stays
+        // testable.  Real Windows hardware with an actual GPU exposes
+        // alpha-capable DXGI surfaces and renders correctly without
+        // hitting this branch.
+        if !renderer.alpha_capable() {
+            log::warn!(
+                "overlay swap chain only supports Opaque alpha; hiding \
+                 overlay window to avoid blanket-black-screen.  This is \
+                 typical under VMs running WARP — test on real GPU \
+                 hardware to see the breath animation."
+            );
+            window.set_visible(false);
+        }
+
         Ok(Self { window, renderer })
     }
 
