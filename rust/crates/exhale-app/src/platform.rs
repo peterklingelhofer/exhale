@@ -696,25 +696,19 @@ mod win {
         let h = hwnd(window);
         if h.is_null() { return; }
         unsafe {
-            // We deliberately do NOT add `WS_EX_LAYERED` here even though
-            // it would normally pair with `WS_EX_TRANSPARENT` for the
-            // legacy click-through pattern — `WS_EX_LAYERED` and the
-            // `WS_EX_NOREDIRECTIONBITMAP` set at window creation are
-            // mutually exclusive (one says "I have a layered redirection
-            // bitmap", the other says "I have no redirection bitmap"),
-            // and forcing LAYERED on top of NRB silently re-routes us
-            // back through the broken flip-swap-chain-on-layered-window
-            // path that paints solid black on Win11.  Click-through on
-            // an NRB window works via `WS_EX_TRANSPARENT` alone — the
-            // OS treats fully-transparent (alpha 0) regions of the
-            // DComp visual as hit-test-transparent.
-            //
-            // Tool window + NoActivate keep the overlay out of Alt-Tab /
-            // taskbar and prevent it from stealing focus.  Topmost is
-            // applied via both `WS_EX_TOPMOST` and the trailing
-            // `SetWindowPos(HWND_TOPMOST, …)` for belt-and-suspenders.
+            // `WS_EX_LAYERED + WS_EX_TRANSPARENT` is the legacy
+            // wgpu-compatible click-through transparency pattern on
+            // Windows.  winit's `with_transparent(true)` already adds
+            // `WS_EX_LAYERED` and calls `DwmEnableBlurBehindWindow` for
+            // us, but we re-assert `WS_EX_LAYERED` defensively here in
+            // case some other path stripped it.  Tool window +
+            // NoActivate keep the overlay out of Alt-Tab / taskbar and
+            // prevent focus theft; `WS_EX_TOPMOST` and the trailing
+            // `SetWindowPos(HWND_TOPMOST, …)` are belt-and-suspenders
+            // for the always-on-top requirement.
             let ex = GetWindowLongPtrW(h, GWL_EXSTYLE) as isize;
             let new_ex = ex
+                | WS_EX_LAYERED     as isize
                 | WS_EX_TRANSPARENT as isize
                 | WS_EX_TOPMOST     as isize
                 | WS_EX_TOOLWINDOW  as isize
@@ -723,11 +717,10 @@ mod win {
             SetWindowPos(h, HWND_TOPMOST, 0, 0, 0, 0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 
-            // Diagnostic: log the final extended style so we can see in
-            // the running app which alpha-path won.  `0x80000` = LAYERED,
-            // `0x200000` = NOREDIRECTIONBITMAP.  We expect NRB set and
-            // LAYERED clear; if LAYERED is on, the contradictory-flag
-            // bug crept back in somewhere.
+            // Diagnostic — log the final extended style so we can verify
+            // in the running app's log file which transparency path is
+            // in effect.  `0x80000` = LAYERED, `0x200000` = NRB.  We
+            // expect LAYERED set and NRB clear with this approach.
             let final_ex = GetWindowLongPtrW(h, GWL_EXSTYLE) as u32;
             log::info!(
                 "overlay extended-style after setup: 0x{final_ex:08x} \
