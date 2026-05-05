@@ -1041,6 +1041,7 @@ dependencies = [
  "exhale-core",
  "exhale-render",
  "global-hotkey",
+ "gtk",
  "log",
  "notify-rust",
  "objc",
