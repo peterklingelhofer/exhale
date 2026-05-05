@@ -76,6 +76,38 @@ impl OverlayHandle {
             .with_decorations(false)
             .with_resizable(false);
 
+        // Wayland-specific demotion: place the overlay at
+        // `AlwaysOnBottom` so other windows naturally cover it.  Wayland
+        // (Mutter/GNOME on Ubuntu's default session) doesn't expose any
+        // protocol winit can use for click-through — `wp_input_region`
+        // isn't surfaced through the winit API — so a topmost overlay
+        // would block every click that should go to the desktop or
+        // another app.  Bottom-stacking lets the user Alt-Tab past the
+        // overlay (other apps come in front of it), and Alt-Tab back to
+        // see the breath animation when they want it.  On X11 sessions
+        // we keep our existing `setup_overlay_window` behavior with
+        // `_NET_WM_STATE_ABOVE` + XFixes click-through, where this isn't
+        // a problem.
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            let is_wayland = std::env::var("XDG_SESSION_TYPE")
+                .map(|s| s.eq_ignore_ascii_case("wayland"))
+                .unwrap_or(false);
+            if is_wayland {
+                attrs = attrs.with_window_level(
+                    winit::window::WindowLevel::AlwaysOnBottom,
+                );
+                log::info!(
+                    "Wayland session detected: placing overlay at \
+                     AlwaysOnBottom so other windows can cover it.  \
+                     Wayland has no portable click-through API — for \
+                     full overlay behavior log out and pick \
+                     'Ubuntu on Xorg' (or any X11 session) at the \
+                     login screen."
+                );
+            }
+        }
+
         if let Some(m) = monitor.as_ref() {
             let pos  = m.position();
             let size = m.size();
