@@ -976,6 +976,15 @@ mod nix {
         let Some(x)    = X11::open(&xlib, xfixes.as_ref(), xwin) else { return; };
 
         x.set_click_through();
+        // `_NET_WM_STATE_FULLSCREEN` is what makes the overlay cover
+        // the panel / dock on EWMH-compliant window managers.  Without
+        // it, GNOME-Shell / Mutter / Xfwm reserve the dock area and
+        // force our window into the work-area rectangle, leaving a
+        // visible gap where the dock sits — even when we requested
+        // monitor-spanning geometry from winit.  `_NET_WM_STATE_ABOVE`
+        // (kept below) is for stacking against other normal windows;
+        // FULLSCREEN is for covering struts / panels.
+        x.set_wm_state(b"_NET_WM_STATE_FULLSCREEN",   true);
         x.set_wm_state(b"_NET_WM_STATE_ABOVE",        true);
         x.set_wm_state(b"_NET_WM_STATE_STICKY",       true);
         x.set_wm_state(b"_NET_WM_STATE_SKIP_TASKBAR", true);

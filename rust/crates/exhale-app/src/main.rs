@@ -619,8 +619,29 @@ impl ApplicationHandler<AppEvent> for App {
                         }
                     }
                     WindowEvent::CloseRequested => {
-                        if let Some(sw) = &self.settings_win {
-                            sw.window.set_visible(false);
+                        // Platform-conventional behavior:
+                        //   macOS / Windows — closing the settings
+                        //     window HIDES it; the menu bar (mac) / tray
+                        //     icon (win) keeps the app alive. Matches
+                        //     NSApp + tray-resident-app conventions.
+                        //   Linux — closing the window QUITS the app.
+                        //     Tray-icon support is unreliable across DEs
+                        //     (Ubuntu has it via AppIndicator extension;
+                        //     many distros / sessions don't show the
+                        //     tray icon at all), and on Wayland sessions
+                        //     where overlay click-through isn't honored,
+                        //     the close button may be the only way the
+                        //     user can dismiss the app.  Quit-on-close
+                        //     gives them a guaranteed escape hatch.
+                        #[cfg(all(unix, not(target_os = "macos")))]
+                        {
+                            self.shutdown(event_loop);
+                        }
+                        #[cfg(any(target_os = "macos", target_os = "windows"))]
+                        {
+                            if let Some(sw) = &self.settings_win {
+                                sw.window.set_visible(false);
+                            }
                         }
                     }
                     _ => {}
