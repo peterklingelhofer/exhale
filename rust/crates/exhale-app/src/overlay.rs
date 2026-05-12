@@ -111,9 +111,27 @@ impl OverlayHandle {
         if let Some(m) = monitor.as_ref() {
             let pos  = m.position();
             let size = m.size();
+            // On Windows, shrink the overlay by 1 px on the bottom edge.
+            // Windows treats a topmost window that exactly matches the
+            // monitor's geometry as an "exclusive fullscreen
+            // application" and suspends the auto-hide taskbar reveal
+            // logic — moving the mouse to the bottom edge produces no
+            // animation.  Coming up 1 pixel short prevents the
+            // fullscreen-app classification, the taskbar trigger zone
+            // reappears, and the visible breath animation loses only
+            // the bottom physical pixel (imperceptible against the
+            // soft animated gradient).  Other platforms keep the
+            // exact monitor size — macOS doesn't have this issue;
+            // X11 EWMH FULLSCREEN we apply elsewhere is the intended
+            // signal there.
+            let win_h = if cfg!(target_os = "windows") {
+                size.height.saturating_sub(1).max(1)
+            } else {
+                size.height.max(1)
+            };
             attrs = attrs
                 .with_position(PhysicalPosition::new(pos.x, pos.y))
-                .with_inner_size(PhysicalSize::new(size.width.max(1), size.height.max(1)));
+                .with_inner_size(PhysicalSize::new(size.width.max(1), win_h));
         }
 
         let window = Arc::new(event_loop.create_window(attrs)?);
