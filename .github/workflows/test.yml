@@ -29,6 +29,13 @@ jobs:
           CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
       - name: Run tests
+        # `CI=true` is set on the runner shell by GitHub Actions, but
+        # Xcode's xctest target doesn't always inherit it.  Pass it
+        # explicitly via the step `env:` so the PerformanceTests
+        # `isCI` branch picks the looser CPU thresholds calibrated
+        # for runner noise instead of the tighter local thresholds.
+        env:
+          CI: "true"
         run: >
           xcodebuild test -project exhale.xcodeproj -scheme exhale
           -destination 'platform=macOS' -configuration Debug
