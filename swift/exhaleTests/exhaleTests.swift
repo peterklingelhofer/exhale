@@ -1575,7 +1575,15 @@ class PerformanceTests: XCTestCase {
         // Measured baselines (2026-03-28):
         //   no-ripple: avg ≤ 2.6%, peak ≤ 2.9%
         //   ripple:    avg ≤ 2.4%, peak ≤ 3.5%
-        let isCI = ProcessInfo.processInfo.environment["CI"] != nil
+        // Detect CI via multiple env vars — Xcode's test runner doesn't
+        // always inherit `CI` from the parent shell, but the more
+        // specific runner identifiers (`GITHUB_ACTIONS`, `CI_SERVER`)
+        // are set per-process and reliably propagate to the xctest target.
+        let env = ProcessInfo.processInfo.environment
+        let isCI = env["CI"] != nil
+            || env["GITHUB_ACTIONS"] != nil
+            || env["RUNNER_OS"] != nil
+            || env["CI_SERVER"] != nil
         let hasRipple = holdRipple != .off
         let peakThreshold: Double = isCI ? (hasRipple ? 15.0 : 12.0) : (hasRipple ? 10.0 : 8.0)
         let avgThreshold: Double  = isCI ? (hasRipple ? 10.0 : 8.0 ) : (hasRipple ? 8.0  : 6.0)
