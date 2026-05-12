@@ -733,6 +733,26 @@ mod win {
         }
     }
 
+    /// Re-bump the overlay HWND to the front of the topmost z-band.
+    /// Windows orders topmost windows by activation, so a newly-opened
+    /// app — even one without `WS_EX_TOPMOST` — can land above our
+    /// overlay if the user activates it (the OS treats activation as a
+    /// foreground promotion).  Calling `SetWindowPos(HWND_TOPMOST, …)`
+    /// with `SWP_NOACTIVATE` re-asserts overlay topmost without
+    /// stealing focus from whatever the user is currently working in.
+    ///
+    /// We don't reset window styles or geometry — just the z-order
+    /// position — so the call is cheap (a few microseconds) and safe
+    /// to invoke on a regular cadence from the overlay render loop.
+    pub fn reassert_overlay_topmost(window: &Window) {
+        let h = hwnd(window);
+        if h.is_null() { return; }
+        unsafe {
+            SetWindowPos(h, HWND_TOPMOST, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+    }
+
     pub fn setup_settings_window(window: &Window) {
         // Mark the settings window topmost so it can rise ABOVE the
         // breathing overlay (which is also `WS_EX_TOPMOST`).  Windows
@@ -868,10 +888,17 @@ mod win {
 
 #[cfg(target_os = "windows")]
 pub use win::{
-    apply_app_visibility, install_settings_vibrancy, sync_settings_backdrop_frame,
-    update_settings_vibrancy, register_reopen_handler,
+    apply_app_visibility, install_settings_vibrancy, reassert_overlay_topmost,
+    sync_settings_backdrop_frame, update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
 };
+
+/// Non-Windows no-op for `reassert_overlay_topmost`.  Only Windows
+/// orders topmost-windows by activation in a way that lets a newly-
+/// opened app rise above ours — macOS pins by window level, Linux X11
+/// pins by EWMH state, neither needs periodic re-assertion.
+#[cfg(not(target_os = "windows"))]
+pub fn reassert_overlay_topmost(_window: &winit::window::Window) {}
 
 // ─── Linux / BSD (X11) ───────────────────────────────────────────────────────
 //

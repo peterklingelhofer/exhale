@@ -30,6 +30,12 @@ pub struct SettingsWindow {
     egui_renderer:         egui_wgpu::Renderer,
     gpu:                   Arc<GpuContext>,
     pending_reset:         bool,
+    /// Set to true when the user clicks the Quit button in the
+    /// settings Controls row.  `main.rs` reads this after each
+    /// `render()` and dispatches `AppEvent::Quit` if set.  Using a
+    /// flag (instead of a direct event-loop proxy reference) keeps
+    /// `SettingsWindow` decoupled from `AppEvent`.
+    pending_quit:          bool,
     /// Tracks the OS appearance so egui visuals + the wgpu clear color stay
     /// in sync with Light/Dark mode.  `None` means the platform doesn't
     /// report a theme (some Linux desktops); we default to Dark there.
@@ -57,6 +63,8 @@ struct IconCache {
     stop_light:   Option<egui::TextureHandle>,
     reset_dark:   Option<egui::TextureHandle>,
     reset_light:  Option<egui::TextureHandle>,
+    quit_dark:    Option<egui::TextureHandle>,
+    quit_light:   Option<egui::TextureHandle>,
 }
 
 impl IconCache {
@@ -68,6 +76,12 @@ impl IconCache {
             stop_light:  load_sf_icon(ctx, "stop.circle.fill",                  false),
             reset_dark:  load_sf_icon(ctx, "arrow.counterclockwise.circle.fill", true),
             reset_light: load_sf_icon(ctx, "arrow.counterclockwise.circle.fill", false),
+            // `power.circle.fill` reads as a power-off / quit affordance in
+            // SF Symbols and visually pairs with the other circle.fill
+            // icons in the row.  Unicode fallback is U+23FB POWER SYMBOL
+            // for non-mac platforms.
+            quit_dark:   load_sf_icon(ctx, "power.circle.fill",                 true),
+            quit_light:  load_sf_icon(ctx, "power.circle.fill",                 false),
         }
     }
 
@@ -79,6 +93,9 @@ impl IconCache {
     }
     fn reset(&self, dark: bool) -> Option<&egui::TextureHandle> {
         if dark { self.reset_dark.as_ref() } else { self.reset_light.as_ref() }
+    }
+    fn quit(&self, dark: bool) -> Option<&egui::TextureHandle> {
+        if dark { self.quit_dark.as_ref() } else { self.quit_light.as_ref() }
     }
 }
 
@@ -301,6 +318,7 @@ impl SettingsWindow {
         Ok(Self {
             window, surface, config, egui_ctx, egui_state, egui_renderer, gpu,
             pending_reset: false,
+            pending_quit:  false,
             theme,
             vev_ptr,
             icon_cache,
@@ -347,6 +365,14 @@ impl SettingsWindow {
     #[cfg(feature = "global-hotkeys")]
     pub fn request_reset_confirmation(&mut self) {
         self.pending_reset = true;
+    }
+
+    /// Return whether the Quit button was clicked since the last
+    /// check, clearing the flag.  `main.rs` polls this after each
+    /// `render()` and dispatches `AppEvent::Quit` when it returns
+    /// `true`.
+    pub fn take_pending_quit(&mut self) -> bool {
+        std::mem::take(&mut self.pending_quit)
     }
 
     /// Render one egui frame onto the settings surface.
@@ -405,6 +431,7 @@ impl SettingsWindow {
             content_height = settings_ui(
                 ctx, settings, settings_manager,
                 &mut self.pending_reset,
+                &mut self.pending_quit,
                 &self.icon_cache,
             );
         });
@@ -539,6 +566,7 @@ fn settings_ui(
     settings:         &mut Settings,
     settings_manager: &Arc<SettingsManager>,
     pending_reset:    &mut bool,
+    pending_quit:     &mut bool,
     icons:            &IconCache,
 ) -> f32 {
     let mut dirty = false;
@@ -629,7 +657,7 @@ fn settings_ui(
                 ui.horizontal(|ui| {
                     const BUTTON_SPACING: f32 = 8.0;
                     ui.spacing_mut().item_spacing.x = BUTTON_SPACING;
-                    let n_buttons = 3.0_f32;
+                    let n_buttons = 4.0_f32;
                     let avail = ui.available_width();
                     let btn_w = ((avail - BUTTON_SPACING * (n_buttons - 1.0))
                                  / n_buttons)
@@ -680,6 +708,21 @@ fn settings_ui(
                         settings.settings_window_height  = win_h;
                         settings.settings_window_screen  = win_screen;
                         dirty = true;
+                    }
+                    // Quit — full shutdown.  The `pending_quit` flag
+                    // is read back by `main.rs` after `render()`
+                    // returns and dispatched as `AppEvent::Quit`,
+                    // matching the tray-menu Quit path so all
+                    // teardown (settings flush, controller stop,
+                    // tray destroy) runs in the canonical order.
+                    if control_button(
+                        ui, btn_w,
+                        "\u{23FB}", icons.quit(dark),
+                        "Quit",
+                        "Quit exhale (full shutdown).",
+                    ).clicked()
+                    {
+                        *pending_quit = true;
                     }
                 });
             });

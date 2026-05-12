@@ -64,6 +64,17 @@ global-hotkey = { workspace = true, optional = true }
 objc  = "0.2"
 block = "0.1"
 
+# Windows-only build script: converts the shared `exhaleColorGradient512.png`
+# to a multi-resolution `.ico` and embeds it into the `.exe` so the
+# binary has a proper icon in File Explorer / Start menu / Alt-Tab.
+# Plain (host-conditional) build-dependencies so the workflow can
+# build for Windows from any host that has the resource compiler
+# (the GitHub Actions `windows-latest` runner has it).
+[build-dependencies]
+image       = { version = "0.25", default-features = false, features = ["png"] }
+ico         = "0.4"
+winresource = "0.1"
+
 [target.'cfg(target_os = "windows")'.dependencies]
 notify-rust = { workspace = true }
 windows-sys = { version = "0.59", features = [

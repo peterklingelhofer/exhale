@@ -83,7 +83,11 @@ impl Default for Settings {
             color_fill_gradient: ColorFillGradient::On,
             animation_mode:      AnimationMode::Sinusoidal,
             hold_ripple_mode:    HoldRippleMode::Gradient,
-            app_visibility:      AppVisibility::TopBarOnly,
+            // Show both the menu-bar / tray icon AND the Dock / taskbar
+            // entry by default — users new to the app are more likely to
+            // notice it in the Dock, and discovering the tray-only mode
+            // via Preferences once is easy.
+            app_visibility:      AppVisibility::Both,
 
             inhale_duration:           5.0,
             post_inhale_hold_duration: 0.0,

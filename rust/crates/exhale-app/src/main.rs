@@ -1,3 +1,12 @@
+// On Windows, suppress the console window that pops up alongside the
+// app when launched from Explorer / Start.  `release` builds get the
+// `windows` subsystem (no console), `debug` builds keep the console so
+// `cargo run` and `RUST_LOG` output remain visible while developing.
+//
+// Linux + macOS aren't affected — they don't have the implicit-console
+// behavior Windows does for entry-point executables.
+#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
+
 #[cfg(feature = "global-hotkeys")]
 mod hotkeys;
 mod overlay;
@@ -79,6 +88,15 @@ struct App {
     // loop at refresh rate while the settings window was visible.
     next_settings_repaint: Option<Instant>,
 
+    // Throttle for `platform::reassert_overlay_topmost` on Windows —
+    // Windows orders topmost windows by activation, so a newly-opened
+    // app can land above our overlay until we re-bump it to the front
+    // of the topmost band.  We re-assert at most once per second
+    // (negligible CPU vs every-frame, still imperceptible latency
+    // before the overlay reclaims the top).  None = never re-asserted
+    // yet; gets set after the first call.
+    next_topmost_reassert: Option<Instant>,
+
     // Breathing controller.
     controller: Option<BreathingController>,
 
@@ -109,6 +127,7 @@ impl App {
             settings_win:     None,
             settings_win_id:  None,
             next_settings_repaint: None,
+            next_topmost_reassert: None,
             controller:       None,
             _tray:            None,
             tray_ids:         None,
@@ -265,6 +284,20 @@ impl App {
             progress:  0.0,
             hold_time: 0.0,
         });
+
+        // Re-assert topmost at most once per second.  Cheap call but
+        // calling it on every render (10–30 Hz) is overkill — a 1 s
+        // cadence still reclaims the top of the z-band fast enough
+        // that a newly-launched app is only briefly above the overlay.
+        // No-op on non-Windows.
+        let now = Instant::now();
+        let due = self.next_topmost_reassert.map_or(true, |t| now >= t);
+        if due {
+            for handle in self.overlays.values() {
+                platform::reassert_overlay_topmost(&handle.window);
+            }
+            self.next_topmost_reassert = Some(now + std::time::Duration::from_secs(1));
+        }
 
         for handle in self.overlays.values_mut() {
             if let Err(e) = handle.render(&state, &settings, self.primary_max_circle_scale) {
@@ -542,6 +575,16 @@ impl ApplicationHandler<AppEvent> for App {
                             Ok(d)  => d,
                             Err(e) => { error!("settings render: {e}"); std::time::Duration::MAX }
                         };
+
+                        // If the user clicked the Quit button in the
+                        // Controls row, the render path set
+                        // `pending_quit` on the SettingsWindow.  Drain
+                        // it here and dispatch the same Quit event the
+                        // tray-menu path uses, so all teardown runs
+                        // through `shutdown` in the canonical order.
+                        if sw.take_pending_quit() {
+                            let _ = self.proxy.send_event(AppEvent::Quit);
+                        }
 
                         // Commit the (possibly-mutated) snapshot back.  The
                         // write lock is held only for a struct assignment,
