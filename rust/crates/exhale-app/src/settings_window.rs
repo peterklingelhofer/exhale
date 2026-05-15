@@ -671,7 +671,7 @@ fn settings_ui(
                     if control_button(
                         ui, btn_w,
                         "\u{25B6}", icons.play(dark),
-                        None,
+                        None, 0.0,
                         "Start",
                         "Start the app and re-initialize animation.",
                     ).clicked()
@@ -683,7 +683,7 @@ fn settings_ui(
                     if control_button(
                         ui, btn_w,
                         "\u{25A0}", icons.stop(dark),
-                        None,
+                        None, 0.0,
                         "Stop",
                         "Stop the animation and remove all screen tints.",
                     ).clicked()
@@ -695,7 +695,7 @@ fn settings_ui(
                     if control_button(
                         ui, btn_w,
                         "\u{21BA}", icons.reset(dark),
-                        None,
+                        None, 0.0,
                         "Reset",
                         "Reset all settings to their default values.",
                     ).clicked()
@@ -745,7 +745,14 @@ fn settings_ui(
                         // here so the `×` lands at the same visible
                         // height as the other three icons.
                         "\u{00D7}", icons.quit(dark),
-                        Some(20.0),
+                        // `×` lives at the math-axis (below the
+                        // em-center) instead of the em-center where
+                        // Geometric Shapes glyphs sit, so even when
+                        // both galleys are CENTER_CENTER-aligned at
+                        // the same baseline the visible `×` lands a
+                        // couple of pixels low.  Lift it ~2 px so the
+                        // four icons read as a single horizontal row.
+                        Some(20.0), -2.0,
                         "Quit",
                         "Quit exhale (full shutdown).",
                     ).clicked()
@@ -1075,12 +1082,21 @@ fn section_header(ui: &mut egui::Ui, text: &str) {
 /// the Geometric Shapes glyphs the other buttons use (`▶ ■ ↺`, all
 /// full-em).  `None` keeps the default 14 pt sizing.  Has no effect
 /// when an SF Symbol texture is in use.
+///
+/// `icon_y_offset` shifts the Unicode-fallback glyph vertically (px,
+/// negative = up) after `Align2::CENTER_CENTER` has placed its galley.
+/// Some glyphs sit at the math-axis (e.g. `×` in Latin-1) instead of
+/// the em-center where Geometric Shapes glyphs live, so even at
+/// matched font sizes their visual centers land at different
+/// y-coordinates.  A small negative offset re-aligns those low-sitting
+/// glyphs with the row's other icons.
 fn control_button(
     ui:                      &mut egui::Ui,
     width:                   f32,
     icon:                    &str,
     icon_texture:            Option<&egui::TextureHandle>,
     icon_font_size_override: Option<f32>,
+    icon_y_offset:           f32,
     text:                    &str,
     help:                    &str,
 ) -> egui::Response {
@@ -1202,7 +1218,7 @@ fn control_button(
         );
     } else {
         painter.text(
-            egui::pos2(start_x + icon_w * 0.5, baseline_y),
+            egui::pos2(start_x + icon_w * 0.5, baseline_y + icon_y_offset),
             egui::Align2::CENTER_CENTER,
             icon,
             font_icon,
