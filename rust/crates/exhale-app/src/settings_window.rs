@@ -78,8 +78,11 @@ impl IconCache {
             reset_light: load_sf_icon(ctx, "arrow.counterclockwise.circle.fill", false),
             // `power.circle.fill` reads as a power-off / quit affordance in
             // SF Symbols and visually pairs with the other circle.fill
-            // icons in the row.  Unicode fallback is U+23FB POWER SYMBOL
-            // for non-mac platforms.
+            // icons in the row.  Non-mac platforms fall back to the
+            // Unicode glyph in the call site (U+2715 HEAVY MULTIPLICATION
+            // X — supported by every system UI font; the earlier
+            // U+23FB POWER SYMBOL was missing from Segoe UI / egui's
+            // bundled fallbacks and rendered as a tofu box on Windows).
             quit_dark:   load_sf_icon(ctx, "power.circle.fill",                 true),
             quit_light:  load_sf_icon(ctx, "power.circle.fill",                 false),
         }
@@ -717,7 +720,12 @@ fn settings_ui(
                     // tray destroy) runs in the canonical order.
                     if control_button(
                         ui, btn_w,
-                        "\u{23FB}", icons.quit(dark),
+                        // U+2715 HEAVY MULTIPLICATION X — Dingbats block,
+                        // present in every system UI font we ship over
+                        // (Segoe UI on Windows, Ubuntu / Cantarell /
+                        // Noto on Linux, SF Pro on macOS).  Reads
+                        // unambiguously as "close / quit."
+                        "\u{2715}", icons.quit(dark),
                         "Quit",
                         "Quit exhale (full shutdown).",
                     ).clicked()
