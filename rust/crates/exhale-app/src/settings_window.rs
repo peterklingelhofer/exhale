@@ -671,6 +671,7 @@ fn settings_ui(
                     if control_button(
                         ui, btn_w,
                         "\u{25B6}", icons.play(dark),
+                        None,
                         "Start",
                         "Start the app and re-initialize animation.",
                     ).clicked()
@@ -682,6 +683,7 @@ fn settings_ui(
                     if control_button(
                         ui, btn_w,
                         "\u{25A0}", icons.stop(dark),
+                        None,
                         "Stop",
                         "Stop the animation and remove all screen tints.",
                     ).clicked()
@@ -693,6 +695,7 @@ fn settings_ui(
                     if control_button(
                         ui, btn_w,
                         "\u{21BA}", icons.reset(dark),
+                        None,
                         "Reset",
                         "Reset all settings to their default values.",
                     ).clicked()
@@ -733,7 +736,16 @@ fn settings_ui(
                         // glyph-icon scale and stays monochrome so it
                         // pairs with the other Geometric-Shapes icons
                         // (▶ / ■ / ↺) in the row.
+                        //
+                        // `×` is intrinsically sized to lowercase
+                        // x-height (Latin-1 lives alongside `é` `ñ`
+                        // etc.), so at the default 14 pt it renders
+                        // visibly shorter than the full-em-box
+                        // Geometric Shapes glyphs.  Override to 20 pt
+                        // here so the `×` lands at the same visible
+                        // height as the other three icons.
                         "\u{00D7}", icons.quit(dark),
+                        Some(20.0),
                         "Quit",
                         "Quit exhale (full shutdown).",
                     ).clicked()
@@ -1055,13 +1067,22 @@ fn section_header(ui: &mut egui::Ui, text: &str) {
 /// `icon` is the Unicode fallback glyph used when `icon_texture` is
 /// `None` (non-macOS, or symbol rasterisation failed).  When a texture
 /// is supplied we render the real SF Symbol bitmap instead.
+///
+/// `icon_font_size_override` lets a caller bump the font size used for
+/// the Unicode fallback glyph specifically — useful when the chosen
+/// glyph lives in a Unicode block (e.g. Latin-1 Supplement, where `×`
+/// is sized to lowercase x-height) that renders visually smaller than
+/// the Geometric Shapes glyphs the other buttons use (`▶ ■ ↺`, all
+/// full-em).  `None` keeps the default 14 pt sizing.  Has no effect
+/// when an SF Symbol texture is in use.
 fn control_button(
-    ui:           &mut egui::Ui,
-    width:        f32,
-    icon:         &str,
-    icon_texture: Option<&egui::TextureHandle>,
-    text:         &str,
-    help:         &str,
+    ui:                      &mut egui::Ui,
+    width:                   f32,
+    icon:                    &str,
+    icon_texture:            Option<&egui::TextureHandle>,
+    icon_font_size_override: Option<f32>,
+    text:                    &str,
+    help:                    &str,
 ) -> egui::Response {
     // Match Swift's `.padding(.vertical, 6)` around a 16-pt SF Symbol +
     // 12-pt label.  ROW_H + 6 ≈ 28 lands on the same physical button
@@ -1142,10 +1163,17 @@ fn control_button(
     // Symbol texture is available (macOS only) we paint that; otherwise
     // we fall back to the Unicode glyph (▶ ■ ↺).
     let font_label = egui::FontId::proportional(12.0);
+    // Default Unicode-glyph size is 14 pt (matches Geometric-Shapes
+    // glyphs like `▶ ■ ↺` filling the em-box to ~14 px visible).  The
+    // caller can override for glyphs that are intrinsically smaller
+    // (Latin-1 `×`, lowercase x-height) — bumping the font size brings
+    // them up to visual parity with the other icons.
+    let icon_font_size = icon_font_size_override.unwrap_or(14.0);
+    let font_icon = egui::FontId::proportional(icon_font_size);
     // Match Swift's `.imageScale(.medium)` — 16 pt SF Symbol next to a
     // 12-pt label.
     let icon_w     = if icon_texture.is_some() { 16.0 } else {
-        ui.fonts(|f| f.layout_no_wrap(icon.to_string(), egui::FontId::proportional(14.0), content_color).size()).x
+        ui.fonts(|f| f.layout_no_wrap(icon.to_string(), font_icon.clone(), content_color).size()).x
     };
     let label_size = ui.fonts(|f| f.layout_no_wrap(text.to_string(), font_label.clone(), content_color).size());
     let gap        = 6.0_f32;
@@ -1177,7 +1205,7 @@ fn control_button(
             egui::pos2(start_x + icon_w * 0.5, baseline_y),
             egui::Align2::CENTER_CENTER,
             icon,
-            egui::FontId::proportional(14.0),
+            font_icon,
             content_color,
         );
     }
