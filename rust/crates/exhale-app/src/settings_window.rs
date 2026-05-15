@@ -720,12 +720,20 @@ fn settings_ui(
                     // tray destroy) runs in the canonical order.
                     if control_button(
                         ui, btn_w,
-                        // U+2715 HEAVY MULTIPLICATION X — Dingbats block,
-                        // present in every system UI font we ship over
-                        // (Segoe UI on Windows, Ubuntu / Cantarell /
-                        // Noto on Linux, SF Pro on macOS).  Reads
-                        // unambiguously as "close / quit."
-                        "\u{2715}", icons.quit(dark),
+                        // U+00D7 MULTIPLICATION SIGN — Latin-1 Supplement
+                        // block, part of basic Western font coverage so
+                        // every TTF / OTF system UI font carries it by
+                        // default.  Previous attempts (U+23FB POWER
+                        // SYMBOL, U+2715 HEAVY MULTIPLICATION X) lived
+                        // in Misc Technical / Dingbats blocks, and
+                        // Segoe UI's regular face on Windows skips
+                        // those — egui's font-fallback chain then
+                        // rendered the tofu / missing-glyph box.
+                        // `×` reads unambiguously as "close / quit" at
+                        // glyph-icon scale and stays monochrome so it
+                        // pairs with the other Geometric-Shapes icons
+                        // (▶ / ■ / ↺) in the row.
+                        "\u{00D7}", icons.quit(dark),
                         "Quit",
                         "Quit exhale (full shutdown).",
                     ).clicked()
