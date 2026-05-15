@@ -88,6 +88,17 @@ struct App {
     // loop at refresh rate while the settings window was visible.
     next_settings_repaint: Option<Instant>,
 
+    // Wall-clock time of the most recent settings-window render.  Used
+    // to cap the settings repaint cadence at ~30 fps (33 ms minimum
+    // between renders), so high-frequency egui repaint requests from
+    // mouse-hover storms don't burn idle CPU or crowd out the
+    // overlay's main-thread / wgpu-queue / DXGI-present slots.  Always
+    // on (not gated to "while animating") — 33 ms is below human
+    // perception for hover responsiveness, and the cap protects
+    // battery life on idle settings panels too.  `None` means we
+    // haven't rendered yet.
+    last_settings_render: Option<Instant>,
+
     // Throttle for `platform::reassert_overlay_topmost` on Windows —
     // Windows orders topmost windows by activation, so a newly-opened
     // app can land above our overlay until we re-bump it to the front
@@ -127,6 +138,7 @@ impl App {
             settings_win:     None,
             settings_win_id:  None,
             next_settings_repaint: None,
+            last_settings_render:  None,
             next_topmost_reassert: None,
             controller:       None,
             _tray:            None,
@@ -504,8 +516,41 @@ impl ApplicationHandler<AppEvent> for App {
                 // paint and we spin at refresh rate.  Skip it: we're already
                 // about to render below, no second request needed.
                 if wants_repaint && !matches!(event, WindowEvent::RedrawRequested) {
-                    sw.request_redraw();
-                    self.next_settings_repaint = None;
+                    // Always cap the settings window's repaint cadence
+                    // at ~30 fps (33 ms minimum between renders).  egui
+                    // fires `wants_repaint = true` on every
+                    // `CursorMoved` event so it can refresh hover
+                    // colours / tooltips — moving the mouse fast over
+                    // the settings window produces 100+ repaint
+                    // requests per second otherwise.  At that rate:
+                    //   • on Windows, repaints contend with the overlay
+                    //     for the main thread, the shared wgpu device
+                    //     queue, and DXGI flip-model present sync,
+                    //     producing visible animation lag.
+                    //   • on every platform, it burns idle CPU /
+                    //     battery for hover effects nobody would
+                    //     notice rendered at 1000 fps vs 30 fps.
+                    // 33 ms is well below the ~80 ms human perception
+                    // threshold for hover responsiveness, so the
+                    // throttle is invisible to users.  Discrete
+                    // controls (steppers, color picker, checkboxes)
+                    // don't benefit from higher cadences than this.
+                    const MIN_REPAINT_INTERVAL: std::time::Duration
+                        = std::time::Duration::from_millis(33);
+                    let now = Instant::now();
+                    let throttled_until = self.last_settings_render
+                        .map(|t| t + MIN_REPAINT_INTERVAL);
+                    if let Some(t) = throttled_until.filter(|&t| now < t) {
+                        // Inside the throttle window — defer the
+                        // repaint to `about_to_wait`, which already
+                        // wakes the event loop at `next_settings_repaint`.
+                        self.next_settings_repaint = Some(
+                            self.next_settings_repaint.map_or(t, |prev| prev.min(t))
+                        );
+                    } else {
+                        sw.request_redraw();
+                        self.next_settings_repaint = None;
+                    }
                 }
                 match &event {
                     WindowEvent::Moved(pos) => {
@@ -590,6 +635,12 @@ impl ApplicationHandler<AppEvent> for App {
                             Ok(d)  => d,
                             Err(e) => { error!("settings render: {e}"); std::time::Duration::MAX }
                         };
+                        // Timestamp the actual render so the
+                        // hover-storm throttle (above, in the
+                        // `wants_repaint` branch) can keep the
+                        // settings window at ≤ 30 fps while the
+                        // overlay animation is active.
+                        self.last_settings_render = Some(Instant::now());
 
                         // If the user clicked the Quit button in the
                         // Controls row, the render path set
