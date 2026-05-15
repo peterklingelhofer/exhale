@@ -290,11 +290,26 @@ impl App {
         // cadence still reclaims the top of the z-band fast enough
         // that a newly-launched app is only briefly above the overlay.
         // No-op on non-Windows.
+        //
+        // After bumping the overlay to the front of the topmost band,
+        // immediately bump the settings window (when visible) so it
+        // ends up ABOVE the overlay.  Without this, the overlay's
+        // re-assert would land it above the settings window once per
+        // second — letting the breath animation cover the controls and
+        // making `overlay_opacity = 1.0` lock the user out.  The
+        // settings window also carries `WS_EX_TOPMOST` on Windows, so
+        // the final SetWindowPos(HWND_TOPMOST) on it places it at the
+        // top of the topmost band, ahead of the just-bumped overlay.
         let now = Instant::now();
         let due = self.next_topmost_reassert.map_or(true, |t| now >= t);
         if due {
             for handle in self.overlays.values() {
                 platform::reassert_overlay_topmost(&handle.window);
+            }
+            if let Some(sw) = &self.settings_win {
+                if sw.window.is_visible().unwrap_or(false) {
+                    platform::reassert_overlay_topmost(&sw.window);
+                }
             }
             self.next_topmost_reassert = Some(now + std::time::Duration::from_secs(1));
         }
