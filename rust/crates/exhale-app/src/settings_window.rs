@@ -704,7 +704,17 @@ fn settings_ui(
                     if control_button(
                         ui, btn_w,
                         "\u{21BA}", icons.reset(dark),
-                        None, 0.0,
+                        // U+21BA ANTICLOCKWISE OPEN CIRCLE ARROW lives
+                        // in the Arrows block, and Segoe UI draws it
+                        // taller than the Geometric Shapes glyphs
+                        // (`▶ ■`) — arrows traditionally reach into
+                        // the ascender region.  Drop the font size to
+                        // 12 pt so the rendered glyph is the same
+                        // visible height as the other icons in the
+                        // row.  Applies only on the Unicode fallback
+                        // path (Windows + Linux); macOS uses the SF
+                        // Symbol texture which is sized uniformly.
+                        Some(12.0), 0.0,
                         "Reset",
                         "Reset all settings to their default values.",
                     ).clicked()
