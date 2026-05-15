@@ -683,7 +683,16 @@ fn settings_ui(
                     if control_button(
                         ui, btn_w,
                         "\u{25A0}", icons.stop(dark),
-                        None, 0.0,
+                        // Segoe UI (Windows) draws U+25A0 BLACK SQUARE
+                        // baseline-to-cap-height instead of em-centered
+                        // — same family of issue as Quit's `×` but
+                        // milder.  A 1 px lift brings the square back
+                        // into visual alignment with the "Stop" label.
+                        // This offset is only applied on the Unicode
+                        // fallback path (Windows + Linux); macOS uses
+                        // the SF Symbol texture which is em-centered
+                        // by design and bypasses `painter.text` entirely.
+                        None, -1.0,
                         "Stop",
                         "Stop the animation and remove all screen tints.",
                     ).clicked()
