@@ -168,23 +168,33 @@ impl SettingsWindow {
         let initial_h = saved_h
             .unwrap_or(INITIAL_PREFERRED_H)
             .max(SETTINGS_MIN_HEIGHT);
-        // Request a transparent window everywhere EXCEPT Windows.  On
-        // macOS / Linux X11, winit's `with_transparent(true)` selects an
-        // alpha-capable visual / clearColor background so the OS-level
-        // blur effect (NSVisualEffectView child window, KDE
-        // blur-behind) can show through where egui doesn't paint.
+        // Transparent settings window is macOS-only.
         //
-        // Windows is special: winit's transparent flag adds
-        // `WS_EX_LAYERED` to the window, which (a) is incompatible with
-        // `DWMWA_SYSTEMBACKDROP_TYPE` (DWM silently ignores acrylic on
-        // layered windows), and (b) breaks DXGI flip-model swap chains
-        // that wgpu uses — the result is an opaque black window even
-        // though every other transparency knob is set.  On Windows we
-        // get a normal HWND, then DWMWA_SYSTEMBACKDROP_TYPE composes
-        // acrylic behind the entire client area, and our wgpu surface's
-        // `PostMultiplied` alpha mode lets DWM blend our transparent
-        // pixels over that acrylic.  No layered window needed.
-        let want_transparent = !cfg!(target_os = "windows");
+        // On macOS we install an NSVisualEffectView child window behind
+        // the settings NSWindow to get the AppKit vibrancy / blur
+        // backdrop; the wgpu surface clears at alpha 0 and the egui
+        // panel fill is `TRANSPARENT`, so the VEV shows through.
+        //
+        // On Windows + Linux we deliberately render the settings
+        // window OPAQUE.  Previous attempts to wire up DWM acrylic on
+        // Windows and KDE blur-behind on Linux introduced two visible
+        // regressions:
+        //   1. The overlay layer composited above the settings
+        //      window's translucent client area in the z-stack,
+        //      making the breath animation render in FRONT of the
+        //      settings window (so opacity=1.0 trivially hid the
+        //      controls — no way to edit them back).
+        //   2. Mouse hover over the (DWM-composed alpha) settings
+        //      window forced DWM to recomposite the whole acrylic
+        //      stack per cursor move, producing very visible animation
+        //      lag on Windows.
+        // Both go away when the settings window is a plain opaque
+        // surface — `clear_color_for_theme` paints the themed panel
+        // colour directly and `panel_fill` is opaque too, so the
+        // window is just a normal Windows / Linux app window.
+        // macOS retains its vibrancy because Cocoa composes the VEV
+        // child window outside the wgpu pipeline entirely.
+        let want_transparent = cfg!(target_os = "macos");
         let attrs = Window::default_attributes()
             .with_title("exhale")
             .with_inner_size(winit::dpi::LogicalSize::new(SETTINGS_WIDTH, initial_h))
