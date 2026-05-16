@@ -131,7 +131,12 @@ fn run_variant(v: &Variant) {
         frames_cb.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     });
 
-    let ctrl = Arc::new(BreathingController::start(Arc::clone(&settings), request_draw));
+    let state_slot = Arc::new(std::sync::Mutex::new(None));
+    let ctrl = Arc::new(BreathingController::start(
+        Arc::clone(&settings),
+        state_slot,
+        request_draw,
+    ));
     *ctrl_slot.write().unwrap() = Some(Arc::downgrade(&ctrl));
 
     thread::sleep(Duration::from_secs_f64(WARMUP_SECONDS));
