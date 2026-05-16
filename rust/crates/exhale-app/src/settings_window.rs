@@ -28,7 +28,13 @@ pub struct SettingsWindow {
     egui_ctx:              egui::Context,
     egui_state:            egui_winit::State,
     egui_renderer:         egui_wgpu::Renderer,
-    gpu:                   Arc<GpuContext>,
+    /// Isolated per-window device + queue (own command queue),
+    /// minted from `GpuContext::new_render_device` so settings
+    /// rendering doesn't serialize behind the overlay's GPU work
+    /// on a single shared queue.  This is what removes the
+    /// hover-storm-induces-overlay-lag bottleneck on Windows.
+    device:                Arc<wgpu::Device>,
+    queue:                 Arc<wgpu::Queue>,
     pending_reset:         bool,
     /// Set to true when the user clicks the Quit button in the
     /// settings Controls row.  `main.rs` reads this after each
@@ -235,15 +241,17 @@ impl SettingsWindow {
         let surface: wgpu::Surface<'static> =
             gpu.instance.create_surface(Arc::clone(&window))?;
 
+        // Mint an isolated (Device, Queue) pair for this window so its
+        // GPU submits run on a separate command queue from the overlay's.
+        // On Windows/DX12 a shared device meant every hover-driven
+        // settings repaint serialised the overlay's next present on the
+        // same ID3D12CommandQueue, producing very visible breath-
+        // animation lag.  Per-window devices remove that contention
+        let (device, queue) = gpu.new_render_device()
+            .context("settings per-window device")?;
+
         let size = window.inner_size();
-        let caps = surface.get_capabilities(
-            &pollster::block_on(gpu.instance.request_adapter(
-                &wgpu::RequestAdapterOptions {
-                    compatible_surface: Some(&surface),
-                    ..Default::default()
-                }
-            )).context("settings adapter")?
-        );
+        let caps = surface.get_capabilities(&gpu.adapter);
         let format = caps.formats.iter()
             .copied()
             .find(|f| !f.is_srgb())
@@ -276,7 +284,7 @@ impl SettingsWindow {
             alpha_mode,
             view_formats:                  vec![],
         };
-        surface.configure(&gpu.device, &config);
+        surface.configure(&device, &config);
 
         // Install the NSVisualEffectView with a theme-appropriate material
         // so the Dark-mode vibrancy uses a neutral blend (underWindowBackground)
@@ -321,7 +329,7 @@ impl SettingsWindow {
             None,
         );
 
-        let egui_renderer = egui_wgpu::Renderer::new(&*gpu.device, format, None, 1, false);
+        let egui_renderer = egui_wgpu::Renderer::new(&device, format, None, 1, false);
 
         // Pre-rasterise SF Symbol icons for both themes — cheap one-shot
         // cost (~6 small RGBA blobs uploaded as textures) so the theme
@@ -329,7 +337,8 @@ impl SettingsWindow {
         let icon_cache = IconCache::load(&egui_ctx);
 
         Ok(Self {
-            window, surface, config, egui_ctx, egui_state, egui_renderer, gpu,
+            window, surface, config, egui_ctx, egui_state, egui_renderer,
+            device, queue,
             pending_reset: false,
             pending_quit:  false,
             theme,
@@ -361,7 +370,7 @@ impl SettingsWindow {
         if size.width == 0 || size.height == 0 { return; }
         self.config.width  = size.width;
         self.config.height = size.height;
-        self.surface.configure(&self.gpu.device, &self.config);
+        self.surface.configure(&self.device, &self.config);
         // Keep the vibrancy backdrop NSWindow the same size as the
         // settings window — AppKit auto-tracks child-window position but
         // NOT size, so we copy the parent's frame onto the backdrop here.
@@ -430,7 +439,7 @@ impl SettingsWindow {
         let output = match self.surface.get_current_texture() {
             Ok(t)  => t,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
-                self.surface.configure(&self.gpu.device, &self.config);
+                self.surface.configure(&self.device, &self.config);
                 return Ok(std::time::Duration::MAX);
             }
             Err(e) => return Err(e).context("settings get_current_texture"),
@@ -523,15 +532,15 @@ impl SettingsWindow {
         };
 
         let view = output.texture.create_view(&Default::default());
-        let mut encoder = self.gpu.device.create_command_encoder(
+        let mut encoder = self.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor { label: Some("egui-frame") }
         );
 
         for (id, delta) in &full_output.textures_delta.set {
-            self.egui_renderer.update_texture(&*self.gpu.device, &*self.gpu.queue, *id, delta);
+            self.egui_renderer.update_texture(&*self.device, &*self.queue, *id, delta);
         }
         self.egui_renderer.update_buffers(
-            &*self.gpu.device, &*self.gpu.queue, &mut encoder, &primitives, &screen_desc,
+            &*self.device, &*self.queue, &mut encoder, &primitives, &screen_desc,
         );
 
         {
@@ -557,7 +566,7 @@ impl SettingsWindow {
             self.egui_renderer.free_texture(id);
         }
 
-        self.gpu.queue.submit(std::iter::once(encoder.finish()));
+        self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
         Ok(repaint_delay)
     }
