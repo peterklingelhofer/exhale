@@ -14,10 +14,17 @@ const SHADER_SRC: &str = include_str!("shaders/overlay.wgsl");
 
 /// wgpu renderer for a single breathing overlay window.
 ///
-/// Each screen gets its own `OverlayRenderer`; all share the same
-/// [`GpuContext`] (device + queue).
+/// Each screen gets its own `OverlayRenderer` with its own **isolated
+/// `wgpu::Device` + `wgpu::Queue`** minted from the shared
+/// [`GpuContext`]'s adapter — so the overlay's command submissions
+/// don't serialize behind the settings window's on a shared queue.
+/// See `GpuContext::new_render_device` for the rationale.
 pub struct OverlayRenderer {
-    gpu:            Arc<GpuContext>,
+    /// Per-window device — owns its own `ID3D12CommandQueue` /
+    /// Metal queue / Vulkan queue.  Independent of any other
+    /// window's renderer.
+    device:         Arc<wgpu::Device>,
+    queue:          Arc<wgpu::Queue>,
     surface:        wgpu::Surface<'static>,
     config:         wgpu::SurfaceConfiguration,
     pipeline:       wgpu::RenderPipeline,
@@ -26,24 +33,26 @@ pub struct OverlayRenderer {
 }
 
 impl OverlayRenderer {
-    /// Create a renderer for an existing surface, sharing the GPU context.
+    /// Create a renderer for an existing surface.  Takes the shared
+    /// `GpuContext` to access the adapter + instance, then mints its
+    /// own (`Device`, `Queue`) pair so it doesn't share a command
+    /// queue with other windows' renderers.
     pub fn new(
         gpu:    Arc<GpuContext>,
         surface: wgpu::Surface<'static>,
         width:  u32,
         height: u32,
     ) -> Result<Self> {
-        let surface_caps   = surface.get_capabilities(&{
-            // Re-request adapter compatible with this surface.
-            // In practice the same adapter supports all monitors on one GPU.
-            pollster::block_on(gpu.instance.request_adapter(
-                &wgpu::RequestAdapterOptions {
-                    power_preference:       wgpu::PowerPreference::LowPower,
-                    compatible_surface:     Some(&surface),
-                    force_fallback_adapter: false,
-                }
-            )).context("adapter for surface")?
-        });
+        // Mint a fresh device + queue for this window.  Independent of
+        // the settings window's device, so settings repaints don't
+        // block this overlay's presents on a shared queue.
+        let (device, queue) = gpu.new_render_device()
+            .context("overlay per-window device")?;
+
+        // Re-use the shared adapter to query surface caps.  Adapters
+        // are stateless — caps depend on the (adapter, surface) pair,
+        // not the device, so this is correct.
+        let surface_caps   = surface.get_capabilities(&gpu.adapter);
 
         let surface_format = prefer_format(&surface_caps);
         let alpha_mode     = pick_alpha_mode(&surface_caps);
@@ -71,19 +80,19 @@ impl OverlayRenderer {
             alpha_mode,
             view_formats:                  vec![],
         };
-        surface.configure(&gpu.device, &config);
+        surface.configure(&device, &config);
 
         let (pipeline, uniform_buffer, bind_group) =
-            build_pipeline(&gpu.device, surface_format)?;
+            build_pipeline(&device, surface_format)?;
 
-        Ok(Self { gpu, surface, config, pipeline, uniform_buffer, bind_group })
+        Ok(Self { device, queue, surface, config, pipeline, uniform_buffer, bind_group })
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 { return; }
         self.config.width  = width;
         self.config.height = height;
-        self.surface.configure(&self.gpu.device, &self.config);
+        self.surface.configure(&self.device, &self.config);
         debug!("overlay resized to {width}×{height}");
     }
 
@@ -96,7 +105,7 @@ impl OverlayRenderer {
         let output = match self.surface.get_current_texture() {
             Ok(t)  => t,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
-                self.surface.configure(&self.gpu.device, &self.config);
+                self.surface.configure(&self.device, &self.config);
                 warn!("overlay surface lost — reconfigured");
                 return Ok(());
             }
@@ -108,9 +117,9 @@ impl OverlayRenderer {
         let uniforms = OverlayUniforms::from_state(
             state, settings, self.config.width, self.config.height, max_circle_scale,
         );
-        self.gpu.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(&[uniforms]));
+        self.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(&[uniforms]));
 
-        let mut enc = self.gpu.device.create_command_encoder(
+        let mut enc = self.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor { label: Some("overlay-frame") }
         );
         {
@@ -132,7 +141,7 @@ impl OverlayRenderer {
             pass.set_bind_group(0, &self.bind_group, &[]);
             pass.draw(0..3, 0..1);
         }
-        self.gpu.queue.submit(std::iter::once(enc.finish()));
+        self.queue.submit(std::iter::once(enc.finish()));
         output.present();
         Ok(())
     }
