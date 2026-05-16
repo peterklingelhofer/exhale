@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use egui::ViewportId;
@@ -2019,10 +2020,108 @@ fn stepper_buttons(
     paint_triangle(ui, top_rect, StepperDir::Up,   tri_color);
     paint_triangle(ui, bot_rect, StepperDir::Down, tri_color);
 
+    // Press-and-hold auto-repeat — matches macOS NSStepper / SwiftUI
+    // Stepper.  A click fires once on press-down; holding the button past
+    // `INITIAL_DELAY` starts a repeat that fires every `REPEAT_INTERVAL`
+    // until release.  Values match AppKit's NSStepper defaults
+    // (`autorepeatDelay = 0.4s`, `autorepeatInterval = 0.075s`)
+    const INITIAL_DELAY:   Duration = Duration::from_millis(400);
+    const REPEAT_INTERVAL: Duration = Duration::from_millis(75);
+
+    let up_step = step;
+    let dn_step = -step;
     let mut new_val = None;
-    if up_resp.clicked() { new_val = Some((*value + step).clamp(min, max_v)); }
-    if dn_resp.clicked() { new_val = Some((*value - step).clamp(min, max_v)); }
+    if let Some(delta) = stepper_hold_tick(ui, &up_resp, INITIAL_DELAY, REPEAT_INTERVAL, up_step) {
+        new_val = Some((*value + delta).clamp(min, max_v));
+    }
+    if let Some(delta) = stepper_hold_tick(ui, &dn_resp, INITIAL_DELAY, REPEAT_INTERVAL, dn_step) {
+        new_val = Some((*value + delta).clamp(min, max_v));
+    }
     new_val
+}
+
+/// State held in egui memory for one stepper half between frames.
+/// Records when the press started and when we last fired a step, so the
+/// hold-repeat logic can drive auto-repeat without recomputing time
+/// deltas from scratch each frame
+#[derive(Clone, Copy)]
+struct StepperHoldState {
+    press_start: Instant,
+    last_tick:   Instant,
+}
+
+/// Decide whether one stepper half should fire a step this frame.
+///
+/// Returns `Some(delta)` (the signed step amount) when the button
+/// should step the value:
+///   * on the initial press-down edge,
+///   * on each `repeat_interval` boundary after the press has been
+///     held for at least `initial_delay`,
+///   * on a same-frame press-and-release (catches the synthetic
+///     down+up-in-one-frame events used in unit tests, and real
+///     trackpad taps that egui collapses to a single frame).
+///
+/// Returns `None` while the button is idle or in the initial-delay
+/// dead-zone of a hold.  Requests a repaint deadline while the
+/// button is held so the event loop wakes in time to fire the next
+/// auto-repeat tick
+fn stepper_hold_tick(
+    ui:              &egui::Ui,
+    resp:            &egui::Response,
+    initial_delay:   Duration,
+    repeat_interval: Duration,
+    step:            f64,
+) -> Option<f64> {
+    let id   = resp.id;
+    let now  = Instant::now();
+    let down = resp.is_pointer_button_down_on();
+    let prev = ui.data(|d| d.get_temp::<StepperHoldState>(id));
+
+    if down {
+        if let Some(state) = prev {
+            // Already holding — check whether enough time has passed
+            // since press for auto-repeat to engage, and whether we're
+            // past the next `repeat_interval` boundary since the last
+            // tick we fired.
+            ui.ctx().request_repaint_after(repeat_interval);
+            if now.duration_since(state.press_start) >= initial_delay
+                && now.duration_since(state.last_tick) >= repeat_interval
+            {
+                ui.data_mut(|d| d.insert_temp(id, StepperHoldState {
+                    press_start: state.press_start,
+                    last_tick:   now,
+                }));
+                return Some(step);
+            }
+            None
+        } else {
+            // Fresh press-down — fire one immediate step and start
+            // tracking the hold.  This matches NSStepper, which sends
+            // its `action` on press-down, not on release.
+            ui.data_mut(|d| d.insert_temp(id, StepperHoldState {
+                press_start: now,
+                last_tick:   now,
+            }));
+            ui.ctx().request_repaint_after(initial_delay);
+            Some(step)
+        }
+    } else {
+        if prev.is_some() {
+            // Released — we already fired on the press-down edge and
+            // any auto-repeat ticks during the hold, so just clear the
+            // hold state.  Don't re-fire on release.
+            ui.data_mut(|d| d.remove::<StepperHoldState>(id));
+            None
+        } else if resp.clicked() {
+            // Same-frame press+release (`is_pointer_button_down_on()` is
+            // false at end-of-frame, but `clicked()` registered a full
+            // down+up cycle).  Trackpad taps and synthetic test inputs
+            // land here — fire a single step
+            Some(step)
+        } else {
+            None
+        }
+    }
 }
 
 fn paint_stepper_chrome(
