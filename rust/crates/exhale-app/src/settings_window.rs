@@ -470,16 +470,28 @@ impl SettingsWindow {
             .unwrap_or(std::time::Duration::MAX);
 
         // Cap the resizable window to the exact amount of content egui just
-        // laid out.  The `+ 24.0` covers the CentralPanel's inner padding that
-        // `content_size` doesn't itself include.  This runs every frame so new
-        // settings/added rows grow the max automatically, and stays cheap
-        // because winit no-ops redundant set_*_inner_size calls.
+        // laid out.  `content_size.y` is the laid-out height of the
+        // ScrollArea's inner content alone; the surrounding CentralPanel
+        // adds `OUTER_PAD` of inner_margin on top AND bottom, so the
+        // window's client area needs `content + 2 * OUTER_PAD` to fit
+        // without scrolling.  An earlier `+ 24.0` magic constant was
+        // 4 px short of the real `2 * OUTER_PAD = 28.0` total, so the
+        // ScrollArea perpetually thought it was 4 px under-tall and
+        // showed a scrollbar even when every control fit, AND the
+        // bottom-edge resize handle was clamped 4 px short of fitting
+        // the content — dragging it taller had no effect.  Using the
+        // padding constant directly keeps this honest if `OUTER_PAD`
+        // ever changes.  This runs every frame so new settings/added
+        // rows grow the max automatically, and stays cheap because
+        // winit no-ops redundant set_*_inner_size calls.
         if content_height > 0.0 {
             // Cap the user-drag upper bound at the exact content height so
             // they can't drag past the last control (empty space below the
             // Timers card looks wrong).  Window starts at the compact
             // `INITIAL_PREFERRED_H`; overflow is handled by the ScrollArea.
-            let natural_h = (content_height + 24.0).ceil().max(SETTINGS_MIN_HEIGHT as f32) as u32;
+            let natural_h = (content_height + 2.0 * OUTER_PAD)
+                .ceil()
+                .max(SETTINGS_MIN_HEIGHT as f32) as u32;
             self.window.set_max_inner_size(Some(
                 winit::dpi::LogicalSize::new(SETTINGS_WIDTH, natural_h),
             ));
