@@ -47,7 +47,6 @@ use winit::{
 
 #[derive(Debug)]
 enum AppEvent {
-    RequestRedraw,
     ShowSettings,
     StartAnimation,
     StopAnimation,
@@ -202,7 +201,7 @@ impl App {
         drop(s);
         // Force one final render so the shader sees display_mode=STOPPED and
         // clears to transparent — matches Swift `window.backgroundColor = .clear`.
-        self.request_overlay_redraw();
+        for h in self.overlays.values() { h.wake_render(); }
         self.request_settings_redraw();
     }
 
@@ -284,57 +283,31 @@ impl App {
         }
     }
 
-    fn render_overlays(&mut self) {
-        let state    = self.controller.as_ref().and_then(|c| c.get_state());
-        let settings = self.settings.read().unwrap().clone();
-
-        // Use a zero-progress state when stopped/paused so the shader only needs
-        // display_mode to decide what to draw. Fallback to a default state if the
-        // controller hasn't ticked yet (before first frame).
-        let state = state.unwrap_or_else(|| exhale_core::controller::BreathingState {
-            phase:     exhale_core::types::BreathingPhase::Inhale,
-            progress:  0.0,
-            hold_time: 0.0,
-        });
-
-        // Re-assert topmost at most once per second.  Cheap call but
-        // calling it on every render (10–30 Hz) is overkill — a 1 s
-        // cadence still reclaims the top of the z-band fast enough
-        // that a newly-launched app is only briefly above the overlay.
-        // No-op on non-Windows.
-        //
-        // After bumping the overlay to the front of the topmost band,
-        // immediately bump the settings window (when visible) so it
-        // ends up ABOVE the overlay.  Without this, the overlay's
-        // re-assert would land it above the settings window once per
-        // second — letting the breath animation cover the controls and
-        // making `overlay_opacity = 1.0` lock the user out.  The
-        // settings window also carries `WS_EX_TOPMOST` on Windows, so
-        // the final SetWindowPos(HWND_TOPMOST) on it places it at the
-        // top of the topmost band, ahead of the just-bumped overlay.
+    /// Re-assert topmost ordering at most once per second on Windows.
+    ///
+    /// Windows orders topmost windows by activation, so a newly-opened
+    /// app can land above our overlay until we re-bump it to the front
+    /// of the topmost band.  After bumping the overlay forward, we
+    /// also bump the settings window (when visible) so the settings
+    /// panel ends up ABOVE the overlay — otherwise `overlay_opacity =
+    /// 1.0` would lock the user out by covering the controls.  No-op
+    /// on non-Windows.  Driven from `about_to_wait` now that overlay
+    /// rendering lives on dedicated threads — previously this rode
+    /// along with each overlay render pass on the main thread.
+    #[cfg(target_os = "windows")]
+    fn maybe_reassert_topmost(&mut self) {
         let now = Instant::now();
         let due = self.next_topmost_reassert.map_or(true, |t| now >= t);
-        if due {
-            for handle in self.overlays.values() {
-                platform::reassert_overlay_topmost(&handle.window);
-            }
-            if let Some(sw) = &self.settings_win {
-                if sw.window.is_visible().unwrap_or(false) {
-                    platform::reassert_overlay_topmost(&sw.window);
-                }
-            }
-            self.next_topmost_reassert = Some(now + std::time::Duration::from_secs(1));
+        if !due { return; }
+        for handle in self.overlays.values() {
+            platform::reassert_overlay_topmost(&handle.window);
         }
-
-        for handle in self.overlays.values_mut() {
-            if let Err(e) = handle.render(&state, &settings, self.primary_max_circle_scale) {
-                error!("overlay render: {e}");
+        if let Some(sw) = &self.settings_win {
+            if sw.window.is_visible().unwrap_or(false) {
+                platform::reassert_overlay_topmost(&sw.window);
             }
         }
-    }
-
-    fn request_overlay_redraw(&self) {
-        for h in self.overlays.values() { h.window.request_redraw(); }
+        self.next_topmost_reassert = Some(now + std::time::Duration::from_secs(1));
     }
 
     /// Request a settings-window redraw if the window exists and is visible.
@@ -409,22 +382,47 @@ impl ApplicationHandler<AppEvent> for App {
             .unwrap_or(1.0);
 
         // ── Create overlay windows (one per monitor) ──────────────────────────
-        let handles = OverlayHandle::create_all(event_loop, Arc::clone(&gpu));
+        //
+        // Each overlay handle spawns a dedicated render thread that owns
+        // its renderer.  The controller writes its state snapshot to a
+        // shared Arc and signals the render threads via channels — that
+        // bypass entirely circumvents the Windows main-thread message
+        // queue, where WM_MOUSEMOVE storms over the settings window
+        // would otherwise starve WM_PAINT for the overlay and cause
+        // animation stutter.
+        let breathing_state =
+            Arc::new(std::sync::Mutex::new(None::<exhale_core::controller::BreathingState>));
+        let handles = OverlayHandle::create_all(
+            event_loop,
+            Arc::clone(&gpu),
+            Arc::clone(&self.settings),
+            Arc::clone(&breathing_state),
+            self.primary_max_circle_scale,
+        );
         if handles.is_empty() {
             error!("no overlay windows created");
             event_loop.exit();
             return;
         }
+        let frame_senders: Vec<_> = handles.iter().map(|h| h.frame_sender()).collect();
         for h in handles {
             self.overlays.insert(h.window.id(), h);
         }
         info!("{} overlay window(s) created", self.overlays.len());
 
         // ── Start breathing controller ────────────────────────────────────────
-        let proxy = self.proxy.clone();
+        //
+        // `request_draw` fans out a Frame message to every overlay's
+        // render thread, bypassing the main event loop.  No WM_PAINT
+        // dance and no risk of WM_MOUSEMOVE starvation.
         self.controller = Some(BreathingController::start(
             Arc::clone(&self.settings),
-            Arc::new(move || { let _ = proxy.send_event(AppEvent::RequestRedraw); }),
+            breathing_state,
+            Arc::new(move || {
+                for tx in &frame_senders {
+                    tx.send_frame();
+                }
+            }),
         ));
 
         // ── System tray ───────────────────────────────────────────────────────
@@ -482,9 +480,6 @@ impl ApplicationHandler<AppEvent> for App {
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AppEvent) {
         match event {
-            AppEvent::RequestRedraw => {
-                for h in self.overlays.values() { h.window.request_redraw(); }
-            }
             AppEvent::ShowSettings   => self.toggle_settings(event_loop),
             AppEvent::StartAnimation => self.do_start(),
             AppEvent::StopAnimation  => self.do_stop(),
@@ -724,7 +719,7 @@ impl ApplicationHandler<AppEvent> for App {
                             if let Some(c) = &self.controller { c.restart(); }
                         }
                         if should_redraw {
-                            self.request_overlay_redraw();
+                            for h in self.overlays.values() { h.wake_render(); }
                         }
                     }
                     WindowEvent::CloseRequested => {
@@ -761,11 +756,17 @@ impl ApplicationHandler<AppEvent> for App {
         }
 
         // ── Overlay window events ──────────────────────────────────────────
-        if let Some(handle) = self.overlays.get_mut(&window_id) {
-            match event {
-                WindowEvent::RedrawRequested => self.render_overlays(),
-                WindowEvent::Resized(size)   => handle.resize(size),
-                _ => {}
+        //
+        // Rendering for overlay windows lives on a dedicated thread per
+        // window — see `OverlayHandle` — so the main thread only
+        // forwards resizes here.  WM_PAINT for overlay windows is
+        // effectively ignored: the render thread is the single source
+        // of frames, and it's woken by the controller via a channel
+        // that bypasses the OS message queue.  Trying to also paint on
+        // WM_PAINT would race with the render thread on the surface.
+        if let Some(handle) = self.overlays.get(&window_id) {
+            if let WindowEvent::Resized(size) = event {
+                handle.resize(size);
             }
             return;
         }
@@ -782,6 +783,15 @@ impl ApplicationHandler<AppEvent> for App {
         if platform::DOCK_REOPEN.swap(false, std::sync::atomic::Ordering::Relaxed) {
             let _ = self.proxy.send_event(AppEvent::ShowSettings);
         }
+
+        // Re-assert topmost ordering on a 1-second cadence.  Used to ride
+        // along with each overlay render pass, but now that overlays
+        // render on their own threads, the main thread owns this beat.
+        // Windows-only — the underlying `reassert_overlay_topmost` is a
+        // no-op elsewhere, so don't bother waking the loop at 1 Hz on
+        // macOS / Linux for nothing.
+        #[cfg(target_os = "windows")]
+        self.maybe_reassert_topmost();
 
         // Linux: pump pending GTK events without blocking so the tray
         // icon's libayatana-appindicator backend can process clicks /
@@ -865,12 +875,17 @@ impl ApplicationHandler<AppEvent> for App {
             let s = self.settings.read().unwrap();
             self.timers.next_deadline(&s)
         };
-        let next = match (self.next_settings_repaint, timer_deadline) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (Some(a), None)    => Some(a),
-            (None,    Some(b)) => Some(b),
-            (None,    None)    => None,
-        };
+        // Windows: include the topmost re-assert beat in the wake schedule
+        // so the loop wakes once per second to bump our overlay (and
+        // settings, when visible) back to the top of the topmost band.
+        #[cfg(target_os = "windows")]
+        let topmost_deadline = self.next_topmost_reassert;
+        #[cfg(not(target_os = "windows"))]
+        let topmost_deadline: Option<Instant> = None;
+        let next = [self.next_settings_repaint, timer_deadline, topmost_deadline]
+            .into_iter()
+            .flatten()
+            .min();
         match next {
             Some(d) => event_loop.set_control_flow(ControlFlow::WaitUntil(d)),
             None    => event_loop.set_control_flow(ControlFlow::Wait),

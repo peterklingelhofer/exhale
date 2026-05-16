@@ -82,14 +82,18 @@ pub struct BreathingController {
 impl BreathingController {
     /// Create and immediately start the controller.
     ///
-    /// `request_draw` is called from the background thread whenever a new frame
-    /// should be rendered.  Wire it to your window's redraw mechanism (e.g.
-    /// `EventLoopProxy::send_event`).
+    /// `state` is the shared snapshot slot the controller writes to each
+    /// tick — pre-constructed so per-overlay render threads can hold the
+    /// same `Arc` and read directly without round-tripping through the
+    /// main event loop.  `request_draw` is called from the background
+    /// thread whenever a new frame should be rendered; wire it to the
+    /// overlays' render-thread channels so frame signals bypass the
+    /// main thread's message pump entirely.
     pub fn start(
-        settings: Arc<RwLock<Settings>>,
+        settings:     Arc<RwLock<Settings>>,
+        state:        Arc<Mutex<Option<BreathingState>>>,
         request_draw: Arc<dyn Fn() + Send + Sync + 'static>,
     ) -> Self {
-        let state      = Arc::new(Mutex::new(None));
         let stop_flag  = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let reset_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
@@ -112,6 +116,16 @@ impl BreathingController {
     /// Returns `None` only before the first tick.
     pub fn get_state(&self) -> Option<BreathingState> {
         *self.state.lock().unwrap()
+    }
+
+    /// Shared handle to the controller's state slot.  Cheap to clone;
+    /// the per-overlay render thread reads from this directly each
+    /// frame instead of round-tripping through the main event loop.
+    /// The controller writes to this BEFORE invoking `request_draw`,
+    /// so any thread woken by `request_draw` is guaranteed to observe
+    /// the latest state via the Mutex barrier
+    pub fn state_handle(&self) -> Arc<Mutex<Option<BreathingState>>> {
+        Arc::clone(&self.state)
     }
 
     /// Restart the animation from inhale phase 0 on the next tick.
