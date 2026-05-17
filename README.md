@@ -68,10 +68,10 @@ The `cargo run` family **builds and then launches** the binary in one step. The 
 
 | Command                  | Builds | Runs | Build profile               |
 |--------------------------|:------:|:----:|-----------------------------|
-| `cargo run`              |  ✓     |  ✓   | Dev (debug, fast compile)   |
-| `cargo run --release`    |  ✓     |  ✓   | Release (optimised)         |
-| `cargo build`            |  ✓     |  —   | Dev                         |
-| `cargo build --release`  |  ✓     |  —   | Release                     |
+| `cargo run`              |  Yes   | Yes  | Dev (debug, fast compile)   |
+| `cargo run --release`    |  Yes   | Yes  | Release (optimised)         |
+| `cargo build`            |  Yes   | No   | Dev                         |
+| `cargo build --release`  |  Yes   | No   | Release                     |
 
 All commands run from `rust/`. Use dev builds while iterating (compile is ~10× faster), release for the real binary you'd ship or benchmark. Binaries land at:
 
@@ -139,54 +139,18 @@ Settings are reloaded on launch and persisted on every change via a debounced ba
 - **Linux (X11)**: click-through via `XFixesSetWindowShapeRegion` with an empty input region; always-on-top via `_NET_WM_STATE_ABOVE`; workspace-spanning via `_NET_WM_STATE_STICKY`; `AppVisibility` toggles `_NET_WM_STATE_SKIP_TASKBAR` / `SKIP_PAGER` on the settings window.
 - **Linux (Wayland)**: the overlay is placed at `AlwaysOnBottom` instead of topmost. Wayland's security model doesn't expose a portable always-on-top or click-through protocol to winit (`wp_input_region` isn't surfaced), so a topmost overlay would intercept every click. Bottom-stacking means your app windows cover the overlay by default; to see the animation, **narrow your foreground windows so they don't fill the whole screen** — the breathing animation (Circle, Rectangle, or Fullscreen) shows through whatever gap you've left. Same "make room for the overlay" strategy the Python script's bars mode uses, just much lower CPU. For full topmost + click-through behavior on Linux, log out and pick an X11 session at the login screen.
 
-## Known macOS-fidelity gaps vs the legacy Swift original
-
-The Rust port reaches feature parity with the Swift original on every documented setting and behaviour. Three native-macOS UX touches are intentionally **not** ported because doing them right would require rewriting the settings window as an AppKit hierarchy instead of an egui one:
-
-- **`NSColorPanel` colour picker** — the inhale / exhale / background colour swatches use egui's built-in colour picker. Native `NSColorPanel` integration (eyedropper, system palettes) is feasible via target/action bridging but costs ~300-500 LOC of Objective-C glue with proper colour-space conversion and multi-target tracking. Cross-platform Discord / Slack / VS Code all use custom pickers too; this isn't a glaring gap.
-- **`NSStepper` widget** — the stepper buttons next to each numeric field are hand-painted to match macOS's `NSStepper` visually. A real `NSStepper` lives in an `NSView` hierarchy that can't be hosted inside an egui frame without rebuilding the whole settings window as AppKit. The hand-painted version is pixel-close.
-- **Accessibility tree / VoiceOver** — egui doesn't expose an accessibility tree (no AX backend). Native AppKit controls would, but the same constraint as `NSStepper` applies. Tracking upstream: <https://github.com/emilk/egui/issues/3604>.
-
-## Performance
-
-Headless render bench on M3 Max (`cargo run --release --example cpu_bench -p exhale-render`) at the hardcoded 24/12 fps cadence:
-
-| Scene                            | Δ avg CPU | Δ peak CPU | effective fps |
-|----------------------------------|----------:|-----------:|--------------:|
-| rect + gradient                  |     1.5 % |      1.7 % |          19.3 |
-| circle + gradient                |     1.3 % |      1.6 % |          19.5 |
-| fullscreen + solid               |     1.5 % |      1.9 % |          19.3 |
-| rect + hold ripple gradient      |     1.3 % |      1.8 % |          17.3 |
-| rect + hold ripple stark         |     1.2 % |      1.5 % |          17.9 |
-| circle + hold ripple gradient    |     1.4 % |      2.1 % |          17.5 |
-
-Compared on the same hardware against the legacy Swift `PerformanceTests` (`swift/exhaleTests/exhaleTests.swift::PerformanceTests`) which uses the same `getrusage` / 5×1s-sample methodology:
-
-| Scene                            | Swift Δ avg | Rust Δ avg |
-|----------------------------------|------------:|-----------:|
-| Circle + gradient                |       4.6 % |      1.3 % |
-| Rect + ripple gradient           |       6.1 % |      1.3 % |
-| Rect + ripple stark              |       4.3 % |      1.2 % |
-| Circle + ripple gradient         |       6.0 % |      1.4 % |
-| Fullscreen + solid               |       0.0 % |      1.5 % |
-| Rect + gradient                  |       0.6 % |      1.5 % |
-
-**Per-frame animation work is ~3-5× cheaper in Rust on the complex scenes** (anything with hold-ripple or circle SDF math). SwiftUI optimises trivial scenes to ~zero — Rust's shader runs the same fragment work regardless of scene complexity, so simple scenes cost slightly more (still under 2 %). Notable: Rust's per-scene variance is much lower (1.2 – 1.5 % across everything), which matters for predictable battery-life modelling.
-
-Caveat: the `cpu_bench` harness is **headless** — it renders to an offscreen `wgpu::Texture`, skipping the compositor cost the live app pays on `WindowServer` / DWM. Real-world CPU is somewhere between the bench number and the Swift number, likely closer to 2-3 % on complex scenes.
-
 ## Ship & distribute
 
-| Target                       | Status     | Notes |
-|------------------------------|------------|-------|
-| Mac App Store                | ✅ ready   | Sandbox-safe `flock(2)` single-instance guard; sandbox-friendly AppleEvent registration; `scripts/bundle-mas.sh` (universal binary, Developer-ID signed `.pkg`, sandbox entitlements) |
-| macOS standalone (signed)    | ✅ ready   | `scripts/bundle-mas.sh` |
-| Microsoft Store              | ✅ ready   | MSIX wrapper via `bundle-msix.ps1`, all required tile assets generated (Wide310x150, Square71x71, Square310x310, SplashScreen) |
-| Windows standalone           | ✅ ready   | `cargo build --release` produces a self-contained `.exe` |
-| Snap Store                   | ✅ ready   | Strict-confined snap with the `gnome` extension. Upload is currently manual from a Multipass `snap-creds` VM (`snapcraft upload`) |
-| Linux `.deb` / AppImage      | ✅ ready   | `cargo deb` + `scripts/bundle-appimage.sh` |
+| Target                       | Status | Notes |
+|------------------------------|--------|-------|
+| Mac App Store                | ready  | Sandbox-safe `flock(2)` single-instance guard; sandbox-friendly AppleEvent registration; `scripts/bundle-mas.sh` (universal binary, Developer-ID signed `.pkg`, sandbox entitlements) |
+| macOS standalone (signed)    | ready  | `scripts/bundle-mas.sh` |
+| Microsoft Store              | ready  | MSIX wrapper via `bundle-msix.ps1`, all required tile assets generated (Wide310x150, Square71x71, Square310x310, SplashScreen) |
+| Windows standalone           | ready  | `cargo build --release` produces a self-contained `.exe` |
+| Snap Store                   | ready  | Strict-confined snap with the `gnome` extension. Upload is currently manual from a Multipass `snap-creds` VM (`snapcraft upload`) |
+| Linux `.deb` / AppImage      | ready  | `cargo deb` + `scripts/bundle-appimage.sh` |
 
-## Hacker fallback: Python single-file script
+## Minimal Python script fallback
 
 For tinkerers, distros where the Snap doesn't fit (Alpine, NixOS, immutable distros), or anyone who'd rather just read 200 lines of Python and tweak constants at the top of a file:
 
@@ -200,7 +164,7 @@ python main.py
 
 Modify the constants at the top of [`python/main.py`](python/main.py) for inhale/exhale duration in seconds, shape mode, and full-screen toggle.
 
-**The Rust binary is the recommended path on every supported OS, including Wayland.** On systems without portable always-on-top (Wayland, some locked-down environments), both the Python script and the Rust binary require the same user behavior — narrow your foreground windows so the breath animation can peek through. The Rust binary just runs at ≤ 2 % CPU on every benchmarked scene, where Python's PyQt5 + tkinter + interpreter overhead is several × higher. The Python script is a hackable single-file alternative, not a performance recommendation.
+**The Rust binary is the recommended path on every supported OS, including Wayland.** On systems without portable always-on-top (Wayland, some locked-down environments), both the Python script and the Rust binary require the same user behavior — narrow your foreground windows so the breath animation can peek through. The Rust binary is significantly lower CPU than the Python interpreter + PyQt5 + tkinter stack; the Python script is a hackable single-file alternative, not a performance recommendation.
 
 ## Companion repository
 

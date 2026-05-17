@@ -1,6 +1,6 @@
 //! Linux (X11) implementation of the platform layer.
-//! Extracted from `platform.rs` for navigability; see the parent
-//! module for the public API surface + cross-platform stubs.
+//! See the parent `platform` module for the public API surface and
+//! cross-platform stubs.
 
 use super::*;
 
@@ -138,15 +138,14 @@ use super::*;
         x.set_wm_state(b"_NET_WM_STATE_ABOVE", true);
     }
 
-    /// No-op on Linux.  We used to install KDE/KWin's
-    /// `_KDE_NET_WM_BLUR_BEHIND_REGION` on Plasma sessions, but the
-    /// resulting transparent settings window introduced the same
-    /// compositing regressions we hit on Windows DWM acrylic (overlay
-    /// stacking above the controls, mouse-hover lag), so we keep the
-    /// settings window OPAQUE on every Linux DE.  `BLUR_ACTIVE` stays
-    /// `false` → the egui clear colour + panel fill render the
-    /// themed solid background.  macOS remains the only platform
-    /// where the settings window has a translucent / vibrancy backdrop.
+    /// No-op on Linux: the settings window is OPAQUE on every Linux DE.
+    /// KDE/KWin's `_KDE_NET_WM_BLUR_BEHIND_REGION` would give a frosted
+    /// settings window on Plasma but produces the same compositing
+    /// regressions seen on Windows DWM acrylic (overlay stacking above
+    /// the controls, mouse-hover lag).  `BLUR_ACTIVE` stays `false`, so
+    /// the egui clear colour + panel fill render the themed solid
+    /// background.  macOS is the only platform with a translucent
+    /// settings backdrop.
     pub fn install_settings_vibrancy(_window: &Window, _dark_mode: bool) -> usize {
         0
     }

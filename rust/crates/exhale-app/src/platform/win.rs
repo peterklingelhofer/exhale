@@ -1,6 +1,6 @@
 //! Windows implementation of the platform layer.
-//! Extracted from `platform.rs` for navigability; see the parent
-//! module for the public API surface + cross-platform stubs.
+//! See the parent `platform` module for the public API surface and
+//! cross-platform stubs.
 
 use super::*;
 
@@ -40,16 +40,15 @@ use super::*;
         let h = hwnd(window);
         if h.is_null() { return; }
         unsafe {
-            // `WS_EX_LAYERED + WS_EX_TRANSPARENT` is the legacy
-            // wgpu-compatible click-through transparency pattern on
-            // Windows.  winit's `with_transparent(true)` already adds
-            // `WS_EX_LAYERED` and calls `DwmEnableBlurBehindWindow` for
-            // us, but we re-assert `WS_EX_LAYERED` defensively here in
-            // case some other path stripped it.  Tool window +
-            // NoActivate keep the overlay out of Alt-Tab / taskbar and
-            // prevent focus theft; `WS_EX_TOPMOST` and the trailing
-            // `SetWindowPos(HWND_TOPMOST, …)` are belt-and-suspenders
-            // for the always-on-top requirement.
+            // `WS_EX_LAYERED + WS_EX_TRANSPARENT` is the wgpu-compatible
+            // click-through transparency pattern on Windows.  winit's
+            // `with_transparent(true)` already adds `WS_EX_LAYERED` and
+            // calls `DwmEnableBlurBehindWindow`, but we re-assert
+            // `WS_EX_LAYERED` defensively in case some other path
+            // stripped it.  Tool window + NoActivate keep the overlay
+            // out of Alt-Tab / taskbar and prevent focus theft;
+            // `WS_EX_TOPMOST` and the trailing `SetWindowPos(HWND_TOPMOST, ...)`
+            // are belt-and-suspenders for the always-on-top requirement.
             let ex = GetWindowLongPtrW(h, GWL_EXSTYLE) as isize;
             let new_ex = ex
                 | WS_EX_LAYERED     as isize

@@ -193,10 +193,8 @@ fn send_reminder_macos() {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 //
-// Cover the `Timers` state machine that the audit flagged as having
-// zero coverage despite being a real bug-source: auto-stop firing,
-// reminder firing, deadline computation, edge cases around 0-value
-// (off) settings
+// Cover the `Timers` state machine: auto-stop firing, reminder firing,
+// deadline computation, edge cases around 0-value (off) settings
 #[cfg(test)]
 #[allow(clippy::field_reassign_with_default)]
 mod tests {
