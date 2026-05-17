@@ -198,6 +198,7 @@ fn send_reminder_macos() {
 // reminder firing, deadline computation, edge cases around 0-value
 // (off) settings
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
 

@@ -74,6 +74,7 @@ fn variants() -> Vec<Variant> {
     ]
 }
 
+#[allow(clippy::field_reassign_with_default)]
 fn run_variant(v: &Variant) {
     // Build settings with animation ON — matches the real-app default.
     // Baseline phase intentionally does NOT spawn the controller, so the

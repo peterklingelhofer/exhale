@@ -123,6 +123,7 @@ pub(super) fn section_header(ui: &mut egui::Ui, text: &str) {
 /// matched font sizes their visual centers land at different
 /// y-coordinates.  A small negative offset re-aligns those low-sitting
 /// glyphs with the row's other icons.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn control_button(
     ui:                      &mut egui::Ui,
     width:                   f32,
@@ -635,6 +636,7 @@ impl ValueScale {
             Self::DriftPercent => (stored - 1.0) * 100.0,
         }
     }
+    #[allow(clippy::wrong_self_convention)]
     fn from_display(self, display: f64) -> f64 {
         match self {
             Self::Identity     => display,
@@ -654,6 +656,7 @@ impl ValueScale {
 /// redraw.  When the field loses focus (or the stepper nudges the value) we
 /// canonicalise the buffer via `format_num` so extraneous zeros/decimals get
 /// cleaned up — matching Swift's NumberFormatter with `maximumFractionDigits: 3`.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn stepper_row(
     ui:     &mut egui::Ui,
     label:  &str,
@@ -1073,7 +1076,7 @@ pub(super) fn from_color32_opaque(c: egui::Color32) -> [f32; 4] {
 pub(super) mod test_hooks {
     use std::cell::RefCell;
     thread_local! {
-        static LAST: RefCell<Option<(egui::Rect, egui::Rect)>> = RefCell::new(None);
+        static LAST: RefCell<Option<(egui::Rect, egui::Rect)>> = const { RefCell::new(None) };
     }
 
     pub fn record_stepper_rects(top: egui::Rect, bot: egui::Rect) {
