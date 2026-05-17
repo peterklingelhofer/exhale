@@ -92,12 +92,28 @@ fn phase_color() -> vec4<f32> {
 
 /// Color used for the screen-edge ripple.
 ///
-/// Swift's `isExhale` is only true during HoldAfterExhale (phase 3), so the
-/// ripple color is exhaleColor only there; in every other phase — including
-/// the exhale cross-phase fade-out where the ripple is freezing the end of
-/// HoldAfterInhale — it's inhaleColor.
+/// Picks the color of the NEXT phase so the ripple stands out against
+/// whatever the current fill is painting:
+///   • HoldAfterInhale (phase 1): screen is currently filled with
+///     `inhale_color` (e.g. red).  Ripple uses `exhale_color` (blue)
+///     so it reads against the red fill and previews where the next
+///     phase is heading.
+///   • HoldAfterExhale (phase 3): screen is empty / background-only
+///     from the exhale's shrink.  Ripple uses `inhale_color` (red) —
+///     same "next phase's color" rule, and red against the dark/
+///     background-tinted backdrop is highly visible.
+///
+/// Cross-phase fade-out (the first 10 % of the next phase, where
+/// `rippleOpacity` fades from 1 → 0): the ripple keeps the colour
+/// it had during the hold it's fading FROM, so the transition reads
+/// as a single continuous animation rather than a colour swap.  That
+/// translates to:
+///   • Exhale (phase 2): fading out the HoldAfterInhale ripple
+///     (which was `exhale_color`) — so still `exhale_color`.
+///   • Inhale (phase 0): fading out the HoldAfterExhale ripple
+///     (which was `inhale_color`) — so still `inhale_color`.
 fn ripple_color() -> vec4<f32> {
-    if u.phase == 3u {
+    if u.phase == 1u || u.phase == 2u {
         return u.exhale_color;
     }
     return u.inhale_color;
@@ -351,15 +367,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if length(pixel - center) <= visible_r {
         // Inside shape: apply overlay_opacity via apply_premultiplied.
+        // Ripple target is `rpc` (next-phase colour), matching the
+        // rectangle path above — passing `pc` here was an older
+        // bug that made the circle's ripple always match the fill
+        // colour and disappear visually during HoldAfterInhale.
         if do_ripple {
             let r = screen_edge_ripple(pixel);
-            sc = lerp_color(sc, pc, r);
+            sc = lerp_color(sc, rpc, r);
         }
         return apply_premultiplied(sc);
     }
     if do_ripple {
         let r = screen_edge_ripple(pixel);
-        return apply_premultiplied(lerp_color(bg, pc, r));
+        return apply_premultiplied(lerp_color(bg, rpc, r));
     }
     // Background-only pixel — same fix as rectangle above.
     return vec4<f32>(bg.rgb * bg.a, bg.a);
