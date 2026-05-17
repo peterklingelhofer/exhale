@@ -106,3 +106,35 @@ Settings are saved as TOML under the platform config dir:
 - **Linux (Wayland)**: transparent overlay works; click-through is not yet
   implemented — winit doesn't expose `wl_surface::set_input_region` and
   most compositors require `wlr_layer_shell` for screen-spanning overlays.
+
+## Known macOS-fidelity gaps vs the Swift original
+
+The Rust port reaches feature parity with the Swift original on every
+documented setting and behaviour.  Three native-macOS UX touches are
+intentionally **not** ported because doing them right would require
+rewriting the settings window as an AppKit hierarchy instead of an
+egui one:
+
+- **`NSColorPanel` colour picker** — the inhale / exhale / background
+  colour swatches use egui's built-in colour picker.  Native
+  `NSColorPanel` integration (eyedropper, system palettes) is
+  feasible via target/action bridging but costs ~300-500 LOC of
+  Objective-C glue with proper colour-space conversion and
+  multi-target tracking.  Cross-platform Discord / Slack / VS Code
+  all use custom pickers too; this isn't a glaring gap.
+- **`NSStepper` widget** — the stepper buttons next to each numeric
+  field are hand-painted to match macOS's `NSStepper` visually.  A
+  real `NSStepper` lives in an `NSView` hierarchy that can't be
+  hosted inside an egui frame without rebuilding the whole settings
+  window as AppKit.  The hand-painted version is pixel-close.
+- **Accessibility tree / VoiceOver** — egui doesn't expose an
+  accessibility tree (no AX backend).  Native AppKit controls would,
+  but the same constraint as `NSStepper` applies.  Tracking
+  upstream: <https://github.com/emilk/egui/issues/3604>.
+
+The animation cadence and CPU-vs-Swift comparison live in
+`docs/PERFORMANCE.md` (TODO).  Currently the Rust port matches Swift
+at 24 / 12 fps with ~3-5× lower per-frame CPU on the complex scenes
+(ripple, circle gradient) and ~2× higher on trivial scenes
+(fullscreen-solid); see the `cpu_bench` example in
+`crates/exhale-render/examples` for the comparison harness.
