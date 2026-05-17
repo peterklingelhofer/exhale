@@ -158,6 +158,11 @@ fn try_lock_exclusive(file: &std::fs::File) -> std::io::Result<bool> {
         // `flock(2)` with `LOCK_EX | LOCK_NB`.  EWOULDBLOCK means
         // another process holds the lock — that's our "secondary
         // instance" signal, not an error.
+        // SAFETY: `file.as_raw_fd()` returns a valid file descriptor
+        // owned by `file` for the duration of this call (the borrow
+        // checker enforces it via the `&std::fs::File` argument).
+        // `flock` has no other safety requirements beyond the fd
+        // being a valid open file descriptor.
         let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
         if rc == 0 {
             Ok(true)
@@ -180,7 +185,16 @@ fn try_lock_exclusive(file: &std::fs::File) -> std::io::Result<bool> {
         // `LockFileEx` with `EXCLUSIVE | FAIL_IMMEDIATELY` is the
         // Win32 equivalent.  ERROR_LOCK_VIOLATION (33) means held by
         // another process.
+        // SAFETY: `OVERLAPPED` is a plain POD struct documented as
+        // safe to zero-initialise — `Offset = 0` / `OffsetHigh = 0`
+        // is exactly what we want for "lock byte 0".  Other fields
+        // (`hEvent` etc.) are unused in the FAIL_IMMEDIATELY path.
         let mut ovl: OVERLAPPED = unsafe { std::mem::zeroed() };
+        // SAFETY: `file.as_raw_handle()` returns a valid `HANDLE`
+        // owned by `file` for the duration of the call (borrow
+        // checker enforces it).  All other arguments are integer
+        // constants or a stack pointer to `ovl`.  `LockFileEx` has
+        // no Rust-level safety requirements beyond a valid handle.
         let ok = unsafe {
             LockFileEx(
                 file.as_raw_handle() as _,
@@ -282,4 +296,67 @@ pub(crate) fn install_panic_logger(log_path: PathBuf) {
         }
         prev(info);
     }));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Open the same lock file twice and verify the second open
+    /// gets `Ok(false)` (lock held by the first).  Exercises the
+    /// platform-specific `flock` / `LockFileEx` paths via
+    /// `try_lock_exclusive`.  The lock is per-file-descriptor on
+    /// Unix and per-HANDLE on Windows, so opening the file fresh
+    /// twice in the same process is enough to simulate "another
+    /// process holds the lock" without spawning a subprocess
+    #[test]
+    fn try_lock_exclusive_detects_held_lock() {
+        let tmp = std::env::temp_dir().join(format!(
+            "exhale-test-lock-{}-{}.lock",
+            std::process::id(),
+            // Combine PID with a nanosecond timestamp so parallel
+            // test runs don't collide.
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0),
+        ));
+        let f1 = std::fs::OpenOptions::new()
+            .read(true).write(true).create(true).truncate(false)
+            .open(&tmp).expect("open lockfile (first)");
+        assert!(try_lock_exclusive(&f1).expect("first lock") , "first open should acquire");
+
+        let f2 = std::fs::OpenOptions::new()
+            .read(true).write(true).create(true).truncate(false)
+            .open(&tmp).expect("open lockfile (second)");
+        let second = try_lock_exclusive(&f2).expect("second lock call");
+        assert!(!second, "second open should detect the lock held by the first");
+
+        // Drop the first lock; the file system / OS releases the
+        // advisory lock.  A third open should then succeed.
+        drop(f1);
+        let f3 = std::fs::OpenOptions::new()
+            .read(true).write(true).create(true).truncate(false)
+            .open(&tmp).expect("open lockfile (third)");
+        let third = try_lock_exclusive(&f3).expect("third lock call");
+        assert!(third, "third open after first released should acquire");
+
+        // Best-effort cleanup.
+        drop(f2);
+        drop(f3);
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn instance_lock_path_resolves_to_writable_dir() {
+        // We don't write to the file in the test, just verify the
+        // path resolver returns a value whose parent we can `mkdir -p`.
+        let path = instance_lock_path().expect("path candidate");
+        assert!(path.is_absolute(), "lock path should be absolute: {}", path.display());
+        let parent = path.parent().expect("path has parent");
+        // create_dir_all is idempotent; on a clean system it creates
+        // the dir, on a populated system it no-ops.
+        std::fs::create_dir_all(parent)
+            .unwrap_or_else(|e| panic!("could not create {}: {e}", parent.display()));
+    }
 }

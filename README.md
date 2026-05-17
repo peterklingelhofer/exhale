@@ -14,18 +14,42 @@ The information and guidance provided by this breathing app are intended for gen
 
 You can download the build for your respective operating system on the [Releases](https://github.com/peterklingelhofer/exhale/releases) page. Using the latest release is recommended, but if you run into issues you could try a previous release to see if that yields better results. If you do encounter a problem, please [document the issue you encountered](https://github.com/peterklingelhofer/exhale/issues/new).
 
+The **Rust port** under [`rust/`](rust/) is the primary cross-platform implementation (macOS, Windows, Linux). It targets the Mac App Store, Microsoft Store, and Snap Store from a single codebase, uses a wgpu/WGSL overlay renderer with egui settings, and is the recommended build going forward. See [`rust/README.md`](rust/README.md) for build, packaging, and architecture notes. The legacy Swift, Electron, and Python implementations are preserved below for reference.
+
 **Mac**
 
-Recommend installing via the Apple App Store (or trying `exhale-macos-x64.zip` first) is recommended:
+Recommend installing via the Apple App Store:
 [<img src="https://user-images.githubusercontent.com/60944077/232312847-df673556-fb5e-49b4-8037-4d38267e6e18.png"  width="157" height="63"></img>](https://apps.apple.com/us/app/exhale-breath/id6447758995?mt=12)
+
+To build the Rust port locally:
+
+```sh
+git clone https://github.com/peterklingelhofer/exhale.git
+cd exhale/rust
+cargo run --release -p exhale-app
+```
 
 **Windows**
 
-Recommend installing the lightweight, native Windows release inspired by this app, in lieu of the Windows Electron release below: https://github.com/nitin2953/breathing
+The Rust port ships as an MSIX package for the Microsoft Store. To build locally:
+
+```sh
+git clone https://github.com/peterklingelhofer/exhale.git
+cd exhale/rust
+cargo run --release -p exhale-app
+```
 
 **Linux**
 
-The Electron app below is quite large, but it is functional. For something more lightweight, try the Python script.
+The Rust port ships as a strict-confined Snap for the Snap Store. To build locally:
+
+```sh
+git clone https://github.com/peterklingelhofer/exhale.git
+cd exhale/rust
+cargo run --release -p exhale-app
+```
+
+For something more lightweight, the legacy Python script also works.
 
 ## Mac App Usage
 
@@ -34,7 +58,7 @@ The Electron app below is quite large, but it is functional. For something more 
 <img width="447" height="981" alt="Screenshot 2026-03-18 at 9 51 16 AM" src="https://github.com/user-attachments/assets/32e1d10e-72e3-4acb-ae35-be186cd7cb19" />
 
 
-Note: This is built natively in Swift.
+Note: This section documents the legacy Swift Mac build. The Rust port in [`rust/`](rust/) is the cross-platform replacement currently being prepared for store submission and is recommended for new local builds; see [`rust/README.md`](rust/README.md).
 
 To launch the app on Catalina or newer for the first time, you may have to right click and select "Open" instead of double clicking on it, and you may need to do this twice. That's Apple's take on "security" for non-notarized binaries, or if you are not connected to the Internet.
 

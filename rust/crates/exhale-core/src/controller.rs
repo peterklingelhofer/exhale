@@ -467,6 +467,7 @@ fn advance_phase(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn phase_duration_for(
     phase:            BreathingPhase,
     current_drift:    f64,
@@ -499,6 +500,7 @@ fn jitter(base: f64, range: f64) -> f64 {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
     use std::sync::RwLock;
@@ -684,7 +686,7 @@ mod tests {
     fn jitter_stays_in_range() {
         for _ in 0..1000 {
             let v = jitter(5.0, 1.0);
-            assert!(v >= 4.0 && v <= 6.0, "jitter out of range: {v}");
+            assert!((4.0..=6.0).contains(&v), "jitter out of range: {v}");
         }
     }
 

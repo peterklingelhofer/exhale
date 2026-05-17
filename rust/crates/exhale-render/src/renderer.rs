@@ -234,7 +234,7 @@ pub(crate) fn build_pipeline(
             module:              &shader,
             entry_point:         "fs_main",
             targets:             &[Some(wgpu::ColorTargetState {
-                format:     format,
+                format,
                 blend:      Some(premult),
                 write_mask: wgpu::ColorWrites::ALL,
             })],

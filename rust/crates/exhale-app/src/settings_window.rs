@@ -418,7 +418,7 @@ impl SettingsWindow {
     /// Returns (consumed, wants_repaint) — the caller uses `wants_repaint`
     /// to drive redraws instead of polling every idle tick.
     pub fn on_window_event(&mut self, event: &WindowEvent) -> (bool, bool) {
-        let response = self.egui_state.on_window_event(&*self.window, event);
+        let response = self.egui_state.on_window_event(&self.window, event);
         match event {
             WindowEvent::Resized(size) => self.resize(*size),
             // We intentionally do NOT use the event's Theme payload: during
@@ -506,7 +506,7 @@ impl SettingsWindow {
             Err(e) => return Err(e).context("settings get_current_texture"),
         };
 
-        let raw_input = self.egui_state.take_egui_input(&*self.window);
+        let raw_input = self.egui_state.take_egui_input(&self.window);
         let pixels_per_point = self.window.scale_factor() as f32;
 
         let mut content_height: f32 = 0.0;
@@ -602,7 +602,7 @@ impl SettingsWindow {
         #[cfg(not(target_os = "macos"))]
         {
             self.egui_state.handle_platform_output(
-                &*self.window,
+                &self.window,
                 full_output.platform_output,
             );
         }
@@ -619,10 +619,10 @@ impl SettingsWindow {
         );
 
         for (id, delta) in &full_output.textures_delta.set {
-            self.egui_renderer.update_texture(&*self.device, &*self.queue, *id, delta);
+            self.egui_renderer.update_texture(&self.device, &self.queue, *id, delta);
         }
         self.egui_renderer.update_buffers(
-            &*self.device, &*self.queue, &mut encoder, &primitives, &screen_desc,
+            &self.device, &self.queue, &mut encoder, &primitives, &screen_desc,
         );
 
         {
@@ -1112,9 +1112,9 @@ fn settings_ui(
 
 // ─── UI helpers ───────────────────────────────────────────────────────────────
 
-/// Swift's SectionCard: 10 px rounded rect, 1 px stroke at `Color.primary.opacity(0.06)`,
-/// fill at `Color(NSColor.controlBackgroundColor).opacity(0.55)`, 12 px internal padding.
-/// Header (when present) is 10 pt uppercase `.secondary` with 0.8 pt letter-spacing.
+// Swift's SectionCard: 10 px rounded rect, 1 px stroke at `Color.primary.opacity(0.06)`,
+// fill at `Color(NSColor.controlBackgroundColor).opacity(0.55)`, 12 px internal padding.
+// Header (when present) is 10 pt uppercase `.secondary` with 0.8 pt letter-spacing.
 
 // ─── Tests ───────────────────────────────────────────────────────────────
 //

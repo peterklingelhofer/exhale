@@ -129,20 +129,17 @@ use super::*;
     pub fn update_settings_vibrancy(backdrop_ptr: usize, dark_mode: bool) {
         use objc2::msg_send;
         use objc2::runtime::AnyObject;
-        use objc2_app_kit::{NSAppearance, NSVisualEffectMaterial};
+        use objc2_app_kit::NSAppearance;
         use objc2_foundation::NSString;
         let Some(backdrop) = backdrop_from_ptr(backdrop_ptr) else { return; };
         let Some(vev)      = backdrop.contentView() else { return; };
 
-        let material = if dark_mode {
-            NSVisualEffectMaterial::HUDWindow
-        } else {
-            NSVisualEffectMaterial::HUDWindow
-        };
-        // The two branches happen to pick the same material today (Swift
-        // parity); the conditional is kept so future appearance tweaks
-        // can split dark/light without re-introducing the branch.
-        let _ = material;
+        // Material choice is identical in both themes today (Swift
+        // parity uses `.hudWindow` for both dark and light).  The
+        // appearance + theme-aware material lookup happens via the
+        // raw `setMaterial:` dispatch below using the int-coded
+        // `VEV_MATERIAL_*` constants — split dark/light there if
+        // future tweaks need divergent materials.
 
         unsafe {
             // NSVisualEffectView lives in the AppKit binding crate but
@@ -362,11 +359,13 @@ use super::*;
             // first-class VEV property the framework owns.
             let mask = make_rounded_mask_image(10.0);
             if !mask.is_null() {
-                // `make_rounded_mask_image` still returns an `objc::runtime::Object*`;
-                // cast over to objc2's `AnyObject*` for the msg_send.  Removed
-                // once that helper is migrated too.
-                let mask_obj: *mut AnyObject = mask as *mut AnyObject;
-                let _: () = msg_send![vev_obj, setMaskImage: mask_obj];
+                let _: () = msg_send![vev_obj, setMaskImage: mask];
+                // `make_rounded_mask_image` returned a +1-retained
+                // NSImage.  `setMaskImage:` is a retaining setter (the
+                // VEV now owns its own +1), so the caller's +1 is the
+                // leak — release it here.  Each settings-window
+                // install leaked one NSImage without this.
+                let _: () = msg_send![mask, release];
             }
 
             // NSWindowOrderingMode::Below = -1 — order the backdrop just
@@ -492,7 +491,7 @@ use super::*;
             // expects.  The default init (without bitmapFormat) gives
             // premultiplied alpha and would force us to unpremultiply
             // every pixel after the fact.
-            let cs_name = b"NSCalibratedRGBColorSpace\0".as_ptr() as *const i8;
+            let cs_name = c"NSCalibratedRGBColorSpace".as_ptr();
             let space: *mut AnyObject = msg_send![
                 ns_string_cls, stringWithUTF8String: cs_name
             ];
@@ -519,7 +518,11 @@ use super::*;
             // Bind a graphics context backed by the rep, save state.
             let ctx_cls = class!(NSGraphicsContext);
             let ctx: *mut AnyObject = msg_send![ctx_cls, graphicsContextWithBitmapImageRep: rep];
-            if ctx.is_null() { return None; }
+            if ctx.is_null() {
+                // Release the +1 retain from alloc/init before bailing.
+                let _: () = msg_send![rep, release];
+                return None;
+            }
             let _: () = msg_send![ctx_cls, saveGraphicsState];
             let _: () = msg_send![ctx_cls, setCurrentContext: ctx];
 
@@ -548,9 +551,21 @@ use super::*;
 
             // Pull bytes out.
             let bitmap_data: *const u8 = msg_send![rep, bitmapData];
-            if bitmap_data.is_null() { return None; }
+            if bitmap_data.is_null() {
+                let _: () = msg_send![rep, release];
+                return None;
+            }
             let total = (pixel_w * pixel_h * 4) as usize;
             let bytes = std::slice::from_raw_parts(bitmap_data, total).to_vec();
+
+            // Release the +1 retain we acquired via `alloc/init…`.
+            // `graphicsContextWithBitmapImageRep:` only borrowed `rep`
+            // for the duration of `saveGraphicsState`…`restoreGraphicsState`;
+            // by the time we copy the bitmap bytes the GC is done with
+            // it and the rep can drop.  Without this `release` each
+            // call leaked one `NSBitmapImageRep` (~16 KB at 24 pt @ 2×),
+            // accumulating as the user opened the settings window.
+            let _: () = msg_send![rep, release];
 
             Some((bytes, pixel_w, pixel_h))
         }
@@ -743,25 +758,25 @@ use super::*;
     /// via their `NSApplicationMain`-installed main menu.
     ///
     /// We install:
-    ///   • Apple menu (auto-named after the app): About, Services,
+    ///   - Apple menu (auto-named after the app): About, Services,
     ///     Hide / Hide Others / Show All, Quit
-    ///   • Edit menu: Cut / Copy / Paste / Select All with native
+    ///   - Edit menu: Cut / Copy / Paste / Select All with native
     ///     `Cmd-X` / `Cmd-C` / `Cmd-V` / `Cmd-A` shortcuts so text
     ///     fields in the settings window behave natively
-    ///   • Window menu: Minimize / Zoom (AppKit auto-populates the
+    ///   - Window menu: Minimize / Zoom (AppKit auto-populates the
     ///     "Bring All to Front" item)
     ///
-    // (About-panel content is sourced from the bundle's `Info.plist`
-    // via the standard `orderFrontStandardAboutPanel:` selector.
-    // Earlier rounds attached an `exhale_orderFrontAboutPanel:`
-    // method to the NSApp delegate to inject custom credits, but the
-    // `class_addMethod`-on-a-system-class pattern occasionally
-    // triggers Mac App Store static-analysis flags during review.
-    // Using the OS's documented selector is the App-Store-safest
-    // path — the bundle's `CFBundleShortVersionString` /
-    // `CFBundleVersion` / `NSHumanReadableCopyright` populate the
-    // panel automatically.)
-
+    /// About-panel content is sourced from the bundle's `Info.plist`
+    /// via the standard `orderFrontStandardAboutPanel:` selector.
+    /// Earlier rounds attached an `exhale_orderFrontAboutPanel:`
+    /// method to the NSApp delegate to inject custom credits, but the
+    /// `class_addMethod`-on-a-system-class pattern occasionally
+    /// triggers Mac App Store static-analysis flags during review.
+    /// Using the OS's documented selector is the App-Store-safest
+    /// path: the bundle's `CFBundleShortVersionString` /
+    /// `CFBundleVersion` / `NSHumanReadableCopyright` populate the
+    /// panel automatically.
+    ///
     /// Safe to call multiple times — replaces the existing main menu
     /// each call.  Called once from app startup
     pub fn install_main_menu() {
@@ -1067,7 +1082,7 @@ use super::*;
     pub fn register_reopen_handler() {
         use objc2::msg_send;
         use objc2::runtime::AnyObject;
-        use std::ffi::CStr;
+        
         use std::sync::atomic::Ordering;
         use std::sync::Once;
 
@@ -1080,6 +1095,26 @@ use super::*;
             super::DOCK_REOPEN.store(true, Ordering::Relaxed);
         }
 
+        // SAFETY: this entire `Once`-guarded block uses raw objc2
+        // runtime FFI to build, register, and instantiate a brand-new
+        // class `ExhaleAEHandler`.  Each unsafe operation is justified
+        // inline by the surrounding comment.  Aggregate invariants:
+        //   * `INIT: Once` guarantees the block runs exactly once per
+        //     process — no double-allocation of the class pair (which
+        //     would `objc_registerClassPair` a duplicate name).
+        //   * `super_cls` is `objc2::class!(NSObject)`, a statically-
+        //     valid Class pointer — `objc_allocateClassPair` accepts
+        //     any valid Class as the superclass.
+        //   * `handle_reopen` matches the AppKit-documented signature
+        //     `void (^)(NSAppleEventDescriptor*, NSAppleEventDescriptor*)`
+        //     when prepended with the implicit `(self, _cmd, …)`
+        //     receiver/selector args that every Obj-C method takes.
+        //     `transmute(fn ptr → Imp)` is layout-compatible because
+        //     both are `unsafe extern "C" fn` pointers.
+        //   * The `Retained::into_raw`-equivalent leak at the end is
+        //     intentional and documented — NSAppleEventManager's
+        //     handler table needs the instance to outlive the
+        //     registration.
         static INIT: Once = Once::new();
         INIT.call_once(|| unsafe {
             // 1. Create our own NSObject subclass.  Adding methods to
@@ -1087,7 +1122,7 @@ use super::*;
             //    canonical, App-Store-safe pattern for runtime-defined
             //    objc classes.
             let super_cls = objc2::class!(NSObject);
-            let name = CStr::from_bytes_with_nul(b"ExhaleAEHandler\0").unwrap();
+            let name = c"ExhaleAEHandler";
             let new_cls = objc2::ffi::objc_allocateClassPair(
                 (super_cls as *const _) as *const _,
                 name.as_ptr(),

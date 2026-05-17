@@ -44,8 +44,8 @@ pub fn build_tray() -> Result<(TrayIcon, TrayMenuIds)> {
         stop:        stop_item.id().clone(),
         reset:       reset_item.id().clone(),
         quit:        quit_item.id().clone(),
-        start_item:  start_item,
-        stop_item:   stop_item,
+        start_item,
+        stop_item,
     };
 
     let menu = Menu::new();
