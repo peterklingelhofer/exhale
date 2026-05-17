@@ -59,10 +59,40 @@ tray-icon     = { workspace = true }
 global-hotkey = { workspace = true, optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# macOS uses native `UNUserNotifications` via objc — `notify-rust` is only
-# pulled in on other platforms.
-objc  = "0.2"
-block = "0.1"
+# macOS uses native `UNUserNotifications` via objc2 — `notify-rust` is only
+# pulled in on other platforms.  objc2 + the per-framework binding crates
+# give us typed message dispatch (selector typos and arg-type mismatches
+# become compile errors) and `Retained<T>` retain/release safety, replacing
+# the legacy `objc 0.2` raw `msg_send!`-with-`let _: () =` pattern
+objc2                    = "0.6"
+objc2-app-kit            = { version = "0.3", features = [
+    "NSApplication",
+    "NSWindow",
+    "NSView",
+    "NSColor",
+    "NSImage",
+    "NSBitmapImageRep",
+    "NSGraphicsContext",
+    "NSBezierPath",
+    "NSVisualEffectView",
+    "NSAppearance",
+    "NSResponder",
+    "NSGraphics",
+] }
+objc2-foundation         = { version = "0.3", features = [
+    "NSString",
+    "NSUUID",
+    "NSGeometry",
+    "NSDate",
+] }
+objc2-user-notifications = { version = "0.3", features = [
+    "UNUserNotificationCenter",
+    "UNNotificationContent",
+    "UNNotificationSound",
+    "UNNotificationRequest",
+    "UNNotificationTrigger",
+] }
+block2                   = "0.6"
 
 # Windows-only build script: converts the shared `exhaleColorGradient512.png`
 # to a multi-resolution `.ico` and embeds it into the `.exe` so the

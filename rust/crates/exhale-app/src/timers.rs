@@ -126,46 +126,60 @@ fn send_reminder_other() {
 /// — that's fine for development.
 #[cfg(target_os = "macos")]
 fn send_reminder_macos() {
-    use block::ConcreteBlock;
-    use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+    use block2::StackBlock;
+    use objc2::msg_send;
+    use objc2::runtime::{AnyClass, AnyObject};
+
+    // SAFETY: framework class lookups are fallible — skip silently
+    // when `UserNotifications.framework` isn't linked (e.g. in a
+    // bare `cargo test` binary).  Production app bundle has it.
+    let (Some(unc_cls), Some(content_cls), Some(sound_cls), Some(req_cls)) = (
+        AnyClass::get(c"UNUserNotificationCenter"),
+        AnyClass::get(c"UNMutableNotificationContent"),
+        AnyClass::get(c"UNNotificationSound"),
+        AnyClass::get(c"UNNotificationRequest"),
+    ) else { return; };
 
     unsafe {
-        let content: *mut Object = msg_send![class!(UNMutableNotificationContent), alloc];
-        let content: *mut Object = msg_send![content, init];
+        let content: *mut AnyObject = msg_send![content_cls, alloc];
+        let content: *mut AnyObject = msg_send![content, init];
         if content.is_null() { return; }
 
-        let ns_string = class!(NSString);
+        let ns_string = objc2::class!(NSString);
         let title_c = std::ffi::CString::new("exhale").unwrap();
         let body_c  = std::ffi::CString::new("Remember to breathe").unwrap();
-        let title:  *mut Object = msg_send![ns_string, stringWithUTF8String: title_c.as_ptr()];
-        let body:   *mut Object = msg_send![ns_string, stringWithUTF8String: body_c.as_ptr()];
+        let title:  *mut AnyObject = msg_send![ns_string, stringWithUTF8String: title_c.as_ptr()];
+        let body:   *mut AnyObject = msg_send![ns_string, stringWithUTF8String: body_c.as_ptr()];
         let _: () = msg_send![content, setTitle: title];
         let _: () = msg_send![content, setBody:  body];
 
-        let sound: *mut Object = msg_send![class!(UNNotificationSound), defaultSound];
+        let sound: *mut AnyObject = msg_send![sound_cls, defaultSound];
         let _: () = msg_send![content, setSound: sound];
 
-        let uuid:       *mut Object = msg_send![class!(NSUUID), UUID];
-        let identifier: *mut Object = msg_send![uuid, UUIDString];
+        let uuid:       *mut AnyObject = msg_send![objc2::class!(NSUUID), UUID];
+        let identifier: *mut AnyObject = msg_send![uuid, UUIDString];
 
-        let trigger: *mut Object = std::ptr::null_mut();
-        let request: *mut Object = msg_send![class!(UNNotificationRequest),
-            requestWithIdentifier: identifier
-            content:               content
-            trigger:               trigger];
+        let trigger: *mut AnyObject = std::ptr::null_mut();
+        let request: *mut AnyObject = msg_send![
+            req_cls,
+            requestWithIdentifier: identifier,
+            content:               content,
+            trigger:               trigger,
+        ];
 
-        let center: *mut Object = msg_send![
-            class!(UNUserNotificationCenter), currentNotificationCenter];
+        let center: *mut AnyObject = msg_send![unc_cls, currentNotificationCenter];
         if !center.is_null() && !request.is_null() {
-            let block = ConcreteBlock::new(|err: *mut Object| {
+            let block = StackBlock::new(|err: *mut AnyObject| {
                 if !err.is_null() {
                     log::warn!("notification delivery returned an NSError");
                 }
             });
             let block = block.copy();
-            let _: () = msg_send![center,
-                addNotificationRequest: request
-                 withCompletionHandler: &*block];
+            let _: () = msg_send![
+                center,
+                addNotificationRequest: request,
+                withCompletionHandler:  &*block,
+            ];
         }
 
         // Balance the +1 retain from `[UNMutableNotificationContent alloc] init]`.
