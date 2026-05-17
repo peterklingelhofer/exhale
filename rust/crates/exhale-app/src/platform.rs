@@ -1,20 +1,20 @@
-/// Platform-specific overlay / settings window setup.
-///
-/// Public surface (identical on every target so main.rs doesn't need cfgs):
-///   • `setup_overlay_window`   — make window click-through, always-on-top,
-///                                spans every workspace/Space.
-///   • `setup_settings_window`  — float above overlay, don't appear in taskbar.
-///   • `apply_app_visibility`   — TopBarOnly/DockOnly/Both (tray vs taskbar).
-///   • `request_notification_permission` — no-op off macOS.
-///   • `register_reopen_handler` — no-op off macOS.
-///   • `DOCK_REOPEN`            — atomic flag (always defined; only macOS sets it).
-///
-/// The per-OS implementations live in submodules
-/// (`platform/{mac,win,linux}.rs`).  This file is the API layer:
-/// it owns the cross-platform globals, declares the submodules
-/// conditionally, re-exports the right submodule's symbols, and
-/// supplies no-op stubs for symbols that only exist on a subset of
-/// platforms.  That keeps `main.rs` and `settings_window.rs` cfg-free.
+//! Platform-specific overlay / settings window setup.
+//!
+//! Public surface (identical on every target so main.rs doesn't need cfgs):
+//!   - `setup_overlay_window`: make window click-through, always-on-top,
+//!     spans every workspace/Space.
+//!   - `setup_settings_window`: float above overlay, don't appear in taskbar.
+//!   - `apply_app_visibility`: TopBarOnly/DockOnly/Both (tray vs taskbar).
+//!   - `request_notification_permission`: no-op off macOS.
+//!   - `register_reopen_handler`: no-op off macOS.
+//!   - `DOCK_REOPEN`: atomic flag (always defined; only macOS sets it).
+//!
+//! The per-OS implementations live in submodules
+//! (`platform/{mac,win,linux}.rs`).  This file is the API layer:
+//! it owns the cross-platform globals, declares the submodules
+//! conditionally, re-exports the right submodule's symbols, and
+//! supplies no-op stubs for symbols that only exist on a subset of
+//! platforms.  That keeps `main.rs` and `settings_window.rs` cfg-free.
 
 use std::sync::atomic::AtomicBool;
 

@@ -60,11 +60,11 @@ impl FrameSender {
 ///
 /// The main thread keeps only the [`Arc<Window>`] and a channel to the
 /// per-overlay render thread.  The render thread owns the
-/// [`OverlayRenderer`] (and through it the per-window wgpu device + queue
-/// + surface) and renders directly from the controller's shared state
+/// [`OverlayRenderer`] (and through it the per-window wgpu device, queue,
+/// surface) and renders directly from the controller's shared state
 /// snapshot.  This decouples overlay frame delivery from the Windows
-/// main-thread message pump — WM_PAINT is the lowest-priority message in
-/// the queue, so when WM_MOUSEMOVE floods the queue (hover storm over
+/// main-thread message pump, WM_PAINT being the lowest-priority message
+/// in the queue, so when WM_MOUSEMOVE floods the queue (hover storm over
 /// the settings window), a main-thread render loop would have its
 /// WM_PAINT slots starved and the breath animation would stutter.
 /// With render threads, the controller signals the thread via an mpsc
@@ -333,6 +333,7 @@ fn render_thread_loop(
     max_circle_scale: f32,
     alpha_capable:    bool,
 ) {
+    #[allow(clippy::while_let_loop)]
     loop {
         // Block until at least one message arrives.  `recv` returns
         // `Err` only when every sender has been dropped (overlay handle

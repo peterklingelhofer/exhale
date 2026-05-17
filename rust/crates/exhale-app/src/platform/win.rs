@@ -145,18 +145,7 @@ use super::*;
     pub fn install_settings_vibrancy(window: &Window, dark_mode: bool) -> usize {
         let h = hwnd(window);
         if h.is_null() { return 0; }
-        unsafe {
-            // Dark-mode title bar (Win10 1809+).  Pass a Win32 BOOL —
-            // `i32` 1 / 0 — by pointer.  Ignored as a "feature not
-            // present" error on earlier builds.
-            let dark_bool: i32 = if dark_mode { 1 } else { 0 };
-            let _ = DwmSetWindowAttribute(
-                h,
-                DWMWA_USE_IMMERSIVE_DARK_MODE as u32,
-                &dark_bool as *const i32 as *const core::ffi::c_void,
-                std::mem::size_of::<i32>() as u32,
-            );
-        }
+        apply_dark_titlebar(h, dark_mode);
         // Return the HWND so the theme-change path can re-apply the
         // dark-titlebar attribute via `update_settings_vibrancy`.
         // `BLUR_ACTIVE` stays false → opaque rendering everywhere.
@@ -168,9 +157,22 @@ use super::*;
     /// `handle` is the HWND returned by `install_settings_vibrancy`.
     pub fn update_settings_vibrancy(handle: usize, dark_mode: bool) {
         if handle == 0 { return; }
+        apply_dark_titlebar(handle as HWND, dark_mode);
+    }
+
+    /// Set the dark-mode title-bar attribute on `h` via DWM.
+    /// `DWMWA_USE_IMMERSIVE_DARK_MODE` is silently ignored ("feature
+    /// not present" error) on Win10 builds older than 1809, so this
+    /// is no-op-safe on earlier OSes
+    fn apply_dark_titlebar(h: HWND, dark_mode: bool) {
+        // Pass a Win32 BOOL — `i32` 1 / 0 — by pointer.
+        let dark_bool: i32 = if dark_mode { 1 } else { 0 };
+        // SAFETY: `h` is a valid HWND (caller null-checked or
+        // unwrapped from the live winit window via `hwnd()`).  The
+        // pointer + size pair describe a stack-local i32, in scope
+        // for the duration of the call.  `DwmSetWindowAttribute` has
+        // no Rust-level safety requirements beyond a valid HWND.
         unsafe {
-            let h = handle as HWND;
-            let dark_bool: i32 = if dark_mode { 1 } else { 0 };
             let _ = DwmSetWindowAttribute(
                 h,
                 DWMWA_USE_IMMERSIVE_DARK_MODE as u32,

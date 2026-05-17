@@ -272,7 +272,6 @@ impl App {
             if platform::show_reset_alert() {
                 self.do_reset();
             }
-            return;
         }
 
         // Windows / Linux: fall back to the in-window egui confirmation.
@@ -307,7 +306,7 @@ impl App {
     #[cfg(target_os = "windows")]
     fn maybe_reassert_topmost(&mut self) {
         let now = Instant::now();
-        let due = self.next_topmost_reassert.map_or(true, |t| now >= t);
+        let due = self.next_topmost_reassert.is_none_or(|t| now >= t);
         if !due { return; }
         for handle in self.overlays.values() {
             platform::reassert_overlay_topmost(&handle.window);
