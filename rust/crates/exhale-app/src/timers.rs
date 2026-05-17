@@ -146,10 +146,11 @@ fn send_reminder_macos() {
         if content.is_null() { return; }
 
         let ns_string = objc2::class!(NSString);
-        let title_c = std::ffi::CString::new("exhale").unwrap();
-        let body_c  = std::ffi::CString::new("Remember to breathe").unwrap();
-        let title:  *mut AnyObject = msg_send![ns_string, stringWithUTF8String: title_c.as_ptr()];
-        let body:   *mut AnyObject = msg_send![ns_string, stringWithUTF8String: body_c.as_ptr()];
+        // C-string literals via `c"…"` are guaranteed nul-terminated
+        // at compile time — no runtime `CString::new(...).unwrap()`,
+        // no allocation per reminder fire.
+        let title:  *mut AnyObject = msg_send![ns_string, stringWithUTF8String: c"exhale".as_ptr()];
+        let body:   *mut AnyObject = msg_send![ns_string, stringWithUTF8String: c"Remember to breathe".as_ptr()];
         let _: () = msg_send![content, setTitle: title];
         let _: () = msg_send![content, setBody:  body];
 

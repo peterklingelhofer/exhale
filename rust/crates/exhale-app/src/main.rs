@@ -7,6 +7,7 @@
 // behavior Windows does for entry-point executables.
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 
+mod bootstrap;
 #[cfg(feature = "global-hotkeys")]
 mod hotkeys;
 mod overlay;
@@ -854,201 +855,27 @@ impl App {
 
 // ─── main ─────────────────────────────────────────────────────────────────────
 
-const INSTANCE_PORT: u16 = 47462;
-
-enum InstanceGuard {
-    /// First instance; holds the listener alive for the process lifetime.
-    First(std::net::TcpListener),
-    /// Another instance is already running; it has been signalled.
-    Secondary,
-    /// Neither bind nor connect succeeded. Most likely a sandboxed build
-    /// (macOS MAS) where BSD sockets are denied. Proceed without the guard.
-    Unavailable,
-}
-
-fn single_instance_guard(proxy: &EventLoopProxy<AppEvent>) -> InstanceGuard {
-    // Retry loop closes the TOCTOU race: the first instance might
-    // exit between our bind-fail and our connect, leaving the
-    // secondary with no app to signal.  If connect fails after a
-    // bind-fail, we re-try the bind; the previous owner is gone, so
-    // we can take over as First.
-    const RETRY_LIMIT: u8 = 3;
-    for attempt in 0..RETRY_LIMIT {
-        match std::net::TcpListener::bind(format!("127.0.0.1:{INSTANCE_PORT}")) {
-            Ok(listener) => {
-                let proxy = proxy.clone();
-                let listener2 = match listener.try_clone() {
-                    Ok(l)  => l,
-                    Err(e) => {
-                        // Couldn't clone the listener (very rare —
-                        // file-descriptor exhaustion?).  Proceed as
-                        // First without the IPC thread; the "show
-                        // settings" wire protocol just won't work
-                        // until restart, but the app still starts up.
-                        log::warn!(
-                            "single_instance_guard: listener.try_clone failed ({e}); \
-                             running without the bring-to-front IPC thread",
-                        );
-                        return InstanceGuard::First(listener);
-                    }
-                };
-                let spawn_res = std::thread::Builder::new()
-                    .name("exhale-instance-listener".to_string())
-                    .spawn(move || {
-                        for stream in listener2.incoming() {
-                            if let Ok(mut s) = stream {
-                                use std::io::Read;
-                                let mut buf = [0u8; 16];
-                                if let Ok(n) = s.read(&mut buf) {
-                                    if buf[..n].starts_with(b"show") {
-                                        let _ = proxy.send_event(AppEvent::ShowSettings);
-                                    }
-                                }
-                            }
-                        }
-                    });
-                if let Err(e) = spawn_res {
-                    log::warn!(
-                        "single_instance_guard: listener thread spawn failed ({e}); \
-                         running without the bring-to-front IPC thread",
-                    );
-                }
-                return InstanceGuard::First(listener);
-            }
-            Err(_) => {
-                use std::io::Write;
-                match std::net::TcpStream::connect(format!("127.0.0.1:{INSTANCE_PORT}")) {
-                    Ok(mut s) => {
-                        let _ = s.write_all(b"show");
-                        return InstanceGuard::Secondary;
-                    }
-                    Err(_) => {
-                        // Bind failed but connect ALSO failed — the
-                        // race window between bind-fail and connect.
-                        // Spin briefly and retry the bind.  If the
-                        // previous instance exited, the port is now
-                        // free and we'll succeed as First.
-                        if attempt + 1 < RETRY_LIMIT {
-                            std::thread::sleep(std::time::Duration::from_millis(50));
-                        }
-                    }
-                }
-            }
-        }
-    }
-    // All retries exhausted (port might be held by another local
-    // process spoofing).  Proceed without the guard rather than
-    // refusing to start.
-    log::warn!(
-        "single_instance_guard: port {INSTANCE_PORT} bind+connect both failed across \
-         {RETRY_LIMIT} attempts; running without the single-instance guard",
-    );
-    InstanceGuard::Unavailable
-}
-
-/// `Write` adapter that mirrors every byte to both stderr AND a backing
-/// file.  We use this as `env_logger`'s target so the same log output
-/// appears in the terminal (when there is one) AND on disk next to the
-/// exe — needed for windowed-app debugging where stderr is nowhere
-/// reachable, including the on-Windows scenario where a black-screen
-/// overlay bug renders every other window invisible until the process
-/// is force-killed.  Stderr writes are best-effort: if stderr is closed
-/// or piped to /dev/null we still want the file log to succeed.
-struct TeeLogWriter {
-    file: std::fs::File,
-}
-
-impl std::io::Write for TeeLogWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        // Best-effort stderr — ignore failures so file logging always works.
-        let _ = std::io::Write::write_all(&mut std::io::stderr(), buf);
-        self.file.write(buf)
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        let _ = std::io::stderr().flush();
-        self.file.flush()
-    }
-}
-
-/// Pick a path to write the log file at.  Preferred location is right
-/// next to the exe — most users running an unsigned dev build extract
-/// to Downloads / Desktop / similar, which is writable.  Fallbacks
-/// progressively widen the net so we never silently lose logs:
-///   1. `<exe-dir>/exhale.log`
-///   2. `<temp>/exhale.log`
-///   3. `./exhale.log`
-fn pick_log_path() -> std::path::PathBuf {
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let candidate = dir.join("exhale.log");
-            if std::fs::OpenOptions::new()
-                .create(true).write(true).truncate(true)
-                .open(&candidate).is_ok()
-            {
-                return candidate;
-            }
-        }
-    }
-    let tmp = std::env::temp_dir().join("exhale.log");
-    if std::fs::OpenOptions::new()
-        .create(true).write(true).truncate(true)
-        .open(&tmp).is_ok()
-    {
-        return tmp;
-    }
-    std::path::PathBuf::from("exhale.log")
-}
-
-/// Install a panic hook that appends panic info + backtrace to the log
-/// file before delegating to the default hook.  Without this, panics
-/// only print to stderr and are lost when stderr isn't captured.
-fn install_panic_logger(log_path: std::path::PathBuf) {
-    use std::sync::OnceLock;
-    static PATH: OnceLock<std::path::PathBuf> = OnceLock::new();
-    let _ = PATH.set(log_path);
-    let prev = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        if let Some(path) = PATH.get() {
-            if let Ok(mut f) = std::fs::OpenOptions::new()
-                .append(true).create(true).open(path)
-            {
-                use std::io::Write;
-                let _ = writeln!(f, "\n=== PANIC ===");
-                let _ = writeln!(f, "{info}");
-                let _ = writeln!(
-                    f, "backtrace:\n{}",
-                    std::backtrace::Backtrace::force_capture(),
-                );
-                let _ = f.flush();
-            }
-        }
-        prev(info);
-    }));
-}
 
 fn main() -> Result<()> {
+    use bootstrap::{
+        install_panic_logger, pick_log_path, single_instance_guard,
+        InstanceGuard, TeeLogWriter,
+    };
+
     let log_path = pick_log_path();
     // Default filter: our crates at INFO, but cap the GPU stack at
     // WARN so wgpu's per-frame `Device::maintain: waiting for
     // submission index N` chatter doesn't flood the log file at ~10
-    // fps.  The submission index itself is just a monotonic u64
-    // counter — not a memory leak — but logging it every frame
-    // bloats the log file and obscures actual events.
+    // fps.  `wgpu_hal::metal::adapter` is pinned to ERROR
+    // specifically to suppress the per-frame "Unable to get the
+    // current view dimensions on a non-main thread" WARN — that
+    // warning is benign for our use case (wgpu's fallback uses the
+    // cached size from the last `configure()`, which we DO call
+    // from the main thread on every Resized event).
     //
-    // `wgpu_hal::metal::adapter` is pinned to ERROR specifically to
-    // suppress the per-frame "Unable to get the current view
-    // dimensions on a non-main thread" WARN.  That warning is
-    // emitted by wgpu when the per-overlay render thread calls
-    // `get_current_texture()` and the Metal adapter wants to query
-    // the layer's `drawableSize` (which requires the main thread on
-    // macOS).  wgpu's fallback is to use the cached size from the
-    // last `configure()`, which we DO call from the main thread on
-    // every Resized event — so the warning is benign for our use
-    // case.  Re-enable with `RUST_LOG=wgpu_hal::metal=warn` if
-    // investigating an actual macOS rendering issue.
-    //
-    // Override the whole filter via `RUST_LOG=info` to see everything
-    // when actually debugging wgpu/naga/wayland issues.
+    // Override via `RUST_LOG=info` to see everything when actually
+    // debugging wgpu/naga/wayland issues.  Re-enable just the metal
+    // adapter chatter with `RUST_LOG=wgpu_hal::metal=warn`.
     let mut builder = env_logger::Builder::from_env(
         env_logger::Env::default().default_filter_or(
             "info,\

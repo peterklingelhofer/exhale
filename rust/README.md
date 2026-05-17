@@ -2,7 +2,21 @@
 
 Cross-platform Rust port of the macOS-only Swift app.  Same overlay, same
 breathing animation, same hotkeys, same settings panel — on **macOS, Windows,
-and Linux**.
+and Linux** from one codebase.
+
+- **Renderer**: `wgpu` + a single WGSL fragment shader (`crates/exhale-render`)
+- **Window system**: `winit`
+- **Settings UI**: `egui` (hand-rolled stepper, segmented picker, control
+  buttons painted directly via `egui::Painter` to match `NSSegmentedControl`
+  / `NSStepper` look)
+- **AppKit interop**: typed FFI via `objc2`, no raw `msg_send!` after the
+  migration
+- **Threading model**: per-overlay-window render thread + per-window
+  `wgpu::Device` so overlay frame delivery isn't gated by the main thread's
+  message queue or the settings window's GPU submissions
+- **Settings cadence**: 24 fps fast / 12 fps slow (matches Swift's
+  `MetalBreathingController`).  Hardcoded — earlier user-tunable preset was
+  removed since per-frame CPU runs ≤ 2 % on every scene tested
 
 ## Build & run
 
@@ -75,20 +89,31 @@ every X11 desktop.
 
 ## Settings
 
-Settings are saved as TOML under the platform config dir:
+Settings are saved as TOML under the platform config dir
+(via the `directories` crate's `ProjectDirs::from("com",
+"peterklingelhofer", "exhale")`):
 
 | Platform | Path |
 |----------|------|
-| macOS    | `~/Library/Application Support/exhale/settings.toml` |
-| Windows  | `%APPDATA%\exhale\settings.toml` |
+| macOS    | `~/Library/Application Support/com.peterklingelhofer.exhale/settings.toml` |
+| Windows  | `%APPDATA%\peterklingelhofer\exhale\config\settings.toml` |
 | Linux    | `~/.config/exhale/settings.toml` |
+
+Settings are reloaded on launch and persisted on every change via a
+debounced background writer thread; corrupt TOML is logged and the
+file is rewritten with defaults.
 
 ## Crates
 
-- `exhale-core`   — settings, breathing controller, types.  Zero GUI deps.
-- `exhale-render` — wgpu renderer + WGSL shader.
-- `exhale-app`    — winit event loop, egui settings panel, tray, hotkeys,
-                    platform glue.
+- `exhale-core`   — settings + `SettingsDiff`, breathing controller
+                    (deadline-scheduled background thread), poison-tolerant
+                    lock helpers, easing tables.  Zero GUI deps.
+- `exhale-render` — `wgpu` renderer + WGSL fragment shader, headless
+                    benchmarking harness (`cargo run --example cpu_bench`).
+- `exhale-app`    — winit event loop, split egui settings panel
+                    (`settings_window.rs` + `widgets.rs` + `theme.rs`),
+                    per-overlay render thread, tray, hotkeys, platform glue
+                    (objc2 / windows-sys / x11-dl).
 
 ## Platform notes
 
@@ -132,9 +157,59 @@ egui one:
   but the same constraint as `NSStepper` applies.  Tracking
   upstream: <https://github.com/emilk/egui/issues/3604>.
 
-The animation cadence and CPU-vs-Swift comparison live in
-`docs/PERFORMANCE.md` (TODO).  Currently the Rust port matches Swift
-at 24 / 12 fps with ~3-5× lower per-frame CPU on the complex scenes
-(ripple, circle gradient) and ~2× higher on trivial scenes
-(fullscreen-solid); see the `cpu_bench` example in
-`crates/exhale-render/examples` for the comparison harness.
+## Performance
+
+Hardcoded cadence: 24 fps fast / 12 fps slow (matches Swift's
+`MetalBreathingController.swift`).  Headless render bench at this
+cadence on M3 Max (`cargo run --release --example cpu_bench -p
+exhale-render`):
+
+| Scene                            | Δ avg CPU | Δ peak CPU | effective fps |
+|----------------------------------|----------:|-----------:|--------------:|
+| rect + gradient                  |     1.5 % |      1.7 % |          19.3 |
+| circle + gradient                |     1.3 % |      1.6 % |          19.5 |
+| fullscreen + solid               |     1.5 % |      1.9 % |          19.3 |
+| rect + hold ripple gradient      |     1.3 % |      1.8 % |          17.3 |
+| rect + hold ripple stark         |     1.2 % |      1.5 % |          17.9 |
+| circle + hold ripple gradient    |     1.4 % |      2.1 % |          17.5 |
+
+Compared on the same hardware against Swift's `PerformanceTests`
+(`swift/exhaleTests/exhaleTests.swift::PerformanceTests`) which uses
+the same `getrusage` / 5×1s-sample methodology:
+
+| Scene                            | Swift Δ avg | Rust Δ avg |
+|----------------------------------|------------:|-----------:|
+| Circle + gradient                |       4.6 % |      1.3 % |
+| Rect + ripple gradient           |       6.1 % |      1.3 % |
+| Rect + ripple stark              |       4.3 % |      1.2 % |
+| Circle + ripple gradient         |       6.0 % |      1.4 % |
+| Fullscreen + solid               |       0.0 % |      1.5 % |
+| Rect + gradient                  |       0.6 % |      1.5 % |
+
+**Per-frame animation work is ~3-5× cheaper in Rust on the complex
+scenes** (anything with hold-ripple or circle SDF math).  SwiftUI
+optimises trivial scenes to ~zero — Rust's shader runs the same
+fragment work regardless of scene complexity, so simple scenes cost
+slightly more (still under 2 %).  Notable: Rust's per-scene variance
+is much lower (1.2 – 1.5 % across everything) which matters for
+predictable battery-life modelling.
+
+Caveat: the `cpu_bench` harness is **headless** — it renders to an
+offscreen `wgpu::Texture`, skipping the compositor cost the live app
+pays on `WindowServer` / DWM.  Real-world CPU is somewhere between
+the bench number and the Swift number, likely closer to 2-3 % on
+complex scenes.
+
+## Ship & distribute
+
+| Target                       | Status            | Notes |
+|------------------------------|-------------------|-------|
+| macOS standalone (signed)    | ✅ ready          | `scripts/bundle-mas.sh` (universal binary, Developer-ID signed .pkg, sandbox entitlements) |
+| Mac App Store                | ⚠️ blockers       | TCP single-instance guard won't work under sandbox without `network.server` entitlement; replace with file lock.  See `crates/exhale-app/src/main.rs:857-947` |
+| Windows standalone           | ✅ ready          | `cargo build --release` + `bundle-msix.ps1` for MSIX wrapper |
+| Microsoft Store              | ⚠️ blockers       | Manifest missing Wide310x150 and Square71x71 tile assets; `MaxVersionTested` is 22H2 (bump to 24H2) |
+| Linux `.deb` / AppImage      | ✅ ready          | `cargo deb` + `scripts/bundle-appimage.sh` |
+
+The full app-store readiness gap analysis lives in `docs/SHIPPING.md`
+(TODO) — short version: both stores are ~1 day of focused fixes away
+for a v1 listing.
