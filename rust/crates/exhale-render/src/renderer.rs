@@ -266,7 +266,11 @@ fn prefer_format(caps: &wgpu::SurfaceCapabilities) -> wgpu::TextureFormat {
     ] {
         if caps.formats.contains(&f) { return f; }
     }
-    caps.formats[0]
+    // Driver bug guard: wgpu specifies `formats` as non-empty, but a
+    // misbehaving driver could in principle return an empty list.
+    // Falling back to a hard-coded `Bgra8Unorm` keeps us from indexing
+    // `formats[0]` past the end and crashing the renderer
+    caps.formats.first().copied().unwrap_or(wgpu::TextureFormat::Bgra8Unorm)
 }
 
 fn pick_alpha_mode(caps: &wgpu::SurfaceCapabilities) -> wgpu::CompositeAlphaMode {
@@ -274,7 +278,11 @@ fn pick_alpha_mode(caps: &wgpu::SurfaceCapabilities) -> wgpu::CompositeAlphaMode
     for &m in &[M::PreMultiplied, M::PostMultiplied, M::Inherit] {
         if caps.alpha_modes.contains(&m) { return m; }
     }
-    caps.alpha_modes[0]
+    // Same driver-bug guard as `prefer_format`.  `Opaque` is always
+    // composable on every backend (it ignores the alpha channel
+    // entirely), so it's the safest "I have no idea what to pick"
+    // default
+    caps.alpha_modes.first().copied().unwrap_or(M::Opaque)
 }
 
 // ─── Zeroed helper ────────────────────────────────────────────────────────────

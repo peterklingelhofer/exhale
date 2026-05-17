@@ -24,6 +24,7 @@ use std::{
 use anyhow::Result;
 use exhale_core::{
     controller::BreathingController,
+    poison::RwLockPoisonExt,
     settings::Settings,
     settings_manager::SettingsManager,
 };
@@ -87,16 +88,6 @@ struct App {
     // loop at refresh rate while the settings window was visible.
     next_settings_repaint: Option<Instant>,
 
-    // Wall-clock time of the most recent settings-window render.  Used
-    // to cap the settings repaint cadence at ~30 fps (33 ms minimum
-    // between renders), so high-frequency egui repaint requests from
-    // mouse-hover storms don't burn idle CPU or crowd out the
-    // overlay's main-thread / wgpu-queue / DXGI-present slots.  Always
-    // on (not gated to "while animating") — 33 ms is below human
-    // perception for hover responsiveness, and the cap protects
-    // battery life on idle settings panels too.  `None` means we
-    // haven't rendered yet.
-    last_settings_render: Option<Instant>,
 
     // Throttle for `platform::reassert_overlay_topmost` on Windows —
     // Windows orders topmost windows by activation, so a newly-opened
@@ -105,6 +96,7 @@ struct App {
     // (negligible CPU vs every-frame, still imperceptible latency
     // before the overlay reclaims the top).  None = never re-asserted
     // yet; gets set after the first call.
+    #[cfg(target_os = "windows")]
     next_topmost_reassert: Option<Instant>,
 
     // Breathing controller.
@@ -137,7 +129,7 @@ impl App {
             settings_win:     None,
             settings_win_id:  None,
             next_settings_repaint: None,
-            last_settings_render:  None,
+            #[cfg(target_os = "windows")]
             next_topmost_reassert: None,
             controller:       None,
             _tray:            None,
@@ -164,8 +156,18 @@ impl App {
         }
         // First open: create the window.
         if let Some(gpu) = &self.gpu {
-            let settings_snap = self.settings.read().unwrap().clone();
-            match SettingsWindow::new(event_loop, Arc::clone(gpu), &settings_snap) {
+            let settings_snap = self.settings.read_or_recover().clone();
+            // Quit callback: SettingsWindow fires this when the user
+            // clicks the Quit button in the Controls row.  Sending
+            // through the event-loop proxy routes the click through the
+            // same `AppEvent::Quit` path the tray-menu Quit uses, so
+            // all teardown (settings flush, controller stop, tray
+            // destroy) runs in the canonical order.
+            let proxy = self.proxy.clone();
+            let on_quit = Box::new(move || {
+                let _ = proxy.send_event(AppEvent::Quit);
+            });
+            match SettingsWindow::new(event_loop, Arc::clone(gpu), &settings_snap, on_quit) {
                 Ok(sw) => {
                     self.settings_win_id = Some(sw.window.id());
                     self.settings_win    = Some(sw);
@@ -176,7 +178,7 @@ impl App {
     }
 
     fn do_start(&mut self) {
-        let mut s = self.settings.write().unwrap();
+        let mut s = self.settings.write_or_recover();
         s.is_animating = true;
         s.is_paused    = false;
         self.timers.reschedule_auto_stop(&s);
@@ -192,7 +194,7 @@ impl App {
     }
 
     fn do_stop(&mut self) {
-        let mut s = self.settings.write().unwrap();
+        let mut s = self.settings.write_or_recover();
         s.is_animating = false;
         s.is_paused    = false;
         self.timers.reschedule_auto_stop(&s);
@@ -223,7 +225,7 @@ impl App {
         if needs_tray && !has_tray {
             match tray::build_tray() {
                 Ok((t, ids)) => {
-                    let s = self.settings.read().unwrap();
+                    let s = self.settings.read_or_recover();
                     self._tray    = Some(t);
                     self.tray_ids = Some(ids);
                     self.update_tray_state(&s);
@@ -237,24 +239,8 @@ impl App {
     }
 
     fn do_reset(&mut self) {
-        let mut s = self.settings.write().unwrap();
-        // Preserve runtime + window-placement state, matching the in-window
-        // ↺ Reset button.  Swift's resetToDefaults only keeps isAnimating; we
-        // also keep is_paused and the persisted settings-window geometry so
-        // the user doesn't lose their window position on a defaults reset.
-        let was_animating  = s.is_animating;
-        let was_paused     = s.is_paused;
-        let win_x          = s.settings_window_x;
-        let win_y          = s.settings_window_y;
-        let win_h          = s.settings_window_height;
-        let win_screen     = s.settings_window_screen.clone();
-        *s = Settings::default();
-        s.is_animating            = was_animating;
-        s.is_paused               = was_paused;
-        s.settings_window_x       = win_x;
-        s.settings_window_y       = win_y;
-        s.settings_window_height  = win_h;
-        s.settings_window_screen  = win_screen;
+        let mut s = self.settings.write_or_recover();
+        s.reset_preserving_runtime_state();
         self.timers.reschedule_auto_stop(&s);
         self.timers.reschedule_reminder(&s);
         self.settings_manager.mark_dirty();
@@ -267,19 +253,42 @@ impl App {
     /// dialog.  Matches Swift's `showResetConfirmation()` on the Ctrl+Shift+F
     /// global hotkey — an `NSAlert` is shown before `resetToDefaults` runs.
     #[cfg(feature = "global-hotkeys")]
-    fn do_reset_with_confirm(&mut self, event_loop: &ActiveEventLoop) {
-        // Ensure the settings window exists and is visible.
-        let visible = self.settings_win
-            .as_ref()
-            .and_then(|sw| sw.window.is_visible())
-            .unwrap_or(false);
-        if self.settings_win.is_none() || !visible {
-            self.toggle_settings(event_loop);
+    fn do_reset_with_confirm(
+        &mut self,
+        // Used only on Windows / Linux to lazily create the settings
+        // window for the in-window egui confirmation.  macOS uses a
+        // native NSAlert via `runModal` and doesn't need the event loop.
+        #[cfg_attr(target_os = "macos", allow(unused_variables))]
+        event_loop: &ActiveEventLoop,
+    ) {
+        // macOS: use a native NSAlert (matches Swift `AppDelegate.
+        // showResetConfirmation()` and gives users the system look,
+        // keyboard shortcuts, and VoiceOver behaviour).  Blocks the
+        // main thread until the user dismisses — fine because winit
+        // is paused inside AppKit's modal session.
+        #[cfg(target_os = "macos")]
+        {
+            if platform::show_reset_alert() {
+                self.do_reset();
+            }
+            return;
         }
-        if let Some(sw) = &mut self.settings_win {
-            sw.request_reset_confirmation();
-            sw.window.focus_window();
-            sw.request_redraw();
+
+        // Windows / Linux: fall back to the in-window egui confirmation.
+        #[cfg(not(target_os = "macos"))]
+        {
+            let visible = self.settings_win
+                .as_ref()
+                .and_then(|sw| sw.window.is_visible())
+                .unwrap_or(false);
+            if self.settings_win.is_none() || !visible {
+                self.toggle_settings(event_loop);
+            }
+            if let Some(sw) = &mut self.settings_win {
+                sw.request_reset_confirmation();
+                sw.window.focus_window();
+                sw.request_redraw();
+            }
         }
     }
 
@@ -427,7 +436,7 @@ impl ApplicationHandler<AppEvent> for App {
 
         // ── System tray ───────────────────────────────────────────────────────
         {
-            let vis = self.settings.read().unwrap().app_visibility;
+            let vis = self.settings.read_or_recover().app_visibility;
             self.sync_tray_to_visibility(vis);
         }
 
@@ -449,16 +458,24 @@ impl ApplicationHandler<AppEvent> for App {
 
         // ── Timer init ────────────────────────────────────────────────────────
         {
-            let s = self.settings.read().unwrap();
+            let s = self.settings.read_or_recover();
             self.timers.reschedule_auto_stop(&s);
             self.timers.reschedule_reminder(&s);
         }
+
+        // ── Standard macOS menu bar (Apple/Edit/Window/Help) ──────────────────
+        // Without this winit's NSApplication has no `mainMenu` and the
+        // menu bar shows only the app name with no menus — Quit/Hide/
+        // Cmd-X/Cmd-C/etc all stop working.  Closes a Swift-parity gap
+        // that's invisible until you try to copy text from a settings
+        // field.  No-op on Windows / Linux.
+        platform::install_main_menu();
 
         // ── Dock-icon reopen handler (macOS-only internally; no-op elsewhere) ─
         platform::register_reopen_handler();
 
         // ── Notification permission (macOS-only internally; no-op elsewhere) ──
-        if self.settings.read().unwrap().reminder_interval_minutes > 0.0 {
+        if self.settings.read_or_recover().reminder_interval_minutes > 0.0 {
             platform::request_notification_permission();
         }
 
@@ -470,7 +487,7 @@ impl ApplicationHandler<AppEvent> for App {
         // the settings window's taskbar entry; Linux toggles SKIP_TASKBAR/PAGER.
         // Applied AFTER the settings window exists so Windows/Linux can see it.
         {
-            let vis = self.settings.read().unwrap().app_visibility;
+            let vis = self.settings.read_or_recover().app_visibility;
             let settings_win = self.settings_win.as_ref().map(|sw| sw.window.as_ref());
             platform::apply_app_visibility(vis, settings_win);
         }
@@ -511,41 +528,27 @@ impl ApplicationHandler<AppEvent> for App {
                 // paint and we spin at refresh rate.  Skip it: we're already
                 // about to render below, no second request needed.
                 if wants_repaint && !matches!(event, WindowEvent::RedrawRequested) {
-                    // Always cap the settings window's repaint cadence
-                    // at ~30 fps (33 ms minimum between renders).  egui
-                    // fires `wants_repaint = true` on every
-                    // `CursorMoved` event so it can refresh hover
-                    // colours / tooltips — moving the mouse fast over
-                    // the settings window produces 100+ repaint
-                    // requests per second otherwise.  At that rate:
-                    //   • on Windows, repaints contend with the overlay
-                    //     for the main thread, the shared wgpu device
-                    //     queue, and DXGI flip-model present sync,
-                    //     producing visible animation lag.
-                    //   • on every platform, it burns idle CPU /
-                    //     battery for hover effects nobody would
-                    //     notice rendered at 1000 fps vs 30 fps.
-                    // 33 ms is well below the ~80 ms human perception
-                    // threshold for hover responsiveness, so the
-                    // throttle is invisible to users.  Discrete
-                    // controls (steppers, color picker, checkboxes)
-                    // don't benefit from higher cadences than this.
-                    const MIN_REPAINT_INTERVAL: std::time::Duration
-                        = std::time::Duration::from_millis(33);
-                    let now = Instant::now();
-                    let throttled_until = self.last_settings_render
-                        .map(|t| t + MIN_REPAINT_INTERVAL);
-                    if let Some(t) = throttled_until.filter(|&t| now < t) {
-                        // Inside the throttle window — defer the
-                        // repaint to `about_to_wait`, which already
-                        // wakes the event loop at `next_settings_repaint`.
-                        self.next_settings_repaint = Some(
-                            self.next_settings_repaint.map_or(t, |prev| prev.min(t))
-                        );
-                    } else {
-                        sw.request_redraw();
-                        self.next_settings_repaint = None;
-                    }
+                    // SwiftUI-equivalent semantics: repaint only when
+                    // egui says state changed (hover transition, click,
+                    // focus, animation frame).  No app-level cap
+                    // because:
+                    //   • wgpu's `PresentMode::Fifo` already bounds
+                    //     presentation at display refresh (60–120 Hz)
+                    //     — hover storms above that rate get dropped
+                    //     at present, not paid in render time.
+                    //   • The per-window wgpu device + render-thread
+                    //     architecture removed the cross-window queue
+                    //     contention that the previous 30 fps cap
+                    //     existed to mitigate.  Each overlay's render
+                    //     thread runs entirely on its own
+                    //     `ID3D12CommandQueue` / Metal queue / Vulkan
+                    //     queue, so a hover storm on the settings
+                    //     window can't starve overlay presents.
+                    // An earlier 33 ms cap covered the same scenario
+                    // structurally; it's now redundant defense that
+                    // delays legitimate hover feedback for no benefit.
+                    sw.request_redraw();
+                    self.next_settings_repaint = None;
                 }
                 match &event {
                     WindowEvent::Moved(pos) => {
@@ -556,7 +559,7 @@ impl ApplicationHandler<AppEvent> for App {
                         // reconfiguration: when the saved screen is gone we
                         // fall back to default placement rather than restoring
                         // off-screen coordinates.
-                        let mut s = self.settings.write().unwrap();
+                        let mut s = self.settings.write_or_recover();
                         if let Some(mon) = sw.window.current_monitor() {
                             let origin = mon.position();
                             s.settings_window_x      = Some(pos.x - origin.x);
@@ -582,7 +585,7 @@ impl ApplicationHandler<AppEvent> for App {
                         // configure.  Round to nearest integer point.
                         let scale  = sw.window.scale_factor();
                         let logical = (size.height as f64 / scale).round() as u32;
-                        let mut s = self.settings.write().unwrap();
+                        let mut s = self.settings.write_or_recover();
                         s.settings_window_height = Some(logical);
                         self.settings_manager.mark_dirty();
                     }
@@ -601,56 +604,29 @@ impl ApplicationHandler<AppEvent> for App {
                         // tick `settings.read()` hit `lock_contended` ~17 %
                         // of the time, which was the dominant component of
                         // the idle CPU baseline.
-                        let mut settings = self.settings.read().unwrap().clone();
-                        let prev_animating   = settings.is_animating;
-                        let prev_paused      = settings.is_paused;
-                        let prev_auto_stop   = settings.auto_stop_minutes;
-                        let prev_reminder    = settings.reminder_interval_minutes;
-                        let prev_visibility  = settings.app_visibility;
-                        // Track visual settings for Swift-parity animation reset.
-                        let prev_shape              = settings.shape;
-                        let prev_gradient           = settings.color_fill_gradient;
-                        let prev_anim_mode          = settings.animation_mode;
-                        let prev_inhale             = settings.inhale_color;
-                        let prev_exhale             = settings.exhale_color;
-                        let prev_opacity            = settings.overlay_opacity;
-                        // Track timing settings — Swift triggerAnimationReset() fires for these too.
-                        let prev_inhale_dur         = settings.inhale_duration;
-                        let prev_post_inhale_dur    = settings.post_inhale_hold_duration;
-                        let prev_exhale_dur         = settings.exhale_duration;
-                        let prev_post_exhale_dur    = settings.post_exhale_hold_duration;
-                        let prev_drift              = settings.drift;
-                        let prev_rand_inhale        = settings.randomized_timing_inhale;
-                        let prev_rand_post_inhale   = settings.randomized_timing_post_inhale_hold;
-                        let prev_rand_exhale        = settings.randomized_timing_exhale;
-                        let prev_rand_post_exhale   = settings.randomized_timing_post_exhale_hold;
-                        let prev_ripple_mode        = settings.hold_ripple_mode;
+                        let before = self.settings.read_or_recover().clone();
+                        let mut settings = before.clone();
 
                         let repaint_delay = match sw.render(&mut settings, &self.settings_manager) {
                             Ok(d)  => d,
                             Err(e) => { error!("settings render: {e}"); std::time::Duration::MAX }
                         };
-                        // Timestamp the actual render so the
-                        // hover-storm throttle (above, in the
-                        // `wants_repaint` branch) can keep the
-                        // settings window at ≤ 30 fps while the
-                        // overlay animation is active.
-                        self.last_settings_render = Some(Instant::now());
 
-                        // If the user clicked the Quit button in the
-                        // Controls row, the render path set
-                        // `pending_quit` on the SettingsWindow.  Drain
-                        // it here and dispatch the same Quit event the
-                        // tray-menu path uses, so all teardown runs
-                        // through `shutdown` in the canonical order.
-                        if sw.take_pending_quit() {
-                            let _ = self.proxy.send_event(AppEvent::Quit);
-                        }
+                        // Quit-button clicks dispatch directly through the
+                        // `on_quit` callback passed in at SettingsWindow
+                        // construction — no flag polling here
+
+                        // Diff before/after in one pass — replaces the
+                        // 18-field prev_* / current comparison cascade
+                        // that used to live inline here.  Adding a new
+                        // setting is now a one-line edit to
+                        // `SettingsDiff::from` in exhale-core.
+                        let diff = exhale_core::settings::SettingsDiff::from(&before, &settings);
 
                         // Commit the (possibly-mutated) snapshot back.  The
                         // write lock is held only for a struct assignment,
                         // not for the whole paint pass.
-                        *self.settings.write().unwrap() = settings.clone();
+                        *self.settings.write_or_recover() = settings.clone();
 
                         // Schedule egui's requested next repaint via a
                         // deadline checked in about_to_wait.  `MAX` means
@@ -662,36 +638,12 @@ impl ApplicationHandler<AppEvent> for App {
                             Some(Instant::now() + repaint_delay)
                         };
 
-                        let started        = !prev_animating && settings.is_animating;
-                        let paused_changed = settings.is_paused != prev_paused;
-                        let vis_changed    = settings.app_visibility != prev_visibility;
-                        let new_visibility = settings.app_visibility;
-                        let visual_changed = settings.shape             != prev_shape
-                            || settings.color_fill_gradient != prev_gradient
-                            || settings.animation_mode      != prev_anim_mode
-                            || settings.inhale_color        != prev_inhale
-                            || settings.exhale_color        != prev_exhale
-                            || (settings.overlay_opacity - prev_opacity).abs() > 1e-4;
-                        let timing_changed =
-                            (settings.inhale_duration - prev_inhale_dur).abs()                         > 1e-9
-                            || (settings.post_inhale_hold_duration - prev_post_inhale_dur).abs()       > 1e-9
-                            || (settings.exhale_duration - prev_exhale_dur).abs()                      > 1e-9
-                            || (settings.post_exhale_hold_duration - prev_post_exhale_dur).abs()       > 1e-9
-                            || (settings.drift - prev_drift).abs()                                     > 1e-9
-                            || (settings.randomized_timing_inhale - prev_rand_inhale).abs()            > 1e-9
-                            || (settings.randomized_timing_post_inhale_hold - prev_rand_post_inhale).abs() > 1e-9
-                            || (settings.randomized_timing_exhale - prev_rand_exhale).abs()            > 1e-9
-                            || (settings.randomized_timing_post_exhale_hold - prev_rand_post_exhale).abs() > 1e-9
-                            || settings.hold_ripple_mode != prev_ripple_mode;
-
                         // Reschedule timers if relevant settings changed.
-                        if settings.auto_stop_minutes != prev_auto_stop
-                            || settings.is_animating  != prev_animating
-                        {
+                        if diff.auto_stop_changed || diff.animating_changed {
                             self.timers.reschedule_auto_stop(&settings);
                             self.update_tray_state(&settings);
                         }
-                        if settings.reminder_interval_minutes != prev_reminder {
+                        if diff.reminder_changed {
                             self.timers.reschedule_reminder(&settings);
                             // Request notification permission when reminders are first enabled
                             // (macOS-only; no-op elsewhere).
@@ -700,17 +652,15 @@ impl ApplicationHandler<AppEvent> for App {
                             }
                         }
 
-                        let animating_changed = settings.is_animating != prev_animating;
-                        let should_restart = started
-                            || ((visual_changed || timing_changed) && settings.is_animating && !settings.is_paused);
-                        let should_redraw = paused_changed || animating_changed || visual_changed || timing_changed;
+                        let should_restart = diff.should_restart_animation(&settings);
+                        let should_redraw  = diff.should_redraw_overlay();
 
                         // Apply platform-specific visibility: macOS activation policy,
                         // Windows taskbar entry, Linux SKIP_TASKBAR/SKIP_PAGER.
-                        if vis_changed {
+                        if diff.visibility_changed {
                             let settings_win = self.settings_win.as_ref().map(|sw| sw.window.as_ref());
-                            platform::apply_app_visibility(new_visibility, settings_win);
-                            self.sync_tray_to_visibility(new_visibility);
+                            platform::apply_app_visibility(diff.new_visibility, settings_win);
+                            self.sync_tray_to_visibility(diff.new_visibility);
                         }
 
                         // Restart animation from inhale-phase-0 when visual settings change —
@@ -837,7 +787,7 @@ impl ApplicationHandler<AppEvent> for App {
 
         // Tick timers.
         let events = {
-            let s = self.settings.read().unwrap();
+            let s = self.settings.read_or_recover();
             self.timers.tick(&s)
         };
         if events.auto_stop {
@@ -872,7 +822,7 @@ impl ApplicationHandler<AppEvent> for App {
         // `ControlFlow::Wait` alone the loop would sleep indefinitely and
         // miss these, since nothing else wakes it on an idle desktop.
         let timer_deadline = {
-            let s = self.settings.read().unwrap();
+            let s = self.settings.read_or_recover();
             self.timers.next_deadline(&s)
         };
         // Windows: include the topmost re-assert beat in the wake schedule
@@ -917,36 +867,83 @@ enum InstanceGuard {
 }
 
 fn single_instance_guard(proxy: &EventLoopProxy<AppEvent>) -> InstanceGuard {
-    match std::net::TcpListener::bind(format!("127.0.0.1:{INSTANCE_PORT}")) {
-        Ok(listener) => {
-            let proxy = proxy.clone();
-            let listener2 = listener.try_clone().expect("clone listener");
-            std::thread::spawn(move || {
-                for stream in listener2.incoming() {
-                    if let Ok(mut s) = stream {
-                        use std::io::Read;
-                        let mut buf = [0u8; 16];
-                        if let Ok(n) = s.read(&mut buf) {
-                            if buf[..n].starts_with(b"show") {
-                                let _ = proxy.send_event(AppEvent::ShowSettings);
+    // Retry loop closes the TOCTOU race: the first instance might
+    // exit between our bind-fail and our connect, leaving the
+    // secondary with no app to signal.  If connect fails after a
+    // bind-fail, we re-try the bind; the previous owner is gone, so
+    // we can take over as First.
+    const RETRY_LIMIT: u8 = 3;
+    for attempt in 0..RETRY_LIMIT {
+        match std::net::TcpListener::bind(format!("127.0.0.1:{INSTANCE_PORT}")) {
+            Ok(listener) => {
+                let proxy = proxy.clone();
+                let listener2 = match listener.try_clone() {
+                    Ok(l)  => l,
+                    Err(e) => {
+                        // Couldn't clone the listener (very rare —
+                        // file-descriptor exhaustion?).  Proceed as
+                        // First without the IPC thread; the "show
+                        // settings" wire protocol just won't work
+                        // until restart, but the app still starts up.
+                        log::warn!(
+                            "single_instance_guard: listener.try_clone failed ({e}); \
+                             running without the bring-to-front IPC thread",
+                        );
+                        return InstanceGuard::First(listener);
+                    }
+                };
+                let spawn_res = std::thread::Builder::new()
+                    .name("exhale-instance-listener".to_string())
+                    .spawn(move || {
+                        for stream in listener2.incoming() {
+                            if let Ok(mut s) = stream {
+                                use std::io::Read;
+                                let mut buf = [0u8; 16];
+                                if let Ok(n) = s.read(&mut buf) {
+                                    if buf[..n].starts_with(b"show") {
+                                        let _ = proxy.send_event(AppEvent::ShowSettings);
+                                    }
+                                }
                             }
+                        }
+                    });
+                if let Err(e) = spawn_res {
+                    log::warn!(
+                        "single_instance_guard: listener thread spawn failed ({e}); \
+                         running without the bring-to-front IPC thread",
+                    );
+                }
+                return InstanceGuard::First(listener);
+            }
+            Err(_) => {
+                use std::io::Write;
+                match std::net::TcpStream::connect(format!("127.0.0.1:{INSTANCE_PORT}")) {
+                    Ok(mut s) => {
+                        let _ = s.write_all(b"show");
+                        return InstanceGuard::Secondary;
+                    }
+                    Err(_) => {
+                        // Bind failed but connect ALSO failed — the
+                        // race window between bind-fail and connect.
+                        // Spin briefly and retry the bind.  If the
+                        // previous instance exited, the port is now
+                        // free and we'll succeed as First.
+                        if attempt + 1 < RETRY_LIMIT {
+                            std::thread::sleep(std::time::Duration::from_millis(50));
                         }
                     }
                 }
-            });
-            InstanceGuard::First(listener)
-        }
-        Err(_) => {
-            use std::io::Write;
-            match std::net::TcpStream::connect(format!("127.0.0.1:{INSTANCE_PORT}")) {
-                Ok(mut s) => {
-                    let _ = s.write_all(b"show");
-                    InstanceGuard::Secondary
-                }
-                Err(_) => InstanceGuard::Unavailable,
             }
         }
     }
+    // All retries exhausted (port might be held by another local
+    // process spoofing).  Proceed without the guard rather than
+    // refusing to start.
+    log::warn!(
+        "single_instance_guard: port {INSTANCE_PORT} bind+connect both failed across \
+         {RETRY_LIMIT} attempts; running without the single-instance guard",
+    );
+    InstanceGuard::Unavailable
 }
 
 /// `Write` adapter that mirrors every byte to both stderr AND a backing
@@ -1036,14 +1033,28 @@ fn main() -> Result<()> {
     // submission index N` chatter doesn't flood the log file at ~10
     // fps.  The submission index itself is just a monotonic u64
     // counter — not a memory leak — but logging it every frame
-    // bloats the log file and obscures actual events.  Override via
-    // `RUST_LOG=info` to see everything when actually debugging
-    // wgpu/naga/wayland issues.
+    // bloats the log file and obscures actual events.
+    //
+    // `wgpu_hal::metal::adapter` is pinned to ERROR specifically to
+    // suppress the per-frame "Unable to get the current view
+    // dimensions on a non-main thread" WARN.  That warning is
+    // emitted by wgpu when the per-overlay render thread calls
+    // `get_current_texture()` and the Metal adapter wants to query
+    // the layer's `drawableSize` (which requires the main thread on
+    // macOS).  wgpu's fallback is to use the cached size from the
+    // last `configure()`, which we DO call from the main thread on
+    // every Resized event — so the warning is benign for our use
+    // case.  Re-enable with `RUST_LOG=wgpu_hal::metal=warn` if
+    // investigating an actual macOS rendering issue.
+    //
+    // Override the whole filter via `RUST_LOG=info` to see everything
+    // when actually debugging wgpu/naga/wayland issues.
     let mut builder = env_logger::Builder::from_env(
         env_logger::Env::default().default_filter_or(
             "info,\
              wgpu_core=warn,\
              wgpu_hal=warn,\
+             wgpu_hal::metal::adapter=error,\
              naga=warn",
         ),
     );

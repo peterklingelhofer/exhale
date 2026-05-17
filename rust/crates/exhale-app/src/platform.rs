@@ -43,13 +43,49 @@ fn set_blur_active(active: bool) {
 mod mac {
     use super::*;
 
-    // NSWindowCollectionBehavior bitmask values:
-    //   CanJoinAllSpaces       = 1 << 0  = 1
-    //   IgnoresCycle           = 1 << 6  = 64
-    //   FullScreenAuxiliary    = 1 << 8  = 256
-    //
-    // Window level 1000 ≈ NSScreenSaverWindowLevel.
-    // Settings window sits one level above (1001) so it remains usable at any opacity.
+    // ─── AppKit constants — named here so the call sites read like the
+    //     Apple docs rather than as bare ints.
+
+    /// `NSScreenSaverWindowLevel` — overlay floats just below the
+    /// screensaver layer, above fullscreen apps.  Matches Swift's
+    /// `NSWindow.Level.screenSaver.rawValue` (`1000`).
+    const NS_WINDOW_LEVEL_SCREEN_SAVER:  NSWindowLevel = 1000;
+    /// Settings window sits one level above the overlay so it
+    /// remains usable at `overlay_opacity = 1.0`
+    const NS_WINDOW_LEVEL_SETTINGS:      NSWindowLevel = 1001;
+
+    /// `NSVisualEffectMaterial.popover` (6) — neutral dark blur, used
+    /// behind the settings panel in Dark mode
+    const VEV_MATERIAL_POPOVER:          i64 = 6;
+    /// `NSVisualEffectMaterial.hudWindow` (8) — strong blur with
+    /// subtle tint, used in Light mode
+    const VEV_MATERIAL_HUD_WINDOW:       i64 = 8;
+    /// `NSVisualEffectBlendingMode.behindWindow` (0) — composite the
+    /// blur against whatever is behind the VEV's window, not behind
+    /// the VEV inside its window
+    const VEV_BLENDING_BEHIND_WINDOW:    i64 = 0;
+    /// `NSVisualEffectState.active` (1) — always render the full blur
+    /// regardless of window-key state.  Required because the backdrop
+    /// is `ignoresMouseEvents` + borderless, so it can never become
+    /// key (and `followsWindowActiveState` would render an inactive
+    /// flat appearance forever)
+    const VEV_STATE_ACTIVE:              i64 = 1;
+    /// `NSAutoresizingMaskOptions.{width,height}Sizable` = 2 | 16 = 18
+    /// — VEV fills its superview as the backdrop resizes
+    const VEV_AUTORESIZE_WIDTH_HEIGHT:   u64 = 18;
+
+    /// `NSCompositingOperation.sourceAtop` (5) — used to tint a
+    /// rasterised SF Symbol while preserving its alpha channel
+    const NS_COMPOSITING_SOURCE_ATOP:    i64 = 5;
+    /// `NSImageResizingMode.stretch` (1)
+    const NS_IMAGE_RESIZING_STRETCH:     i64 = 1;
+    /// `NSBitmapFormat.alphaNonpremultiplied` (2) — matches egui's
+    /// `from_rgba_unmultiplied` expectation
+    const NS_BITMAP_ALPHA_NONPREMULT:    u64 = 2;
+    /// `UNAuthorizationOptions.alert | .sound` (4 | 2 = 6)
+    const UN_AUTH_ALERT_AND_SOUND:       u64 = 4 | 2;
+
+    use objc2_app_kit::NSWindowLevel;
 
     /// Look up the [`NSWindow`] hosting a winit window.  Returns `None`
     /// when the window's raw handle isn't an AppKit one (shouldn't
@@ -63,7 +99,12 @@ mod mac {
         use objc2_app_kit::{NSView, NSWindow};
         use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-        let handle = window.window_handle().expect("window handle");
+        // `window_handle()` is fallible — a closed/destroyed window
+        // during cleanup returns `Err(HandleError::Unavailable)`.
+        // Treat that as "no NSWindow available" rather than panicking,
+        // so platform helpers called from shutdown paths degrade
+        // gracefully.
+        let handle = window.window_handle().ok()?;
         let RawWindowHandle::AppKit(h) = handle.as_raw() else { return None; };
         // SAFETY: winit guarantees the NSView pointer is valid for the
         // lifetime of the winit Window we're borrowing from.  `window`
@@ -77,7 +118,7 @@ mod mac {
     }
 
     pub fn setup_overlay_window(window: &Window) {
-        use objc2_app_kit::{NSWindowCollectionBehavior, NSWindowLevel};
+        use objc2_app_kit::NSWindowCollectionBehavior;
 
         let Some(ns_win) = get_ns_window(window) else { return; };
         // Float above fullscreen apps, join every Space, stay out of Cmd+Tab.
@@ -86,19 +127,16 @@ mod mac {
             | NSWindowCollectionBehavior::FullScreenAuxiliary;
         ns_win.setIgnoresMouseEvents(true);
         ns_win.setCollectionBehavior(behavior);
-        // Just below the macOS screen-saver level.
-        ns_win.setLevel(1000 as NSWindowLevel);
+        ns_win.setLevel(NS_WINDOW_LEVEL_SCREEN_SAVER);
     }
 
     pub fn setup_settings_window(window: &Window) {
-        use objc2_app_kit::NSWindowLevel;
-
         // Window level only — the vibrancy install runs post-wgpu-surface via
         // `install_settings_vibrancy` so we don't re-parent winit's NSView
         // before its CAMetalLayer has been attached (which would crash wgpu
         // with a 0×0 initial drawable and a detached layer hierarchy).
         let Some(ns_win) = get_ns_window(window) else { return; };
-        ns_win.setLevel(1001 as NSWindowLevel);
+        ns_win.setLevel(NS_WINDOW_LEVEL_SETTINGS);
     }
 
     /// Update the backdrop NSWindow's NSVisualEffectView material +
@@ -143,7 +181,7 @@ mod mac {
             // through the raw object pointer (typed AppKit method
             // lookups don't include this selector on NSView).
             let vev_obj: *const AnyObject = &*vev as *const _ as *const AnyObject;
-            let mat_raw: i64 = if dark_mode { 6 } else { 8 };
+            let mat_raw: i64 = if dark_mode { VEV_MATERIAL_POPOVER } else { VEV_MATERIAL_HUD_WINDOW };
             let _: () = msg_send![vev_obj, setMaterial: mat_raw];
 
             let appearance_name = if dark_mode {
@@ -309,9 +347,9 @@ mod mac {
             // ints; we keep the raw values inline for parity with the
             // previous direct-int dispatch.
             let vev_obj: *const AnyObject = &*vev as *const _ as *const AnyObject;
-            let material: i64 = if dark_mode { 6 } else { 8 };
+            let material: i64 = if dark_mode { VEV_MATERIAL_POPOVER } else { VEV_MATERIAL_HUD_WINDOW };
             let _: () = msg_send![vev_obj, setMaterial:        material];
-            let _: () = msg_send![vev_obj, setBlendingMode:    0_i64]; // behindWindow
+            let _: () = msg_send![vev_obj, setBlendingMode:    VEV_BLENDING_BEHIND_WINDOW];
             // State 1 = NSVisualEffectStateActive — always render the
             // full blur regardless of window key state.  We used to use
             // `followsWindowActiveState` (0) but that renders an INACTIVE
@@ -323,8 +361,8 @@ mod mac {
             // looked identical to an opaque window.  `active` always
             // renders the vibrant blur; CPU cost is bounded because the
             // VEV only covers the settings window's ~360×880 pt area.
-            let _: () = msg_send![vev_obj, setState:           1_i64];
-            let _: () = msg_send![vev_obj, setAutoresizingMask: 18_u64];
+            let _: () = msg_send![vev_obj, setState:           VEV_STATE_ACTIVE];
+            let _: () = msg_send![vev_obj, setAutoresizingMask: VEV_AUTORESIZE_WIDTH_HEIGHT];
 
             // Pin appearance explicitly — same rationale as the old
             // in-window install: blocks AppKit's appearance propagation
@@ -384,14 +422,44 @@ mod mac {
                 (frame.size.width, frame.size.height),
             );
             super::set_blur_active(true);
-            // Leak the Retained — caller stores the pointer as `usize`
-            // and we pair every install with exactly one shutdown that
-            // releases via `Retained::from_raw(ptr as *mut NSWindow)`.
-            // For now we keep the raw `usize` ABI for compatibility with
-            // update / sync helpers; switching to a typed handle is a
-            // follow-up.
+            // Transfer the Retained's +1 refcount across the FFI boundary
+            // as a raw `usize`.  Paired with `uninstall_settings_vibrancy`
+            // which reconstructs via `Retained::from_raw` to drop the
+            // refcount.  The raw `usize` ABI keeps the update / sync
+            // helpers binary-stable; converting all three to a typed
+            // handle is a follow-up
             objc2::rc::Retained::into_raw(backdrop) as usize
         }
+    }
+
+    /// Release the backdrop NSWindow installed by
+    /// [`install_settings_vibrancy`].  Removes the child window from
+    /// its parent (so AppKit stops tracking it) and drops the +1
+    /// refcount we held via `into_raw`.  Idempotent: safe to call
+    /// with `0` (no-op for the env-disabled blur path).  Called from
+    /// `SettingsWindow::Drop` so closing/reopening the settings
+    /// window doesn't accumulate orphaned NSWindow instances
+    pub fn uninstall_settings_vibrancy(backdrop_ptr: usize) {
+        use objc2_app_kit::NSWindow;
+        if backdrop_ptr == 0 { return; }
+
+        // SAFETY: caller passes back exactly the pointer
+        // `install_settings_vibrancy` returned, which is a +1-retained
+        // NSWindow created with `init…`.  Reconstructing the Retained
+        // and letting it drop releases that refcount.
+        let backdrop: objc2::rc::Retained<NSWindow> = unsafe {
+            objc2::rc::Retained::from_raw(backdrop_ptr as *mut NSWindow)
+                .expect("uninstall_settings_vibrancy: pointer was non-null")
+        };
+
+        // Detach from parent so AppKit doesn't keep a strong reference
+        // via the child-windows array.  No-op if already detached.
+        if let Some(parent) = backdrop.parentWindow() {
+            parent.removeChildWindow(&backdrop);
+        }
+        backdrop.orderOut(None);
+        super::set_blur_active(false);
+        // Retained drops here, releasing the original +1 from `into_raw`.
     }
 
     /// Rasterise an SF Symbol into a pixel buffer egui can upload as a
@@ -475,7 +543,7 @@ mod mac {
                 hasAlpha: true,
                 isPlanar: false,
                 colorSpaceName: space,
-                bitmapFormat: 2_u64,  // NSBitmapFormatAlphaNonpremultiplied
+                bitmapFormat: NS_BITMAP_ALPHA_NONPREMULT,
                 bytesPerRow: (pixel_w * 4) as i64,
                 bitsPerPixel: 32_i64,
             ];
@@ -508,7 +576,7 @@ mod mac {
                 msg_send![class!(NSColor), blackColor]
             };
             let _: () = msg_send![tint_color, set];
-            let _: () = msg_send![ctx, setCompositingOperation: 5_i64];
+            let _: () = msg_send![ctx, setCompositingOperation: NS_COMPOSITING_SOURCE_ATOP];
             let path: *mut AnyObject = msg_send![class!(NSBezierPath), bezierPathWithRect: dst];
             let _: () = msg_send![path, fill];
 
@@ -578,7 +646,7 @@ mod mac {
             top: radius, left: radius, bottom: radius, right: radius,
         };
         let _: () = msg_send![image, setCapInsets: insets];
-        let _: () = msg_send![image, setResizingMode: 1i64];
+        let _: () = msg_send![image, setResizingMode: NS_IMAGE_RESIZING_STRETCH];
 
         image
     }
@@ -638,8 +706,7 @@ mod mac {
             let center: *mut AnyObject = msg_send![cls, currentNotificationCenter];
             if center.is_null() { return; }
 
-            // UNAuthorizationOptionAlert = 4, UNAuthorizationOptionSound = 2
-            let options: u64 = 4 | 2;
+            let options = UN_AUTH_ALERT_AND_SOUND;
             // Closure signature matches Apple's `void (^)(BOOL, NSError*)`.
             // We don't surface the result anywhere; the user can retry
             // via the system's permission UI if they denied.
@@ -654,6 +721,370 @@ mod mac {
                 requestAuthorizationWithOptions: options,
                 completionHandler: &*block,
             ];
+        }
+    }
+
+    /// Show a native `NSAlert` "Reset to Defaults?" modal and return
+    /// `true` if the user picked Reset, `false` for Cancel.  Blocks
+    /// the calling thread until the user dismisses the alert — which
+    /// is fine because this is the main thread and there's nothing
+    /// else for it to do while the modal is up (winit's event loop is
+    /// paused by AppKit during a modal session).
+    ///
+    /// Matches Swift `AppDelegate.showResetConfirmation()` which uses
+    /// the same `NSAlert.runModal()` pattern.  Replaces the in-window
+    /// egui confirmation on macOS — gives users the native look,
+    /// keyboard shortcuts, and VoiceOver behaviour they expect.
+    pub fn show_reset_alert() -> bool {
+        use objc2::msg_send;
+        use objc2::runtime::{AnyClass, AnyObject};
+        use objc2_foundation::NSString;
+
+        let Some(cls) = AnyClass::get(c"NSAlert") else { return false; };
+        // `NSAlertFirstButtonReturn` (1000) = first button (Reset).
+        const FIRST_BUTTON: i64 = 1000;
+
+        unsafe {
+            let alert: *mut AnyObject = msg_send![cls, alloc];
+            let alert: *mut AnyObject = msg_send![alert, init];
+            if alert.is_null() { return false; }
+
+            let message = NSString::from_str("Reset to Defaults?");
+            let detail  = NSString::from_str(
+                "All settings will be restored to their defaults.  This can't be undone.",
+            );
+            let _: () = msg_send![alert, setMessageText:     &*message];
+            let _: () = msg_send![alert, setInformativeText: &*detail];
+            // `NSAlertStyleWarning = 0` (default for destructive ops).
+            let _: () = msg_send![alert, setAlertStyle: 0_u64];
+
+            // Reset first so Cmd-Return (default key equivalent on
+            // the first button) maps to it.
+            let reset_label  = NSString::from_str("Reset");
+            let cancel_label = NSString::from_str("Cancel");
+            let _: *mut AnyObject = msg_send![alert, addButtonWithTitle: &*reset_label];
+            let _: *mut AnyObject = msg_send![alert, addButtonWithTitle: &*cancel_label];
+
+            let response: i64 = msg_send![alert, runModal];
+            let _: () = msg_send![alert, release];
+            response == FIRST_BUTTON
+        }
+    }
+
+    /// Install a minimal `NSMainMenu` so the menu bar shows the
+    /// standard Apple, Edit, Window, and Help menus.  Without this
+    /// winit-created apps appear in the menu bar with no menus at
+    /// all — `Cmd-Q` / `Cmd-H` / `Cmd-W` / Services / Hide Others
+    /// don't work, and the app reads as "broken" to anyone who
+    /// expects Mac conventions.  Mirrors what Swift apps get for free
+    /// via their `NSApplicationMain`-installed main menu.
+    ///
+    /// We install:
+    ///   • Apple menu (auto-named after the app): About, Services,
+    ///     Hide / Hide Others / Show All, Quit
+    ///   • Edit menu: Cut / Copy / Paste / Select All with native
+    ///     `Cmd-X` / `Cmd-C` / `Cmd-V` / `Cmd-A` shortcuts so text
+    ///     fields in the settings window behave natively
+    ///   • Window menu: Minimize / Zoom (AppKit auto-populates the
+    ///     "Bring All to Front" item)
+    ///
+    /// `selector` handler attached to the NSApp delegate by
+    /// [`install_main_menu`].  Builds a small options dictionary
+    /// (`ApplicationName`, `ApplicationVersion`, `Credits`) and calls
+    /// `[NSApp orderFrontStandardAboutPanelWithOptions:]` so the
+    /// system About sheet shows real version info even when the
+    /// process isn't running from a fully-populated `.app` bundle.
+    extern "C" fn exhale_about_panel(
+        _this:  &objc2::runtime::AnyObject,
+        _cmd:   objc2::runtime::Sel,
+        _sender: *mut objc2::runtime::AnyObject,
+    ) {
+        use objc2::msg_send;
+        use objc2::runtime::AnyObject;
+        use objc2_app_kit::NSApplication;
+        use objc2_foundation::{MainThreadMarker, NSString};
+
+        // SAFETY: selector dispatch is main-thread.
+        let mtm = unsafe { MainThreadMarker::new_unchecked() };
+        let app = NSApplication::sharedApplication(mtm);
+
+        let version = env!("CARGO_PKG_VERSION");
+        let credits = format!(
+            "Cross-platform Rust port of the macOS Swift original.\n\n\
+             • macOS, Windows, Linux from one codebase (wgpu + winit + egui)\n\
+             • Typed AppKit FFI via objc2\n\
+             • Per-window render thread architecture\n\n\
+             Source: github.com/peterklingelhofer/exhale",
+        );
+
+        // Build an NSDictionary with the three String keys via
+        // `dictionaryWithObjectsAndKeys:` (variadic, NIL-terminated).
+        // The keys are documented as `ApplicationName`,
+        // `ApplicationVersion`, `Credits` (an NSAttributedString for
+        // Credits — plain NSString works too, AppKit converts).
+        let name_value    = NSString::from_str("exhale");
+        let version_value = NSString::from_str(version);
+        let credits_value = NSString::from_str(&credits);
+        let key_name      = NSString::from_str("ApplicationName");
+        let key_version   = NSString::from_str("ApplicationVersion");
+        let key_credits   = NSString::from_str("Credits");
+
+        unsafe {
+            // Build NSMutableDictionary via `[[NSMutableDictionary alloc] init]`
+            // then populate via `setObject:forKey:`.  This avoids the
+            // variadic `dictionaryWithObjectsAndKeys:` selector which
+            // objc2's msg_send can't typecheck without explicit nil
+            // termination.
+            let dict_cls = objc2::class!(NSMutableDictionary);
+            let dict: *mut AnyObject = msg_send![dict_cls, alloc];
+            let dict: *mut AnyObject = msg_send![dict, init];
+            let _: () = msg_send![dict, setObject: &*name_value,    forKey: &*key_name];
+            let _: () = msg_send![dict, setObject: &*version_value, forKey: &*key_version];
+            let _: () = msg_send![dict, setObject: &*credits_value, forKey: &*key_credits];
+            let _: () = msg_send![&*app, orderFrontStandardAboutPanelWithOptions: dict];
+            // `dict` was alloc+init so we own a +1 — release.
+            let _: () = msg_send![dict, release];
+        }
+    }
+
+    /// Safe to call multiple times — replaces the existing main menu
+    /// each call.  Called once from app startup
+    pub fn install_main_menu() {
+        use objc2::msg_send;
+        use objc2::rc::Retained;
+        use objc2::sel;
+        use objc2_app_kit::{NSApplication, NSMenu, NSMenuItem};
+        use objc2_foundation::{MainThreadMarker, NSString};
+
+        // SAFETY: called once at app startup from the winit event loop's
+        // main-thread `resumed()` invocation.
+        let mtm = unsafe { MainThreadMarker::new_unchecked() };
+        let app = NSApplication::sharedApplication(mtm);
+
+        // Use the app's process name as the Apple-menu title.  AppKit
+        // auto-formats anything attached to the leftmost menu in the
+        // main menu as "<App Name>" with bold weight.
+        let app_name = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.file_stem().map(|s| s.to_string_lossy().into_owned()))
+            .unwrap_or_else(|| "exhale".to_string());
+        let app_name_ns = NSString::from_str(&app_name);
+
+        // SAFETY: NSMenu / NSMenuItem constructors are documented to be
+        // main-thread-only.  We're on main per the MainThreadMarker above.
+        unsafe {
+            let main_menu = NSMenu::new(mtm);
+
+            // ── Apple menu ─────────────────────────────────────────────
+            let apple_item = NSMenuItem::new(mtm);
+            let apple_menu = NSMenu::new(mtm);
+
+            // About: route through our custom selector which populates
+            // a real version string + "Powered by Rust + objc2" credit.
+            // The default `orderFrontStandardAboutPanel:` pulls metadata
+            // from `Info.plist` — fine for a properly bundled `.app` but
+            // empty when running `cargo run --release` from a raw
+            // Mach-O.  Our hook calls `orderFrontStandardAboutPanelWithOptions:`
+            // with the version/credits dict so both paths look right.
+            let about_title = NSString::from_str(&format!("About {app_name}"));
+            let about = NSMenuItem::initWithTitle_action_keyEquivalent(
+                mtm.alloc::<NSMenuItem>(),
+                &about_title,
+                Some(sel!(exhale_orderFrontAboutPanel:)),
+                &NSString::from_str(""),
+            );
+            apple_menu.addItem(&about);
+            apple_menu.addItem(&NSMenuItem::separatorItem(mtm));
+
+            // Services submenu: AppKit wires this up automatically if we
+            // hand it an NSMenu via `setServicesMenu:`.
+            let services_title = NSString::from_str("Services");
+            let services_item = NSMenuItem::initWithTitle_action_keyEquivalent(
+                mtm.alloc::<NSMenuItem>(),
+                &services_title,
+                None,
+                &NSString::from_str(""),
+            );
+            let services_menu = NSMenu::new(mtm);
+            services_item.setSubmenu(Some(&services_menu));
+            apple_menu.addItem(&services_item);
+            // `setServicesMenu:` is on NSApplication; objc2-app-kit
+            // exposes it as a typed method.
+            app.setServicesMenu(Some(&services_menu));
+            apple_menu.addItem(&NSMenuItem::separatorItem(mtm));
+
+            let hide_title = NSString::from_str(&format!("Hide {app_name}"));
+            let hide = NSMenuItem::initWithTitle_action_keyEquivalent(
+                mtm.alloc::<NSMenuItem>(),
+                &hide_title,
+                Some(sel!(hide:)),
+                &NSString::from_str("h"),
+            );
+            apple_menu.addItem(&hide);
+
+            let hide_others = NSMenuItem::initWithTitle_action_keyEquivalent(
+                mtm.alloc::<NSMenuItem>(),
+                &NSString::from_str("Hide Others"),
+                Some(sel!(hideOtherApplications:)),
+                &NSString::from_str("h"),
+            );
+            // Alt+Cmd-H — modifier mask 0x80000 | 0x100000 = NSEvent
+            // ModifierFlags.option | .command = 524288 | 1048576 = 1572864
+            let _: () = msg_send![&hide_others, setKeyEquivalentModifierMask: 1_572_864_u64];
+            apple_menu.addItem(&hide_others);
+
+            let show_all = NSMenuItem::initWithTitle_action_keyEquivalent(
+                mtm.alloc::<NSMenuItem>(),
+                &NSString::from_str("Show All"),
+                Some(sel!(unhideAllApplications:)),
+                &NSString::from_str(""),
+            );
+            apple_menu.addItem(&show_all);
+            apple_menu.addItem(&NSMenuItem::separatorItem(mtm));
+
+            let quit_title = NSString::from_str(&format!("Quit {app_name}"));
+            let quit = NSMenuItem::initWithTitle_action_keyEquivalent(
+                mtm.alloc::<NSMenuItem>(),
+                &quit_title,
+                Some(sel!(terminate:)),
+                &NSString::from_str("q"),
+            );
+            apple_menu.addItem(&quit);
+
+            apple_item.setSubmenu(Some(&apple_menu));
+            main_menu.addItem(&apple_item);
+
+            // ── Edit menu ──────────────────────────────────────────────
+            let edit_item = NSMenuItem::new(mtm);
+            let edit_menu_title = NSString::from_str("Edit");
+            let edit_menu = NSMenu::initWithTitle(mtm.alloc::<NSMenu>(), &edit_menu_title);
+
+            let mk = |title: &str, action: &str, key: &str| -> Retained<NSMenuItem> {
+                // SAFETY: each selector below is a documented standard
+                // first-responder action; the objc runtime routes it
+                // through the first responder chain at click time.
+                let sel = match action {
+                    "undo:"           => sel!(undo:),
+                    "redo:"           => sel!(redo:),
+                    "cut:"            => sel!(cut:),
+                    "copy:"           => sel!(copy:),
+                    "paste:"          => sel!(paste:),
+                    "selectAll:"      => sel!(selectAll:),
+                    _ => unreachable!(),
+                };
+                NSMenuItem::initWithTitle_action_keyEquivalent(
+                    mtm.alloc::<NSMenuItem>(),
+                    &NSString::from_str(title),
+                    Some(sel),
+                    &NSString::from_str(key),
+                )
+            };
+
+            edit_menu.addItem(&mk("Undo",       "undo:",      "z"));
+            // Shift+Cmd-Z for Redo.  Mask: NSEventModifierFlags.shift = 1<<17 = 131072
+            let redo = mk("Redo", "redo:", "z");
+            let _: () = msg_send![&redo, setKeyEquivalentModifierMask: (131_072_u64 | 1_048_576_u64)];
+            edit_menu.addItem(&redo);
+            edit_menu.addItem(&NSMenuItem::separatorItem(mtm));
+            edit_menu.addItem(&mk("Cut",        "cut:",       "x"));
+            edit_menu.addItem(&mk("Copy",       "copy:",      "c"));
+            edit_menu.addItem(&mk("Paste",      "paste:",     "v"));
+            edit_menu.addItem(&mk("Select All", "selectAll:", "a"));
+
+            edit_item.setSubmenu(Some(&edit_menu));
+            edit_item.setTitle(&edit_menu_title);
+            main_menu.addItem(&edit_item);
+
+            // ── Window menu ────────────────────────────────────────────
+            let window_item = NSMenuItem::new(mtm);
+            let window_menu_title = NSString::from_str("Window");
+            let window_menu = NSMenu::initWithTitle(mtm.alloc::<NSMenu>(), &window_menu_title);
+
+            let minimize = NSMenuItem::initWithTitle_action_keyEquivalent(
+                mtm.alloc::<NSMenuItem>(),
+                &NSString::from_str("Minimize"),
+                Some(sel!(performMiniaturize:)),
+                &NSString::from_str("m"),
+            );
+            window_menu.addItem(&minimize);
+
+            let zoom = NSMenuItem::initWithTitle_action_keyEquivalent(
+                mtm.alloc::<NSMenuItem>(),
+                &NSString::from_str("Zoom"),
+                Some(sel!(performZoom:)),
+                &NSString::from_str(""),
+            );
+            window_menu.addItem(&zoom);
+            window_menu.addItem(&NSMenuItem::separatorItem(mtm));
+
+            let bring_all = NSMenuItem::initWithTitle_action_keyEquivalent(
+                mtm.alloc::<NSMenuItem>(),
+                &NSString::from_str("Bring All to Front"),
+                Some(sel!(arrangeInFront:)),
+                &NSString::from_str(""),
+            );
+            window_menu.addItem(&bring_all);
+
+            window_item.setSubmenu(Some(&window_menu));
+            window_item.setTitle(&window_menu_title);
+            main_menu.addItem(&window_item);
+            // Tell AppKit this is the Window menu so it auto-populates
+            // with open-window entries.
+            app.setWindowsMenu(Some(&window_menu));
+
+            // ── Help menu ──────────────────────────────────────────────
+            // Standard macOS app gets a Help menu in the menu bar.
+            // AppKit auto-routes the menu-bar search field through this
+            // menu, so users hitting Cmd-? get the system Help search.
+            let help_item = NSMenuItem::new(mtm);
+            let help_menu_title = NSString::from_str("Help");
+            let help_menu = NSMenu::initWithTitle(mtm.alloc::<NSMenu>(), &help_menu_title);
+
+            let help_entry_title = NSString::from_str(&format!("{app_name} Help"));
+            let help_entry = NSMenuItem::initWithTitle_action_keyEquivalent(
+                mtm.alloc::<NSMenuItem>(),
+                &help_entry_title,
+                Some(sel!(showHelp:)),
+                &NSString::from_str("?"),
+            );
+            help_menu.addItem(&help_entry);
+
+            help_item.setSubmenu(Some(&help_menu));
+            help_item.setTitle(&help_menu_title);
+            main_menu.addItem(&help_item);
+            // `setHelpMenu:` tells AppKit which menu to mark as the
+            // help menu so Cmd-? routing works (also marks it visually
+            // distinct on some macOS releases).
+            app.setHelpMenu(Some(&help_menu));
+
+            // ── Install custom About-panel handler on NSApp delegate ────
+            //
+            // Same pattern as `register_reopen_handler`: dynamically add
+            // `exhale_orderFrontAboutPanel:` to whatever class winit's
+            // delegate is so the About menu item's target/action
+            // resolves through the responder chain.  Idempotent —
+            // `class_addMethod` returns NO if the selector already
+            // exists, and we don't care about the result.
+            if let Some(delegate) = app.delegate() {
+                let delegate_obj: *const objc2::runtime::AnyObject =
+                    delegate.as_ref() as *const _ as *const objc2::runtime::AnyObject;
+                let cls_ptr = (&*delegate_obj).class()
+                    as *const _ as *mut objc2::runtime::AnyClass;
+                let types = std::ffi::CString::new("v@:@")
+                    .expect("about-handler encoding");
+                let sel = sel!(exhale_orderFrontAboutPanel:);
+                let imp: objc2::runtime::Imp =
+                    std::mem::transmute(exhale_about_panel as *const ());
+                let _ = objc2::ffi::class_addMethod(cls_ptr, sel, imp, types.as_ptr());
+            }
+
+            // ── Install ────────────────────────────────────────────────
+            app.setMainMenu(Some(&main_menu));
+            // Tell AppKit which menu is the Services menu so the
+            // Services submenu auto-populates.  Already set above; this
+            // is the standalone hint that pairs with the parent menu's
+            // app_name title resolution.
+            let _ = app_name_ns;
         }
     }
 
@@ -946,10 +1377,27 @@ mod mac {
 
 #[cfg(target_os = "macos")]
 pub use mac::{
-    apply_app_visibility, install_settings_vibrancy, render_sf_symbol,
-    sync_settings_backdrop_frame, update_settings_vibrancy, register_reopen_handler,
+    apply_app_visibility, install_main_menu, install_settings_vibrancy,
+    render_sf_symbol, show_reset_alert, sync_settings_backdrop_frame,
+    uninstall_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
 };
+
+/// Non-macOS stub for `install_main_menu`.  Windows and Linux apps
+/// don't have a unified menu-bar concept — the settings window's own
+/// in-window controls are the UI surface there.
+#[cfg(not(target_os = "macos"))]
+pub fn install_main_menu() {}
+
+/// Non-macOS stub for `show_reset_alert`.  Returns `false` so callers
+/// fall back to the in-window egui reset confirmation, which is the
+/// only path on Windows / Linux.  The actual `do_reset_with_confirm`
+/// branch in main.rs cfg-out the macOS path on non-macOS, so this
+/// stub is never called — `allow(dead_code)` to silence the linter
+/// while keeping the API surface consistent across platforms.
+#[cfg(not(target_os = "macos"))]
+#[allow(dead_code)]
+pub fn show_reset_alert() -> bool { false }
 
 /// Non-macOS stub for `render_sf_symbol` — SF Symbols are AppKit-only.
 /// Callers fall back to Unicode glyphs when this returns `None`.
@@ -968,8 +1416,11 @@ mod win {
         Foundation::HWND,
         Graphics::Dwm::{
             DwmSetWindowAttribute,
-            DWMSBT_TRANSIENTWINDOW,
-            DWMWA_SYSTEMBACKDROP_TYPE,
+            // DWMWA_SYSTEMBACKDROP_TYPE + DWMSBT_TRANSIENTWINDOW were
+            // tried for the settings-window acrylic look but produced
+            // worse results than the WS_EX_LAYERED path we now use
+            // for the overlay.  Kept in the import comment to flag
+            // they exist if someone wants to revisit.
             DWMWA_USE_IMMERSIVE_DARK_MODE,
         },
         UI::WindowsAndMessaging::{
@@ -981,7 +1432,10 @@ mod win {
     };
 
     fn hwnd(window: &Window) -> HWND {
-        let handle = window.window_handle().expect("window handle");
+        // Fallible on a closing/destroyed window — return a null HWND
+        // so callers that null-check (most of this module) become
+        // no-ops instead of panicking during shutdown.
+        let Ok(handle) = window.window_handle() else { return std::ptr::null_mut(); };
         if let RawWindowHandle::Win32(h) = handle.as_raw() {
             h.hwnd.get() as HWND
         } else {
@@ -1137,6 +1591,10 @@ mod win {
     /// separate backdrop window to resize.
     pub fn sync_settings_backdrop_frame(_backdrop_ptr: usize) {}
 
+    /// No-op on Windows — `install_settings_vibrancy` returned 0, no
+    /// backdrop NSWindow to release.
+    pub fn uninstall_settings_vibrancy(_backdrop_ptr: usize) {}
+
     pub fn request_notification_permission() {
         // notify-rust on Windows uses WinRT ToastNotifications which don't
         // require explicit permission from the app.
@@ -1171,15 +1629,23 @@ mod win {
 #[cfg(target_os = "windows")]
 pub use win::{
     apply_app_visibility, install_settings_vibrancy, reassert_overlay_topmost,
-    sync_settings_backdrop_frame, update_settings_vibrancy, register_reopen_handler,
+    sync_settings_backdrop_frame, uninstall_settings_vibrancy,
+    update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
 };
 
 /// Non-Windows no-op for `reassert_overlay_topmost`.  Only Windows
 /// orders topmost-windows by activation in a way that lets a newly-
 /// opened app rise above ours — macOS pins by window level, Linux X11
-/// pins by EWMH state, neither needs periodic re-assertion.
+/// pins by EWMH state, neither needs periodic re-assertion.  Callers
+/// are themselves cfg-gated to Windows (see `App::maybe_reassert_topmost`
+/// and the `topmost_deadline` wake schedule in `about_to_wait`), so
+/// this stub is only used in the rare cross-platform code path that
+/// shouldn't ever fire.  `allow(dead_code)` because the call sites
+/// are walled off by cfg and the linter can't see they don't exist
+/// on this target.
 #[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
 pub fn reassert_overlay_topmost(_window: &winit::window::Window) {}
 
 // ─── Linux / BSD (X11) ───────────────────────────────────────────────────────
@@ -1341,6 +1807,11 @@ mod nix {
     /// region attaches to the settings window itself).
     pub fn sync_settings_backdrop_frame(_backdrop_ptr: usize) {}
 
+    /// No-op on Linux — `install_settings_vibrancy` returned 0, no
+    /// backdrop NSWindow to release.  KDE blur attaches to the
+    /// settings window itself and is cleaned up when the window drops.
+    pub fn uninstall_settings_vibrancy(_backdrop_ptr: usize) {}
+
     pub fn request_notification_permission() {
         // D-Bus org.freedesktop.Notifications needs no per-app permission.
     }
@@ -1362,6 +1833,6 @@ mod nix {
 #[cfg(all(unix, not(target_os = "macos")))]
 pub use nix::{
     apply_app_visibility, install_settings_vibrancy, sync_settings_backdrop_frame,
-    update_settings_vibrancy, register_reopen_handler,
+    uninstall_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
 };

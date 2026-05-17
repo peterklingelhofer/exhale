@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use log::{info, warn};
 
+use crate::poison::RwLockPoisonExt;
 use crate::settings::Settings;
 
 /// Manages loading, saving, and sharing of [`Settings`].
@@ -43,7 +44,9 @@ impl SettingsManager {
             .spawn(move || {
                 write_back_loop(settings_clone, path_clone, dirty_rx);
             })
-            .expect("spawn settings writer thread");
+            .context(
+                "exhale-settings-writer: thread::spawn failed (system thread limit / OOM)",
+            )?;
 
         Ok(Self {
             settings: shared,
@@ -66,7 +69,10 @@ impl SettingsManager {
     /// Synchronously flush settings to disk right now.
     /// Useful on shutdown to avoid losing the last write.
     pub fn flush_sync(&self) -> Result<()> {
-        let s = self.settings.read().unwrap().clone();
+        let s = self.settings.read_or_recover().clone();
+        // Cloning before persisting means the lock is released for the
+        // duration of the (potentially slow) disk write; readers and
+        // writers from other threads aren't blocked on I/O.
         save_settings(&s, &self.config_path)
     }
 }
@@ -137,7 +143,7 @@ fn write_back_loop(
                         Err(_)  => break,
                     }
                 }
-                let snap = settings.read().unwrap().clone();
+                let snap = settings.read_or_recover().clone();
                 if let Err(e) = save_settings(&snap, &path) {
                     warn!("settings write failed: {e}");
                 }

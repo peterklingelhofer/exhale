@@ -59,6 +59,7 @@ pub enum AppVisibility {
     Both,
 }
 
+
 /// The four phases of a single breath cycle.
 ///
 /// Shader phase encoding: Inhale=0, HoldAfterInhale=1, Exhale=2, HoldAfterExhale=3

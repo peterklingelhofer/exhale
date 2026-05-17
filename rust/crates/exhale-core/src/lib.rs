@@ -1,5 +1,6 @@
 pub mod controller;
 pub mod easing;
+pub mod poison;
 pub mod settings;
 pub mod settings_manager;
 pub mod types;

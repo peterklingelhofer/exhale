@@ -1,4 +1,6 @@
 use std::sync::{Arc, Mutex, RwLock, mpsc::{self, Sender}};
+
+use exhale_core::poison::{MutexPoisonExt, RwLockPoisonExt};
 use std::thread::{self, JoinHandle};
 
 use anyhow::Result;
@@ -254,7 +256,11 @@ impl OverlayHandle {
                     alpha_capable,
                 );
             })
-            .expect("spawn overlay render thread");
+            .map_err(|e| anyhow::anyhow!(
+                "spawn overlay render thread for {:?}: {} \
+                 (system thread limit hit — skipping this monitor's overlay)",
+                window.id(), e,
+            ))?;
 
         Ok(Self { window, msg_tx, thread: Some(thread) })
     }
@@ -289,7 +295,26 @@ impl Drop for OverlayHandle {
         // released while the thread is mid-frame.
         let _ = self.msg_tx.send(RenderMsg::Shutdown);
         if let Some(h) = self.thread.take() {
-            let _ = h.join();
+            let thread_name = h.thread().name().unwrap_or("exhale-overlay-?").to_string();
+            // Surface a panic in the render thread rather than silently
+            // swallowing it.  Previous code did `let _ = h.join();`
+            // which meant a wgpu device crash mid-frame produced only a
+            // missing log line; now we log loudly with the captured
+            // panic payload so post-mortem debugging has something to
+            // grep for.
+            match h.join() {
+                Ok(()) => {}
+                Err(payload) => {
+                    let msg = if let Some(s) = payload.downcast_ref::<&'static str>() {
+                        (*s).to_string()
+                    } else if let Some(s) = payload.downcast_ref::<String>() {
+                        s.clone()
+                    } else {
+                        "<non-string panic payload>".to_string()
+                    };
+                    log::error!("render thread `{thread_name}` panicked: {msg}");
+                }
+            }
         }
     }
 }
@@ -317,29 +342,8 @@ fn render_thread_loop(
             Err(_) => break,
         };
 
-        let mut should_render          = false;
-        let mut latest_resize          = None::<PhysicalSize<u32>>;
-        let mut should_quit            = false;
-
-        let handle = |m: RenderMsg, should_render: &mut bool,
-                      latest_resize: &mut Option<PhysicalSize<u32>>,
-                      should_quit: &mut bool| {
-            match m {
-                RenderMsg::Frame        => *should_render  = true,
-                RenderMsg::Resize(s)    => *latest_resize  = Some(s),
-                RenderMsg::Shutdown     => *should_quit    = true,
-            }
-        };
-        handle(first, &mut should_render, &mut latest_resize, &mut should_quit);
-
-        // Drain any other queued messages so a burst of Frame requests
-        // (e.g. controller waking us multiple times before we got the
-        // CPU) becomes a single render pass against the latest state.
-        // This is the core mechanism that prevents backlog buildup
-        // when present blocks longer than the controller's tick.
-        while let Ok(m) = msg_rx.try_recv() {
-            handle(m, &mut should_render, &mut latest_resize, &mut should_quit);
-        }
+        let CoalescedBatch { should_render, latest_resize, should_quit } =
+            coalesce_messages(first, &msg_rx);
 
         if should_quit {
             break;
@@ -358,17 +362,118 @@ fn render_thread_loop(
             // writes its state BEFORE sending us the Frame, and the
             // Mutex acquire here provides the matching release/acquire
             // barrier so we observe the most recent values.
-            let state_snap = state.lock().unwrap().unwrap_or_else(|| {
+            let state_snap = state.lock_or_recover().unwrap_or_else(|| {
                 BreathingState {
                     phase:     exhale_core::types::BreathingPhase::Inhale,
                     progress:  0.0,
                     hold_time: 0.0,
                 }
             });
-            let settings_snap = settings.read().unwrap().clone();
+            let settings_snap = settings.read_or_recover().clone();
             if let Err(e) = renderer.render(&state_snap, &settings_snap, max_circle_scale) {
                 log::error!("overlay render: {e}");
             }
         }
+    }
+}
+
+/// Output of `coalesce_messages`: a flattened view of what the render
+/// thread should do for this iteration of the loop.  Extracted so the
+/// coalescing logic can be unit-tested without a real `OverlayRenderer`
+/// (which needs a GPU surface).
+#[derive(Debug, Default, PartialEq, Eq)]
+struct CoalescedBatch {
+    should_render: bool,
+    latest_resize: Option<PhysicalSize<u32>>,
+    should_quit:   bool,
+}
+
+/// Fold a first message plus any further messages already queued in
+/// the receiver into a single decision tuple.  Resizes coalesce to
+/// the last one seen; multiple Frames become a single render; a
+/// Shutdown in the batch wins
+fn coalesce_messages(
+    first:  RenderMsg,
+    msg_rx: &mpsc::Receiver<RenderMsg>,
+) -> CoalescedBatch {
+    let mut batch = CoalescedBatch::default();
+    apply_msg(first, &mut batch);
+    while let Ok(m) = msg_rx.try_recv() {
+        apply_msg(m, &mut batch);
+    }
+    batch
+}
+
+fn apply_msg(m: RenderMsg, batch: &mut CoalescedBatch) {
+    match m {
+        RenderMsg::Frame      => batch.should_render = true,
+        RenderMsg::Resize(s)  => batch.latest_resize = Some(s),
+        RenderMsg::Shutdown   => batch.should_quit   = true,
+    }
+}
+
+#[cfg(test)]
+mod coalesce_tests {
+    use super::*;
+    use winit::dpi::PhysicalSize;
+
+    #[test]
+    fn many_frames_become_one_render() {
+        let (tx, rx) = mpsc::channel();
+        for _ in 0..50 {
+            tx.send(RenderMsg::Frame).unwrap();
+        }
+        let first = rx.recv().unwrap();
+        let batch = coalesce_messages(first, &rx);
+        assert!(batch.should_render, "should still want to render");
+        assert!(batch.latest_resize.is_none());
+        assert!(!batch.should_quit);
+    }
+
+    #[test]
+    fn resize_keeps_latest_only() {
+        let (tx, rx) = mpsc::channel();
+        tx.send(RenderMsg::Resize(PhysicalSize::new(100, 100))).unwrap();
+        tx.send(RenderMsg::Resize(PhysicalSize::new(200, 200))).unwrap();
+        tx.send(RenderMsg::Resize(PhysicalSize::new(300, 400))).unwrap();
+        let first = rx.recv().unwrap();
+        let batch = coalesce_messages(first, &rx);
+        assert_eq!(batch.latest_resize, Some(PhysicalSize::new(300, 400)));
+    }
+
+    #[test]
+    fn shutdown_wins_over_pending_frames() {
+        let (tx, rx) = mpsc::channel();
+        tx.send(RenderMsg::Frame).unwrap();
+        tx.send(RenderMsg::Frame).unwrap();
+        tx.send(RenderMsg::Shutdown).unwrap();
+        tx.send(RenderMsg::Frame).unwrap(); // ignored, never read separately
+        let first = rx.recv().unwrap();
+        let batch = coalesce_messages(first, &rx);
+        assert!(batch.should_quit, "shutdown must surface");
+    }
+
+    #[test]
+    fn frame_then_resize_does_both() {
+        let (tx, rx) = mpsc::channel();
+        tx.send(RenderMsg::Frame).unwrap();
+        tx.send(RenderMsg::Resize(PhysicalSize::new(50, 50))).unwrap();
+        let first = rx.recv().unwrap();
+        let batch = coalesce_messages(first, &rx);
+        assert!(batch.should_render);
+        assert_eq!(batch.latest_resize, Some(PhysicalSize::new(50, 50)));
+    }
+
+    #[test]
+    fn lone_frame_with_no_extras() {
+        let (tx, rx) = mpsc::channel();
+        tx.send(RenderMsg::Frame).unwrap();
+        let first = rx.recv().unwrap();
+        let batch = coalesce_messages(first, &rx);
+        assert_eq!(batch, CoalescedBatch {
+            should_render: true,
+            latest_resize: None,
+            should_quit:   false,
+        });
     }
 }
