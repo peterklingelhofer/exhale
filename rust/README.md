@@ -4,28 +4,56 @@ Cross-platform Rust port of the macOS-only Swift app.  Same overlay, same
 breathing animation, same hotkeys, same settings panel — on **macOS, Windows,
 and Linux**.
 
-## Build
+## Build & run
 
-All platforms:
+The `cargo run` family **builds and then launches** the binary in one step.
+The `cargo build` family only compiles — you have to invoke the binary
+yourself afterwards.
 
+| Command                  | Builds | Runs | Build profile               |
+|--------------------------|:------:|:----:|-----------------------------|
+| `cargo run`              |  ✓     |  ✓   | Dev (debug, fast compile)   |
+| `cargo run --release`    |  ✓     |  ✓   | Release (optimised)         |
+| `cargo build`            |  ✓     |  —   | Dev                         |
+| `cargo build --release`  |  ✓     |  —   | Release                     |
+
+Use dev builds while iterating (compile is ~10× faster), release for the
+real binary you'd ship or benchmark.  Binaries land at:
+
+- Dev:     `target/debug/exhale` (or `.exe` on Windows)
+- Release: `target/release/exhale` (or `.exe` on Windows)
+
+### Running an already-built binary
+
+After `cargo build`, run the binary directly without going through cargo:
+
+**macOS**
 ```sh
-cargo build --release
+./target/release/exhale          # release
+./target/debug/exhale            # dev
 ```
 
-Binary lands at `target/release/exhale` (or `.exe` on Windows).
+**Linux**
+```sh
+./target/release/exhale          # release
+./target/debug/exhale            # dev
+```
 
-### macOS
+**Windows (PowerShell or cmd)**
+```sh
+.\target\release\exhale.exe      # release
+.\target\debug\exhale.exe        # dev
+```
 
-No extra prerequisites beyond Rust.
+### Platform prerequisites
 
-### Windows
+**macOS** — no extra prerequisites beyond Rust.
 
-No extra prerequisites.  Works with both the MSVC and GNU toolchains.
+**Windows** — no extra prerequisites.  Works with both the MSVC and GNU
+toolchains.
 
-### Linux
-
-Requires the usual desktop-app dev headers for the system-tray crate's GTK
-bindings.  On Debian/Ubuntu:
+**Linux** — requires GTK dev headers for the system-tray crate.  On
+Debian/Ubuntu:
 
 ```sh
 sudo apt install \
@@ -45,11 +73,7 @@ X11 and Xfixes are loaded dynamically via `x11-dl`, so you don't need their
 `-dev` packages at build time — only the runtime libraries, which ship on
 every X11 desktop.
 
-## Run
-
-```sh
-cargo run --release
-```
+## Settings
 
 Settings are saved as TOML under the platform config dir:
 
