@@ -51,44 +51,54 @@ mod mac {
     // Window level 1000 ≈ NSScreenSaverWindowLevel.
     // Settings window sits one level above (1001) so it remains usable at any opacity.
 
-    fn get_ns_window(window: &Window) -> *mut objc::runtime::Object {
-        use objc::{msg_send, runtime::Object, sel, sel_impl};
+    /// Look up the [`NSWindow`] hosting a winit window.  Returns `None`
+    /// when the window's raw handle isn't an AppKit one (shouldn't
+    /// happen on macOS in practice, but the winit API permits it).
+    ///
+    /// Uses objc2's typed bindings so the caller gets a
+    /// [`Retained<NSWindow>`] that auto-releases on drop and method
+    /// calls go through the compile-time-checked AppKit method tables
+    fn get_ns_window(window: &Window) -> Option<objc2::rc::Retained<objc2_app_kit::NSWindow>> {
+        use objc2::msg_send;
+        use objc2_app_kit::{NSView, NSWindow};
         use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
         let handle = window.window_handle().expect("window handle");
-        if let RawWindowHandle::AppKit(h) = handle.as_raw() {
-            let ns_view = h.ns_view.as_ptr() as *mut Object;
-            unsafe { msg_send![ns_view, window] }
-        } else {
-            std::ptr::null_mut()
+        let RawWindowHandle::AppKit(h) = handle.as_raw() else { return None; };
+        // SAFETY: winit guarantees the NSView pointer is valid for the
+        // lifetime of the winit Window we're borrowing from.  `window`
+        // on NSView returns the hosting NSWindow (the receiver-typed
+        // dispatch via objc2 retains the result for us).
+        unsafe {
+            let ns_view: *mut NSView = h.ns_view.as_ptr() as *mut NSView;
+            let win: Option<objc2::rc::Retained<NSWindow>> = msg_send![ns_view, window];
+            win
         }
     }
 
     pub fn setup_overlay_window(window: &Window) {
-        use objc::{msg_send, sel, sel_impl};
+        use objc2_app_kit::{NSWindowCollectionBehavior, NSWindowLevel};
 
-        let ns_win = get_ns_window(window);
-        if ns_win.is_null() { return; }
-        unsafe {
-            let _: () = msg_send![ns_win, setIgnoresMouseEvents: true];
-            // Float above fullscreen apps, join every Space, stay out of Cmd+Tab.
-            let behavior: u64 = 1 | 64 | 256;
-            let _: () = msg_send![ns_win, setCollectionBehavior: behavior];
-            // Just below the macOS screen-saver level.
-            let _: () = msg_send![ns_win, setLevel: 1000i64];
-        }
+        let Some(ns_win) = get_ns_window(window) else { return; };
+        // Float above fullscreen apps, join every Space, stay out of Cmd+Tab.
+        let behavior = NSWindowCollectionBehavior::CanJoinAllSpaces
+            | NSWindowCollectionBehavior::IgnoresCycle
+            | NSWindowCollectionBehavior::FullScreenAuxiliary;
+        ns_win.setIgnoresMouseEvents(true);
+        ns_win.setCollectionBehavior(behavior);
+        // Just below the macOS screen-saver level.
+        ns_win.setLevel(1000 as NSWindowLevel);
     }
 
     pub fn setup_settings_window(window: &Window) {
-        use objc::{msg_send, sel, sel_impl};
+        use objc2_app_kit::NSWindowLevel;
 
         // Window level only — the vibrancy install runs post-wgpu-surface via
         // `install_settings_vibrancy` so we don't re-parent winit's NSView
         // before its CAMetalLayer has been attached (which would crash wgpu
         // with a 0×0 initial drawable and a detached layer hierarchy).
-        let ns_win = get_ns_window(window);
-        if ns_win.is_null() { return; }
-        unsafe { let _: () = msg_send![ns_win, setLevel: 1001i64]; }
+        let Some(ns_win) = get_ns_window(window) else { return; };
+        ns_win.setLevel(1001 as NSWindowLevel);
     }
 
     /// Update the backdrop NSWindow's NSVisualEffectView material +
@@ -97,29 +107,56 @@ mod mac {
     /// than before.  `backdrop_ptr` is the NSWindow* returned by
     /// `install_settings_vibrancy`.
     pub fn update_settings_vibrancy(backdrop_ptr: usize, dark_mode: bool) {
-        use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+        use objc2::msg_send;
+        use objc2::runtime::AnyObject;
+        use objc2_app_kit::{NSAppearance, NSVisualEffectMaterial, NSWindow};
+        use objc2_foundation::NSString;
         if backdrop_ptr == 0 { return; }
-        let backdrop = backdrop_ptr as *mut Object;
+        // SAFETY: the caller passed us back the same pointer returned by
+        // `install_settings_vibrancy`, which we know is a retained
+        // NSWindow* (the backdrop child window).  No other code path
+        // hands us this `usize`, so as long as the parent settings
+        // window hasn't dropped (it owns the child via
+        // `addChildWindow:ordered:`), the pointer is live.
+        let backdrop = unsafe {
+            objc2::rc::Retained::retain(backdrop_ptr as *mut NSWindow)
+        };
+        let Some(backdrop) = backdrop else { return; };
+
+        let Some(vev) = backdrop.contentView() else { return; };
+
+        let material = if dark_mode {
+            NSVisualEffectMaterial::HUDWindow
+        } else {
+            NSVisualEffectMaterial::HUDWindow
+        };
+        // The two branches happen to pick the same material today (Swift
+        // parity); the conditional is kept so future appearance tweaks
+        // can split dark/light without re-introducing the branch.
+        let _ = material;
+
         unsafe {
-            let vev: *mut Object = msg_send![backdrop, contentView];
-            if vev.is_null() { return; }
+            // NSVisualEffectView lives in the AppKit binding crate but
+            // `contentView` returns the more generic NSView — we need a
+            // typed downcast or message send.  The setMaterial: selector
+            // exists on NSVisualEffectView only, so dispatch directly
+            // through the raw object pointer (typed AppKit method
+            // lookups don't include this selector on NSView).
+            let vev_obj: *const AnyObject = &*vev as *const _ as *const AnyObject;
+            let mat_raw: i64 = if dark_mode { 6 } else { 8 };
+            let _: () = msg_send![vev_obj, setMaterial: mat_raw];
 
-            let material: i64 = if dark_mode { 6 } else { 8 };
-            let _: () = msg_send![vev, setMaterial: material];
-
-            let appearance_name_c = if dark_mode {
-                b"NSAppearanceNameDarkAqua\0".as_ptr() as *const i8
+            let appearance_name = if dark_mode {
+                NSString::from_str("NSAppearanceNameDarkAqua")
             } else {
-                b"NSAppearanceNameAqua\0".as_ptr() as *const i8
+                NSString::from_str("NSAppearanceNameAqua")
             };
-            let ns_appearance_name: *mut Object = msg_send![
-                class!(NSString), stringWithUTF8String: appearance_name_c
-            ];
-            let appearance: *mut Object = msg_send![
-                class!(NSAppearance), appearanceNamed: ns_appearance_name
-            ];
-            if !appearance.is_null() {
-                let _: () = msg_send![vev, setAppearance: appearance];
+            if let Some(appearance) = NSAppearance::appearanceNamed(&appearance_name) {
+                // `setAppearance:` comes from the NSAppearanceCustomization
+                // informal protocol; objc2-app-kit doesn't surface it on
+                // NSView's generated bindings, so dispatch through the
+                // raw object.
+                let _: () = msg_send![vev_obj, setAppearance: &*appearance];
             }
         }
     }
@@ -129,18 +166,21 @@ mod mac {
     /// windows via `addChildWindow:ordered:`, but NOT size — we call this
     /// on every `WindowEvent::Resized` to copy the parent's frame over.
     pub fn sync_settings_backdrop_frame(backdrop_ptr: usize) {
-        use objc::{msg_send, runtime::Object, sel, sel_impl};
+        use objc2_app_kit::NSWindow;
         if backdrop_ptr == 0 { return; }
-        let backdrop = backdrop_ptr as *mut Object;
-        unsafe {
-            let parent: *mut Object = msg_send![backdrop, parentWindow];
-            if parent.is_null() { return; }
-            let frame: NSRect = msg_send![parent, frame];
-            // `display:true` so the VEV renders at the new size on this
-            // same frame — otherwise there's a one-frame lag where the
-            // blur rect doesn't track the window edge during a drag.
-            let _: () = msg_send![backdrop, setFrame: frame display: YES_BOOL];
-        }
+        // SAFETY: see `update_settings_vibrancy` — same provenance
+        // invariant.
+        let backdrop = unsafe {
+            objc2::rc::Retained::retain(backdrop_ptr as *mut NSWindow)
+        };
+        let Some(backdrop) = backdrop else { return; };
+
+        let Some(parent) = backdrop.parentWindow() else { return; };
+        let frame = parent.frame();
+        // `display: true` so the VEV renders at the new size on this
+        // same frame — otherwise there's a one-frame lag where the blur
+        // rect doesn't track the window edge during a drag.
+        backdrop.setFrame_display(frame, true);
     }
 
     /// Install a vibrancy effect behind the settings window by creating a
@@ -164,24 +204,31 @@ mod mac {
     /// The window then uses the wgpu tinted-translucent look from
     /// `clear_color_for_theme` alone.
     pub fn install_settings_vibrancy(window: &Window, dark_mode: bool) -> usize {
-        use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+        use objc2::msg_send;
+        use objc2::runtime::AnyObject;
+        use objc2_app_kit::{
+            NSAppearance, NSBackingStoreType, NSColor, NSView, NSVisualEffectView,
+            NSWindow, NSWindowCollectionBehavior, NSWindowOrderingMode, NSWindowStyleMask,
+        };
+        use objc2_foundation::{MainThreadMarker, NSPoint, NSRect, NSString};
         use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
         if std::env::var_os("EXHALE_DISABLE_BLUR").is_some() {
             return setup_transparent_settings_window(window);
         }
 
-        let ns_win = get_ns_window(window);
-        if ns_win.is_null() { return 0; }
+        let Some(ns_win) = get_ns_window(window) else { return 0; };
+        // SAFETY: install_settings_vibrancy runs from `SettingsWindow::new`
+        // on the winit event-loop thread, which is the macOS main thread.
+        let mtm = unsafe { MainThreadMarker::new_unchecked() };
 
         unsafe {
             // Settings window itself: transparent + clear background so
             // wgpu's alpha passes through to whatever the compositor
             // chooses to render behind (in our case, the backdrop
             // NSWindow's blurred VEV).
-            let _: () = msg_send![ns_win, setOpaque: false];
-            let clear: *mut Object = msg_send![class!(NSColor), clearColor];
-            let _: () = msg_send![ns_win, setBackgroundColor: clear];
+            ns_win.setOpaque(false);
+            ns_win.setBackgroundColor(Some(&NSColor::clearColor()));
 
             // Explicitly mark winit's NSView layer non-opaque.  wgpu-hal
             // calls `render_layer.set_opaque(false)` when the surface
@@ -192,11 +239,15 @@ mod mac {
             // `opaque = NO` here makes the transparency reliable.
             if let Ok(handle) = window.window_handle() {
                 if let RawWindowHandle::AppKit(h) = handle.as_raw() {
-                    let ns_view = h.ns_view.as_ptr() as *mut Object;
+                    let ns_view: *mut NSView = h.ns_view.as_ptr() as *mut NSView;
                     if !ns_view.is_null() {
-                        let layer: *mut Object = msg_send![ns_view, layer];
-                        if !layer.is_null() {
-                            let _: () = msg_send![layer, setOpaque: false];
+                        if let Some(layer) = (&*ns_view).layer() {
+                            // CALayer's `setOpaque:` isn't surfaced as a
+                            // typed method on QuartzCore's binding either —
+                            // fall through to raw dispatch.
+                            let layer_obj: *const AnyObject =
+                                &*layer as *const _ as *const AnyObject;
+                            let _: () = msg_send![layer_obj, setOpaque: false];
                         }
                     }
                 }
@@ -205,34 +256,38 @@ mod mac {
             // Use the settings window's current screen-space frame so the
             // backdrop starts out exactly overlapping.  AppKit then keeps
             // position locked via addChildWindow; we lock size from Rust.
-            let frame: NSRect = msg_send![ns_win, frame];
+            let frame: NSRect = ns_win.frame();
 
-            // NSBackingStoreBuffered = 2, NSWindowStyleMaskBorderless = 0.
-            let backdrop: *mut Object = msg_send![class!(NSWindow), alloc];
-            let backdrop: *mut Object = msg_send![backdrop,
-                initWithContentRect: frame
-                styleMask: 0u64
-                backing: 2u64
-                defer: NO_BOOL
-            ];
-            if backdrop.is_null() { return 0; }
+            // NSBackingStoreBuffered, NSWindowStyleMaskBorderless.
+            let backdrop = {
+                let alloc = mtm.alloc::<NSWindow>();
+                NSWindow::initWithContentRect_styleMask_backing_defer(
+                    alloc,
+                    frame,
+                    NSWindowStyleMask::empty(), // = NSWindowStyleMaskBorderless
+                    NSBackingStoreType::Buffered,
+                    false,
+                )
+            };
 
             // Behave like a passive backdrop — never steal focus, never
             // eat events, no shadow duplication, follow the parent into
             // every Space.  `releasedWhenClosed = false` so the NSWindow
             // survives hide/show cycles.
-            let _: () = msg_send![backdrop, setOpaque:              false];
-            let _: () = msg_send![backdrop, setBackgroundColor:     clear];
-            let _: () = msg_send![backdrop, setHasShadow:           false];
-            let _: () = msg_send![backdrop, setIgnoresMouseEvents:  true];
-            let _: () = msg_send![backdrop, setReleasedWhenClosed:  false];
+            backdrop.setOpaque(false);
+            backdrop.setBackgroundColor(Some(&NSColor::clearColor()));
+            backdrop.setHasShadow(false);
+            backdrop.setIgnoresMouseEvents(true);
+            backdrop.setReleasedWhenClosed(false);
             // Match parent's window level (1001 set by setup_settings_window)
             // so addChildWindow ordering isn't fighting a level mismatch.
-            let parent_level: i64 = msg_send![ns_win, level];
-            let _: () = msg_send![backdrop, setLevel: parent_level];
-            // CanJoinAllSpaces (1) | FullScreenAuxiliary (256) so the
-            // backdrop follows the parent across workspaces / fullscreen.
-            let _: () = msg_send![backdrop, setCollectionBehavior: 1u64 | 256u64];
+            backdrop.setLevel(ns_win.level());
+            // CanJoinAllSpaces | FullScreenAuxiliary so the backdrop
+            // follows the parent across workspaces / fullscreen.
+            backdrop.setCollectionBehavior(
+                NSWindowCollectionBehavior::CanJoinAllSpaces
+                    | NSWindowCollectionBehavior::FullScreenAuxiliary,
+            );
 
             // NSVisualEffectView filling the backdrop's contentView.
             // Material + blending + state mirror the old in-window install,
@@ -242,16 +297,21 @@ mod mac {
                 origin: NSPoint { x: 0.0, y: 0.0 },
                 size:   frame.size,
             };
-            let vev: *mut Object = msg_send![class!(NSVisualEffectView), alloc];
-            let vev: *mut Object = msg_send![vev, initWithFrame: content_bounds];
-            if vev.is_null() { return 0; }
+            let vev = {
+                let alloc = mtm.alloc::<NSVisualEffectView>();
+                NSVisualEffectView::initWithFrame(alloc, content_bounds)
+            };
 
             // Per-theme material:
             //   Dark  → popover   (6)  — neutral, translucent blur.
             //   Light → hudWindow (8)  — strong blur + subtle tint.
+            // The objc2-app-kit enum names differ slightly from the raw
+            // ints; we keep the raw values inline for parity with the
+            // previous direct-int dispatch.
+            let vev_obj: *const AnyObject = &*vev as *const _ as *const AnyObject;
             let material: i64 = if dark_mode { 6 } else { 8 };
-            let _: () = msg_send![vev, setMaterial:         material];
-            let _: () = msg_send![vev, setBlendingMode:     0i64];   // behindWindow
+            let _: () = msg_send![vev_obj, setMaterial:        material];
+            let _: () = msg_send![vev_obj, setBlendingMode:    0_i64]; // behindWindow
             // State 1 = NSVisualEffectStateActive — always render the
             // full blur regardless of window key state.  We used to use
             // `followsWindowActiveState` (0) but that renders an INACTIVE
@@ -263,29 +323,27 @@ mod mac {
             // looked identical to an opaque window.  `active` always
             // renders the vibrant blur; CPU cost is bounded because the
             // VEV only covers the settings window's ~360×880 pt area.
-            let _: () = msg_send![vev, setState:            1i64];
-            let _: () = msg_send![vev, setAutoresizingMask: 18u64];
+            let _: () = msg_send![vev_obj, setState:           1_i64];
+            let _: () = msg_send![vev_obj, setAutoresizingMask: 18_u64];
 
             // Pin appearance explicitly — same rationale as the old
             // in-window install: blocks AppKit's appearance propagation
             // through tracking-area / cursor-rect walkers that can crash
             // when they hit layer setups they weren't built to walk.
-            let appearance_name_c = if dark_mode {
-                b"NSAppearanceNameDarkAqua\0".as_ptr() as *const i8
+            let appearance_name = if dark_mode {
+                NSString::from_str("NSAppearanceNameDarkAqua")
             } else {
-                b"NSAppearanceNameAqua\0".as_ptr() as *const i8
+                NSString::from_str("NSAppearanceNameAqua")
             };
-            let ns_appearance_name: *mut Object = msg_send![
-                class!(NSString), stringWithUTF8String: appearance_name_c
-            ];
-            let appearance: *mut Object = msg_send![
-                class!(NSAppearance), appearanceNamed: ns_appearance_name
-            ];
-            if !appearance.is_null() {
-                let _: () = msg_send![vev, setAppearance: appearance];
+            if let Some(appearance) = NSAppearance::appearanceNamed(&appearance_name) {
+                // `setAppearance:` lives on the NSAppearanceCustomization
+                // informal protocol, not on NSView's generated bindings.
+                let _: () = msg_send![vev_obj, setAppearance: &*appearance];
             }
 
-            let _: () = msg_send![backdrop, setContentView: vev];
+            // `setContentView:` typed binding accepts NSView (VEV is a subclass).
+            let vev_as_view: &NSView = &vev;
+            backdrop.setContentView(Some(vev_as_view));
 
             // Apply a rounded-rect mask to the NSVisualEffectView so the
             // backdrop's blur clips to the same ~10 pt corner radius as
@@ -303,17 +361,22 @@ mod mac {
             // first-class VEV property the framework owns.
             let mask = make_rounded_mask_image(10.0);
             if !mask.is_null() {
-                let _: () = msg_send![vev, setMaskImage: mask];
+                // `make_rounded_mask_image` still returns an `objc::runtime::Object*`;
+                // cast over to objc2's `AnyObject*` for the msg_send.  Removed
+                // once that helper is migrated too.
+                let mask_obj: *mut AnyObject = mask as *mut AnyObject;
+                let _: () = msg_send![vev_obj, setMaskImage: mask_obj];
             }
 
-            // NSWindowBelow = -1 — order the backdrop just under the
-            // settings window.  AppKit docs: "When invoked, if the child
-            // window isn't visible, this method shows it as part of its
-            // ordering logic." — so no separate orderFront call needed,
-            // and adding one before `addChildWindow` could briefly put
-            // the backdrop IN FRONT of the settings window, which would
-            // occlude the egui content until the next ordering pass.
-            let _: () = msg_send![ns_win, addChildWindow: backdrop ordered: (-1_i64)];
+            // NSWindowOrderingMode::Below = -1 — order the backdrop just
+            // under the settings window.  AppKit docs: "When invoked, if
+            // the child window isn't visible, this method shows it as
+            // part of its ordering logic." — so no separate orderFront
+            // call needed, and adding one before `addChildWindow` could
+            // briefly put the backdrop IN FRONT of the settings window,
+            // which would occlude the egui content until the next
+            // ordering pass.
+            ns_win.addChildWindow_ordered(&backdrop, NSWindowOrderingMode::Below);
 
             log::info!(
                 "install_settings_vibrancy: backdrop NSWindow installed at {:?} size {:?}",
@@ -321,7 +384,13 @@ mod mac {
                 (frame.size.width, frame.size.height),
             );
             super::set_blur_active(true);
-            backdrop as usize
+            // Leak the Retained — caller stores the pointer as `usize`
+            // and we pair every install with exactly one shutdown that
+            // releases via `Retained::from_raw(ptr as *mut NSWindow)`.
+            // For now we keep the raw `usize` ABI for compatibility with
+            // update / sync helpers; switching to a typed handle is a
+            // follow-up.
+            objc2::rc::Retained::into_raw(backdrop) as usize
         }
     }
 
@@ -347,35 +416,37 @@ mod mac {
         point_size: f64,
         dark_mode: bool,
     ) -> Option<(Vec<u8>, u32, u32)> {
-        use objc::{class, msg_send, runtime::{Class, Object}, sel, sel_impl};
+        use objc2::{class, msg_send};
+        use objc2::runtime::{AnyClass, AnyObject};
 
         unsafe {
             // NSString *symbolName = @"<name>"
             let cstr = std::ffi::CString::new(name).ok()?;
-            let symbol_name: *mut Object = msg_send![
-                class!(NSString), stringWithUTF8String: cstr.as_ptr()
+            let ns_string_cls = class!(NSString);
+            let symbol_name: *mut AnyObject = msg_send![
+                ns_string_cls, stringWithUTF8String: cstr.as_ptr()
             ];
             if symbol_name.is_null() { return None; }
 
             // [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil]
-            let nil_obj: *mut Object = std::ptr::null_mut();
-            let image: *mut Object = msg_send![
+            let nil_obj: *mut AnyObject = std::ptr::null_mut();
+            let image: *mut AnyObject = msg_send![
                 class!(NSImage),
-                imageWithSystemSymbolName: symbol_name
-                accessibilityDescription: nil_obj
+                imageWithSystemSymbolName: symbol_name,
+                accessibilityDescription: nil_obj,
             ];
             if image.is_null() { return None; }
 
             // [NSImageSymbolConfiguration configurationWithPointSize:weight:scale:]
             // weight = NSFontWeightRegular (0.0) ; scale = NSImageSymbolScaleMedium (2)
-            let config_cls = Class::get("NSImageSymbolConfiguration")?;
-            let config: *mut Object = msg_send![
+            let config_cls: &AnyClass = AnyClass::get(c"NSImageSymbolConfiguration")?;
+            let config: *mut AnyObject = msg_send![
                 config_cls,
-                configurationWithPointSize: point_size
-                weight: 0.0_f64
-                scale: 2_i64
+                configurationWithPointSize: point_size,
+                weight: 0.0_f64,
+                scale: 2_i64,
             ];
-            let image: *mut Object = msg_send![image, imageWithSymbolConfiguration: config];
+            let image: *mut AnyObject = msg_send![image, imageWithSymbolConfiguration: config];
             if image.is_null() { return None; }
 
             // Render at 2x for Retina; egui downsamples at sample time.
@@ -391,22 +462,22 @@ mod mac {
             // premultiplied alpha and would force us to unpremultiply
             // every pixel after the fact.
             let cs_name = b"NSCalibratedRGBColorSpace\0".as_ptr() as *const i8;
-            let space: *mut Object = msg_send![
-                class!(NSString), stringWithUTF8String: cs_name
+            let space: *mut AnyObject = msg_send![
+                ns_string_cls, stringWithUTF8String: cs_name
             ];
-            let rep: *mut Object = msg_send![class!(NSBitmapImageRep), alloc];
-            let rep: *mut Object = msg_send![rep,
-                initWithBitmapDataPlanes: std::ptr::null_mut::<*mut u8>()
-                pixelsWide: pixel_w as i64
-                pixelsHigh: pixel_h as i64
-                bitsPerSample: 8_i64
-                samplesPerPixel: 4_i64
-                hasAlpha: 1_i8
-                isPlanar: 0_i8
-                colorSpaceName: space
-                bitmapFormat: 2_u64  // NSBitmapFormatAlphaNonpremultiplied
-                bytesPerRow: (pixel_w * 4) as i64
-                bitsPerPixel: 32_i64
+            let rep: *mut AnyObject = msg_send![class!(NSBitmapImageRep), alloc];
+            let rep: *mut AnyObject = msg_send![rep,
+                initWithBitmapDataPlanes: std::ptr::null_mut::<*mut u8>(),
+                pixelsWide: pixel_w as i64,
+                pixelsHigh: pixel_h as i64,
+                bitsPerSample: 8_i64,
+                samplesPerPixel: 4_i64,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: space,
+                bitmapFormat: 2_u64,  // NSBitmapFormatAlphaNonpremultiplied
+                bytesPerRow: (pixel_w * 4) as i64,
+                bitsPerPixel: 32_i64,
             ];
             if rep.is_null() { return None; }
 
@@ -416,7 +487,7 @@ mod mac {
 
             // Bind a graphics context backed by the rep, save state.
             let ctx_cls = class!(NSGraphicsContext);
-            let ctx: *mut Object = msg_send![ctx_cls, graphicsContextWithBitmapImageRep: rep];
+            let ctx: *mut AnyObject = msg_send![ctx_cls, graphicsContextWithBitmapImageRep: rep];
             if ctx.is_null() { return None; }
             let _: () = msg_send![ctx_cls, saveGraphicsState];
             let _: () = msg_send![ctx_cls, setCurrentContext: ctx];
@@ -431,14 +502,14 @@ mod mac {
             // Tint via `NSCompositingOperationSourceAtop` (= 5): fills
             // only the pixels the symbol drew into, preserving its alpha
             // channel for anti-aliased edges.
-            let tint_color: *mut Object = if dark_mode {
+            let tint_color: *mut AnyObject = if dark_mode {
                 msg_send![class!(NSColor), whiteColor]
             } else {
                 msg_send![class!(NSColor), blackColor]
             };
             let _: () = msg_send![tint_color, set];
             let _: () = msg_send![ctx, setCompositingOperation: 5_i64];
-            let path: *mut Object = msg_send![class!(NSBezierPath), bezierPathWithRect: dst];
+            let path: *mut AnyObject = msg_send![class!(NSBezierPath), bezierPathWithRect: dst];
             let _: () = msg_send![path, fill];
 
             // Restore.
@@ -466,22 +537,23 @@ mod mac {
     /// edges — survives VEV resize because the image is stored on the
     /// VEV (not its layer) and AppKit re-applies the mask on every
     /// re-layout.
-    unsafe fn make_rounded_mask_image(radius: f64) -> *mut objc::runtime::Object {
-        use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+    unsafe fn make_rounded_mask_image(radius: f64) -> *mut objc2::runtime::AnyObject {
+        use objc2::{class, msg_send};
+        use objc2::runtime::AnyObject;
 
         let dim = radius * 2.0 + 1.0;
         let size = NSSize { width: dim, height: dim };
 
         // [[NSImage alloc] initWithSize:]
-        let image: *mut Object = msg_send![class!(NSImage), alloc];
-        let image: *mut Object = msg_send![image, initWithSize: size];
+        let image: *mut AnyObject = msg_send![class!(NSImage), alloc];
+        let image: *mut AnyObject = msg_send![image, initWithSize: size];
         if image.is_null() { return std::ptr::null_mut(); }
 
         // [image lockFocus]
         let _: () = msg_send![image, lockFocus];
 
         // [[NSColor blackColor] setFill]
-        let black: *mut Object = msg_send![class!(NSColor), blackColor];
+        let black: *mut AnyObject = msg_send![class!(NSColor), blackColor];
         let _: () = msg_send![black, setFill];
 
         // [NSBezierPath bezierPathWithRoundedRect:xRadius:yRadius:]
@@ -489,11 +561,11 @@ mod mac {
             origin: NSPoint { x: 0.0, y: 0.0 },
             size,
         };
-        let path: *mut Object = msg_send![
+        let path: *mut AnyObject = msg_send![
             class!(NSBezierPath),
-            bezierPathWithRoundedRect: rect
-            xRadius: radius
-            yRadius: radius
+            bezierPathWithRoundedRect: rect,
+            xRadius: radius,
+            yRadius: radius,
         ];
         let _: () = msg_send![path, fill];
 
@@ -516,72 +588,72 @@ mod mac {
     /// visible; no vibrancy, no child window.  Returns 0 so all the
     /// vibrancy update/resize hooks are no-ops.
     fn setup_transparent_settings_window(window: &Window) -> usize {
-        use objc::{class, msg_send, runtime::Object, sel, sel_impl};
-        let ns_win = get_ns_window(window);
-        if ns_win.is_null() { return 0; }
-        unsafe {
-            let _: () = msg_send![ns_win, setOpaque: false];
-            let clear: *mut Object = msg_send![class!(NSColor), clearColor];
-            let _: () = msg_send![ns_win, setBackgroundColor: clear];
-        }
+        use objc2_app_kit::NSColor;
+        let Some(ns_win) = get_ns_window(window) else { return 0; };
+        ns_win.setOpaque(false);
+        ns_win.setBackgroundColor(Some(&NSColor::clearColor()));
         0
     }
 
-    // BOOL encodings for objc messages — `setFrame:display:` and
-    // `initWithContentRect:styleMask:backing:defer:` want a C BOOL (i8),
-    // not a Rust `bool`.
-    const YES_BOOL: i8 = 1;
-    const NO_BOOL:  i8 = 0;
+    // Use the typed `NSPoint` / `NSRect` from objc2-foundation
+    // (these are aliased to `CGPoint` / `CGRect` underneath and already
+    // implement `objc2::Encode` for free round-tripping).  `NSSize` is
+    // available too but referenced only by callers via the typed-NSWindow
+    // methods.
+    use objc2_foundation::{NSPoint, NSRect, NSSize};
 
-    // Minimal CGRect / NSRect encoding so we can round-trip `frame`
-    // through objc messages without pulling in the cocoa or objc2 crates.
-    #[repr(C)]
-    #[derive(Copy, Clone, Default)]
-    struct NSPoint { x: f64, y: f64 }
-    #[repr(C)]
-    #[derive(Copy, Clone, Default)]
-    struct NSSize { width: f64, height: f64 }
-    #[repr(C)]
-    #[derive(Copy, Clone, Default)]
-    struct NSRect { origin: NSPoint, size: NSSize }
+    // `NSEdgeInsets` isn't in objc2-foundation's surface, so define it
+    // locally and hand-roll the `Encode` impl.  Matches AppKit's
+    // `NSEdgeInsets` struct exactly (`{NSEdgeInsets=dddd}`)
     #[repr(C)]
     #[derive(Copy, Clone, Default)]
     struct NSEdgeInsets { top: f64, left: f64, bottom: f64, right: f64 }
 
-    unsafe impl objc::Encode for NSPoint {
-        fn encode() -> objc::Encoding { unsafe { objc::Encoding::from_str("{CGPoint=dd}") } }
-    }
-    unsafe impl objc::Encode for NSSize {
-        fn encode() -> objc::Encoding { unsafe { objc::Encoding::from_str("{CGSize=dd}") } }
-    }
-    unsafe impl objc::Encode for NSRect {
-        fn encode() -> objc::Encoding {
-            unsafe { objc::Encoding::from_str("{CGRect={CGPoint=dd}{CGSize=dd}}") }
-        }
-    }
-    unsafe impl objc::Encode for NSEdgeInsets {
-        fn encode() -> objc::Encoding {
-            unsafe { objc::Encoding::from_str("{NSEdgeInsets=dddd}") }
-        }
+    unsafe impl objc2::Encode for NSEdgeInsets {
+        const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
+            "NSEdgeInsets",
+            &[
+                objc2::Encoding::Double,
+                objc2::Encoding::Double,
+                objc2::Encoding::Double,
+                objc2::Encoding::Double,
+            ],
+        );
     }
 
     /// `.alert` + `.sound` authorization request.  Matches Swift AppDelegate
     /// `requestNotificationPermission()`.
     pub fn request_notification_permission() {
-        use block::ConcreteBlock;
-        use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+        use block2::StackBlock;
+        use objc2::msg_send;
+        use objc2::runtime::{AnyClass, AnyObject};
+
+        // SAFETY: the framework class lookup is fallible — guard with
+        // `AnyClass::get` (returns `Option`) instead of `class!()` which
+        // would panic if `UserNotifications.framework` isn't linked
+        // (typical for a non-bundled `cargo test` binary).
+        let Some(cls) = AnyClass::get(c"UNUserNotificationCenter") else { return; };
 
         unsafe {
-            let cls: *const objc::runtime::Class = class!(UNUserNotificationCenter);
-            let center: *mut Object = msg_send![cls, currentNotificationCenter];
+            let center: *mut AnyObject = msg_send![cls, currentNotificationCenter];
             if center.is_null() { return; }
 
             // UNAuthorizationOptionAlert = 4, UNAuthorizationOptionSound = 2
             let options: u64 = 4 | 2;
-            let block = ConcreteBlock::new(|_granted: bool, _err: *mut Object| {});
+            // Closure signature matches Apple's `void (^)(BOOL, NSError*)`.
+            // We don't surface the result anywhere; the user can retry
+            // via the system's permission UI if they denied.
+            let block = StackBlock::new(
+                |_granted: objc2::runtime::Bool, _err: *mut AnyObject| {},
+            );
+            // Promote to heap-allocated RcBlock so the async callback
+            // can fire after this function returns without dangling.
             let block = block.copy();
-            let _: () = msg_send![center, requestAuthorizationWithOptions: options
-                                           completionHandler: &*block];
+            let _: () = msg_send![
+                center,
+                requestAuthorizationWithOptions: options,
+                completionHandler: &*block,
+            ];
         }
     }
 
@@ -596,35 +668,55 @@ mod mac {
     /// `class_addMethod`.  winit does not implement this selector, so the
     /// add always succeeds.
     pub fn register_reopen_handler() {
-        use objc::{class, msg_send, runtime, sel, sel_impl};
+        use objc2::msg_send;
+        use objc2::runtime::{AnyClass, AnyObject, Bool, Sel};
         use std::ffi::CString;
         use std::sync::atomic::Ordering;
 
         extern "C" fn reopen(
-            _this: &runtime::Object,
-            _cmd: runtime::Sel,
-            _app: *mut runtime::Object,
-            _has_visible: runtime::BOOL,
-        ) -> runtime::BOOL {
+            _this:        &AnyObject,
+            _cmd:         Sel,
+            _app:         *mut AnyObject,
+            _has_visible: Bool,
+        ) -> Bool {
             super::DOCK_REOPEN.store(true, Ordering::Relaxed);
-            runtime::NO
+            Bool::NO
         }
 
+        // SAFETY: called once at startup from the winit event loop's
+        // main-thread `resumed()` invocation.
         unsafe {
-            let app: *mut runtime::Object = msg_send![class!(NSApplication), sharedApplication];
-            let delegate: *mut runtime::Object = msg_send![app, delegate];
+            let app_cls = objc2::class!(NSApplication);
+            let app: *mut AnyObject = msg_send![app_cls, sharedApplication];
+            if app.is_null() { return; }
+            let delegate: *mut AnyObject = msg_send![app, delegate];
             if delegate.is_null() { return; }
 
-            let cls = runtime::object_getClass(delegate) as *mut runtime::Class;
-            if cls.is_null() { return; }
+            // `class` is dispatched on the instance to get its dynamic
+            // class — winit's delegate is a custom subclass that doesn't
+            // implement `applicationShouldHandleReopen:hasVisibleWindows:`,
+            // so the `class_addMethod` call below is guaranteed to
+            // succeed (it returns NO if the selector is already defined
+            // on the class).
+            let cls_ptr: *mut AnyClass = msg_send![delegate, class];
+            if cls_ptr.is_null() { return; }
 
             // BOOL, id, SEL, id, BOOL — `c` works on every arch because
             // objc dispatch uses the type string for introspection only;
             // actual calls pass through registers with matching 1-byte size.
             let types = CString::new("c@:@c").expect("encoding CString");
-            let sel   = sel!(applicationShouldHandleReopen:hasVisibleWindows:);
-            let imp: runtime::Imp = std::mem::transmute(reopen as *const ());
-            runtime::class_addMethod(cls, sel, imp, types.as_ptr());
+            let sel = objc2::sel!(applicationShouldHandleReopen:hasVisibleWindows:);
+            // `objc2::runtime::Imp` is a non-null function pointer with
+            // the matching `(receiver, _cmd, ..args)` shape — transmute
+            // is the canonical bridge here, since `reopen` already has
+            // the right `extern "C"` calling convention.
+            let imp: objc2::runtime::Imp = std::mem::transmute(reopen as *const ());
+            let _ = objc2::ffi::class_addMethod(
+                cls_ptr,
+                sel,
+                imp,
+                types.as_ptr(),
+            );
         }
     }
 
@@ -633,16 +725,221 @@ mod mac {
     ///                     NSStatusItem is independent of activation policy)
     ///   TopBarOnly      → accessory (menu-bar only, no Dock)
     pub fn apply_app_visibility(vis: AppVisibility, _settings: Option<&Window>) {
-        use objc::{msg_send, runtime::Object, sel, sel_impl};
+        use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+        use objc2_foundation::MainThreadMarker;
 
-        let value: i64 = match vis {
-            AppVisibility::TopBarOnly => 1, // accessory
-            _                         => 0, // regular
+        let policy = match vis {
+            AppVisibility::TopBarOnly => NSApplicationActivationPolicy::Accessory,
+            _                         => NSApplicationActivationPolicy::Regular,
         };
-        unsafe {
-            let cls = objc::runtime::Class::get("NSApplication").unwrap();
-            let app: *mut Object = msg_send![cls, sharedApplication];
-            let _: () = msg_send![app, setActivationPolicy: value];
+
+        // SAFETY: this is called from the winit event loop on the main
+        // thread (winit invokes our ApplicationHandler on the platform's
+        // UI thread, which is main on macOS).  In test contexts we
+        // accept a slightly looser guarantee — AppKit tolerates
+        // `setActivationPolicy:` from any thread in practice
+        let mtm  = unsafe { MainThreadMarker::new_unchecked() };
+        let app  = NSApplication::sharedApplication(mtm);
+        app.setActivationPolicy(policy);
+    }
+
+    // ─── Regression tests for AppKit FFI ──────────────────────────────────
+    //
+    // These exist primarily as a tripwire for the objc → objc2 migration.
+    // They cover the parts of the AppKit surface that can be verified
+    // without a winit event loop and a human looking at the screen:
+    //   • `render_sf_symbol` — pure data function, easy to check
+    //     dimensions / pixel non-zero-ness / dark-vs-light variance.
+    //   • `apply_app_visibility` — round-trips through the global
+    //     `NSApp.activationPolicy`; the test reads back through an
+    //     INDEPENDENT objc path so a regression in either direction
+    //     surfaces.
+    //   • `register_reopen_handler`, `request_notification_permission`
+    //     — smoke tests (just that they don't panic in a non-bundled
+    //     `cargo test` process).
+    //
+    // The window-mutating functions (`setup_overlay_window`,
+    // `install_settings_vibrancy`, etc.) need a real winit `Window`
+    // which requires an event loop — not feasible inside the rust
+    // test harness — so they're intentionally NOT covered here.
+    // Post-migration smoke verification of those falls to launching
+    // the app and clicking around.
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use exhale_core::types::AppVisibility;
+        use std::sync::Once;
+
+        /// Initialise `NSApplication` once per test process.  Some
+        /// AppKit APIs (notably `imageWithSystemSymbolName:` and the
+        /// `NSBitmapImageRep` graphics-context pipeline used by
+        /// `render_sf_symbol`) silently return nil if AppKit hasn't
+        /// been bootstrapped via `[NSApplication sharedApplication]`
+        /// in the current process — production code goes through this
+        /// implicitly via winit's app delegate, but the rust test
+        /// harness doesn't.  Calling once at test start lets the
+        /// render tests run in a bare `cargo test` invocation
+        fn ensure_nsapp_initialised() {
+            static INIT: Once = Once::new();
+            INIT.call_once(|| {
+                use objc2::{class, msg_send};
+                use objc2::runtime::AnyObject;
+                unsafe {
+                    let _app: *mut AnyObject =
+                        msg_send![class!(NSApplication), sharedApplication];
+                }
+            });
+        }
+
+        /// Read `NSApp.activationPolicy` directly via raw objc2 dispatch.
+        /// This is the verification-side counterpart to
+        /// `apply_app_visibility`'s setter — kept separate (and
+        /// deliberately using the lower-level runtime API rather than
+        /// the typed `NSApplicationActivationPolicy` enum) so a
+        /// regression in either path produces a mismatched int and
+        /// the test fails loudly
+        fn read_activation_policy() -> i64 {
+            use objc2::{class, msg_send};
+            use objc2::runtime::AnyObject;
+            unsafe {
+                let app: *mut AnyObject =
+                    msg_send![class!(NSApplication), sharedApplication];
+                msg_send![app, activationPolicy]
+            }
+        }
+
+        // The behavior tests below need
+        // `NSGraphicsContext.graphicsContextWithBitmapImageRep:` to
+        // succeed — which it does in the production app-bundled
+        // process but NOT in a bare `cargo test` binary (AppKit's
+        // graphics stack needs an app-bundle / run-loop context that
+        // the rust test harness doesn't provide).  They're marked
+        // `#[ignore]` so they don't fail CI, but can be run via
+        // `cargo test -- --ignored` from a bundled context (or
+        // launched-app context) to verify post-migration.  The
+        // `render_unknown_symbol_returns_none` test below works in
+        // either environment because both return None
+        #[test]
+        #[ignore = "needs AppKit graphics-context (bundled app) — run manually"]
+        fn render_known_symbol_returns_data() {
+            ensure_nsapp_initialised();
+            let out = render_sf_symbol("play.circle.fill", 13.0, false);
+            assert!(out.is_some(), "well-known SF Symbol should rasterise");
+            let (bytes, w, h) = out.unwrap();
+            assert!(w > 0 && h > 0, "expected non-zero dims, got {w}×{h}");
+            assert_eq!(bytes.len(), (w * h * 4) as usize,
+                "buffer should be RGBA: w*h*4 = {} but got {}", w * h * 4, bytes.len());
+        }
+
+        #[test]
+        fn render_unknown_symbol_returns_none() {
+            let out = render_sf_symbol("this.symbol.does.not.exist.anywhere", 13.0, false);
+            assert!(out.is_none(),
+                "nonsense symbol name should fail the imageWithSystemSymbolName lookup");
+        }
+
+        #[test]
+        #[ignore = "needs AppKit graphics-context (bundled app) — run manually"]
+        fn dark_and_light_modes_produce_different_pixels() {
+            let dark  = render_sf_symbol("play.circle.fill", 13.0, true)
+                .expect("dark render");
+            let light = render_sf_symbol("play.circle.fill", 13.0, false)
+                .expect("light render");
+            assert_eq!(dark.1, light.1, "same symbol+size should produce same width");
+            assert_eq!(dark.2, light.2, "same symbol+size should produce same height");
+            assert_ne!(dark.0, light.0,
+                "dark-mode tint (white) and light-mode tint (black) must produce different pixel data");
+        }
+
+        #[test]
+        #[ignore = "needs AppKit graphics-context (bundled app) — run manually"]
+        fn larger_point_size_produces_larger_buffer() {
+            let small = render_sf_symbol("play.circle.fill", 12.0, false)
+                .expect("small render");
+            let large = render_sf_symbol("play.circle.fill", 24.0, false)
+                .expect("large render");
+            let small_pixels = (small.1 * small.2) as usize;
+            let large_pixels = (large.1 * large.2) as usize;
+            assert!(large_pixels > small_pixels,
+                "24pt ({}px) should rasterise larger than 12pt ({}px)",
+                large_pixels, small_pixels);
+        }
+
+        #[test]
+        #[ignore = "needs AppKit graphics-context (bundled app) — run manually"]
+        fn drawn_pixels_are_non_zero() {
+            let (bytes, _, _) = render_sf_symbol("play.circle.fill", 24.0, false)
+                .expect("rasterise");
+            // At least one pixel must have non-zero alpha — otherwise nothing was drawn
+            let any_drawn = bytes.chunks_exact(4).any(|px| px[3] != 0);
+            assert!(any_drawn,
+                "rasterised buffer is fully transparent — the symbol wasn't actually drawn");
+        }
+
+        #[test]
+        #[ignore = "needs AppKit graphics-context (bundled app) — run manually"]
+        fn point_size_scaling_is_at_least_pixel_dense() {
+            // Buffer is rendered at 2× point size (Retina); allow tiny SF
+            // Symbol bounding-box padding above the bare point dimension.
+            let (_, w, _) = render_sf_symbol("play.circle.fill", 20.0, false)
+                .expect("rasterise");
+            assert!(w >= 32,
+                "20pt symbol should be at least 32 px wide at 2× scale, got {w}");
+        }
+
+        /// All three `AppVisibility` transitions, verified through a
+        /// separate `NSApp.activationPolicy` read.  Bundled into one
+        /// test so cargo's parallel test runner can't race two
+        /// `setActivationPolicy:` calls against each other on the
+        /// global `NSApp`
+        #[test]
+        fn apply_app_visibility_roundtrip() {
+            ensure_nsapp_initialised();
+            // Save the original so we don't leave the test process with
+            // a different activation policy than it started with.
+            let original = read_activation_policy();
+
+            apply_app_visibility(AppVisibility::TopBarOnly, None);
+            assert_eq!(read_activation_policy(), 1,
+                "TopBarOnly should map to NSApplicationActivationPolicyAccessory (1)");
+
+            apply_app_visibility(AppVisibility::DockOnly, None);
+            assert_eq!(read_activation_policy(), 0,
+                "DockOnly should map to NSApplicationActivationPolicyRegular (0)");
+
+            apply_app_visibility(AppVisibility::Both, None);
+            assert_eq!(read_activation_policy(), 0,
+                "Both should map to NSApplicationActivationPolicyRegular (0)");
+
+            // Restore.
+            use objc2::{class, msg_send};
+            use objc2::runtime::AnyObject;
+            unsafe {
+                let app: *mut AnyObject =
+                    msg_send![class!(NSApplication), sharedApplication];
+                let _: () = msg_send![app, setActivationPolicy: original];
+            }
+        }
+
+        #[test]
+        fn register_reopen_handler_does_not_panic() {
+            // Without a delegate (no winit event loop running in the
+            // test harness), the function should bail out via its
+            // `delegate.is_null()` early return.  Idempotent — calling
+            // a second time should also be a no-op because
+            // `class_addMethod` is a no-op if the selector already
+            // exists on the class
+            register_reopen_handler();
+            register_reopen_handler();
+        }
+
+        #[test]
+        #[ignore = "needs UserNotifications.framework (bundled app) — run manually"]
+        fn request_notification_permission_does_not_panic() {
+            // In a non-bundled test process the system will silently
+            // deny / drop the request; we just want to confirm the
+            // objc dispatch doesn't crash on the way out
+            request_notification_permission();
         }
     }
 }
