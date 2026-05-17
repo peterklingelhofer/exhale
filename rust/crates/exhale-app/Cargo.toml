@@ -57,6 +57,12 @@ egui-winit    = { workspace = true }
 egui-wgpu     = { workspace = true }
 tray-icon     = { workspace = true }
 global-hotkey = { workspace = true, optional = true }
+directories   = "5"
+
+[target.'cfg(unix)'.dependencies]
+# `flock(2)` for the single-instance file lock — sandbox-safe on
+# macOS App Sandbox, Flatpak, Snap, and AppImage.
+libc          = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # macOS uses native `UNUserNotifications` via objc2 — `notify-rust` is only
@@ -113,6 +119,9 @@ windows-sys = { version = "0.59", features = [
     "Win32_UI_Shell",
     "Win32_Graphics_Dwm",
     "Win32_Graphics_Gdi",
+    # `LockFileEx` for the single-instance file-lock guard.
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
 ] }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
