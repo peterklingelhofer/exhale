@@ -1,16 +1,9 @@
-//! Reusable egui widget primitives for the settings window.
-//!
-//! Extracted from `settings_window.rs` so the application UI tree
-//! (`settings_ui` and the settings-window lifecycle code) reads as
-//! the application-specific layer it is, separate from the
-//! ~1000 LOC of widget chrome (custom stepper, segmented picker,
-//! control button, section card, color helpers, formatting) used to
-//! build it.
+//! Reusable egui widget primitives for the settings window: custom
+//! stepper, segmented picker, control button, section card, color
+//! helpers, formatting.
 //!
 //! Everything here is `pub(super)` because it's only consumed by
-//! the parent `settings_window` module — the rest of the crate
-//! doesn't need a settings stepper or a SwiftUI-tracking section
-//! header
+//! the parent `settings_window` module
 use std::time::{Duration, Instant};
 
 pub(super) fn section(ui: &mut egui::Ui, header: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
@@ -134,10 +127,9 @@ pub(super) fn control_button(
     text:                    &str,
     help:                    &str,
 ) -> egui::Response {
-    // Match Swift's `.padding(.vertical, 6)` around a 16-pt SF Symbol +
-    // 12-pt label.  ROW_H + 6 ≈ 28 lands on the same physical button
-    // height as `ControlButton.swift`.  We were at +10 (= 32) before,
-    // which read as too tall next to AppKit's standard pushbutton.
+    // Match Swift's `.padding(.vertical, 6)` around a 16-pt SF Symbol
+    // + 12-pt label.  ROW_H + 6 ~= 28 lands on the same physical
+    // button height as `ControlButton.swift`
     let button_h = ROW_H + 6.0;
     let size     = egui::vec2(width, button_h);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
@@ -670,11 +662,9 @@ pub(super) fn stepper_row(
 ) -> bool {
     let mut changed = false;
     let resp = ui.horizontal(|ui| {
-        // Zero item_spacing.x at the row level; we'll insert explicit
-        // `add_space` between components so the math for right-aligning is
-        // exact.  (Prior code used `item_spacing.x = 2` but `widgets_w`
-        // only accounted for ONE spacing even though two were actually
-        // placed, so the column overflowed by 2-4 px on the right.)
+        // Zero item_spacing.x at the row level; we insert explicit
+        // `add_space` between components so the right-alignment math
+        // is exact and `widgets_w` accounts for every gap placed
         ui.spacing_mut().item_spacing.x = 0.0;
 
         // Label column — painter-direct, fixed LABEL_W wide.

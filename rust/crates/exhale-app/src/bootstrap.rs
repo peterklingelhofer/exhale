@@ -1,14 +1,11 @@
 //! Process-bootstrap plumbing: logger setup, panic hook, single-instance
-//! guard, log-path picker.  Extracted from `main.rs` to keep the
-//! [`crate::App`] state and event-loop wiring readable.
+//! guard, log-path picker.
 //!
-//! Nothing here references `App` or `AppEvent` directly — everything is
+//! Nothing here references `App` or `AppEvent` directly: everything is
 //! either a one-shot side effect (logger, panic hook) or a pure
 //! lookup (log-path picker, lock-file path).  The single-instance
 //! guard takes an [`winit::event_loop::EventLoopProxy`] only as a
-//! placeholder for the type parameter; future bring-to-front
-//! protocols may add a wire-side dispatch here, but today the
-//! "secondary" path just exits.
+//! placeholder for the type parameter; the "secondary" path just exits
 
 use std::path::PathBuf;
 
@@ -38,12 +35,12 @@ pub(crate) enum InstanceGuard {
 }
 
 /// Advisory file-lock-based single-instance guard.  Sandbox-safe on
-/// every platform (sandboxed macOS apps can `flock` files in their
-/// container; sandboxed Windows MSIX apps can lock files in
-/// `%LOCALAPPDATA%`).  Replaces an earlier TCP-loopback design that
-/// returned `EPERM` under the macOS App Sandbox because `127.0.0.1`
-/// binds require `com.apple.security.network.server` — an entitlement
-/// the MAS submission specifically avoids
+/// every platform: sandboxed macOS apps can `flock` files in their
+/// container, sandboxed Windows MSIX apps can lock files in
+/// `%LOCALAPPDATA%`.  A TCP-loopback design fails under the macOS App
+/// Sandbox because `127.0.0.1` binds require
+/// `com.apple.security.network.server`, an entitlement MAS submissions
+/// should avoid
 pub(crate) fn single_instance_guard(_proxy: &EventLoopProxy<AppEvent>) -> InstanceGuard {
     let lock_path = match instance_lock_path() {
         Some(p) => p,

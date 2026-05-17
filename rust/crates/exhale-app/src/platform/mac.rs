@@ -1,6 +1,6 @@
 //! macOS implementation of the platform layer.
-//! Extracted from `platform.rs` for navigability; see the parent
-//! module for the public API surface + cross-platform stubs.
+//! See the parent `platform` module for the public API surface and
+//! cross-platform stubs.
 
 use super::*;
 
@@ -113,9 +113,7 @@ use super::*;
     /// +1-retained NSWindow*), and that the parent settings window
     /// hasn't been dropped (it owns the child via
     /// `addChildWindow:ordered:`, so as long as `SettingsWindow` is
-    /// alive, the backdrop is too).  Three update / sync / uninstall
-    /// helpers shared this pattern verbatim before — one place to
-    /// audit now.
+    /// alive, the backdrop is too).
     fn backdrop_from_ptr(backdrop_ptr: usize) -> Option<objc2::rc::Retained<objc2_app_kit::NSWindow>> {
         if backdrop_ptr == 0 { return None; }
         unsafe { objc2::rc::Retained::retain(backdrop_ptr as *mut objc2_app_kit::NSWindow) }
@@ -303,31 +301,26 @@ use super::*;
             // Per-theme material:
             //   Dark  → popover   (6)  — neutral, translucent blur.
             //   Light → hudWindow (8)  — strong blur + subtle tint.
-            // The objc2-app-kit enum names differ slightly from the raw
-            // ints; we keep the raw values inline for parity with the
-            // previous direct-int dispatch.
             let vev_obj: *const AnyObject = &*vev as *const _ as *const AnyObject;
             let material: i64 = if dark_mode { VEV_MATERIAL_POPOVER } else { VEV_MATERIAL_HUD_WINDOW };
             let _: () = msg_send![vev_obj, setMaterial:        material];
             let _: () = msg_send![vev_obj, setBlendingMode:    VEV_BLENDING_BEHIND_WINDOW];
-            // State 1 = NSVisualEffectStateActive — always render the
-            // full blur regardless of window key state.  We used to use
-            // `followsWindowActiveState` (0) but that renders an INACTIVE
-            // (flat desaturated) appearance when the VEV's window isn't
-            // key — and since the backdrop is an `ignoresMouseEvents` +
-            // borderless child window, it can NEVER become key.  That
-            // left us with a permanently-inactive VEV painting a solid
-            // grey over the transparent settings window on top, which
-            // looked identical to an opaque window.  `active` always
-            // renders the vibrant blur; CPU cost is bounded because the
-            // VEV only covers the settings window's ~360×880 pt area.
+            // State must be `active` (1), not `followsWindowActiveState`
+            // (0).  The backdrop is an `ignoresMouseEvents` + borderless
+            // child window, so it can never become key; under
+            // `followsWindowActiveState` the VEV would render its
+            // INACTIVE (flat desaturated) appearance permanently,
+            // painting a solid grey under the transparent settings
+            // window above and looking identical to an opaque window.
+            // CPU cost of always-active is bounded because the VEV
+            // only covers the settings window's ~360x880 pt area
             let _: () = msg_send![vev_obj, setState:           VEV_STATE_ACTIVE];
             let _: () = msg_send![vev_obj, setAutoresizingMask: VEV_AUTORESIZE_WIDTH_HEIGHT];
 
-            // Pin appearance explicitly — same rationale as the old
-            // in-window install: blocks AppKit's appearance propagation
-            // through tracking-area / cursor-rect walkers that can crash
-            // when they hit layer setups they weren't built to walk.
+            // Pin appearance explicitly: blocks AppKit's appearance
+            // propagation through tracking-area / cursor-rect walkers
+            // that can crash when they hit layer setups they weren't
+            // built to walk.
             let appearance_name = if dark_mode {
                 NSString::from_str("NSAppearanceNameDarkAqua")
             } else {
@@ -710,9 +703,8 @@ use super::*;
     /// paused by AppKit during a modal session).
     ///
     /// Matches Swift `AppDelegate.showResetConfirmation()` which uses
-    /// the same `NSAlert.runModal()` pattern.  Replaces the in-window
-    /// egui confirmation on macOS — gives users the native look,
-    /// keyboard shortcuts, and VoiceOver behaviour they expect.
+    /// the same `NSAlert.runModal()` pattern, giving users the native
+    /// look, keyboard shortcuts, and VoiceOver behaviour they expect
     pub fn show_reset_alert() -> bool {
         use objc2::msg_send;
         use objc2::runtime::{AnyClass, AnyObject};
@@ -767,17 +759,15 @@ use super::*;
     ///     "Bring All to Front" item)
     ///
     /// About-panel content is sourced from the bundle's `Info.plist`
-    /// via the standard `orderFrontStandardAboutPanel:` selector.
-    /// Earlier rounds attached an `exhale_orderFrontAboutPanel:`
-    /// method to the NSApp delegate to inject custom credits, but the
-    /// `class_addMethod`-on-a-system-class pattern occasionally
-    /// triggers Mac App Store static-analysis flags during review.
-    /// Using the OS's documented selector is the App-Store-safest
-    /// path: the bundle's `CFBundleShortVersionString` /
-    /// `CFBundleVersion` / `NSHumanReadableCopyright` populate the
-    /// panel automatically.
+    /// via the standard `orderFrontStandardAboutPanel:` selector:
+    /// `CFBundleShortVersionString` / `CFBundleVersion` /
+    /// `NSHumanReadableCopyright` populate the panel automatically.
+    /// We deliberately avoid attaching a custom
+    /// `exhale_orderFrontAboutPanel:` via `class_addMethod` on the
+    /// NSApp delegate because adding methods to system classes can
+    /// trip Mac App Store static-analysis flags during review.
     ///
-    /// Safe to call multiple times — replaces the existing main menu
+    /// Safe to call multiple times; replaces the existing main menu
     /// each call.  Called once from app startup
     pub fn install_main_menu() {
         use objc2::msg_send;
@@ -1220,25 +1210,24 @@ use super::*;
 
     // ─── Regression tests for AppKit FFI ──────────────────────────────────
     //
-    // These exist primarily as a tripwire for the objc → objc2 migration.
-    // They cover the parts of the AppKit surface that can be verified
-    // without a winit event loop and a human looking at the screen:
-    //   • `render_sf_symbol` — pure data function, easy to check
+    // Cover the parts of the AppKit surface that can be verified without
+    // a winit event loop and a human looking at the screen:
+    //   - `render_sf_symbol`: pure data function, easy to check
     //     dimensions / pixel non-zero-ness / dark-vs-light variance.
-    //   • `apply_app_visibility` — round-trips through the global
+    //   - `apply_app_visibility`: round-trips through the global
     //     `NSApp.activationPolicy`; the test reads back through an
     //     INDEPENDENT objc path so a regression in either direction
     //     surfaces.
-    //   • `register_reopen_handler`, `request_notification_permission`
-    //     — smoke tests (just that they don't panic in a non-bundled
+    //   - `register_reopen_handler`, `request_notification_permission`:
+    //     smoke tests (just that they don't panic in a non-bundled
     //     `cargo test` process).
     //
     // The window-mutating functions (`setup_overlay_window`,
     // `install_settings_vibrancy`, etc.) need a real winit `Window`
-    // which requires an event loop — not feasible inside the rust
-    // test harness — so they're intentionally NOT covered here.
-    // Post-migration smoke verification of those falls to launching
-    // the app and clicking around.
+    // which requires an event loop, not feasible inside the rust test
+    // harness, so they're intentionally NOT covered here.  Smoke
+    // verification of those falls to launching the app and clicking
+    // around.
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -1285,13 +1274,12 @@ use super::*;
 
         // The behavior tests below need
         // `NSGraphicsContext.graphicsContextWithBitmapImageRep:` to
-        // succeed — which it does in the production app-bundled
-        // process but NOT in a bare `cargo test` binary (AppKit's
-        // graphics stack needs an app-bundle / run-loop context that
-        // the rust test harness doesn't provide).  They're marked
-        // `#[ignore]` so they don't fail CI, but can be run via
-        // `cargo test -- --ignored` from a bundled context (or
-        // launched-app context) to verify post-migration.  The
+        // succeed, which it does in the production app-bundled process
+        // but NOT in a bare `cargo test` binary (AppKit's graphics
+        // stack needs an app-bundle / run-loop context that the rust
+        // test harness doesn't provide).  They're marked `#[ignore]`
+        // so they don't fail CI, but can be run via `cargo test --
+        // --ignored` from a bundled / launched-app context.  The
         // `render_unknown_symbol_returns_none` test below works in
         // either environment because both return None
         #[test]

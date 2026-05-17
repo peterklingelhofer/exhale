@@ -10,11 +10,9 @@ use theme::{
     visuals_for_theme,
 };
 // Star import is intentional: `settings_ui` references ~12 widget
-// helpers and half a dozen layout constants.  Listing each one
-// explicitly would add 20+ lines of boilerplate for no readability
-// win — and the widget submodule is tightly coupled to this file by
-// design (the audit explicitly flagged the 2400-line mash-up; this
-// is the clean seam).
+// helpers and half a dozen layout constants, and the widget submodule
+// is tightly coupled to this file by design.  Listing each one
+// explicitly would add 20+ lines of boilerplate for no readability win
 use widgets::*;
 use egui::ViewportId;
 use egui_wgpu::ScreenDescriptor;
@@ -103,10 +101,9 @@ const ICON_KIND_COUNT: usize = 4;
 /// the theme toggle doesn't have to re-rasterise on first paint.
 ///
 /// Storage is a flat 2-D array `[IconKind; 2]` (dark first, then
-/// light) — replaces an earlier 8-Option struct + 4 hand-written
-/// accessors with a single indexed lookup.  The SF Symbol name
-/// table lives in [`IconCache::load`] so adding a new icon is a
-/// one-line enum variant + one row in the table
+/// light) with a single indexed lookup.  The SF Symbol name table
+/// lives in [`IconCache::load`] so adding a new icon is a one-line
+/// enum variant plus one row in the table
 struct IconCache {
     /// `handles[kind as usize][dark as usize]` — `dark=true` is
     /// index 1.  `None` slot for either non-macOS (where
@@ -121,9 +118,9 @@ impl IconCache {
         // in SF Symbols and visually pairs with the other
         // `circle.fill` icons in the row.  Non-mac platforms fall
         // back to the Unicode glyph in the call site (U+00D7
-        // MULTIPLICATION SIGN — supported by every system UI font;
-        // the earlier U+23FB POWER SYMBOL was missing from Segoe UI
-        // and rendered as a tofu box on Windows).
+        // MULTIPLICATION SIGN, supported by every system UI font;
+        // U+23FB POWER SYMBOL renders as a tofu box on Windows
+        // because Segoe UI is missing it).
         const NAMES: [&str; ICON_KIND_COUNT] = [
             "play.circle.fill",
             "stop.circle.fill",
@@ -539,12 +536,11 @@ impl SettingsWindow {
         // the ScrollArea's inner content alone; the surrounding
         // CentralPanel adds `OUTER_PAD` of inner_margin on top AND
         // bottom, so the window's client area needs
-        // `content + 2 * OUTER_PAD` to fit without scrolling.  An
-        // earlier `+ 24.0` magic constant was 4 px short of the real
-        // `2 * OUTER_PAD = 28.0` total — the ScrollArea perpetually
-        // thought it was 4 px under-tall and showed a scrollbar even
-        // when every control fit, AND the bottom-edge resize handle
-        // was clamped 4 px short of fitting the content.
+        // `content + 2 * OUTER_PAD` to fit without scrolling.
+        // Anything less than `2 * OUTER_PAD = 28.0` total leaves the
+        // ScrollArea thinking it's under-tall and showing a scrollbar
+        // even when every control fits, AND clamps the bottom-edge
+        // resize handle short of fitting the content.
         //
         // Only forward the value to `set_max_inner_size` when the
         // computed max differs from what we last sent — calling
@@ -723,29 +719,22 @@ fn settings_ui(
     // the outer breathing room, and a vertical ScrollArea inside.  The panel
     // fill is kept transparent so the macOS NSVisualEffectView (installed at
     // window level) shows through between cards.
-    // Panel fill: on macOS we lay a semi-opaque tint over the NSVisualEffectView
-    // so the vibrancy doesn't let detail from windows behind exhale bleed
-    // through between the SectionCards — text like code/terminal content
-    // reading as "e (%)" / "ally" ghost characters at the card's edges was
-    // what read as "sections are clipped by the window edge" in the earlier
-    // builds.  Alpha ~160 is dense enough to mute backdrop content while
-    // still showing the blurred desktop colour (so the vibrancy effect
-    // reads as a subtle tint, not a plain solid background).
-    // On macOS the gutters between/around the cards are painted entirely by
-    // the NSVisualEffectView vibrancy (see `platform::install_settings_vibrancy`).
-    //   - In Dark mode, `.hudWindow` renders as a darkish blur — composites
-    //     nicely with the translucent cards without any panel overlay.
-    //   - In Light mode, `.hudWindow` is near-white with desktop colour tint
-    //     coming through the blur; earlier attempts at a near-white panel
-    //     overlay composited right back into "solid white" and hid the
-    //     vibrancy entirely.
-    // Fully-transparent panel fill lets the vibrancy be the sole gutter
-    // material in both themes, matching Swift's look exactly.
+    // Panel fill: on macOS the gutters between/around the cards are
+    // painted entirely by the NSVisualEffectView vibrancy (see
+    // `platform::install_settings_vibrancy`).
+    //   - In Dark mode, `.hudWindow` renders as a darkish blur,
+    //     composites nicely with the translucent cards without any
+    //     panel overlay.
+    //   - In Light mode, `.hudWindow` is near-white with desktop
+    //     colour tint coming through the blur.  A near-white panel
+    //     overlay would composite right back into "solid white" and
+    //     hide the vibrancy entirely, so we leave the panel fully
+    //     transparent and let vibrancy be the sole gutter material.
+    // Fully-transparent panel fill matches Swift's look exactly.
     //
-    // The NSVisualEffectView's own blur masks backdrop content (terminal
-    // text, etc.) enough that nothing legible leaks through the 14-px
-    // gutters — we verified this after switching the material to `.hudWindow`
-    // (same as Swift).
+    // The NSVisualEffectView's `.hudWindow` blur masks backdrop content
+    // (terminal text, etc.) enough that nothing legible leaks through
+    // the 14-px gutters.
     //
     // Other platforms: opaque fallback (they have no vibrancy backend).
     let panel_fill = if platform::is_blur_active() {
