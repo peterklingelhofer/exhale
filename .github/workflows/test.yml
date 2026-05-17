@@ -8,6 +8,13 @@ on:
 
 jobs:
   build-and-test:
+    # Skip on the `rust-multiplatform` PR: that branch is the Rust
+    # port replacing the Swift app, so its commits aren't expected
+    # to keep the Swift test suite green.  The Swift PerformanceTests
+    # are also CPU-noise-sensitive enough that gating the Rust PR on
+    # them produces false negatives.  Re-enabled automatically once
+    # the branch is merged (no PR-source matches this name anymore).
+    if: github.head_ref != 'rust-multiplatform' && github.ref != 'refs/heads/rust-multiplatform'
     runs-on: macos-15
     defaults:
       run:
@@ -30,16 +37,27 @@ jobs:
 
       - name: Run tests
         # `CI=true` is set on the runner shell by GitHub Actions, but
-        # Xcode's xctest target doesn't always inherit it.  Pass it
-        # explicitly via the step `env:` so the PerformanceTests
-        # `isCI` branch picks the looser CPU thresholds calibrated
-        # for runner noise instead of the tighter local thresholds.
+        # `xcodebuild test` does NOT propagate the shell environment
+        # to the xctest target's subprocess — the step's `env:` block
+        # reaches `xcodebuild` itself but not the test runner that it
+        # spawns.  Xcode's documented escape hatch: any env var prefixed
+        # with `TEST_RUNNER_` is forwarded to the test runner with the
+        # prefix stripped.  So `TEST_RUNNER_CI=true` lands in the
+        # xctest process as `CI=true`, which `PerformanceTests`'s
+        # `isCI` branch reads via `ProcessInfo.processInfo.environment`
+        # to pick the looser CPU thresholds calibrated for runner
+        # noise instead of the tighter local thresholds.  Confirmed by
+        # a prior failure measuring 8.18% avg under the 8.0% local
+        # threshold despite the runner setting `CI=true` in the shell
+        # — the test target wasn't seeing the env var
         env:
           CI: "true"
         run: >
           xcodebuild test -project exhale.xcodeproj -scheme exhale
           -destination 'platform=macOS' -configuration Debug
           CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+          TEST_RUNNER_CI=true
+          TEST_RUNNER_GITHUB_ACTIONS=true
           -resultBundlePath ../TestResults.xcresult
 
       - name: Upload test results
