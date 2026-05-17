@@ -8,6 +8,7 @@ use rand::Rng;
 
 use crate::{
     easing::EasingTable,
+    poison::{MutexPoisonExt, RwLockPoisonExt},
     settings::Settings,
     types::{AnimationMode, BreathingPhase},
 };
@@ -27,21 +28,16 @@ pub struct BreathingState {
 
 // ─── Cadence constants ───────────────────────────────────────────────────────
 //
-// Swift's reference `MetalBreathingController.swift` animates at 24 fps
-// during motion and 12 fps during near-hold.  On macOS that's enough to
-// push `WindowServer` CPU from ~10 % to ~30 % on a Retina display, because
-// the overlay is a full-screen transparent layer that forces the compositor
-// to re-blend everything behind it each frame (and, when the settings
-// window is open, to re-run its NSVisualEffectView blur).
-//
-// We cap the animation at a lower rate to trade a slightly coarser breath
-// motion for a significant WindowServer reduction.  `INTERVAL_FAST = 1/10 s`
-// (10 fps) is the sweet spot we found — still reads as smooth to the eye
-// for a multi-second breath cycle, while cutting WindowServer cost roughly
-// in half vs 24 fps.  Hold phases still throttle further via
-// `MIN_PROGRESS_DELTA` skipping frames when visual progress is negligible.
-const INTERVAL_FAST: Duration = Duration::from_nanos(100_000_000); // 1/10 s
-const INTERVAL_SLOW: Duration = Duration::from_nanos(200_000_000); // 1/5  s
+// Match Swift's reference `MetalBreathingController.swift` exactly:
+//   maximumDrawIntervalFast = 1.0 / 24.0  → 24 fps during motion
+//   maximumDrawIntervalSlow = 1.0 / 12.0  → 12 fps during near-hold
+// Hardcoded because the per-window wgpu device + render-thread
+// architecture keeps the per-frame CPU cost well under 2 % on every
+// scene tested (see `cpu_bench`), so the previous user-tunable
+// `Smooth / Balanced / BatterySaver` preset was decluttering the
+// settings panel for no measurable battery / CPU win
+const INTERVAL_FAST: Duration = Duration::from_nanos(41_666_667);  // 1/24 s
+const INTERVAL_SLOW: Duration = Duration::from_nanos(83_333_333);  // 1/12 s
 
 const ENTER_FAST_THRESHOLD: f32 = 0.0075;
 const EXIT_FAST_THRESHOLD:  f32 = 0.0045;
@@ -107,7 +103,11 @@ impl BreathingController {
             .spawn(move || {
                 run_controller(settings_clone, state_clone, request_draw, stop_clone, reset_clone);
             })
-            .expect("spawn controller thread");
+            .expect(
+                "exhale-controller: thread::spawn failed (system thread limit / OOM) — \
+                 cannot continue without the breathing controller; restart the process \
+                 once memory is available",
+            );
 
         Self { state, thread: Some(handle), stop_flag, reset_flag }
     }
@@ -115,7 +115,7 @@ impl BreathingController {
     /// Get a snapshot of the current breathing state for rendering.
     /// Returns `None` only before the first tick.
     pub fn get_state(&self) -> Option<BreathingState> {
-        *self.state.lock().unwrap()
+        *self.state.lock_or_recover()
     }
 
     /// Shared handle to the controller's state slot.  Cheap to clone;
@@ -162,7 +162,7 @@ fn run_controller(
 ) {
     let easing = EasingTable::default_ease_in_out();
 
-    let inhale_dur = settings.read().unwrap().inhale_duration;
+    let inhale_dur = settings.read_or_recover().inhale_duration;
     let mut inner  = fresh_inner(Instant::now(), inhale_dur);
 
     // Deadline the next iteration should fire at.  We advance this by the
@@ -184,7 +184,7 @@ fn run_controller(
         // restart() was called (e.g. user pressed Start): reset to inhale phase 0,
         // matching Swift MetalBreathingController.start() which resets cycleCount=0.
         if reset_flag.swap(false, std::sync::atomic::Ordering::Relaxed) {
-            let inhale_dur = settings.read().unwrap().inhale_duration;
+            let inhale_dur = settings.read_or_recover().inhale_duration;
             inner = fresh_inner(Instant::now(), inhale_dur);
             next_wakeup = Instant::now();
         }
@@ -198,7 +198,7 @@ fn run_controller(
         if should_draw {
             // Write state snapshot before requesting draw so renderer sees it.
             let snap = compute_state(&inner);
-            *state_out.lock().unwrap() = Some(snap);
+            *state_out.lock_or_recover() = Some(snap);
             (request_draw)();
         }
 
@@ -227,7 +227,10 @@ fn fresh_inner(now: Instant, inhale_dur: f64) -> Inner {
         current_drift:       1.0,
         did_render_hold:     false,
         is_fast_cadence:     false,
-        last_draw_time:      now - INTERVAL_FAST * 2,
+        // Park `last_draw_time` 200 ms in the past — comfortably older than
+        // the shortest cadence (~33 ms at `Smooth`) so the first tick is
+        // immediately due, but not so far that overflow is a concern.
+        last_draw_time:      now.checked_sub(Duration::from_millis(200)).unwrap_or(now),
         last_drawn_phase:    BreathingPhase::Inhale,
         last_drawn_progress: -1.0,
     }
@@ -250,7 +253,7 @@ fn tick(
         drift, anim_mode,
         rand_inhale, rand_post_inhale, rand_exhale, rand_post_exhale,
     ) = {
-        let s = settings.read().unwrap();
+        let s = settings.read_or_recover();
         (
             s.is_animating,
             s.is_paused,
@@ -501,10 +504,6 @@ mod tests {
     use std::sync::RwLock;
     use crate::settings::Settings;
 
-    fn make_settings() -> Arc<RwLock<Settings>> {
-        Arc::new(RwLock::new(Settings::default()))
-    }
-
     // Helper: advance N phases manually through the inner state machine.
     fn advance_n_phases(inner: &mut Inner, n: usize, settings: &Settings) {
         for _ in 0..n {
@@ -706,5 +705,109 @@ mod tests {
             0.0, 0.0, 0.0, 0.0,
         );
         assert!(dur >= Duration::from_millis(100));
+    }
+
+    // ── tick() cadence / hysteresis tests ─────────────────────────────────
+    //
+    // These exercise the per-tick scheduler logic that decides whether
+    // to render *this* tick and how long to sleep before the next.
+    // Prior to these tests `tick()` had zero coverage despite being the
+    // hottest function in the app
+
+    fn fresh_inner_at(now: Instant, dur: Duration) -> Inner {
+        Inner {
+            phase:               BreathingPhase::Inhale,
+            phase_start:         now,
+            phase_duration:      dur,
+            cycle_count:         0,
+            current_drift:       1.0,
+            did_render_hold:     false,
+            is_fast_cadence:     false,
+            last_draw_time:      now - Duration::from_secs(1),
+            last_drawn_phase:    BreathingPhase::Inhale,
+            last_drawn_progress: -1.0,
+        }
+    }
+
+    #[test]
+    fn tick_returns_no_draw_when_not_animating_or_paused() {
+        let mut s = Settings::default();
+        s.is_animating = false;
+        s.is_paused = false;
+        let settings = Arc::new(RwLock::new(s));
+        let easing   = EasingTable::default_ease_in_out();
+        let mut inner = fresh_inner_at(Instant::now(), Duration::from_secs(5));
+        let (should_draw, next) = tick(&mut inner, &settings, &easing);
+        assert!(!should_draw, "stopped controller should not request a draw");
+        assert!(next >= Duration::from_secs(1), "stopped controller should sleep >=1s, got {next:?}");
+    }
+
+    #[test]
+    fn tick_paused_renders_once_per_second() {
+        let mut s = Settings::default();
+        s.is_paused = true;
+        let settings = Arc::new(RwLock::new(s));
+        let easing   = EasingTable::default_ease_in_out();
+        let mut inner = fresh_inner_at(Instant::now(), Duration::from_secs(5));
+        // First call: last_draw_time was 1s ago, so this should draw
+        // (the paused branch redraws once a second to keep the static
+        // frame current against settings changes).
+        let (should_draw_1, _) = tick(&mut inner, &settings, &easing);
+        assert!(should_draw_1, "paused controller draws once per second");
+        // Second call immediately after: not yet a second elapsed, so
+        // it should NOT draw and the sleep should be < 1s.
+        let (should_draw_2, next_2) = tick(&mut inner, &settings, &easing);
+        assert!(!should_draw_2, "paused controller doesn't draw twice in a row");
+        assert!(next_2 < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn tick_hold_with_ripple_redraws_periodically() {
+        // Hold-with-ripple: should draw at `interval_fast` cadence
+        // throughout the hold, not just at the boundaries.
+        let mut s = Settings::default();
+        s.hold_ripple_mode = crate::types::HoldRippleMode::Gradient;
+        s.post_inhale_hold_duration = 2.0; // long hold for the test
+        let settings = Arc::new(RwLock::new(s));
+        let easing   = EasingTable::default_ease_in_out();
+        let now = Instant::now();
+        let mut inner = fresh_inner_at(now, Duration::from_secs_f64(2.0));
+        inner.phase = BreathingPhase::HoldAfterInhale;
+        inner.last_draw_time = now - Duration::from_millis(200); // not yet due
+
+        let (should_draw, _) = tick(&mut inner, &settings, &easing);
+        // First tick of a fresh hold draws (did_render_hold was false).
+        assert!(should_draw);
+    }
+
+    #[test]
+    fn tick_hold_without_ripple_renders_once_then_sleeps() {
+        let mut s = Settings::default();
+        s.hold_ripple_mode = crate::types::HoldRippleMode::Off;
+        s.post_inhale_hold_duration = 2.0;
+        let settings = Arc::new(RwLock::new(s));
+        let easing   = EasingTable::default_ease_in_out();
+        let now = Instant::now();
+        let mut inner = fresh_inner_at(now, Duration::from_secs_f64(2.0));
+        inner.phase = BreathingPhase::HoldAfterInhale;
+
+        let (should_draw_1, _) = tick(&mut inner, &settings, &easing);
+        assert!(should_draw_1, "first tick of no-ripple hold draws");
+        let (should_draw_2, _) = tick(&mut inner, &settings, &easing);
+        assert!(!should_draw_2, "second tick of no-ripple hold sleeps");
+    }
+
+    #[test]
+    fn cadence_intervals_match_swift_reference() {
+        // 24 fps = 41.67 ms = ~41.67M ns; 12 fps = 83.33 ms = ~83.33M ns.
+        // Matches `MetalBreathingController.swift`'s
+        // `maximumDrawIntervalFast` / `maximumDrawIntervalSlow`.
+        let fast_ms = INTERVAL_FAST.as_nanos() as f64 / 1_000_000.0;
+        let slow_ms = INTERVAL_SLOW.as_nanos() as f64 / 1_000_000.0;
+        assert!((fast_ms - 1000.0 / 24.0).abs() < 0.01,
+            "INTERVAL_FAST should be 1/24 s = 41.67 ms, got {fast_ms}");
+        assert!((slow_ms - 1000.0 / 12.0).abs() < 0.01,
+            "INTERVAL_SLOW should be 1/12 s = 83.33 ms, got {slow_ms}");
+        assert!(INTERVAL_SLOW > INTERVAL_FAST);
     }
 }

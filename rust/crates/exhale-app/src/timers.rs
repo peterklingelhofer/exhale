@@ -189,3 +189,128 @@ fn send_reminder_macos() {
         let _: () = msg_send![content, release];
     }
 }
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+//
+// Cover the `Timers` state machine that the audit flagged as having
+// zero coverage despite being a real bug-source: auto-stop firing,
+// reminder firing, deadline computation, edge cases around 0-value
+// (off) settings
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings_with(auto_stop: f64, reminder: f64, animating: bool) -> Settings {
+        let mut s = Settings::default();
+        s.auto_stop_minutes        = auto_stop;
+        s.reminder_interval_minutes = reminder;
+        s.is_animating              = animating;
+        s
+    }
+
+    #[test]
+    fn reschedule_auto_stop_off_when_zero() {
+        let mut t = Timers::new();
+        t.reschedule_auto_stop(&settings_with(0.0, 0.0, true));
+        assert!(t.auto_stop_deadline.is_none(), "0 minutes = off");
+    }
+
+    #[test]
+    fn reschedule_auto_stop_off_when_not_animating() {
+        let mut t = Timers::new();
+        t.reschedule_auto_stop(&settings_with(5.0, 0.0, false));
+        assert!(t.auto_stop_deadline.is_none(),
+            "auto-stop must be inactive while not animating");
+    }
+
+    #[test]
+    fn reschedule_auto_stop_sets_deadline_in_future() {
+        let mut t = Timers::new();
+        let before = Instant::now();
+        t.reschedule_auto_stop(&settings_with(2.0, 0.0, true));
+        let deadline = t.auto_stop_deadline.expect("deadline set");
+        let dt = deadline.duration_since(before);
+        // 2 minutes = 120s; allow ±100ms for clock noise.
+        assert!(dt >= Duration::from_secs_f64(119.9));
+        assert!(dt <= Duration::from_secs_f64(120.1));
+    }
+
+    #[test]
+    fn reschedule_reminder_off_when_zero() {
+        let mut t = Timers::new();
+        t.reschedule_reminder(&settings_with(0.0, 0.0, true));
+        assert!(t.last_reminder.is_none());
+    }
+
+    #[test]
+    fn reschedule_reminder_resets_last_to_now() {
+        let mut t = Timers::new();
+        let before = Instant::now();
+        t.reschedule_reminder(&settings_with(0.0, 1.0, true));
+        let last = t.last_reminder.expect("last set");
+        assert!(last >= before);
+    }
+
+    #[test]
+    fn next_deadline_none_when_no_timers_active() {
+        let t = Timers::new();
+        let s = settings_with(0.0, 0.0, true);
+        assert!(t.next_deadline(&s).is_none());
+    }
+
+    #[test]
+    fn next_deadline_picks_earliest_of_auto_stop_and_reminder() {
+        let mut t = Timers::new();
+        let s = settings_with(10.0, 1.0, true); // auto-stop 10 min, reminder 1 min
+        t.reschedule_auto_stop(&s);
+        t.reschedule_reminder(&s);
+        let d = t.next_deadline(&s).expect("some deadline");
+        let now = Instant::now();
+        // Reminder fires in ~1 min, auto-stop in ~10 min → next should be ~1 min.
+        let dt = d.duration_since(now);
+        assert!(dt < Duration::from_secs(90),
+            "earliest should be the 1-minute reminder, got {dt:?}");
+    }
+
+    #[test]
+    fn tick_fires_auto_stop_when_deadline_passes() {
+        let mut t = Timers::new();
+        // Use a tiny duration we can wait past.  We can't sleep in
+        // tests reliably, so backdate the deadline directly.
+        t.auto_stop_deadline = Some(Instant::now() - Duration::from_millis(1));
+        let events = t.tick(&settings_with(5.0, 0.0, true));
+        assert!(events.auto_stop, "auto-stop event must fire when deadline passed");
+        assert!(t.auto_stop_deadline.is_none(), "deadline cleared after firing");
+    }
+
+    #[test]
+    fn tick_does_not_fire_auto_stop_early() {
+        let mut t = Timers::new();
+        t.auto_stop_deadline = Some(Instant::now() + Duration::from_secs(60));
+        let events = t.tick(&settings_with(5.0, 0.0, true));
+        assert!(!events.auto_stop);
+        assert!(t.auto_stop_deadline.is_some());
+    }
+
+    #[test]
+    fn tick_fires_reminder_at_interval_and_resets_clock() {
+        let mut t = Timers::new();
+        // Backdate so the interval has just passed.
+        t.last_reminder = Some(Instant::now() - Duration::from_secs(61));
+        let s = settings_with(0.0, 1.0, true);
+        let events = t.tick(&s);
+        assert!(events.reminder, "reminder fires after 1-min interval elapsed");
+        let new_last = t.last_reminder.expect("reset");
+        assert!(new_last > Instant::now() - Duration::from_secs(1),
+            "last_reminder reset to ~now after firing");
+    }
+
+    #[test]
+    fn tick_does_not_fire_reminder_when_interval_is_off() {
+        let mut t = Timers::new();
+        t.last_reminder = Some(Instant::now() - Duration::from_secs(3600));
+        let s = settings_with(0.0, 0.0, true); // reminder = off
+        let events = t.tick(&s);
+        assert!(!events.reminder);
+    }
+}

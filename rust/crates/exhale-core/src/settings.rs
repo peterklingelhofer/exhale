@@ -114,7 +114,118 @@ impl Default for Settings {
     }
 }
 
+/// Categorised diff between two `Settings` snapshots.
+///
+/// Replaces the previous ~25-line hand-rolled prev_* / current
+/// comparison cascade in `main.rs`'s settings-render handler.  Adding
+/// a new setting is now a one-line edit to the relevant `*_changed`
+/// computation here rather than three coordinated edits across
+/// main.rs.
+///
+/// All `*_changed` fields are inclusive — they're `true` whenever
+/// ANY field in their category differs.  Categories match the
+/// downstream actions:
+///
+///   * `animating_changed` — drives tray-state refresh + auto-stop reschedule
+///   * `paused_changed`    — drives overlay redraw
+///   * `visibility_changed` / `new_visibility` — drives platform Dock/menu-bar toggle
+///   * `visual_changed`    — drives Swift-parity `triggerAnimationReset()`
+///   * `timing_changed`    — same as visual_changed for timing-related fields
+///   * `auto_stop_changed` — reschedules the auto-stop deadline
+///   * `reminder_changed`  — reschedules the reminder timer + may prompt for permission
+#[derive(Clone, Copy, Debug)]
+pub struct SettingsDiff {
+    pub animating_started:  bool,
+    pub animating_changed:  bool,
+    pub paused_changed:     bool,
+    pub visibility_changed: bool,
+    pub new_visibility:     crate::types::AppVisibility,
+    pub visual_changed:     bool,
+    pub timing_changed:     bool,
+    pub auto_stop_changed:  bool,
+    pub reminder_changed:   bool,
+}
+
+impl SettingsDiff {
+    /// Compute the diff between `before` (snapshot taken pre-render)
+    /// and `after` (settings as mutated by the egui frame).  All
+    /// float comparisons use an epsilon — 1e-9 for timing values
+    /// (seconds) and 1e-4 for the [0,1] overlay opacity, both well
+    /// below user-perceptible differences
+    pub fn from(before: &Settings, after: &Settings) -> Self {
+        let animating_changed = after.is_animating != before.is_animating;
+        let animating_started = !before.is_animating && after.is_animating;
+        let visual_changed = after.shape               != before.shape
+            || after.color_fill_gradient != before.color_fill_gradient
+            || after.animation_mode      != before.animation_mode
+            || after.inhale_color        != before.inhale_color
+            || after.exhale_color        != before.exhale_color
+            || after.background_color    != before.background_color
+            || (after.overlay_opacity - before.overlay_opacity).abs() > 1e-4;
+        let timing_changed =
+            (after.inhale_duration                       - before.inhale_duration).abs()           > 1e-9
+         || (after.post_inhale_hold_duration             - before.post_inhale_hold_duration).abs() > 1e-9
+         || (after.exhale_duration                       - before.exhale_duration).abs()           > 1e-9
+         || (after.post_exhale_hold_duration             - before.post_exhale_hold_duration).abs() > 1e-9
+         || (after.drift                                 - before.drift).abs()                     > 1e-9
+         || (after.randomized_timing_inhale              - before.randomized_timing_inhale).abs()              > 1e-9
+         || (after.randomized_timing_post_inhale_hold    - before.randomized_timing_post_inhale_hold).abs()    > 1e-9
+         || (after.randomized_timing_exhale              - before.randomized_timing_exhale).abs()              > 1e-9
+         || (after.randomized_timing_post_exhale_hold    - before.randomized_timing_post_exhale_hold).abs()    > 1e-9
+         || after.hold_ripple_mode  != before.hold_ripple_mode;
+
+        Self {
+            animating_started,
+            animating_changed,
+            paused_changed:     after.is_paused      != before.is_paused,
+            visibility_changed: after.app_visibility != before.app_visibility,
+            new_visibility:     after.app_visibility,
+            visual_changed,
+            timing_changed,
+            auto_stop_changed:  (after.auto_stop_minutes        - before.auto_stop_minutes).abs()        > 1e-9,
+            reminder_changed:   (after.reminder_interval_minutes - before.reminder_interval_minutes).abs() > 1e-9,
+        }
+    }
+
+    /// Any setting that should trigger an overlay redraw.
+    pub fn should_redraw_overlay(&self) -> bool {
+        self.paused_changed || self.animating_changed || self.visual_changed || self.timing_changed
+    }
+
+    /// Any setting that, per Swift's `triggerAnimationReset()`,
+    /// should restart the animation from inhale phase 0 (only when
+    /// the animation is actively running and not paused).
+    pub fn should_restart_animation(&self, current: &Settings) -> bool {
+        self.animating_started
+            || ((self.visual_changed || self.timing_changed)
+                && current.is_animating
+                && !current.is_paused)
+    }
+}
+
 impl Settings {
+    /// Reset every user-visible setting to its default while preserving
+    /// runtime state (animating / paused) and the persisted settings-
+    /// window placement.  Used by the ↺ Reset button, the Reset
+    /// confirmation dialog, and the global-hotkey reset path — all
+    /// three previously inlined the same preserve-write-restore dance
+    /// and had drifted by minor amounts.  Single source of truth now.
+    pub fn reset_preserving_runtime_state(&mut self) {
+        let was_animating  = self.is_animating;
+        let was_paused     = self.is_paused;
+        let win_x          = self.settings_window_x;
+        let win_y          = self.settings_window_y;
+        let win_h          = self.settings_window_height;
+        let win_screen     = self.settings_window_screen.take();
+        *self = Settings::default();
+        self.is_animating            = was_animating;
+        self.is_paused               = was_paused;
+        self.settings_window_x       = win_x;
+        self.settings_window_y       = win_y;
+        self.settings_window_height  = win_h;
+        self.settings_window_screen  = win_screen;
+    }
+
     /// Returns true when inhale and exhale colors are perceptually identical.
     /// Used to skip unnecessary redraws in the fullscreen shape.
     pub fn inhale_exhale_colors_match(&self) -> bool {
@@ -205,5 +316,124 @@ mod tests {
         s.background_color = [0.0, 0.0, 0.0, 0.8];
         s.overlay_opacity = 0.25;
         assert!((s.background_opacity() - 0.25).abs() < 1e-6);
+    }
+
+    // ── SettingsDiff ────────────────────────────────────────────────
+
+    #[test]
+    fn diff_identical_settings_has_no_changes() {
+        let s = Settings::default();
+        let d = SettingsDiff::from(&s, &s);
+        assert!(!d.animating_started);
+        assert!(!d.animating_changed);
+        assert!(!d.paused_changed);
+        assert!(!d.visibility_changed);
+        assert!(!d.visual_changed);
+        assert!(!d.timing_changed);
+        assert!(!d.auto_stop_changed);
+        assert!(!d.reminder_changed);
+    }
+
+    #[test]
+    fn diff_detects_animating_transition() {
+        let mut before = Settings::default();
+        before.is_animating = false;
+        let mut after = before.clone();
+        after.is_animating = true;
+        let d = SettingsDiff::from(&before, &after);
+        assert!(d.animating_started);
+        assert!(d.animating_changed);
+        // Stopping should not register as `started`.
+        let d_rev = SettingsDiff::from(&after, &before);
+        assert!(!d_rev.animating_started);
+        assert!(d_rev.animating_changed);
+    }
+
+    #[test]
+    fn diff_visual_changed_covers_all_visual_fields() {
+        let base = Settings::default();
+
+        for (label, mutate) in [
+            ("shape",           Box::new(|s: &mut Settings| s.shape = AnimationShape::Circle) as Box<dyn Fn(&mut Settings)>),
+            ("gradient",        Box::new(|s| s.color_fill_gradient = ColorFillGradient::Off)),
+            ("animation_mode",  Box::new(|s| s.animation_mode = AnimationMode::Linear)),
+            ("inhale_color",    Box::new(|s| s.inhale_color = [0.0; 4])),
+            ("exhale_color",    Box::new(|s| s.exhale_color = [1.0; 4])),
+            ("background_color", Box::new(|s| s.background_color = [0.5, 0.5, 0.5, 0.5])),
+            ("overlay_opacity", Box::new(|s| s.overlay_opacity = 0.99)),
+        ] {
+            let mut after = base.clone();
+            mutate(&mut after);
+            let d = SettingsDiff::from(&base, &after);
+            assert!(d.visual_changed, "visual_changed should fire for {label} change");
+        }
+    }
+
+    #[test]
+    fn diff_timing_changed_covers_all_timing_fields() {
+        let base = Settings::default();
+
+        for (label, mutate) in [
+            ("inhale_duration",                  Box::new(|s: &mut Settings| s.inhale_duration = 7.0) as Box<dyn Fn(&mut Settings)>),
+            ("post_inhale_hold_duration",        Box::new(|s| s.post_inhale_hold_duration = 1.0)),
+            ("exhale_duration",                  Box::new(|s| s.exhale_duration = 7.0)),
+            ("post_exhale_hold_duration",        Box::new(|s| s.post_exhale_hold_duration = 1.0)),
+            ("drift",                            Box::new(|s| s.drift = 1.05)),
+            ("randomized_timing_inhale",         Box::new(|s| s.randomized_timing_inhale = 0.5)),
+            ("randomized_timing_post_inhale",    Box::new(|s| s.randomized_timing_post_inhale_hold = 0.5)),
+            ("randomized_timing_exhale",         Box::new(|s| s.randomized_timing_exhale = 0.5)),
+            ("randomized_timing_post_exhale",    Box::new(|s| s.randomized_timing_post_exhale_hold = 0.5)),
+            ("hold_ripple_mode",                 Box::new(|s| s.hold_ripple_mode = HoldRippleMode::Stark)),
+        ] {
+            let mut after = base.clone();
+            mutate(&mut after);
+            let d = SettingsDiff::from(&base, &after);
+            assert!(d.timing_changed, "timing_changed should fire for {label} change");
+        }
+    }
+
+    #[test]
+    fn diff_should_restart_animation_only_when_running() {
+        let mut before = Settings::default();
+        before.is_animating = true;
+        before.is_paused    = false;
+        let mut after = before.clone();
+        after.shape = AnimationShape::Circle;
+        let d = SettingsDiff::from(&before, &after);
+        assert!(d.should_restart_animation(&after));
+
+        // Paused: no restart even though visual changed.
+        let mut after_paused = after.clone();
+        after_paused.is_paused = true;
+        let d2 = SettingsDiff::from(&before, &after_paused);
+        assert!(!d2.should_restart_animation(&after_paused));
+
+        // Not animating: no restart.
+        let mut after_stopped = after.clone();
+        after_stopped.is_animating = false;
+        let d3 = SettingsDiff::from(&before, &after_stopped);
+        assert!(!d3.should_restart_animation(&after_stopped));
+    }
+
+    #[test]
+    fn diff_should_restart_on_first_animating_transition() {
+        let mut before = Settings::default();
+        before.is_animating = false;
+        let mut after = before.clone();
+        after.is_animating = true;
+        // Even with no visual or timing change, `started` triggers a restart.
+        let d = SettingsDiff::from(&before, &after);
+        assert!(d.should_restart_animation(&after));
+    }
+
+    #[test]
+    fn diff_visibility_carries_new_value() {
+        let mut before = Settings::default();
+        before.app_visibility = AppVisibility::Both;
+        let mut after = before.clone();
+        after.app_visibility = AppVisibility::TopBarOnly;
+        let d = SettingsDiff::from(&before, &after);
+        assert!(d.visibility_changed);
+        assert_eq!(d.new_visibility, AppVisibility::TopBarOnly);
     }
 }
