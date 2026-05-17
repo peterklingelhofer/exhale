@@ -1,163 +1,240 @@
 # exhale
 
-## Introduction
+A minimal cross-platform breathing overlay — a friendly indicator and reminder to take full, deep breaths while looking at screens. Research indicates we blink less and breathe more shallowly when staring at displays, and this is intended as a small tool to help counter that.
 
-Research indicates we blink less and breathe more shallowly when we are looking at screens. This minimal app is an internal tool I created for myself that I released for the public in case others find it useful, and is intended as a friendly indicator and reminder to continue to take full and deep breaths. As looking at screens for long periods of time is typically less than ideal, this tool is intended as a means to potentially ameliorate those negative impacts.
-
-Each of these implementations allows users to set an inhale, inhale hold, exhale, and exhale hold duration, in seconds, to fit their needs. For beginners who might be curious what a good starting value might be for these, I recommend keeping it simple, using `4` for the in duration and `4` for the out duration. Eventually you can work your way up to `6` and `8`, and set the out duration to be twice that of the in duration to facilitate activation of the parasympathetic nervous system. Some users might like to start out with box breathing, which is inhale `4`, inhale hold `4`, exhale `4`, exhale hold `4`. Remember, if intense feelings arise while practicing, taking a break is encouraged - it's important to not overdo it.
+The overlay is a translucent always-on-top window that gently expands on inhale and contracts on exhale. Inhale, post-inhale hold, exhale, and post-exhale hold durations are all configurable. A good starting point is `4` seconds in and `4` seconds out; eventually `6` and `8` with the out twice as long as the in (to engage the parasympathetic nervous system). Box breathing is `4` / `4` / `4` / `4`. Take breaks if intense feelings arise — it's important not to overdo it.
 
 ## Disclaimer
 
-The information and guidance provided by this breathing app are intended for general informational purposes only and should not be construed as medical advice, diagnosis, or treatment. The creator of this app is not a medical professional, and the app is not a substitute for professional medical advice or consultation with a qualified healthcare provider. Always seek the advice of a physician or other qualified healthcare provider with any questions you may have regarding a medical condition or health objectives. Do not disregard or delay seeking professional medical advice because of the information or suggestions provided by this app. In the event of a medical emergency, call your doctor or dial your local emergency number immediately. Use of this app is at your own risk, and the creator assumes no responsibility for any adverse effects or consequences resulting from its use.
+The information and guidance provided by this app are intended for general informational purposes only and are not medical advice. The creator is not a medical professional. Always seek the advice of a qualified healthcare provider with any questions about your health, and do not disregard or delay professional medical advice because of this app. Use is at your own risk.
 
 ## Download
 
-You can download the build for your respective operating system on the [Releases](https://github.com/peterklingelhofer/exhale/releases) page. Using the latest release is recommended, but if you run into issues you could try a previous release to see if that yields better results. If you do encounter a problem, please [document the issue you encountered](https://github.com/peterklingelhofer/exhale/issues/new).
-
-The **Rust port** under [`rust/`](rust/) is the primary cross-platform implementation (macOS, Windows, Linux). It targets the Mac App Store, Microsoft Store, and Snap Store from a single codebase, uses a wgpu/WGSL overlay renderer with egui settings, and is the recommended build going forward. See [`rust/README.md`](rust/README.md) for build, packaging, and architecture notes. The legacy Swift, Electron, and Python implementations are preserved below for reference.
+Pre-built binaries for each OS are on the [Releases](https://github.com/peterklingelhofer/exhale/releases) page. Using the latest release is recommended; if you hit a problem, please [open an issue](https://github.com/peterklingelhofer/exhale/issues/new).
 
 **Mac**
 
-Recommend installing via the Apple App Store:
 [<img src="https://user-images.githubusercontent.com/60944077/232312847-df673556-fb5e-49b4-8037-4d38267e6e18.png"  width="157" height="63"></img>](https://apps.apple.com/us/app/exhale-breath/id6447758995?mt=12)
 
-To build the Rust port locally:
+**Windows** — install the MSIX from the Microsoft Store, or grab the standalone `.exe` from Releases.
+
+**Linux** — install the Snap from the Snap Store, or build from source.
+
+## Usage
+
+![circle](https://user-images.githubusercontent.com/60944077/226204981-f390facc-4f6c-4bec-8784-23203aa64efc.gif)
+![rectangle](https://user-images.githubusercontent.com/60944077/226204986-7522cb4d-7df1-4d65-96de-e629197e9854.gif)
+<img width="447" height="981" alt="Settings panel" src="https://github.com/user-attachments/assets/32e1d10e-72e3-4acb-ae35-be186cd7cb19" />
+
+The **Tint** (Pause) feature tints the screen with the current background colour, useful for nighttime work and compounds well with [Night Shift](https://support.apple.com/en-us/102191) and [f.lux](https://justgetflux.com/).
+
+### Global keyboard shortcuts
+
+| Shortcut                                    | Action               |
+|---------------------------------------------|----------------------|
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> | Start animation      |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> | Stop animation       |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> | Tint screen          |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> | Reset to defaults    |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>W</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>,</kbd> | Open/Close preferences |
+
+**Notice:** A high opacity value can obscure the Preferences pane in the current workspace. Use <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> to reset, or:
+
+1. Swipe to a different workspace.
+2. Close Preferences from the menu bar.
+3. Re-open Preferences in the current workspace and adjust Opacity.
+4. Switch back.
+
+## Architecture
+
+Single Rust workspace (`rust/`) producing one cross-platform binary.
+
+- **Renderer**: `wgpu` + a single WGSL fragment shader (`crates/exhale-render`)
+- **Window system**: `winit`
+- **Settings UI**: `egui` (hand-rolled stepper, segmented picker, control buttons painted directly via `egui::Painter` to match `NSSegmentedControl` / `NSStepper` look)
+- **AppKit interop**: typed FFI via `objc2`, no raw `msg_send!` after the migration
+- **Threading model**: per-overlay-window render thread + per-window `wgpu::Device` so overlay frame delivery isn't gated by the main thread's message queue or the settings window's GPU submissions
+- **Animation cadence**: 24 fps fast / 12 fps slow (matches the legacy Swift `MetalBreathingController`). Hardcoded — per-frame CPU runs ≤ 2 % on every scene tested, so the earlier user-tunable preset was removed
+
+### Crates
+
+- `exhale-core` — settings + `SettingsDiff`, breathing controller (deadline-scheduled background thread), poison-tolerant lock helpers, easing tables. Zero GUI deps.
+- `exhale-render` — `wgpu` renderer + WGSL fragment shader, headless benchmarking harness (`cargo run --example cpu_bench`).
+- `exhale-app` — winit event loop, split egui settings panel (`settings_window.rs` + `widgets.rs` + `theme.rs`), per-overlay render thread, tray, hotkeys, platform glue (`objc2` / `windows-sys` / `x11-dl`).
+
+## Build & run
+
+The `cargo run` family **builds and then launches** the binary in one step. The `cargo build` family only compiles — you have to invoke the binary yourself afterwards.
+
+| Command                  | Builds | Runs | Build profile               |
+|--------------------------|:------:|:----:|-----------------------------|
+| `cargo run`              |  ✓     |  ✓   | Dev (debug, fast compile)   |
+| `cargo run --release`    |  ✓     |  ✓   | Release (optimised)         |
+| `cargo build`            |  ✓     |  —   | Dev                         |
+| `cargo build --release`  |  ✓     |  —   | Release                     |
+
+All commands run from `rust/`. Use dev builds while iterating (compile is ~10× faster), release for the real binary you'd ship or benchmark. Binaries land at:
+
+- Dev:     `rust/target/debug/exhale` (or `.exe` on Windows)
+- Release: `rust/target/release/exhale` (or `.exe` on Windows)
+
+### Running an already-built binary
+
+After `cargo build`, run the binary directly without going through cargo:
+
+**macOS / Linux**
 
 ```sh
-git clone https://github.com/peterklingelhofer/exhale.git
-cd exhale/rust
-cargo run --release -p exhale-app
+./target/release/exhale          # release
+./target/debug/exhale            # dev
 ```
 
-**Windows**
-
-The Rust port ships as an MSIX package for the Microsoft Store. To build locally:
+**Windows (PowerShell or cmd)**
 
 ```sh
-git clone https://github.com/peterklingelhofer/exhale.git
-cd exhale/rust
-cargo run --release -p exhale-app
+.\target\release\exhale.exe      # release
+.\target\debug\exhale.exe        # dev
 ```
 
-**Linux**
+### Platform prerequisites
 
-The Rust port ships as a strict-confined Snap for the Snap Store. To build locally:
+**macOS** — no extra prerequisites beyond Rust.
+
+**Windows** — no extra prerequisites. Works with both the MSVC and GNU toolchains.
+
+**Linux** — requires GTK dev headers for the system-tray crate. On Debian/Ubuntu:
 
 ```sh
-git clone https://github.com/peterklingelhofer/exhale.git
-cd exhale/rust
-cargo run --release -p exhale-app
+sudo apt install \
+    libgtk-3-dev libayatana-appindicator3-dev \
+    libxcb1-dev libxkbcommon-dev
 ```
 
-For something more lightweight, the legacy Python script also works.
+On Fedora/RHEL:
 
-## Mac App Usage
+```sh
+sudo dnf install \
+    gtk3-devel libayatana-appindicator-gtk3-devel \
+    libxcb-devel libxkbcommon-devel
+```
 
-![circle-swift](https://user-images.githubusercontent.com/60944077/226204981-f390facc-4f6c-4bec-8784-23203aa64efc.gif)
-![rectangle-swift](https://user-images.githubusercontent.com/60944077/226204986-7522cb4d-7df1-4d65-96de-e629197e9854.gif)
-<img width="447" height="981" alt="Screenshot 2026-03-18 at 9 51 16 AM" src="https://github.com/user-attachments/assets/32e1d10e-72e3-4acb-ae35-be186cd7cb19" />
+X11 and Xfixes are loaded dynamically via `x11-dl`, so you don't need their `-dev` packages at build time — only the runtime libraries, which ship on every X11 desktop.
 
+## Settings
 
-Note: This section documents the legacy Swift Mac build. The Rust port in [`rust/`](rust/) is the cross-platform replacement currently being prepared for store submission and is recommended for new local builds; see [`rust/README.md`](rust/README.md).
+Settings are saved as TOML under the platform config dir (via the `directories` crate's `ProjectDirs::from("com", "peterklingelhofer", "exhale")`):
 
-To launch the app on Catalina or newer for the first time, you may have to right click and select "Open" instead of double clicking on it, and you may need to do this twice. That's Apple's take on "security" for non-notarized binaries, or if you are not connected to the Internet.
+| Platform | Path |
+|----------|------|
+| macOS    | `~/Library/Application Support/com.peterklingelhofer.exhale/settings.toml` |
+| Windows  | `%APPDATA%\peterklingelhofer\exhale\config\settings.toml` |
+| Linux    | `~/.config/exhale/settings.toml` |
 
-You can use <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>,</kbd> to toggle settings open and closed. The **Tint** feature (or Pause) can be used to tint your screen the color of your selected background color, or make your screen darker than otherwise possible for nighttime work (which can compound with both [Night Shift](https://support.apple.com/en-us/102191) and [f.lux](https://justgetflux.com/).
+Settings are reloaded on launch and persisted on every change via a debounced background writer thread; corrupt TOML is logged and the file is rewritten with defaults.
 
-#### Global Keyboard Shortcuts:
+## Platform notes
 
-<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>: **Start Animation**
+- **macOS**: the overlay floats above fullscreen apps (screen-saver window level), joins every Space, and stays out of Cmd+Tab. `AppVisibility` toggles `NSApp.setActivationPolicy` between `.regular` and `.accessory`.
+- **Windows**: the overlay uses `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST`. `AppVisibility` toggles `WS_EX_APPWINDOW` / `WS_EX_TOOLWINDOW` on the settings window so "DockOnly" shows a taskbar entry and "TopBarOnly" hides it.
+- **Linux (X11)**: click-through via `XFixesSetWindowShapeRegion` with an empty input region; always-on-top via `_NET_WM_STATE_ABOVE`; workspace-spanning via `_NET_WM_STATE_STICKY`; `AppVisibility` toggles `_NET_WM_STATE_SKIP_TASKBAR` / `SKIP_PAGER` on the settings window.
+- **Linux (Wayland)**: the overlay is placed at `AlwaysOnBottom` instead of topmost. Wayland's security model doesn't expose a portable always-on-top or click-through protocol to winit (`wp_input_region` isn't surfaced), so a topmost overlay would intercept every click. Bottom-stacking means your app windows cover the overlay by default; to see the animation, **narrow your foreground windows so they don't fill the whole screen** — the breathing animation (Circle, Rectangle, or Fullscreen) shows through whatever gap you've left. Same "make room for the overlay" strategy the Python script's bars mode uses, just much lower CPU. For full topmost + click-through behavior on Linux, log out and pick an X11 session at the login screen.
 
-<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>: **Stop Animation**
+## Known macOS-fidelity gaps vs the legacy Swift original
 
-<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd>: **Tint Screen**
+The Rust port reaches feature parity with the Swift original on every documented setting and behaviour. Three native-macOS UX touches are intentionally **not** ported because doing them right would require rewriting the settings window as an AppKit hierarchy instead of an egui one:
 
-<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd>: **Reset to Defaults**
+- **`NSColorPanel` colour picker** — the inhale / exhale / background colour swatches use egui's built-in colour picker. Native `NSColorPanel` integration (eyedropper, system palettes) is feasible via target/action bridging but costs ~300-500 LOC of Objective-C glue with proper colour-space conversion and multi-target tracking. Cross-platform Discord / Slack / VS Code all use custom pickers too; this isn't a glaring gap.
+- **`NSStepper` widget** — the stepper buttons next to each numeric field are hand-painted to match macOS's `NSStepper` visually. A real `NSStepper` lives in an `NSView` hierarchy that can't be hosted inside an egui frame without rebuilding the whole settings window as AppKit. The hand-painted version is pixel-close.
+- **Accessibility tree / VoiceOver** — egui doesn't expose an accessibility tree (no AX backend). Native AppKit controls would, but the same constraint as `NSStepper` applies. Tracking upstream: <https://github.com/emilk/egui/issues/3604>.
 
-<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>W</kbd> or
+## Performance
 
-<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>,</kbd>: **Open/Close Preferences**
+Headless render bench on M3 Max (`cargo run --release --example cpu_bench -p exhale-render`) at the hardcoded 24/12 fps cadence:
 
+| Scene                            | Δ avg CPU | Δ peak CPU | effective fps |
+|----------------------------------|----------:|-----------:|--------------:|
+| rect + gradient                  |     1.5 % |      1.7 % |          19.3 |
+| circle + gradient                |     1.3 % |      1.6 % |          19.5 |
+| fullscreen + solid               |     1.5 % |      1.9 % |          19.3 |
+| rect + hold ripple gradient      |     1.3 % |      1.8 % |          17.3 |
+| rect + hold ripple stark         |     1.2 % |      1.5 % |          17.9 |
+| circle + hold ripple gradient    |     1.4 % |      2.1 % |          17.5 |
 
-**Notice:** A high opacity value can obscure the Preferences pane in the current workspace.
-To change this value back, you can use <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> to **Reset to Defaults**, or if you'd like to persist your other settings:
-1. Swipe left or right with four fingers on your trackpad to switch to a different workspace, or four finger swipe up and select an alternate workspace at the top.
-2. From the top bar menu, click Preferences to close the Preferences pane in the previous workspace.
-3. Access the top bar menu again, click Preferences to open the Preferences pane in the current workspace, and adjust your Opacity value accordingly.
-4. Switch back to the original workspace.
+Compared on the same hardware against the legacy Swift `PerformanceTests` (`swift/exhaleTests/exhaleTests.swift::PerformanceTests`) which uses the same `getrusage` / 5×1s-sample methodology:
 
-                                        
-#### Development
+| Scene                            | Swift Δ avg | Rust Δ avg |
+|----------------------------------|------------:|-----------:|
+| Circle + gradient                |       4.6 % |      1.3 % |
+| Rect + ripple gradient           |       6.1 % |      1.3 % |
+| Rect + ripple stark              |       4.3 % |      1.2 % |
+| Circle + ripple gradient         |       6.0 % |      1.4 % |
+| Fullscreen + solid               |       0.0 % |      1.5 % |
+| Rect + gradient                  |       0.6 % |      1.5 % |
+
+**Per-frame animation work is ~3-5× cheaper in Rust on the complex scenes** (anything with hold-ripple or circle SDF math). SwiftUI optimises trivial scenes to ~zero — Rust's shader runs the same fragment work regardless of scene complexity, so simple scenes cost slightly more (still under 2 %). Notable: Rust's per-scene variance is much lower (1.2 – 1.5 % across everything), which matters for predictable battery-life modelling.
+
+Caveat: the `cpu_bench` harness is **headless** — it renders to an offscreen `wgpu::Texture`, skipping the compositor cost the live app pays on `WindowServer` / DWM. Real-world CPU is somewhere between the bench number and the Swift number, likely closer to 2-3 % on complex scenes.
+
+## Ship & distribute
+
+| Target                       | Status     | Notes |
+|------------------------------|------------|-------|
+| Mac App Store                | ✅ ready   | Sandbox-safe `flock(2)` single-instance guard; sandbox-friendly AppleEvent registration; `scripts/bundle-mas.sh` (universal binary, Developer-ID signed `.pkg`, sandbox entitlements) |
+| macOS standalone (signed)    | ✅ ready   | `scripts/bundle-mas.sh` |
+| Microsoft Store              | ✅ ready   | MSIX wrapper via `bundle-msix.ps1`, all required tile assets generated (Wide310x150, Square71x71, Square310x310, SplashScreen) |
+| Windows standalone           | ✅ ready   | `cargo build --release` produces a self-contained `.exe` |
+| Snap Store                   | ✅ ready   | Strict-confined snap with the `gnome` extension. Upload is currently manual from a Multipass `snap-creds` VM (`snapcraft upload`) |
+| Linux `.deb` / AppImage      | ✅ ready   | `cargo deb` + `scripts/bundle-appimage.sh` |
+
+## Hacker fallback: Python single-file script
+
+For tinkerers, distros where the Snap doesn't fit (Alpine, NixOS, immutable distros), or anyone who'd rather just read 200 lines of Python and tweak constants at the top of a file:
+
+![exhalePython](https://user-images.githubusercontent.com/60944077/222979803-c88ebc65-b799-4ca7-b265-54beb27fcb00.gif)
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
-cd exhale
-cd swift
+cd exhale/python
+python main.py
+```
+
+Modify the constants at the top of [`python/main.py`](python/main.py) for inhale/exhale duration in seconds, shape mode, and full-screen toggle.
+
+**The Rust binary is the recommended path on every supported OS, including Wayland.** On systems without portable always-on-top (Wayland, some locked-down environments), both the Python script and the Rust binary require the same user behavior — narrow your foreground windows so the breath animation can peek through. The Rust binary just runs at ≤ 2 % CPU on every benchmarked scene, where Python's PyQt5 + tkinter + interpreter overhead is several × higher. The Python script is a hackable single-file alternative, not a performance recommendation.
+
+## Companion repository
+
+A Perl version of this exists at <https://github.com/franco3445/Breathing>.
+
+---
+
+## Deprecated implementations
+
+The implementations below are superseded by the Rust port above and are kept in the repo for historical reference only. They will not receive new features or fixes. Use the Rust binary on every supported OS.
+
+### Swift macOS app (`swift/`)
+
+The original macOS-only implementation, written in SwiftUI + Metal. The Rust port is a strict superset: same overlay, same hotkeys, same settings, plus Windows and Linux support, with measurably lower per-frame CPU on every complex scene (see Performance table above). The Mac App Store listing will be updated to the Rust build going forward; the Swift source remains for reference.
+
+```sh
+git clone https://github.com/peterklingelhofer/exhale.git
+cd exhale/swift
 xed .
 ```
 
-## Windows & Linux Electron App Usage
+### TypeScript / Electron app (`typescript/`)
 
-![exhaleElectron](https://user-images.githubusercontent.com/60944077/224524962-56da25cc-e3d9-4d4b-9171-f185be9d709c.gif)
-![exhaleElectronCircular](https://user-images.githubusercontent.com/60944077/224865780-0e61721e-2345-49aa-830d-0e157b6f4366.gif)
-<img width="912" alt="Screenshot 2024-06-01 at 1 35 36 PM" src="https://github.com/peterklingelhofer/exhale/assets/60944077/b2eb9450-8dcf-4934-b6c9-08328ef6a167">
-
-Note: This implementation is built with TypeScript & Electron. The macOS will build but it is not very performant and is far more CPU-intensive than the native Swift build, and as a result the Swift build is recommended for macOS users.
-
-Modify settings by going to **Application** (found in the top right via `>>`) > **Local storage** > **file://**. While the Developer Tools are open, you can resize the window, and opacity values are ignored, so you can position the window and change settings to your liking, and then close the Dev Tools window by clicking the `x` in the top right, or use <kbd>F12</kbd> or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd>(Linux/Windows) or <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd> (macOS) to toggle Developer Tools to [access and modify these settings](https://developer.chrome.com/docs/devtools/storage/localstorage/#edit), and <kbd>Ctrl</kbd> + <kbd>R</kbd> (Linux/Windows) or <kbd>Cmd</kbd> + <kbd>R</kbd> (macOS) to refresh the app to use your newly selected settings. If no settings appear on the first run of the application, you can manually add them), following the format of the `storedValues` variable in [`/src/renderer.ts`](https://github.com/peterklingelhofer/exhale/blob/main/src/renderer.ts). To add them manually, go to the **Console** and copy paste the following code into the console and press <kbd>Enter</kbd> or <kbd>Return</kbd> to populate your `localStorage` (these are the defaults as of the time of writing):
-
-```ts
-localStorage = {
-  colorExhale = "rgb(0, 0, 255)",
-  colorInhale = "rgb(255, 0, 0)",
-  colorStyle = "linear", // can be "linear" or "constant"
-  shape = "fullscreen", // can be "circle" or "rectangle" or "fullscreen"
-  durationInhale = 5,
-  durationPostInhalePause = 0,
-  durationExhale = 10,
-  durationPostExhalePause = 0,
-  opacity = 0.25,
-};
-```
-
-Once added, you can modify all values from the **Local Storage** pane. Or, if you prefer the terminal, in the **Console** you can write `localStorage.opacity = "0.15"` for example.
-
-<img width="371" alt="Screen Shot 2023-03-11 at 2 12 30 PM" src="https://user-images.githubusercontent.com/60944077/224511531-c0d615a1-1859-47b6-a78b-7d38276d80be.png">
-
-#### Development
+Cross-platform Electron build that predates the Rust port. The Rust binary covers macOS + Windows + Linux from a single ~10 MB native executable, with far lower CPU than the Electron build (which bundles a full Chromium runtime). Settings live in `localStorage` and have to be edited via DevTools; the Rust port has a real settings UI.
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
-cd exhale
-cd typescript
+cd exhale/typescript
 pnpm install
 pnpm start
 ```
 
-To recompile automatically and use [electron-reload](https://github.com/yan-foto/electron-reload), run in a separate terminal:
+To recompile automatically with [electron-reload](https://github.com/yan-foto/electron-reload):
 
 ```sh
 pnpm watch
 ```
-
-## Python Script Usage
-
-![exhalePython](https://user-images.githubusercontent.com/60944077/222979803-c88ebc65-b799-4ca7-b265-54beb27fcb00.gif)
-
-Note: This implementation seems to work well on Windows and macOS, but not Linux for some reason.
-
-```sh
-git clone https://github.com/peterklingelhofer/exhale.git
-cd exhale
-cd python
-python main.py
-```
-
-Modify variables at the top of the file for preferred in and out duration, in seconds.
-
-For the full-screen resizable version, use, `IS_FULL_SCREEN = True` which makes the window entirely resizable by clicking and dragging from the corners.
-
-
-## Perl Script
-
-Companion repository made in Perl can be found [here](https://github.com/franco3445/Breathing).
