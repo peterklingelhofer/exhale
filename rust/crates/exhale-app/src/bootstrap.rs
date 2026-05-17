@@ -92,6 +92,24 @@ pub(crate) fn single_instance_guard(_proxy: &EventLoopProxy<AppEvent>) -> Instan
             // launcher behaviour (taskbar pin re-click, GNOME
             // Activities, etc.) brings the existing window to focus;
             // we just exit.
+            //
+            // Print to stderr in addition to the log file so a
+            // `cargo run --release` invocation surfaces "you're
+            // running the OLD binary because the previous one is
+            // still alive" instead of silently bringing the old
+            // window forward.  Without this it's easy to mistake the
+            // existing app reappearing for a successful relaunch of
+            // freshly-built code.
+            eprintln!(
+                "exhale: another instance is already running; \
+                 activating it and exiting.  Quit the running app first \
+                 if you intended to relaunch a new build.",
+            );
+            log::info!(
+                "single_instance_guard: another instance holds the lock at {}; \
+                 bringing it to front and exiting",
+                lock_path.display(),
+            );
             #[cfg(target_os = "macos")]
             crate::platform::activate_running_exhale();
             InstanceGuard::Secondary
