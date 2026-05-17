@@ -137,15 +137,15 @@ impl OverlayHandle {
         // behavior on macOS (and equivalent flags on Windows / X11).
         // Cross-platform transparency: `with_transparent(true)` selects
         // an alpha-capable visual on macOS / Linux and routes through
-        // `WS_EX_LAYERED` + `DwmEnableBlurBehindWindow` on Windows.  We
-        // tried `WS_EX_NOREDIRECTIONBITMAP` instead on Windows but that
-        // path requires manually creating a DirectComposition visual
+        // `WS_EX_LAYERED` + `DwmEnableBlurBehindWindow` on Windows.
+        // `WS_EX_NOREDIRECTIONBITMAP` is NOT a usable alternative on
+        // Windows because that path requires a DirectComposition visual
         // tree (`CreateSwapChainForComposition` + bound DComp visual)
-        // for the swap chain to actually appear — wgpu's stock DX12
-        // backend uses `CreateSwapChainForHwnd` which doesn't wire that
-        // up, so NRB-without-DComp produced solid-black output.  The
-        // legacy `WS_EX_LAYERED` + `DwmEnableBlurBehindWindow` route
-        // is the supported wgpu-friendly alpha pipeline on Windows.
+        // for the swap chain to appear, and wgpu's stock DX12 backend
+        // uses `CreateSwapChainForHwnd` which doesn't wire that up:
+        // NRB-without-DComp produces solid-black output.  Layered +
+        // DwmEnableBlurBehindWindow is the supported wgpu-friendly
+        // alpha pipeline on Windows.
         let mut attrs = Window::default_attributes()
             .with_title("exhale-overlay")
             .with_transparent(true)

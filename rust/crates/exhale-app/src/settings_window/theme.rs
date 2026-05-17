@@ -1,18 +1,13 @@
 //! Theme + visuals helpers for the settings window.
 //!
 //! Three responsibilities:
-//!   * Install an OS-native UI font on the egui context so settings
+//!   - Install an OS-native UI font on the egui context so settings
 //!     text reads as SF Pro on macOS, Segoe UI on Windows, Ubuntu/
 //!     Cantarell on Linux.
-//!   * Build the per-theme [`egui::Visuals`] used by the settings
-//!     window — text colour, widget rounding, stepper chrome, etc.
-//!   * Pick the wgpu surface clear colour for the current theme +
+//!   - Build the per-theme [`egui::Visuals`] used by the settings
+//!     window (text colour, widget rounding, stepper chrome, etc.).
+//!   - Pick the wgpu surface clear colour for the current theme +
 //!     OS-blur availability.
-//!
-//! Extracted from the parent `settings_window` module to keep the
-//! 2400-line UI file from drifting further — these helpers don't
-//! depend on `SettingsWindow` or `settings_ui`, only on egui and the
-//! cross-platform `platform::is_blur_active()` query.
 use egui::ThemePreference;
 use winit::window::Theme;
 

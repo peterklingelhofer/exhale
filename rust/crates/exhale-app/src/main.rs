@@ -83,10 +83,9 @@ struct App {
     settings_win_id:     Option<WindowId>,
 
     // Deadline at which the settings window wants its next repaint, as
-    // returned by egui's `repaint_delay`.  `None` means no scheduled repaint
-    // — the window sits idle until an input event or external mutation.
-    // Replaces the old per-tick `request_redraw` loop that spun the event
-    // loop at refresh rate while the settings window was visible.
+    // returned by egui's `repaint_delay`.  `None` means no scheduled
+    // repaint: the window sits idle until an input event or external
+    // mutation, instead of spinning the event loop at refresh rate
     next_settings_repaint: Option<Instant>,
 
 
@@ -298,11 +297,10 @@ impl App {
     /// app can land above our overlay until we re-bump it to the front
     /// of the topmost band.  After bumping the overlay forward, we
     /// also bump the settings window (when visible) so the settings
-    /// panel ends up ABOVE the overlay — otherwise `overlay_opacity =
+    /// panel ends up ABOVE the overlay; otherwise `overlay_opacity =
     /// 1.0` would lock the user out by covering the controls.  No-op
-    /// on non-Windows.  Driven from `about_to_wait` now that overlay
-    /// rendering lives on dedicated threads — previously this rode
-    /// along with each overlay render pass on the main thread.
+    /// on non-Windows.  Driven from `about_to_wait` because overlay
+    /// rendering lives on dedicated threads
     #[cfg(target_os = "windows")]
     fn maybe_reassert_topmost(&mut self) {
         let now = Instant::now();
@@ -520,33 +518,19 @@ impl ApplicationHandler<AppEvent> for App {
             if let Some(sw) = &mut self.settings_win {
                 let (consumed, wants_repaint) = sw.on_window_event(&event);
                 // egui signals via `repaint` when it needs a fresh paint
-                // (mouse move, click, focus change, tooltip, etc).  Drive
-                // our redraw off that instead of the old per-tick polling.
+                // (mouse move, click, focus change, tooltip, etc).
                 //
                 // BUT egui_winit returns `repaint=true` for `RedrawRequested`
-                // itself — if we honour that, every paint schedules another
+                // itself: if we honour that, every paint schedules another
                 // paint and we spin at refresh rate.  Skip it: we're already
                 // about to render below, no second request needed.
                 if wants_repaint && !matches!(event, WindowEvent::RedrawRequested) {
-                    // SwiftUI-equivalent semantics: repaint only when
-                    // egui says state changed (hover transition, click,
-                    // focus, animation frame).  No app-level cap
-                    // because:
-                    //   • wgpu's `PresentMode::Fifo` already bounds
-                    //     presentation at display refresh (60–120 Hz)
-                    //     — hover storms above that rate get dropped
-                    //     at present, not paid in render time.
-                    //   • The per-window wgpu device + render-thread
-                    //     architecture removed the cross-window queue
-                    //     contention that the previous 30 fps cap
-                    //     existed to mitigate.  Each overlay's render
-                    //     thread runs entirely on its own
-                    //     `ID3D12CommandQueue` / Metal queue / Vulkan
-                    //     queue, so a hover storm on the settings
-                    //     window can't starve overlay presents.
-                    // An earlier 33 ms cap covered the same scenario
-                    // structurally; it's now redundant defense that
-                    // delays legitimate hover feedback for no benefit.
+                    // No app-level frame cap because wgpu's
+                    // `PresentMode::Fifo` already bounds presentation at
+                    // display refresh (60-120 Hz), and each overlay's
+                    // render thread runs on its own `ID3D12CommandQueue`
+                    // / Metal queue / Vulkan queue, so a hover storm on
+                    // the settings window can't starve overlay presents
                     sw.request_redraw();
                     self.next_settings_repaint = None;
                 }
@@ -616,11 +600,9 @@ impl ApplicationHandler<AppEvent> for App {
                         // `on_quit` callback passed in at SettingsWindow
                         // construction — no flag polling here
 
-                        // Diff before/after in one pass — replaces the
-                        // 18-field prev_* / current comparison cascade
-                        // that used to live inline here.  Adding a new
-                        // setting is now a one-line edit to
-                        // `SettingsDiff::from` in exhale-core.
+                        // Diff before/after in one pass.  Adding a new
+                        // setting is a one-line edit to
+                        // `SettingsDiff::from` in exhale-core
                         let diff = exhale_core::settings::SettingsDiff::from(&before, &settings);
 
                         // Commit the (possibly-mutated) snapshot back.  The
