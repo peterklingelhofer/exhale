@@ -85,54 +85,68 @@ pub struct SettingsWindow {
     last_max_height: Option<u32>,
 }
 
-/// Holds the texture handles for each control-button icon × theme.  We
-/// load both themes up-front (cheap: 6 × ~32×32 RGBA = ~24 KB) so the
-/// theme toggle doesn't have to re-rasterise on first paint.
-#[derive(Default)]
+/// Which control-button icon a lookup is for.  `usize` index into
+/// [`IconCache::handles`] — keep the variants in the same order as
+/// the array, accessors index by `kind as usize`
+#[derive(Clone, Copy)]
+enum IconKind {
+    Play  = 0,
+    Stop  = 1,
+    Reset = 2,
+    Quit  = 3,
+}
+
+const ICON_KIND_COUNT: usize = 4;
+
+/// Holds the texture handles for each control-button icon × theme.
+/// Loads both themes up-front (cheap: 8 × ~32×32 RGBA = ~32 KB) so
+/// the theme toggle doesn't have to re-rasterise on first paint.
+///
+/// Storage is a flat 2-D array `[IconKind; 2]` (dark first, then
+/// light) — replaces an earlier 8-Option struct + 4 hand-written
+/// accessors with a single indexed lookup.  The SF Symbol name
+/// table lives in [`IconCache::load`] so adding a new icon is a
+/// one-line enum variant + one row in the table
 struct IconCache {
-    play_dark:    Option<egui::TextureHandle>,
-    play_light:   Option<egui::TextureHandle>,
-    stop_dark:    Option<egui::TextureHandle>,
-    stop_light:   Option<egui::TextureHandle>,
-    reset_dark:   Option<egui::TextureHandle>,
-    reset_light:  Option<egui::TextureHandle>,
-    quit_dark:    Option<egui::TextureHandle>,
-    quit_light:   Option<egui::TextureHandle>,
+    /// `handles[kind as usize][dark as usize]` — `dark=true` is
+    /// index 1.  `None` slot for either non-macOS (where
+    /// `render_sf_symbol` returns `None`) or rasterisation failure.
+    handles: [[Option<egui::TextureHandle>; 2]; ICON_KIND_COUNT],
 }
 
 impl IconCache {
     fn load(ctx: &egui::Context) -> Self {
-        Self {
-            play_dark:   load_sf_icon(ctx, "play.circle.fill",                  true),
-            play_light:  load_sf_icon(ctx, "play.circle.fill",                  false),
-            stop_dark:   load_sf_icon(ctx, "stop.circle.fill",                  true),
-            stop_light:  load_sf_icon(ctx, "stop.circle.fill",                  false),
-            reset_dark:  load_sf_icon(ctx, "arrow.counterclockwise.circle.fill", true),
-            reset_light: load_sf_icon(ctx, "arrow.counterclockwise.circle.fill", false),
-            // `power.circle.fill` reads as a power-off / quit affordance in
-            // SF Symbols and visually pairs with the other circle.fill
-            // icons in the row.  Non-mac platforms fall back to the
-            // Unicode glyph in the call site (U+2715 HEAVY MULTIPLICATION
-            // X — supported by every system UI font; the earlier
-            // U+23FB POWER SYMBOL was missing from Segoe UI / egui's
-            // bundled fallbacks and rendered as a tofu box on Windows).
-            quit_dark:   load_sf_icon(ctx, "power.circle.fill",                 true),
-            quit_light:  load_sf_icon(ctx, "power.circle.fill",                 false),
+        // SF Symbol names in the order matching `IconKind`.
+        // `power.circle.fill` reads as a power-off / quit affordance
+        // in SF Symbols and visually pairs with the other
+        // `circle.fill` icons in the row.  Non-mac platforms fall
+        // back to the Unicode glyph in the call site (U+00D7
+        // MULTIPLICATION SIGN — supported by every system UI font;
+        // the earlier U+23FB POWER SYMBOL was missing from Segoe UI
+        // and rendered as a tofu box on Windows).
+        const NAMES: [&str; ICON_KIND_COUNT] = [
+            "play.circle.fill",
+            "stop.circle.fill",
+            "arrow.counterclockwise.circle.fill",
+            "power.circle.fill",
+        ];
+        let mut handles: [[Option<egui::TextureHandle>; 2]; ICON_KIND_COUNT] =
+            Default::default();
+        for (i, name) in NAMES.iter().enumerate() {
+            handles[i][0] = load_sf_icon(ctx, name, false); // light
+            handles[i][1] = load_sf_icon(ctx, name, true);  // dark
         }
+        Self { handles }
     }
 
-    fn play(&self, dark: bool) -> Option<&egui::TextureHandle> {
-        if dark { self.play_dark.as_ref() } else { self.play_light.as_ref() }
+    fn get(&self, kind: IconKind, dark: bool) -> Option<&egui::TextureHandle> {
+        self.handles[kind as usize][dark as usize].as_ref()
     }
-    fn stop(&self, dark: bool) -> Option<&egui::TextureHandle> {
-        if dark { self.stop_dark.as_ref() } else { self.stop_light.as_ref() }
-    }
-    fn reset(&self, dark: bool) -> Option<&egui::TextureHandle> {
-        if dark { self.reset_dark.as_ref() } else { self.reset_light.as_ref() }
-    }
-    fn quit(&self, dark: bool) -> Option<&egui::TextureHandle> {
-        if dark { self.quit_dark.as_ref() } else { self.quit_light.as_ref() }
-    }
+
+    fn play (&self, dark: bool) -> Option<&egui::TextureHandle> { self.get(IconKind::Play,  dark) }
+    fn stop (&self, dark: bool) -> Option<&egui::TextureHandle> { self.get(IconKind::Stop,  dark) }
+    fn reset(&self, dark: bool) -> Option<&egui::TextureHandle> { self.get(IconKind::Reset, dark) }
+    fn quit (&self, dark: bool) -> Option<&egui::TextureHandle> { self.get(IconKind::Quit,  dark) }
 }
 
 /// Rasterise an SF Symbol via AppKit, upload as an egui texture.  The
@@ -283,10 +297,17 @@ impl SettingsWindow {
 
         let size = window.inner_size();
         let caps = surface.get_capabilities(&gpu.adapter);
+        // Prefer a non-sRGB format so wgpu doesn't gamma-encode the egui
+        // output (mid-tone blends render brighter than intended under
+        // sRGB).  Driver-bug guard: wgpu specifies `formats` as
+        // non-empty, but a misbehaving driver could return an empty
+        // list — fall back to a hard-coded `Bgra8Unorm` rather than
+        // panic on `formats[0]`.
         let format = caps.formats.iter()
             .copied()
             .find(|f| !f.is_srgb())
-            .unwrap_or(caps.formats[0]);
+            .or_else(|| caps.formats.first().copied())
+            .unwrap_or(wgpu::TextureFormat::Bgra8Unorm);
 
         // Pick `PostMultiplied` whenever the platform supports it so the
         // OS-level blur (macOS VEV, Windows DWM acrylic, KDE blur-behind)
@@ -322,9 +343,17 @@ impl SettingsWindow {
         // that doesn't lighten dark backdrops, while Light mode uses hudWindow
         // for a visibly translucent blur over bright desktops.
         let initial_theme = window.theme().unwrap_or(Theme::Dark);
-        let vev_ptr = platform::install_settings_vibrancy(
+        // RAII guard so the backdrop NSWindow is released even if some
+        // future code between here and `Self { … }` adds a fallible
+        // operation.  `install_settings_vibrancy` hands us a +1 retain
+        // count as a raw `usize`; if we don't `take()` the guard into
+        // `Self.vev_ptr`, the guard's `Drop` calls `uninstall_…` and
+        // balances the retain.  Without this guard, a future `?` after
+        // the vibrancy install would silently leak one NSWindow per
+        // SettingsWindow creation failure.
+        let vev_guard = BackdropGuard(platform::install_settings_vibrancy(
             &window, matches!(initial_theme, Theme::Dark),
-        );
+        ));
 
         let egui_ctx = egui::Context::default();
 
@@ -366,6 +395,12 @@ impl SettingsWindow {
         // cost (~6 small RGBA blobs uploaded as textures) so the theme
         // toggle doesn't have to lock-focus into AppKit on the hot path.
         let icon_cache = IconCache::load(&egui_ctx);
+
+        // Take ownership of the backdrop pointer from the RAII guard.
+        // If we reach this line, `Self` is being constructed and the
+        // guard's drop will be skipped — `vev_ptr` lives on with the
+        // window and is balanced by `Drop for SettingsWindow`.
+        let vev_ptr = vev_guard.take();
 
         Ok(Self {
             window, surface, config, egui_ctx, egui_state, egui_renderer,
@@ -629,6 +664,34 @@ impl Drop for SettingsWindow {
     /// matches with an early return).
     fn drop(&mut self) {
         platform::uninstall_settings_vibrancy(self.vev_ptr);
+    }
+}
+
+/// RAII guard for a backdrop NSWindow pointer returned by
+/// [`platform::install_settings_vibrancy`].  Releases the +1 retain
+/// count via `uninstall_settings_vibrancy` if dropped without being
+/// `take()`-en.  Used inside [`SettingsWindow::new`] to make
+/// construction failure exception-safe — once `Self` is assembled,
+/// the long-lived `Drop for SettingsWindow` impl takes over and this
+/// guard is consumed.
+struct BackdropGuard(usize);
+
+impl BackdropGuard {
+    /// Surrender ownership.  Caller is responsible for the eventual
+    /// `uninstall_settings_vibrancy` call.
+    fn take(mut self) -> usize {
+        let ptr = self.0;
+        self.0 = 0;       // Defuse so `Drop` no-ops.
+        std::mem::forget(self); // Skip Drop entirely; no double-release.
+        ptr
+    }
+}
+
+impl Drop for BackdropGuard {
+    fn drop(&mut self) {
+        if self.0 != 0 {
+            platform::uninstall_settings_vibrancy(self.0);
+        }
     }
 }
 

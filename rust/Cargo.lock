@@ -1046,6 +1046,7 @@ version = "2.0.19"
 dependencies = [
  "anyhow",
  "block2 0.6.2",
+ "directories",
  "egui",
  "egui-wgpu",
  "egui-winit",
@@ -1056,6 +1057,7 @@ dependencies = [
  "gtk",
  "ico",
  "image",
+ "libc",
  "log",
  "notify-rust",
  "objc2 0.6.4",
