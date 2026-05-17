@@ -1031,8 +1031,21 @@ fn install_panic_logger(log_path: std::path::PathBuf) {
 
 fn main() -> Result<()> {
     let log_path = pick_log_path();
+    // Default filter: our crates at INFO, but cap the GPU stack at
+    // WARN so wgpu's per-frame `Device::maintain: waiting for
+    // submission index N` chatter doesn't flood the log file at ~10
+    // fps.  The submission index itself is just a monotonic u64
+    // counter — not a memory leak — but logging it every frame
+    // bloats the log file and obscures actual events.  Override via
+    // `RUST_LOG=info` to see everything when actually debugging
+    // wgpu/naga/wayland issues.
     let mut builder = env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info"),
+        env_logger::Env::default().default_filter_or(
+            "info,\
+             wgpu_core=warn,\
+             wgpu_hal=warn,\
+             naga=warn",
+        ),
     );
     if let Ok(file) = std::fs::OpenOptions::new()
         .create(true).write(true).truncate(true)
