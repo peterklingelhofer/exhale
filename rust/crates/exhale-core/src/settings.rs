@@ -114,25 +114,21 @@ impl Default for Settings {
     }
 }
 
-/// Categorised diff between two `Settings` snapshots.
+/// Categorised diff between two `Settings` snapshots.  Adding a new
+/// setting is a one-line edit to the relevant `*_changed` computation
+/// here rather than coordinated edits across `main.rs`.
 ///
-/// Replaces the previous ~25-line hand-rolled prev_* / current
-/// comparison cascade in `main.rs`'s settings-render handler.  Adding
-/// a new setting is now a one-line edit to the relevant `*_changed`
-/// computation here rather than three coordinated edits across
-/// main.rs.
+/// All `*_changed` fields are inclusive: they're `true` whenever ANY
+/// field in their category differs.  Categories match the downstream
+/// actions:
 ///
-/// All `*_changed` fields are inclusive — they're `true` whenever
-/// ANY field in their category differs.  Categories match the
-/// downstream actions:
-///
-///   * `animating_changed` — drives tray-state refresh + auto-stop reschedule
-///   * `paused_changed`    — drives overlay redraw
-///   * `visibility_changed` / `new_visibility` — drives platform Dock/menu-bar toggle
-///   * `visual_changed`    — drives Swift-parity `triggerAnimationReset()`
-///   * `timing_changed`    — same as visual_changed for timing-related fields
-///   * `auto_stop_changed` — reschedules the auto-stop deadline
-///   * `reminder_changed`  — reschedules the reminder timer + may prompt for permission
+///   - `animating_changed`: drives tray-state refresh + auto-stop reschedule
+///   - `paused_changed`: drives overlay redraw
+///   - `visibility_changed` / `new_visibility`: drives platform Dock/menu-bar toggle
+///   - `visual_changed`: drives Swift-parity `triggerAnimationReset()`
+///   - `timing_changed`: same as visual_changed for timing-related fields
+///   - `auto_stop_changed`: reschedules the auto-stop deadline
+///   - `reminder_changed`: reschedules the reminder timer + may prompt for permission
 #[derive(Clone, Copy, Debug)]
 pub struct SettingsDiff {
     pub animating_started:  bool,
@@ -206,10 +202,8 @@ impl SettingsDiff {
 impl Settings {
     /// Reset every user-visible setting to its default while preserving
     /// runtime state (animating / paused) and the persisted settings-
-    /// window placement.  Used by the ↺ Reset button, the Reset
-    /// confirmation dialog, and the global-hotkey reset path — all
-    /// three previously inlined the same preserve-write-restore dance
-    /// and had drifted by minor amounts.  Single source of truth now.
+    /// window placement.  Single source of truth for the Reset button,
+    /// the Reset confirmation dialog, and the global-hotkey reset path
     pub fn reset_preserving_runtime_state(&mut self) {
         let was_animating  = self.is_animating;
         let was_paused     = self.is_paused;
@@ -226,8 +220,8 @@ impl Settings {
         self.settings_window_screen  = win_screen;
     }
 
-    /// Returns true when inhale and exhale colors are perceptually identical.
-    /// Used to skip unnecessary redraws in the fullscreen shape.
+    /// Returns true when inhale and exhale colors are perceptually
+    /// identical, used to skip unnecessary redraws in the fullscreen shape
     pub fn inhale_exhale_colors_match(&self) -> bool {
         self.inhale_color
             .iter()
