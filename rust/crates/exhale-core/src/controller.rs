@@ -26,22 +26,17 @@ pub struct BreathingState {
     pub hold_time: f32,
 }
 
-// ─── Cadence constants ───────────────────────────────────────────────────────
+// ─── Cadence ─────────────────────────────────────────────────────────────────
 //
-// Match Swift's reference `MetalBreathingController.swift` exactly:
-//   maximumDrawIntervalFast = 1.0 / 24.0  → 24 fps during motion
-//   maximumDrawIntervalSlow = 1.0 / 12.0  → 12 fps during near-hold
-// Hardcoded because the per-window wgpu device + render-thread
-// architecture keeps the per-frame CPU cost well under 2 % on every
-// scene tested (see `cpu_bench`), so the previous user-tunable
-// `Smooth / Balanced / BatterySaver` preset was decluttering the
-// settings panel for no measurable battery / CPU win
+// 24 fps matches Swift's `MetalBreathingController.swift`
+// `maximumDrawIntervalFast`.  We don't run a slower "near-hold"
+// cadence anymore: bench measurements showed the slow-cadence path
+// fired for <10 % of clock time and saved well under 0.1 % CPU, which
+// is below the noise floor of any user-facing measurement and not
+// worth the extra hysteresis state.
 const INTERVAL_FAST: Duration = Duration::from_nanos(41_666_667);  // 1/24 s
-const INTERVAL_SLOW: Duration = Duration::from_nanos(83_333_333);  // 1/12 s
 
-const ENTER_FAST_THRESHOLD: f32 = 0.0075;
-const EXIT_FAST_THRESHOLD:  f32 = 0.0045;
-const MIN_PROGRESS_DELTA:   f32 = 0.003;
+const MIN_PROGRESS_DELTA: f32 = 0.003;
 
 // ─── Internal thread state ────────────────────────────────────────────────────
 
@@ -55,7 +50,6 @@ struct Inner {
     current_drift:  f64,
 
     did_render_hold:    bool,
-    is_fast_cadence:    bool,
     last_draw_time:     Instant,
     last_drawn_phase:   BreathingPhase,
     last_drawn_progress: f32,
@@ -226,10 +220,8 @@ fn fresh_inner(now: Instant, inhale_dur: f64) -> Inner {
         cycle_count:         0,
         current_drift:       1.0,
         did_render_hold:     false,
-        is_fast_cadence:     false,
-        // Park `last_draw_time` 200 ms in the past — comfortably older than
-        // the shortest cadence (~33 ms at `Smooth`) so the first tick is
-        // immediately due, but not so far that overflow is a concern.
+        // Park `last_draw_time` 200 ms in the past, comfortably older
+        // than the 1/24 s cadence so the first tick is immediately due
         last_draw_time:      now.checked_sub(Duration::from_millis(200)).unwrap_or(now),
         last_drawn_phase:    BreathingPhase::Inhale,
         last_drawn_progress: -1.0,
@@ -283,7 +275,6 @@ fn tick(
         let elapsed = now.duration_since(inner.last_draw_time);
         if elapsed >= Duration::from_secs(1) {
             inner.last_draw_time = now;
-            inner.is_fast_cadence = false;
             return (true, Duration::from_secs(1));
         }
         let remaining = Duration::from_secs(1).saturating_sub(elapsed);
@@ -302,21 +293,19 @@ fn tick(
                 rand_inhale, rand_post_inhale, rand_exhale, rand_post_exhale,
             );
             inner.did_render_hold = false;
-            inner.is_fast_cadence = false;
             inner.last_draw_time  = now;
             return (true, INTERVAL_FAST);
         }
 
         if hold_ripple_enabled {
-            let cadence = INTERVAL_FAST;
             if !inner.did_render_hold
-                || now.duration_since(inner.last_draw_time) >= cadence
+                || now.duration_since(inner.last_draw_time) >= INTERVAL_FAST
             {
                 inner.did_render_hold = true;
                 inner.last_draw_time  = now;
-                return (true, cadence.min(remaining));
+                return (true, INTERVAL_FAST.min(remaining));
             }
-            return (false, cadence.min(remaining));
+            return (false, INTERVAL_FAST.min(remaining));
         } else {
             // No ripple: render exactly once per hold, then sleep until it ends.
             if !inner.did_render_hold {
@@ -337,7 +326,6 @@ fn tick(
             rand_inhale, rand_post_inhale, rand_exhale, rand_post_exhale,
         );
         inner.did_render_hold = false;
-        inner.is_fast_cadence = false;
     }
 
     let current = compute_state_with_easing(inner, easing, anim_mode, now);
@@ -348,16 +336,7 @@ fn tick(
 
     let should_draw = phase_changed || never_drawn || delta >= MIN_PROGRESS_DELTA;
 
-    // Hysteresis: switch between fast/slow cadence based on delta.
-    if inner.is_fast_cadence {
-        if delta < EXIT_FAST_THRESHOLD {
-            inner.is_fast_cadence = false;
-        }
-    } else if delta > ENTER_FAST_THRESHOLD {
-        inner.is_fast_cadence = true;
-    }
-
-    let cadence = if inner.is_fast_cadence { INTERVAL_FAST } else { INTERVAL_SLOW };
+    let cadence = INTERVAL_FAST;
     let phase_end = inner.phase_start + inner.phase_duration;
     let time_to_phase_end = phase_end.saturating_duration_since(now).max(Duration::from_millis(1));
 
@@ -534,7 +513,6 @@ mod tests {
             cycle_count:     0,
             current_drift:   1.0,
             did_render_hold: false,
-            is_fast_cadence: false,
             last_draw_time:  now,
             last_drawn_phase: BreathingPhase::Inhale,
             last_drawn_progress: -1.0,
@@ -565,7 +543,6 @@ mod tests {
             cycle_count:     0,
             current_drift:   1.0,
             did_render_hold: false,
-            is_fast_cadence: false,
             last_draw_time:  now,
             last_drawn_phase: BreathingPhase::Inhale,
             last_drawn_progress: -1.0,
@@ -604,7 +581,6 @@ mod tests {
             cycle_count:     0,
             current_drift:   1.0,
             did_render_hold: false,
-            is_fast_cadence: false,
             last_draw_time:  now,
             last_drawn_phase: BreathingPhase::Inhale,
             last_drawn_progress: -1.0,
@@ -633,7 +609,6 @@ mod tests {
             cycle_count:     0,
             current_drift:   1.0,
             did_render_hold: false,
-            is_fast_cadence: false,
             last_draw_time:  now,
             last_drawn_phase: BreathingPhase::Inhale,
             last_drawn_progress: -1.0,
@@ -653,7 +628,6 @@ mod tests {
             cycle_count:     0,
             current_drift:   1.0,
             did_render_hold: false,
-            is_fast_cadence: false,
             last_draw_time:  now,
             last_drawn_phase: BreathingPhase::Exhale,
             last_drawn_progress: -1.0,
@@ -673,7 +647,6 @@ mod tests {
             cycle_count:     0,
             current_drift:   1.0,
             did_render_hold: false,
-            is_fast_cadence: false,
             last_draw_time:  now,
             last_drawn_phase: BreathingPhase::HoldAfterInhale,
             last_drawn_progress: -1.0,
@@ -724,7 +697,6 @@ mod tests {
             cycle_count:         0,
             current_drift:       1.0,
             did_render_hold:     false,
-            is_fast_cadence:     false,
             last_draw_time:      now - Duration::from_secs(1),
             last_drawn_phase:    BreathingPhase::Inhale,
             last_drawn_progress: -1.0,
@@ -800,16 +772,11 @@ mod tests {
     }
 
     #[test]
-    fn cadence_intervals_match_swift_reference() {
-        // 24 fps = 41.67 ms = ~41.67M ns; 12 fps = 83.33 ms = ~83.33M ns.
-        // Matches `MetalBreathingController.swift`'s
-        // `maximumDrawIntervalFast` / `maximumDrawIntervalSlow`.
-        let fast_ms = INTERVAL_FAST.as_nanos() as f64 / 1_000_000.0;
-        let slow_ms = INTERVAL_SLOW.as_nanos() as f64 / 1_000_000.0;
-        assert!((fast_ms - 1000.0 / 24.0).abs() < 0.01,
-            "INTERVAL_FAST should be 1/24 s = 41.67 ms, got {fast_ms}");
-        assert!((slow_ms - 1000.0 / 12.0).abs() < 0.01,
-            "INTERVAL_SLOW should be 1/12 s = 83.33 ms, got {slow_ms}");
-        assert!(INTERVAL_SLOW > INTERVAL_FAST);
+    fn cadence_matches_swift_reference() {
+        // 24 fps = 1/24 s = ~41.67 ms.  Matches `MetalBreathingController.swift`'s
+        // `maximumDrawIntervalFast`.
+        let ms = INTERVAL_FAST.as_nanos() as f64 / 1_000_000.0;
+        assert!((ms - 1000.0 / 24.0).abs() < 0.01,
+            "INTERVAL_FAST should be 1/24 s = 41.67 ms, got {ms}");
     }
 }
