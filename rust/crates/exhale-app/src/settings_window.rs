@@ -146,6 +146,112 @@ impl IconCache {
     fn quit (&self, dark: bool) -> Option<&egui::TextureHandle> { self.get(IconKind::Quit,  dark) }
 }
 
+/// A monitor's physical rectangle in screen coordinates.  Used by
+/// [`clamp_position_against_monitors`] so its geometry logic can be
+/// unit-tested without a winit event loop
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct MonitorRect {
+    x: i32, y: i32, w: u32, h: u32,
+}
+
+/// Return `(x, y)` adjusted so the window rectangle is fully contained
+/// inside one of the available monitors.
+///
+/// Algorithm: pick the monitor closest to the window's center point
+/// (zero distance when the center is already inside a monitor; positive
+/// distance when off-screen).  Then clamp `(x, y)` so the entire window
+/// rect fits inside that monitor's bounds.
+///
+/// Handles every shape of "saved position is no longer good":
+///   - Window dragged partially off-screen by accident, then reopened:
+///     clamp pulls the rect back inside the same monitor, preserving
+///     the user's "I had it on the right" intent
+///   - Monitor unplugged: saved coords land in dead space; clamp pulls
+///     the rect into the nearest remaining monitor, again preserving
+///     directional intent
+///   - Resolution shrunk: saved offset overflows the new bounds;
+///     clamp pulls the rect inside the smaller rectangle
+///
+/// `primary` is used only as a tie-breaker when multiple monitors are
+/// equidistant.  Pure geometry, no winit dependency, so unit tests can
+/// drive it directly.  Returns `(x, y)` unchanged when `monitors` is
+/// empty (no display info available; OS default placement takes over)
+fn clamp_position_against_monitors(
+    x: i32, y: i32, width: u32, height: u32,
+    monitors: &[MonitorRect],
+    primary: Option<MonitorRect>,
+) -> (i32, i32) {
+    if monitors.is_empty() {
+        return (x, y);
+    }
+
+    let cx = x + width  as i32 / 2;
+    let cy = y + height as i32 / 2;
+
+    // Squared distance from (cx, cy) to the nearest point of the
+    // monitor's rectangle (zero when the point is inside).
+    let distance_sq = |m: &MonitorRect| -> i64 {
+        let max_x = m.x + m.w as i32 - 1;
+        let max_y = m.y + m.h as i32 - 1;
+        let nx = cx.clamp(m.x, max_x);
+        let ny = cy.clamp(m.y, max_y);
+        let dx = (cx - nx) as i64;
+        let dy = (cy - ny) as i64;
+        dx*dx + dy*dy
+    };
+
+    // Find the nearest monitor; if multiple tie (only possible at
+    // distance 0 when monitor rects overlap, which doesn't happen in
+    // practice), prefer the `primary` so multi-monitor users land on
+    // their main display when ambiguity exists.
+    let target = monitors.iter().copied()
+        .min_by_key(|m| (distance_sq(m), if Some(*m) == primary { 0u8 } else { 1u8 }))
+        .unwrap();  // monitors is non-empty (checked above)
+
+    // Clamp so the full window rect lies inside the target monitor.
+    // When the window is wider/taller than the monitor (rare; user
+    // shrunk their display below the saved settings size), align to
+    // the monitor's origin rather than an inverted clamp range
+    let max_x = target.x + target.w as i32 - width  as i32;
+    let max_y = target.y + target.h as i32 - height as i32;
+    let nx = if max_x >= target.x { x.clamp(target.x, max_x) } else { target.x };
+    let ny = if max_y >= target.y { y.clamp(target.y, max_y) } else { target.y };
+    (nx, ny)
+}
+
+/// Cross-platform safety net for the persisted-position restore path:
+/// a user who quit exhale on a laptop+external setup and re-opens it
+/// on the laptop alone can land with the saved coords pointing
+/// firmly off-screen (the old external display's coordinate space no
+/// longer exists).  Detecting that "the center of where we're about
+/// to put the window is on a real monitor" is the simplest portable
+/// check that works for every shape of monitor rearrangement —
+/// resolution change, display unplugged, displays reordered.  When
+/// the check fails we recenter on the primary monitor (same UX the
+/// user gets on first launch with no saved position)
+fn clamp_position_to_visible(
+    event_loop: &ActiveEventLoop,
+    x: i32, y: i32, width: u32, height: u32,
+) -> (i32, i32) {
+    let to_rect = |m: &winit::monitor::MonitorHandle| {
+        let p = m.position();
+        let s = m.size();
+        MonitorRect { x: p.x, y: p.y, w: s.width, h: s.height }
+    };
+    let monitors: Vec<MonitorRect> = event_loop.available_monitors().map(|m| to_rect(&m)).collect();
+    let primary = event_loop.primary_monitor().as_ref().map(to_rect);
+
+    let (nx, ny) = clamp_position_against_monitors(x, y, width, height, &monitors, primary);
+    if (nx, ny) != (x, y) {
+        log::info!(
+            "settings window: saved position ({x}, {y}) was off-screen \
+             relative to the current monitor configuration; recentering \
+             at ({nx}, {ny})"
+        );
+    }
+    (nx, ny)
+}
+
 /// Rasterise an SF Symbol via AppKit, upload as an egui texture.  The
 /// 16-pt point size matches the medium SF Symbol scale used in
 /// SwiftUI's `Image(systemName:).imageScale(.medium)`.  Returns `None`
@@ -260,6 +366,14 @@ impl SettingsWindow {
         // `NSScreen.screens.first(where: { $0.localizedName == screenName })`
         // lookup in AppDelegate.toggleSettings.  With no saved screen or a
         // disconnected one, fall back to treating the offset as absolute.
+        //
+        // After computing the candidate position we validate it against the
+        // *currently* available monitors (which may differ from the saved
+        // configuration: external display unplugged, resolution changed,
+        // displays rearranged).  If the window's center wouldn't land on
+        // any connected monitor we recenter on the primary instead, so a
+        // user returning to a laptop after using a larger external display
+        // doesn't open exhale to find the settings window mostly off-screen.
         if let (Some(x), Some(y)) = (settings.settings_window_x, settings.settings_window_y) {
             let (abs_x, abs_y) = match &settings.settings_window_screen {
                 Some(name) => {
@@ -275,7 +389,10 @@ impl SettingsWindow {
                 }
                 None => (x, y),
             };
-            window.set_outer_position(winit::dpi::PhysicalPosition::new(abs_x, abs_y));
+            let outer = window.outer_size();
+            let (clamped_x, clamped_y) =
+                clamp_position_to_visible(event_loop, abs_x, abs_y, outer.width, outer.height);
+            window.set_outer_position(winit::dpi::PhysicalPosition::new(clamped_x, clamped_y));
         }
 
         platform::setup_settings_window(&window);
@@ -1116,6 +1233,117 @@ fn settings_ui(
 mod tests {
     use super::*;
     use egui::{Context, Event, PointerButton, Pos2, Rect, RawInput, Vec2};
+
+    // ─── clamp_position_against_monitors ──────────────────────────────────
+
+    fn r(x: i32, y: i32, w: u32, h: u32) -> MonitorRect {
+        MonitorRect { x, y, w, h }
+    }
+
+    #[test]
+    fn clamp_preserves_position_when_center_on_monitor() {
+        // Window center at (1000, 500) is inside the 1920x1080 monitor.
+        let mons = [r(0, 0, 1920, 1080)];
+        let (nx, ny) = clamp_position_against_monitors(900, 400, 200, 200, &mons, Some(mons[0]));
+        assert_eq!((nx, ny), (900, 400));
+    }
+
+    #[test]
+    fn clamp_snaps_to_right_edge_when_external_unplugged() {
+        // Saved coords land 3000 px to the right of the only remaining
+        // monitor (typical "external display unplugged" scenario).
+        // New behaviour: snap to the nearest edge of the surviving
+        // monitor rather than recentering, so the user's "I had it on
+        // the right" intent is preserved.
+        let mons = [r(0, 0, 1920, 1080)];
+        let (nx, ny) = clamp_position_against_monitors(3000, 500, 400, 800, &mons, Some(mons[0]));
+        assert_eq!(nx, 1920 - 400, "right edge should align with monitor's right");
+        // y was 500, fits with h=800 (max_y=280); clamp drops to 280
+        assert_eq!(ny, 1080 - 800);
+    }
+
+    #[test]
+    fn clamp_snaps_to_left_edge_when_position_negative() {
+        // Saved coords from a display that was to the LEFT of the
+        // current primary (negative coordinate space gone).  Snap to
+        // the left edge rather than recentering.
+        let mons = [r(0, 0, 1920, 1080)];
+        let (nx, ny) = clamp_position_against_monitors(-1500, 400, 400, 600, &mons, Some(mons[0]));
+        assert_eq!(nx, 0, "left edge should align with monitor origin");
+        assert_eq!(ny, 400);
+    }
+
+    #[test]
+    fn clamp_passes_through_when_no_monitors() {
+        // Test harness / all displays asleep: leave as-is and let the OS
+        // default placement take over once a display wakes up.
+        let (nx, ny) = clamp_position_against_monitors(1000, 500, 400, 600, &[], None);
+        assert_eq!((nx, ny), (1000, 500));
+    }
+
+    #[test]
+    fn clamp_keeps_position_on_secondary_monitor() {
+        // External display arranged to the right of the laptop.
+        // Saved position is on the external; both still connected.
+        let laptop   = r(0, 0, 1440, 900);
+        let external = r(1440, 0, 1920, 1080);
+        let mons = [laptop, external];
+        // Window center at (1440 + 800 + 100, 100 + 300) lands on external.
+        let (nx, ny) = clamp_position_against_monitors(2240, 100, 400, 600, &mons, Some(laptop));
+        assert_eq!((nx, ny), (2240, 100));
+    }
+
+    #[test]
+    fn clamp_picks_nearest_monitor_when_off_screen() {
+        // Two monitors side-by-side; saved position is far to the LEFT
+        // of the leftmost.  Nearest monitor by center distance is the
+        // left one — snap to its left edge.
+        let left  = r(0,    0, 1440, 900);
+        let right = r(1440, 0, 1920, 1080);
+        let mons  = [left, right];
+        let (nx, _) = clamp_position_against_monitors(-5000, 100, 400, 600, &mons, Some(right));
+        assert_eq!(nx, 0, "nearest monitor (left) should win; snap to its left edge");
+    }
+
+    #[test]
+    fn clamp_pulls_back_partially_off_right_edge() {
+        // User dragged window mostly off the right edge of the only
+        // monitor — center still inside, but most of the rect off.
+        // Clamp should pull it back so the right edge aligns with the
+        // monitor's right edge.
+        let mons = [r(0, 0, 1920, 1080)];
+        let (nx, ny) = clamp_position_against_monitors(1800, 400, 400, 600, &mons, Some(mons[0]));
+        assert_eq!(nx, 1920 - 400, "right edge should align with monitor's right");
+        assert_eq!(ny, 400);
+    }
+
+    #[test]
+    fn clamp_pulls_back_partially_off_left_edge() {
+        let mons = [r(0, 0, 1920, 1080)];
+        let (nx, ny) = clamp_position_against_monitors(-300, 200, 400, 600, &mons, Some(mons[0]));
+        assert_eq!(nx, 0, "left edge should align with monitor origin");
+        assert_eq!(ny, 200);
+    }
+
+    #[test]
+    fn clamp_pulls_back_partially_off_bottom_edge() {
+        let mons = [r(0, 0, 1920, 1080)];
+        let (nx, ny) = clamp_position_against_monitors(500, 900, 400, 600, &mons, Some(mons[0]));
+        assert_eq!(nx, 500);
+        assert_eq!(ny, 1080 - 600);
+    }
+
+    #[test]
+    fn clamp_handles_window_larger_than_monitor() {
+        // Window taller than the monitor — clamp should align to the
+        // top-left rather than producing an inverted clamp range.
+        let mons = [r(0, 0, 800, 600)];
+        let (nx, ny) = clamp_position_against_monitors(50, 100, 400, 900, &mons, Some(mons[0]));
+        assert_eq!(nx, 50, "x fits, keep as-is");
+        assert_eq!(ny, 0, "y doesn't fit; align to monitor top");
+    }
+
+    // ─── existing UI tests ────────────────────────────────────────────────
 
     /// Build a single RawInput frame with a pointer move to `pos` followed
     /// by a down+up primary click at that position.  egui requires BOTH
