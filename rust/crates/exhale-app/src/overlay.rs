@@ -12,8 +12,26 @@ use exhale_render::{GpuContext, OverlayRenderer};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event_loop::ActiveEventLoop,
+    monitor::MonitorHandle,
     window::Window,
 };
+
+/// Geometry-based identifier for a connected monitor.  Used to diff the
+/// set of currently-connected monitors against the set we already have
+/// overlays for, so hot-plug events (connect / disconnect) can be
+/// detected by polling `available_monitors()` without relying on the
+/// `MonitorHandle`'s own identity (which is not guaranteed stable
+/// across calls on every platform).
+pub type MonitorKey = (i32, i32, u32, u32);
+
+/// Derive a stable key from a monitor's physical position + size.
+/// Two monitors can't share the same rectangle, so the tuple is unique
+/// per session and survives DPI changes (it's all physical pixels)
+pub fn monitor_key(m: &MonitorHandle) -> MonitorKey {
+    let p = m.position();
+    let s = m.size();
+    (p.x, p.y, s.width, s.height)
+}
 
 use crate::platform;
 
@@ -79,9 +97,19 @@ pub struct OverlayHandle {
     /// can wait for the thread to drop the renderer / wgpu resources
     /// before the app exits
     thread:     Option<JoinHandle<()>>,
+    /// Monitor this overlay covers.  `None` for the fallback overlay
+    /// created when `available_monitors()` returned empty at startup
+    monitor_key: Option<MonitorKey>,
 }
 
 impl OverlayHandle {
+    /// Geometry-key of the monitor this overlay covers, or `None`
+    /// for the no-monitor fallback overlay.  Used by the hot-plug
+    /// rescan path to diff against the current monitor list
+    pub fn monitor_key(&self) -> Option<MonitorKey> {
+        self.monitor_key
+    }
+
     /// Create one overlay per connected monitor, all sharing `gpu`.
     pub fn create_all(
         event_loop: &ActiveEventLoop,
@@ -117,14 +145,15 @@ impl OverlayHandle {
         handles
     }
 
-    fn create_one(
+    pub(crate) fn create_one(
         event_loop: &ActiveEventLoop,
         gpu:        Arc<GpuContext>,
-        monitor:    Option<winit::monitor::MonitorHandle>,
+        monitor:    Option<MonitorHandle>,
         settings:   Arc<RwLock<Settings>>,
         state:      Arc<Mutex<Option<BreathingState>>>,
         max_circle_scale: f32,
     ) -> Result<Self> {
+        let monitor_key = monitor.as_ref().map(monitor_key);
         // Borderless window sized to the monitor — NOT a macOS-fullscreen
         // window.  `Fullscreen::Borderless` on macOS puts the window into
         // its own fullscreen Space, which triggers the swipe animation and
@@ -262,7 +291,7 @@ impl OverlayHandle {
                 window.id(), e,
             ))?;
 
-        Ok(Self { window, msg_tx, thread: Some(thread) })
+        Ok(Self { window, msg_tx, thread: Some(thread), monitor_key })
     }
 
     /// Clone the channel sender so the controller's `request_draw`
