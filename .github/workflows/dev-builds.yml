@@ -25,9 +25,9 @@ env:
 
 jobs:
   windows:
-    runs-on: windows-latest
+    runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain (stable + ARM64 target)
         uses: dtolnay/rust-toolchain@stable
@@ -44,12 +44,12 @@ jobs:
         run: cargo build --release -p exhale-app
 
       - name: Upload x64 artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: exhale-windows-x64
           path: rust/target/release/exhale.exe
 
-      # ARM64 cross-compile — `windows-latest` ships with the ARM64
+      # ARM64 cross-compile: `windows-2025` ships with the ARM64
       # MSVC build tools as part of the default VS 2022 install, so
       # this should "just work."  Marked continue-on-error in case the
       # runner image regresses on that — x64 stays available either way.
@@ -60,7 +60,7 @@ jobs:
 
       - name: Upload ARM64 artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: exhale-windows-arm64
           path: rust/target/aarch64-pc-windows-msvc/release/exhale.exe
@@ -69,7 +69,7 @@ jobs:
   linux-x64:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -95,7 +95,7 @@ jobs:
         run: cargo build --release -p exhale-app
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: exhale-linux-x64
           path: rust/target/release/exhale
@@ -107,7 +107,7 @@ jobs:
   linux-arm64:
     runs-on: ubuntu-22.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -129,7 +129,7 @@ jobs:
         run: cargo build --release -p exhale-app
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: exhale-linux-arm64
           path: rust/target/release/exhale
