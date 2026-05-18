@@ -19,7 +19,7 @@ mod tray;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use anyhow::Result;
@@ -33,7 +33,7 @@ use exhale_render::GpuContext;
 #[cfg(feature = "global-hotkeys")]
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager};
 use log::{error, info};
-use overlay::OverlayHandle;
+use overlay::{FrameSender, OverlayHandle};
 use settings_window::SettingsWindow;
 use timers::Timers;
 use tray::TrayMenuIds;
@@ -70,6 +70,30 @@ struct App {
 
     // One overlay per monitor.
     overlays:            HashMap<WindowId, OverlayHandle>,
+
+    // Shared frame-sender list the controller's `request_draw` closure
+    // fans out to.  Wrapped in `Arc<RwLock<...>>` (not a static `Vec`
+    // capture) so [`Self::rescan_monitors`] can mutate it when a
+    // monitor is hot-plugged or unplugged without restarting the
+    // controller thread.  `None` until the controller is started in
+    // `resumed()`.
+    frame_senders:       Option<Arc<RwLock<Vec<FrameSender>>>>,
+
+    // Shared breathing-state slot the controller writes each tick and
+    // every overlay's render thread reads.  Stored on the App so the
+    // hot-plug rescan path can hand a clone to newly-created overlays
+    // without needing to extract it from the controller.
+    breathing_state:     Option<Arc<std::sync::Mutex<Option<exhale_core::controller::BreathingState>>>>,
+
+    // Earliest instant we'll next call `available_monitors()` to
+    // detect hot-plug events.  We poll on a ~2 s cadence rather than
+    // subscribing to platform-specific notifications (NSApplicationDid
+    // ChangeScreenParameters / WM_DISPLAYCHANGE / XRandR) because the
+    // poll cost is negligible (~microseconds), the worst-case 2 s
+    // delay before a new overlay appears is imperceptible to a user
+    // who just plugged in a monitor, and a single polling path keeps
+    // hot-plug behaviour identical on macOS, Windows, and Linux.
+    next_monitor_scan:   Option<Instant>,
 
     // Snapshot of max(w,h)/min(w,h) for the primary monitor at startup.
     // Shared across all overlay renderers so a circle on any display covers
@@ -125,6 +149,9 @@ impl App {
             settings_manager,
             gpu:              None,
             overlays:         HashMap::new(),
+            frame_senders:    None,
+            breathing_state:  None,
+            next_monitor_scan: None,
             primary_max_circle_scale: 1.0,
             settings_win:     None,
             settings_win_id:  None,
@@ -332,6 +359,68 @@ impl App {
             }
         }
     }
+
+    /// Diff the current connected-monitor list against the overlays we
+    /// already have and reconcile.  Creates an overlay for every newly
+    /// connected monitor and drops the overlay for any monitor that's
+    /// no longer present.  Updates the controller's shared
+    /// `frame_senders` so newly-created overlays start receiving Frame
+    /// signals on the very next controller tick.
+    ///
+    /// Cheap to call repeatedly: `available_monitors()` is an OS query
+    /// that resolves in microseconds, and when the monitor set is
+    /// unchanged this function does a single HashSet diff and exits
+    /// without touching any locks
+    fn rescan_monitors(&mut self, event_loop: &ActiveEventLoop) {
+        use std::collections::HashSet;
+        let Some(gpu) = self.gpu.as_ref().map(Arc::clone) else { return; };
+        let Some(senders) = self.frame_senders.as_ref().map(Arc::clone) else { return; };
+        let Some(state) = self.breathing_state.as_ref().map(Arc::clone) else { return; };
+
+        let current: Vec<_> = event_loop.available_monitors().collect();
+        let current_keys: HashSet<_> = current.iter().map(overlay::monitor_key).collect();
+        let existing_keys: HashSet<_> =
+            self.overlays.values().filter_map(|o| o.monitor_key()).collect();
+
+        // ── Drop overlays whose monitor is gone ──────────────────────
+        let to_remove: Vec<WindowId> = self.overlays.iter()
+            .filter_map(|(wid, h)| {
+                let key = h.monitor_key()?;
+                if current_keys.contains(&key) { None } else { Some(*wid) }
+            })
+            .collect();
+        for wid in &to_remove {
+            if let Some(h) = self.overlays.remove(wid) {
+                info!("monitor disconnected; dropping overlay {:?}", h.window.id());
+                // h drops here; Drop joins the render thread
+            }
+        }
+
+        // ── Create overlays for newly connected monitors ─────────────
+        let mut added_any = false;
+        for m in current.into_iter() {
+            let key = overlay::monitor_key(&m);
+            if existing_keys.contains(&key) { continue; }
+            match OverlayHandle::create_one(
+                event_loop, Arc::clone(&gpu), Some(m),
+                Arc::clone(&self.settings), Arc::clone(&state),
+                self.primary_max_circle_scale,
+            ) {
+                Ok(h) => {
+                    info!("monitor connected; created overlay {:?}", h.window.id());
+                    added_any = true;
+                    self.overlays.insert(h.window.id(), h);
+                }
+                Err(e) => log::error!("rescan_monitors: create overlay failed: {e}"),
+            }
+        }
+
+        // ── Rebuild the controller's send list when anything changed ─
+        if !to_remove.is_empty() || added_any {
+            let mut w = senders.write_or_recover();
+            *w = self.overlays.values().map(|h| h.frame_sender()).collect();
+        }
+    }
 }
 
 // ─── ApplicationHandler ───────────────────────────────────────────────────────
@@ -399,6 +488,7 @@ impl ApplicationHandler<AppEvent> for App {
         // animation stutter.
         let breathing_state =
             Arc::new(std::sync::Mutex::new(None::<exhale_core::controller::BreathingState>));
+        self.breathing_state = Some(Arc::clone(&breathing_state));
         let handles = OverlayHandle::create_all(
             event_loop,
             Arc::clone(&gpu),
@@ -411,7 +501,8 @@ impl ApplicationHandler<AppEvent> for App {
             event_loop.exit();
             return;
         }
-        let frame_senders: Vec<_> = handles.iter().map(|h| h.frame_sender()).collect();
+        let initial_senders: Vec<FrameSender> =
+            handles.iter().map(|h| h.frame_sender()).collect();
         for h in handles {
             self.overlays.insert(h.window.id(), h);
         }
@@ -422,15 +513,27 @@ impl ApplicationHandler<AppEvent> for App {
         // `request_draw` fans out a Frame message to every overlay's
         // render thread, bypassing the main event loop.  No WM_PAINT
         // dance and no risk of WM_MOUSEMOVE starvation.
+        //
+        // The sender list is shared via `Arc<RwLock<...>>` rather than
+        // captured by-value so [`Self::rescan_monitors`] can extend it
+        // when a new monitor is hot-plugged without restarting the
+        // controller thread.
+        let frame_senders = Arc::new(RwLock::new(initial_senders));
+        let senders_for_cb = Arc::clone(&frame_senders);
         self.controller = Some(BreathingController::start(
             Arc::clone(&self.settings),
             breathing_state,
             Arc::new(move || {
-                for tx in &frame_senders {
+                for tx in senders_for_cb.read_or_recover().iter() {
                     tx.send_frame();
                 }
             }),
         ));
+        self.frame_senders = Some(frame_senders);
+        // Schedule the first hot-plug scan ~2 s out so startup isn't
+        // doing redundant work; subsequent scans are paced inside
+        // `about_to_wait`.
+        self.next_monitor_scan = Some(Instant::now() + Duration::from_secs(2));
 
         // ── System tray ───────────────────────────────────────────────────────
         {
@@ -725,6 +828,19 @@ impl ApplicationHandler<AppEvent> for App {
         #[cfg(target_os = "windows")]
         self.maybe_reassert_topmost();
 
+        // Monitor hot-plug rescan on a ~2 s cadence.  Detects monitors
+        // being connected or disconnected at runtime so the overlay
+        // count stays in sync without subscribing to platform-specific
+        // notifications (NSApplicationDidChangeScreenParameters /
+        // WM_DISPLAYCHANGE / XRandR).  Cheap: `available_monitors()`
+        // resolves in microseconds and the diff is a HashSet compare
+        if let Some(deadline) = self.next_monitor_scan {
+            if Instant::now() >= deadline {
+                self.rescan_monitors(event_loop);
+                self.next_monitor_scan = Some(Instant::now() + Duration::from_secs(2));
+            }
+        }
+
         // Linux: pump pending GTK events without blocking so the tray
         // icon's libayatana-appindicator backend can process clicks /
         // theme changes.  We run GTK on the main thread alongside winit
@@ -814,7 +930,12 @@ impl ApplicationHandler<AppEvent> for App {
         let topmost_deadline = self.next_topmost_reassert;
         #[cfg(not(target_os = "windows"))]
         let topmost_deadline: Option<Instant> = None;
-        let next = [self.next_settings_repaint, timer_deadline, topmost_deadline]
+        let next = [
+            self.next_settings_repaint,
+            timer_deadline,
+            topmost_deadline,
+            self.next_monitor_scan,
+        ]
             .into_iter()
             .flatten()
             .min();
