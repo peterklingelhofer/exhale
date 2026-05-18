@@ -61,8 +61,8 @@ pub use mac::{
 mod win;
 #[cfg(target_os = "windows")]
 pub use win::{
-    apply_app_visibility, install_settings_vibrancy, reassert_overlay_topmost,
-    sync_settings_backdrop_frame, uninstall_settings_vibrancy,
+    apply_app_visibility, install_settings_vibrancy, is_topmost_top,
+    reassert_overlay_topmost, sync_settings_backdrop_frame, uninstall_settings_vibrancy,
     update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
 };

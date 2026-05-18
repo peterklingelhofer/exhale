@@ -44,6 +44,8 @@ use winit::{
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     window::WindowId,
 };
+#[cfg(target_os = "windows")]
+use winit::window::Window;
 
 // ─── User event ───────────────────────────────────────────────────────────────
 
@@ -327,12 +329,36 @@ impl App {
     /// panel ends up ABOVE the overlay; otherwise `overlay_opacity =
     /// 1.0` would lock the user out by covering the controls.  No-op
     /// on non-Windows.  Driven from `about_to_wait` because overlay
-    /// rendering lives on dedicated threads
+    /// rendering lives on dedicated threads.
+    ///
+    /// Short-circuits via `platform::is_topmost_top()` when the
+    /// "expected-top" window of our pair (settings if visible, else
+    /// any overlay) is already at the top of z-order: skipping the
+    /// SetWindowPos round-trip avoids the per-second `WM_WINDOWPOSCHANGED`
+    /// that DWM otherwise composites as a brief frame-edge flicker
     #[cfg(target_os = "windows")]
     fn maybe_reassert_topmost(&mut self) {
         let now = Instant::now();
         let due = self.next_topmost_reassert.is_none_or(|t| now >= t);
         if !due { return; }
+        self.next_topmost_reassert = Some(now + Duration::from_secs(1));
+
+        // Determine which of our windows should be at the very top.
+        // If settings is visible, settings should be above the overlay
+        // (so the user can interact with controls); otherwise the
+        // overlay holds the top.  If nothing foreign sits above that
+        // window, the entire reassert is a no-op and we can skip the
+        // SetWindowPos calls that would otherwise flicker the frame.
+        let expected_top: Option<&Window> = self.settings_win.as_ref()
+            .filter(|sw| sw.window.is_visible().unwrap_or(false))
+            .map(|sw| sw.window.as_ref())
+            .or_else(|| self.overlays.values().next().map(|h| h.window.as_ref()));
+        if let Some(top) = expected_top {
+            if platform::is_topmost_top(top) {
+                return;
+            }
+        }
+
         for handle in self.overlays.values() {
             platform::reassert_overlay_topmost(&handle.window);
         }
@@ -341,7 +367,6 @@ impl App {
                 platform::reassert_overlay_topmost(&sw.window);
             }
         }
-        self.next_topmost_reassert = Some(now + std::time::Duration::from_secs(1));
     }
 
     /// Request a settings-window redraw if the window exists and is visible.
