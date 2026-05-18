@@ -17,8 +17,9 @@ use super::*;
             DWMWA_USE_IMMERSIVE_DARK_MODE,
         },
         UI::WindowsAndMessaging::{
-            GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos,
-            GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+            GetWindow, GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos,
+            GWL_EXSTYLE, GW_HWNDPREV, HWND_TOPMOST,
+            SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
             WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
             WS_EX_TOPMOST, WS_EX_TRANSPARENT,
         },
@@ -94,6 +95,25 @@ use super::*;
             SetWindowPos(h, HWND_TOPMOST, 0, 0, 0, 0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
+    }
+
+    /// Returns `true` when no window sits above `window` in z-order.
+    /// Used by the per-second topmost-reassert path to skip the full
+    /// `SetWindowPos` round-trip when our window is already on top:
+    /// `SetWindowPos(HWND_TOPMOST, ...)` is technically a no-op in that
+    /// case but Windows still fires `WM_WINDOWPOSCHANGED`, which DWM
+    /// composites as a brief title-bar / frame redraw (visible to the
+    /// user as light flickering once per second).  `GetWindow` /
+    /// `GW_HWNDPREV` is a cheap kernel lookup (~1 µs) that lets us
+    /// avoid the SetWindowPos entirely on the happy path
+    pub fn is_topmost_top(window: &Window) -> bool {
+        let h = hwnd(window);
+        if h.is_null() { return true; }
+        // SAFETY: `h` is a valid HWND just retrieved from winit.  `GetWindow`
+        // is a read-only kernel lookup with no thread-affinity or invariant
+        // requirements; returning NULL is the documented "nothing above"
+        // signal which we surface as `true`
+        unsafe { GetWindow(h, GW_HWNDPREV).is_null() }
     }
 
     pub fn setup_settings_window(window: &Window) {
