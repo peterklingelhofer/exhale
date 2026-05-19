@@ -139,6 +139,19 @@ Settings are reloaded on launch and persisted on every change via a debounced ba
 - **Linux (X11)**: click-through via `XFixesSetWindowShapeRegion` with an empty input region; always-on-top via `_NET_WM_STATE_ABOVE`; workspace-spanning via `_NET_WM_STATE_STICKY`; `AppVisibility` toggles `_NET_WM_STATE_SKIP_TASKBAR` / `SKIP_PAGER` on the settings window.
 - **Linux (Wayland)**: the overlay is placed at `AlwaysOnBottom` instead of topmost. Wayland's security model doesn't expose a portable always-on-top or click-through protocol to winit (`wp_input_region` isn't surfaced), so a topmost overlay would intercept every click. Bottom-stacking means your app windows cover the overlay by default; to see the animation, **narrow your foreground windows so they don't fill the whole screen** — the breathing animation (Circle, Rectangle, or Fullscreen) shows through whatever gap you've left. Same "make room for the overlay" strategy the Python script's bars mode uses, just much lower CPU. For full topmost + click-through behavior on Linux, log out and pick an X11 session at the login screen.
 
+## Performance vs the legacy Swift build
+
+Live A/B on macOS (M3 Max, default settings, single monitor, settings window closed). 30 s window, 15 samples via `ps -o %cpu`; both numbers normalised to one CPU core:
+
+| Build           | avg CPU |    range |
+|-----------------|--------:|---------:|
+| Swift (Release) |  4.95 % | 3.2 – 6.6 |
+| Rust  (Release) |  3.19 % | 1.5 – 4.3 |
+
+Rust runs about **36 % lower CPU in steady state**. The delta is statistically robust (means ~5σ apart) but small in absolute terms (~1.8 percentage points). Opening the settings window adds roughly 1–2 pp on both builds; each additional monitor adds another ~0.2–0.4 pp on Rust (one render thread per overlay).
+
+Reproduce via `cargo run --release --example cpu_bench -p exhale-render` for the headless per-frame number, or by running both binaries side-by-side under `ps -o %cpu` for the live-process number above.
+
 ## Ship & distribute
 
 | Target                       | Status | Notes |
