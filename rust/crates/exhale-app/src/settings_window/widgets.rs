@@ -97,25 +97,32 @@ pub(super) fn section_header(ui: &mut egui::Ui, text: &str) {
 /// (`.frame(maxWidth: .infinity)` in Swift) — we achieve that by dividing the
 /// ui's available width by the number of siblings, which egui's horizontal
 /// layout with equal allocations gives us for free via `allocate_exact_size`.
-/// `icon` is the Unicode fallback glyph used when `icon_texture` is
-/// `None` (non-macOS, or symbol rasterisation failed).  When a texture
-/// is supplied we render the real SF Symbol bitmap instead.
+///
+/// Two rendering paths depending on what icon material is available:
+///   - **macOS (SF Symbol texture present)**: paint the whole
+///     `.circle.fill` symbol directly.  Apple has done the optical
+///     centring of the inner glyph against the surrounding ring, so
+///     the rendering matches Swift's `Image(systemName:)` output
+///     pixel-for-pixel and no per-icon offset is needed.
+///   - **Windows / Linux (no texture)**: paint a filled circle in
+///     the foreground colour then composite the Unicode glyph
+///     (`▶ ■ ↺ ×`) on top in a muted contrasting colour, mimicking
+///     SF Symbol's transparent cutout look.  Per-glyph
+///     [`unicode_y_offset`] tunes positioning against system fonts'
+///     varied glyph metrics.
 ///
 /// `icon_font_size_override` lets a caller bump the font size used for
 /// the Unicode fallback glyph specifically — useful when the chosen
 /// glyph lives in a Unicode block (e.g. Latin-1 Supplement, where `×`
 /// is sized to lowercase x-height) that renders visually smaller than
 /// the Geometric Shapes glyphs the other buttons use (`▶ ■ ↺`, all
-/// full-em).  `None` keeps the default 14 pt sizing.  Has no effect
+/// full-em).  `None` keeps the default 8 pt sizing.  Has no effect
 /// when an SF Symbol texture is in use.
 ///
-/// `icon_y_offset` shifts the Unicode-fallback glyph vertically (px,
-/// negative = up) after `Align2::CENTER_CENTER` has placed its galley.
-/// Some glyphs sit at the math-axis (e.g. `×` in Latin-1) instead of
-/// the em-center where Geometric Shapes glyphs live, so even at
-/// matched font sizes their visual centers land at different
-/// y-coordinates.  A small negative offset re-aligns those low-sitting
-/// glyphs with the row's other icons.
+/// `unicode_y_offset` shifts the Unicode fallback glyph vertically
+/// inside the painted ring (px, negative = up).  Has no effect on
+/// the SF Symbol texture path because Apple's symbol design is the
+/// source of truth for inner-glyph positioning there
 #[allow(clippy::too_many_arguments)]
 pub(super) fn control_button(
     ui:                      &mut egui::Ui,
@@ -123,7 +130,8 @@ pub(super) fn control_button(
     icon:                    &str,
     icon_texture:            Option<&egui::TextureHandle>,
     icon_font_size_override: Option<f32>,
-    icon_y_offset:           f32,
+    unicode_y_offset:        f32,
+    draw_inner_square:       bool,
     text:                    &str,
     help:                    &str,
 ) -> egui::Response {
@@ -201,36 +209,72 @@ pub(super) fn control_button(
     let content_alpha: u8 = if pressed { 178 } else if enabled { 255 } else { 110 };
     let content_color = with_alpha(primary, content_alpha);
 
-    // Icon + label, centered inside the button rect.  When a real SF
-    // Symbol texture is available (macOS only) we paint that; otherwise
-    // we fall back to the Unicode glyph (▶ ■ ↺).
     let font_label = egui::FontId::proportional(12.0);
-    // Default Unicode-glyph size is 14 pt (matches Geometric-Shapes
-    // glyphs like `▶ ■ ↺` filling the em-box to ~14 px visible).  The
-    // caller can override for glyphs that are intrinsically smaller
-    // (Latin-1 `×`, lowercase x-height) — bumping the font size brings
-    // them up to visual parity with the other icons.
-    let icon_font_size = icon_font_size_override.unwrap_or(14.0);
+    // Unicode-fallback glyph size: ~50% of the surrounding ring's
+    // diameter, matching the SF Symbol `.circle.fill` family's
+    // inner-glyph proportion.  Caller can override for glyphs that
+    // read smaller at the same em (Latin-1 `×`, lowercase x-height)
+    // so they hit the same visual weight as Geometric Shapes glyphs
+    // (`▶ ■ ↺`)
+    let icon_font_size = icon_font_size_override.unwrap_or(8.0);
     let font_icon = egui::FontId::proportional(icon_font_size);
-    // Match Swift's `.imageScale(.medium)` — 16 pt SF Symbol next to a
-    // 12-pt label.
-    let icon_w     = if icon_texture.is_some() { 16.0 } else {
-        ui.fonts(|f| f.layout_no_wrap(icon.to_string(), font_icon.clone(), content_color).size()).x
-    };
+    let icon_w     = 16.0_f32;
     let label_size = ui.fonts(|f| f.layout_no_wrap(text.to_string(), font_label.clone(), content_color).size());
     let gap        = 6.0_f32;
     let total_w    = icon_w + gap + label_size.x;
     let start_x    = rect.center().x - total_w * 0.5;
     let baseline_y = rect.center().y;
 
-    if let Some(tex) = icon_texture {
-        // Render the SF Symbol texture at 16×16 pt centered on its
-        // half-width slot.  `tint(content_color)` re-tints the texture
-        // alpha-channel to match `pressed` / `enabled` state — the
-        // texture itself is a white silhouette in dark mode and a
-        // black silhouette in light mode (see `render_sf_symbol`'s
-        // tint pass), and `tint` modulates that further so the icon
-        // dims when pressed or disabled the same way the label does.
+    // Reused by the painted (non-SF-Symbol) paths: a muted
+    // dark / light grey for the inner glyph / shape so it reads
+    // as the SF Symbol's natural inner-shape colour against the
+    // foreground-coloured ring.  Survives both opaque and vibrancy
+    // backgrounds
+    let cutout_base = if dark_mode {
+        egui::Color32::from_gray(28)
+    } else {
+        egui::Color32::from_gray(240)
+    };
+    let cutout_alpha = (content_alpha as u32 * cutout_base.a() as u32 / 255) as u8;
+    let cutout = egui::Color32::from_rgba_unmultiplied(
+        cutout_base.r(), cutout_base.g(), cutout_base.b(), cutout_alpha,
+    );
+
+    if draw_inner_square {
+        // Stop button: paint the outer ring AND the inner square as
+        // egui primitives so the square's geometric centre lands
+        // exactly on the ring's geometric centre.  We do this
+        // instead of using `stop.circle.fill` (macOS) or the
+        // Unicode U+25A0 glyph (Win/Linux) because both of those
+        // rasterise the square slightly above the ring's centre in
+        // our rendering pipeline — visible side-by-side with Swift
+        // even though both apps load the same SF Symbol.  Drawing
+        // the rectangle ourselves trades a tiny anti-aliasing
+        // difference vs Apple's hand-tuned symbol for guaranteed
+        // pixel-perfect centring across every OS
+        let icon_center = egui::pos2(start_x + icon_w * 0.5, baseline_y);
+        painter.circle_filled(icon_center, icon_w * 0.5, content_color);
+        // Square sized to ~34% of the ring's diameter so it reads
+        // with similar visual weight to the inner glyphs in the
+        // adjacent `.circle.fill` SF Symbols (whose negative-space
+        // play triangle, reset arrow, and power glyph all sit a
+        // touch smaller than half the ring's diameter)
+        let square_size = 5.0_f32;
+        let square_rect = egui::Rect::from_center_size(
+            icon_center,
+            egui::vec2(square_size, square_size),
+        );
+        painter.rect_filled(square_rect, 0.0, cutout);
+    } else if let Some(tex) = icon_texture {
+        // macOS: render the whole `.circle.fill` SF Symbol as one
+        // image.  Apple has done the optical centring of the inner
+        // glyph against the ring, so this matches Swift's
+        // `Image(systemName:)` rendering pixel-for-pixel without any
+        // per-icon offset on our side.  `content_color` tint
+        // modulates pressed / disabled states the same way the label
+        // dims — the texture itself is a white silhouette in dark
+        // mode and black in light mode (see `render_sf_symbol`'s
+        // template + SourceAtop pass)
         let icon_size = 16.0_f32;
         let icon_rect = egui::Rect::from_min_size(
             egui::pos2(start_x, baseline_y - icon_size / 2.0),
@@ -243,12 +287,21 @@ pub(super) fn control_button(
             content_color,
         );
     } else {
+        // Windows / Linux: paint a filled ring in the foreground
+        // colour and composite the Unicode glyph inside it in the
+        // cutout colour, mimicking the SF Symbol's transparent
+        // cutout against the card.  Per-glyph `unicode_y_offset`
+        // tunes positioning against the system font's varied
+        // metrics for `■ ↺ ×` (each block sits at a different
+        // vertical position in its em-box)
+        let icon_center = egui::pos2(start_x + icon_w * 0.5, baseline_y);
+        painter.circle_filled(icon_center, icon_w * 0.5, content_color);
         painter.text(
-            egui::pos2(start_x + icon_w * 0.5, baseline_y + icon_y_offset),
+            icon_center + egui::vec2(0.0, unicode_y_offset),
             egui::Align2::CENTER_CENTER,
             icon,
             font_icon,
-            content_color,
+            cutout,
         );
     }
 

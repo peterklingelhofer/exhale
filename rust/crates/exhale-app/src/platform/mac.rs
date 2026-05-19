@@ -472,6 +472,20 @@ use super::*;
             let image: *mut AnyObject = msg_send![image, imageWithSymbolConfiguration: config];
             if image.is_null() { return None; }
 
+            // Force template rendering so `.circle.fill` and other
+            // multi-layer SF Symbols render as a clean monochrome
+            // silhouette with their natural transparent cutouts
+            // preserved.  Without this, recent macOS versions may use
+            // hierarchical rendering by default (primary layer at full
+            // opacity + secondary layer at ~45% opacity drawn on top),
+            // which composites into a near-solid disk after our
+            // `SourceAtop` tint pass and hides the inner glyph cutout.
+            // `setTemplate:` is macOS 10.6+ so no runtime check is
+            // needed; the resulting NSImage matches what SwiftUI's
+            // `Image(systemName:)` with no explicit rendering mode
+            // produces for the same symbol
+            let _: () = msg_send![image, setTemplate: true];
+
             // Render at 2x for Retina; egui downsamples at sample time.
             let size: NSSize = msg_send![image, size];
             const SCALE: f64 = 2.0;
