@@ -113,14 +113,15 @@ struct IconCache {
 
 impl IconCache {
     fn load(ctx: &egui::Context) -> Self {
-        // SF Symbol names in the order matching `IconKind`.
-        // `power.circle.fill` reads as a power-off / quit affordance
-        // in SF Symbols and visually pairs with the other
-        // `circle.fill` icons in the row.  Non-mac platforms fall
-        // back to the Unicode glyph in the call site (U+00D7
-        // MULTIPLICATION SIGN, supported by every system UI font;
-        // U+23FB POWER SYMBOL renders as a tofu box on Windows
-        // because Segoe UI is missing it).
+        // SF Symbol names in the order matching `IconKind`.  We use
+        // the `.circle.fill` variants (whole-icon designs with the
+        // ring AND inner glyph baked in by Apple) so the macOS
+        // rendering matches Swift's `Image(systemName:)` output
+        // pixel-for-pixel — Apple has already done the optical
+        // centring of the inner glyph against the surrounding ring,
+        // so we don't have to fiddle with sub-pixel offsets.
+        // Non-mac platforms paint their own ring + Unicode glyph
+        // (U+25B6, U+25A0, U+21BA, U+00D7) at the call site.
         const NAMES: [&str; ICON_KIND_COUNT] = [
             "play.circle.fill",
             "stop.circle.fill",
@@ -252,9 +253,10 @@ fn clamp_position_to_visible(
     (nx, ny)
 }
 
-/// Rasterise an SF Symbol via AppKit, upload as an egui texture.  The
-/// 16-pt point size matches the medium SF Symbol scale used in
-/// SwiftUI's `Image(systemName:).imageScale(.medium)`.  Returns `None`
+/// Rasterise an SF Symbol via AppKit, upload as an egui texture.
+/// 16 pt matches Swift's `Image(systemName:).imageScale(.medium)`
+/// next to a 12 pt label, the slot size [`widgets::control_button`]
+/// allocates for the whole `.circle.fill` icon.  Returns `None`
 /// off-macOS or if the symbol isn't found.
 fn load_sf_icon(ctx: &egui::Context, name: &str, dark_mode: bool) -> Option<egui::TextureHandle> {
     let (bytes, w, h) = platform::render_sf_symbol(name, 16.0, dark_mode)?;
@@ -919,7 +921,7 @@ fn settings_ui(
                     if control_button(
                         ui, btn_w,
                         "\u{25B6}", icons.play(dark),
-                        None, 0.0,
+                        None, 0.0, false,
                         "Start",
                         "Start the app and re-initialize animation.",
                     ).clicked()
@@ -930,17 +932,12 @@ fn settings_ui(
                     }
                     if control_button(
                         ui, btn_w,
+                        // `icon` and `icon_texture` are both ignored
+                        // when `draw_inner_square: true` — we paint a
+                        // primitive square instead.  Pass placeholders
+                        // for documentation continuity.
                         "\u{25A0}", icons.stop(dark),
-                        // Segoe UI (Windows) draws U+25A0 BLACK SQUARE
-                        // baseline-to-cap-height instead of em-centered
-                        // — same family of issue as Quit's `×` but
-                        // milder.  A 1 px lift brings the square back
-                        // into visual alignment with the "Stop" label.
-                        // This offset is only applied on the Unicode
-                        // fallback path (Windows + Linux); macOS uses
-                        // the SF Symbol texture which is em-centered
-                        // by design and bypasses `painter.text` entirely.
-                        None, -1.0,
+                        None, 0.0, true,
                         "Stop",
                         "Stop the animation and remove all screen tints.",
                     ).clicked()
@@ -956,13 +953,14 @@ fn settings_ui(
                         // in the Arrows block, and Segoe UI draws it
                         // taller than the Geometric Shapes glyphs
                         // (`▶ ■`) — arrows traditionally reach into
-                        // the ascender region.  Drop the font size to
-                        // 12 pt so the rendered glyph is the same
-                        // visible height as the other icons in the
-                        // row.  Applies only on the Unicode fallback
-                        // path (Windows + Linux); macOS uses the SF
-                        // Symbol texture which is sized uniformly.
-                        Some(12.0), 0.0,
+                        // the ascender region.  At the 8 pt default
+                        // the arrow is already pixel-tight; nudge to
+                        // 9 pt for visual parity with the other
+                        // icons in the row.  Applies only on the
+                        // Unicode fallback path (Win / Linux); macOS
+                        // uses the SF Symbol texture which is sized
+                        // uniformly.
+                        Some(9.0), 0.0, false,
                         "Reset",
                         "Reset all settings to their default values.",
                     ).clicked()
@@ -995,20 +993,25 @@ fn settings_ui(
                         //
                         // `×` is intrinsically sized to lowercase
                         // x-height (Latin-1 lives alongside `é` `ñ`
-                        // etc.), so at the default 14 pt it renders
+                        // etc.), so at the default 8 pt it renders
                         // visibly shorter than the full-em-box
-                        // Geometric Shapes glyphs.  Override to 20 pt
-                        // here so the `×` lands at the same visible
-                        // height as the other three icons.
+                        // Geometric Shapes glyphs.  Bump it ~50% so
+                        // `×` lands at the same visible height as the
+                        // other three icons inside the 16 pt circle.
                         "\u{00D7}", icons.quit(dark),
                         // `×` lives at the math-axis (below the
-                        // em-center) instead of the em-center where
+                        // em-centre) instead of the em-centre where
                         // Geometric Shapes glyphs sit, so even when
-                        // both galleys are CENTER_CENTER-aligned at
-                        // the same baseline the visible `×` lands a
-                        // couple of pixels low.  Lift it ~2 px so the
-                        // four icons read as a single horizontal row.
-                        Some(20.0), -2.0,
+                        // CENTER_CENTER-aligned the visible glyph
+                        // lands a pixel low on the Unicode-fallback
+                        // path.  Lift it 1 px so the four icons read
+                        // as a single horizontal row.  macOS uses
+                        // the `power` SF Symbol texture which is
+                        // em-centred by Apple's design and doesn't
+                        // need the offset, but the unified inner
+                        // offset is small enough at 1 px that the
+                        // texture path is still acceptably aligned
+                        Some(12.0), -1.0, false,
                         "Quit",
                         "Quit exhale (full shutdown).",
                     ).clicked()
