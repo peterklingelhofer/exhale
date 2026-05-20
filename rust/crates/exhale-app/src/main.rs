@@ -818,16 +818,20 @@ impl ApplicationHandler<AppEvent> for App {
 
         // ── Overlay window events ──────────────────────────────────────────
         //
-        // Rendering for overlay windows lives on a dedicated thread per
-        // window — see `OverlayHandle` — so the main thread only
-        // forwards resizes here.  WM_PAINT for overlay windows is
-        // effectively ignored: the render thread is the single source
-        // of frames, and it's woken by the controller via a channel
-        // that bypasses the OS message queue.  Trying to also paint on
-        // WM_PAINT would race with the render thread on the surface.
+        // Overlay windows: rendering lives on a dedicated thread per
+        // window on macOS / Windows / Linux X11 (see `OverlayHandle`),
+        // so the main thread only forwards resizes there.  On Wayland
+        // the renderer lives on the handle and is driven from
+        // `RedrawRequested` here, because wgpu's surface acquisition
+        // must run synchronized with the compositor's frame_callback
+        // protocol which only arrives through this event loop —
+        // bypassing it from a background thread leaves the
+        // xdg_toplevel in a "configured but unmapped" state
         if let Some(handle) = self.overlays.get(&window_id) {
-            if let WindowEvent::Resized(size) = event {
-                handle.resize(size);
+            match event {
+                WindowEvent::Resized(size)        => handle.resize(size),
+                WindowEvent::RedrawRequested      => handle.render_on_main(),
+                _ => {}
             }
             return;
         }
