@@ -102,12 +102,13 @@ After `cargo build`, run the binary directly without going through cargo:
 
 **Windows** — no extra prerequisites. Works with both the MSVC and GNU toolchains.
 
-**Linux** — requires GTK dev headers for the system-tray crate. On Debian/Ubuntu:
+**Linux** — exhale dynamically loads several system libraries at run time. To build AND run on Debian/Ubuntu:
 
 ```sh
 sudo apt install \
     libgtk-3-dev libayatana-appindicator3-dev \
-    libxcb1-dev libxkbcommon-dev
+    libwayland-dev libxkbcommon-dev libxdo-dev \
+    libssl-dev pkg-config
 ```
 
 On Fedora/RHEL:
@@ -115,10 +116,24 @@ On Fedora/RHEL:
 ```sh
 sudo dnf install \
     gtk3-devel libayatana-appindicator-gtk3-devel \
-    libxcb-devel libxkbcommon-devel
+    wayland-devel libxkbcommon-devel libxdo-devel \
+    openssl-devel pkgconf-pkg-config
 ```
 
-X11 and Xfixes are loaded dynamically via `x11-dl`, so you don't need their `-dev` packages at build time — only the runtime libraries, which ship on every X11 desktop.
+If you're **running** a pre-built binary (not compiling from source), the bare runtime packages are enough — drop the `-dev` suffixes:
+
+```sh
+sudo apt install libgtk-3-0 libayatana-appindicator3-1 libwayland-client0 libxkbcommon0 libxdo3 libssl3
+```
+
+X11 and Xfixes are loaded via `x11-dl` at run time using whatever's already installed by the X11 desktop, so they're not in the list.
+
+What each one is for:
+- `libgtk-3` + `libayatana-appindicator3`: system-tray icon backend
+- `libwayland-client` + `libxkbcommon`: winit's Wayland + keyboard input
+- `libxdo`: `global-hotkey` crate's X11 keyboard binding (the `libxdo.so.3` you saw missing)
+- `libssl`: TLS for crates that fetch over HTTPS
+- `pkg-config`: build-time library discovery (compile-only)
 
 ## Settings
 
@@ -137,7 +152,10 @@ Settings are reloaded on launch and persisted on every change via a debounced ba
 - **macOS**: the overlay floats above fullscreen apps (screen-saver window level), joins every Space, and stays out of Cmd+Tab. `AppVisibility` toggles `NSApp.setActivationPolicy` between `.regular` and `.accessory`.
 - **Windows**: the overlay uses `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST`. `AppVisibility` toggles `WS_EX_APPWINDOW` / `WS_EX_TOOLWINDOW` on the settings window so "DockOnly" shows a taskbar entry and "TopBarOnly" hides it.
 - **Linux (X11)**: click-through via `XFixesSetWindowShapeRegion` with an empty input region; always-on-top via `_NET_WM_STATE_ABOVE`; workspace-spanning via `_NET_WM_STATE_STICKY`; `AppVisibility` toggles `_NET_WM_STATE_SKIP_TASKBAR` / `SKIP_PAGER` on the settings window.
-- **Linux (Wayland)**: the overlay is placed at `AlwaysOnBottom` instead of topmost. Wayland's security model doesn't expose a portable always-on-top or click-through protocol to winit (`wp_input_region` isn't surfaced), so a topmost overlay would intercept every click. Bottom-stacking means your app windows cover the overlay by default; to see the animation, **narrow your foreground windows so they don't fill the whole screen** — the breathing animation (Circle, Rectangle, or Fullscreen) shows through whatever gap you've left. Same "make room for the overlay" strategy the Python script's bars mode uses, just much lower CPU. For full topmost + click-through behavior on Linux, log out and pick an X11 session at the login screen.
+- **Linux (Wayland)**: exhale picks one of two paths at startup based on whether the compositor exposes alpha-capable swap chains to wgpu:
+   - **Compositor supports alpha** (rare on current Mutter/GNOME, supported by some KWin setups): the overlay is placed at `AlwaysOnBottom` because Wayland's security model doesn't surface a portable click-through / always-on-top protocol to winit (`wp_input_region` isn't exposed). Your app windows cover the overlay by default; to see the breath animation, **narrow your foreground windows so they don't fill the whole screen** and the animation shows through the gap.
+   - **Compositor only exposes Opaque alpha** (typical real-hardware Wayland session on Ubuntu / Fedora GNOME): exhale falls back to running as a **regular windowed app** — a 480×360 movable, resizable "exhale" window in the middle of your primary monitor, with normal decorations and full participation in the window manager (Alt-Tab, taskbar, etc.). You can use it two ways: (1) **as a foreground window**, looking at the breath animation directly the same way you'd watch any other app, or (2) **as an edge-strip overlay**, by sending the window behind your other apps (Alt-Tab past it / click on the window manager to lower it), switching exhale to **Rectangle mode**, and narrowing the windows in front so the animation shows through the side / bottom strips you've left open. The second pattern matches the Python bars-mode workflow ([see below](#minimal-python-script-fallback)) and is the closest you can get to the X11 click-through overlay on this compositor.
+   For full topmost + click-through overlay behavior on Linux, log out and pick an X11 session at the login screen.
 
 ## Performance vs the legacy Swift build
 
@@ -177,7 +195,7 @@ python main.py
 
 Modify the constants at the top of [`python/main.py`](python/main.py) for inhale/exhale duration in seconds, shape mode, and full-screen toggle.
 
-**The Rust binary is the recommended path on every supported OS, including Wayland.** On systems without portable always-on-top (Wayland, some locked-down environments), both the Python script and the Rust binary require the same user behavior — narrow your foreground windows so the breath animation can peek through. The Rust binary is significantly lower CPU than the Python interpreter + PyQt5 + tkinter stack; the Python script is a hackable single-file alternative, not a performance recommendation.
+**The Rust binary is the recommended path on every supported OS, including Wayland.** On a typical Wayland desktop the compositor doesn't expose alpha-capable swap chains, so the Rust binary opens as a regular movable window — you can either watch the animation directly in that window OR send it behind your other apps and narrow them so the animation peeks through the edges, exactly the same "make room for the overlay" trick this Python script uses in its bars mode (see the [Linux (Wayland) platform note](#platform-notes) above for details). The Python script is a hackable single-file alternative, not a performance recommendation.
 
 ## Companion repository
 
