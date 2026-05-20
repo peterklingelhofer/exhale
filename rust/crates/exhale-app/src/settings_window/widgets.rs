@@ -316,11 +316,16 @@ pub(super) fn control_button(
         let icon_center = egui::pos2(start_x + icon_w * 0.5, baseline_y);
         painter.circle_filled(icon_center, icon_w * 0.5, content_color);
         // Triangle bounding box ~5.5×5.5 pt, matching the stop
-        // square's visual weight.  Shifted left ~0.4 px because a
-        // right-pointing triangle's visual mass leans right of its
-        // geometric centre — standard play-button optical correction
+        // square's visual weight.  Shifted RIGHT ~0.9 px so the
+        // centroid (true centre of mass) lands on the ring's centre
+        // rather than the bounding box.  An isoceles right-pointing
+        // triangle's centroid sits at 1/3 of its width from the
+        // base, i.e. left of bounding-box centre by `width / 6` —
+        // for a 5.5 pt triangle that's ~0.9 px.  Adding the shift
+        // moves the centroid to the ring's centre, where the eye
+        // expects "centred" to mean
         let tri_size = 5.5_f32;
-        let cx = icon_center.x - 0.4;
+        let cx = icon_center.x + tri_size / 6.0;
         let cy = icon_center.y;
         let points = vec![
             egui::pos2(cx - tri_size * 0.5, cy - tri_size * 0.5),
