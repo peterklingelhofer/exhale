@@ -920,8 +920,17 @@ fn settings_ui(
                     let dark = ui.visuals().dark_mode;
                     if control_button(
                         ui, btn_w,
+                        // `icon` is the Unicode fallback when no SF
+                        // Symbol texture is available AND
+                        // `draw_inner_triangle: false`.  Here we pass
+                        // `true` so the Win / Linux path paints a
+                        // primitive triangle instead, sidestepping
+                        // Segoe UI's low-left U+25B6 placement.
+                        // macOS keeps using Apple's `play.circle.fill`
+                        // because the triangle flag yields to the
+                        // texture path when one is available.
                         "\u{25B6}", icons.play(dark),
-                        None, 0.0, false,
+                        None, 0.0, false, true,
                         "Start",
                         "Start the app and re-initialize animation.",
                     ).clicked()
@@ -937,7 +946,7 @@ fn settings_ui(
                         // primitive square instead.  Pass placeholders
                         // for documentation continuity.
                         "\u{25A0}", icons.stop(dark),
-                        None, 0.0, true,
+                        None, 0.0, true, false,
                         "Stop",
                         "Stop the animation and remove all screen tints.",
                     ).clicked()
@@ -960,7 +969,7 @@ fn settings_ui(
                         // Unicode fallback path (Win / Linux); macOS
                         // uses the SF Symbol texture which is sized
                         // uniformly.
-                        Some(9.0), 0.0, false,
+                        Some(9.0), 0.0, false, false,
                         "Reset",
                         "Reset all settings to their default values.",
                     ).clicked()
@@ -1011,7 +1020,7 @@ fn settings_ui(
                         // need the offset, but the unified inner
                         // offset is small enough at 1 px that the
                         // texture path is still acceptably aligned
-                        Some(12.0), -1.0, false,
+                        Some(12.0), -1.0, false, false,
                         "Quit",
                         "Quit exhale (full shutdown).",
                     ).clicked()

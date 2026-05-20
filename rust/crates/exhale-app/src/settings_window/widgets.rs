@@ -122,7 +122,24 @@ pub(super) fn section_header(ui: &mut egui::Ui, text: &str) {
 /// `unicode_y_offset` shifts the Unicode fallback glyph vertically
 /// inside the painted ring (px, negative = up).  Has no effect on
 /// the SF Symbol texture path because Apple's symbol design is the
-/// source of truth for inner-glyph positioning there
+/// source of truth for inner-glyph positioning there.
+///
+/// `draw_inner_square` and `draw_inner_triangle` paint the inner
+/// shape as an egui primitive instead of using the texture / glyph.
+/// The two have **different precedence** to reflect different
+/// rendering issues:
+///
+///   - `draw_inner_square` overrides BOTH the texture and Unicode
+///     paths.  Used by Stop because Apple's `stop.circle.fill`
+///     rasterises the inner square slightly high in our pipeline
+///     (visible side-by-side with Swift) AND the Unicode U+25A0
+///     glyph isn't reliably centred across system fonts.
+///   - `draw_inner_triangle` overrides only the Unicode path,
+///     yielding to the SF Symbol texture when one is available.
+///     Used by Play because Apple's `play.circle.fill` renders
+///     correctly on macOS — the issue is only Segoe UI / Linux
+///     fonts positioning U+25B6 low-left in its em-box (the glyph
+///     was designed as a dropdown indicator, not a play button)
 #[allow(clippy::too_many_arguments)]
 pub(super) fn control_button(
     ui:                      &mut egui::Ui,
@@ -132,6 +149,7 @@ pub(super) fn control_button(
     icon_font_size_override: Option<f32>,
     unicode_y_offset:        f32,
     draw_inner_square:       bool,
+    draw_inner_triangle:     bool,
     text:                    &str,
     help:                    &str,
 ) -> egui::Response {
@@ -286,13 +304,37 @@ pub(super) fn control_button(
             egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
             content_color,
         );
+    } else if draw_inner_triangle {
+        // Play button on Win / Linux: paint the outer ring AND a
+        // right-pointing triangle as egui primitives.  We don't
+        // override the SF Symbol texture path (Apple's
+        // `play.circle.fill` renders correctly), but the Unicode
+        // U+25B6 BLACK RIGHT-POINTING TRIANGLE glyph is positioned
+        // low-left in Segoe UI's em-box (the glyph was designed as
+        // a dropdown indicator, not a play button), so painting our
+        // own triangle is the only reliable cross-font centring.
+        let icon_center = egui::pos2(start_x + icon_w * 0.5, baseline_y);
+        painter.circle_filled(icon_center, icon_w * 0.5, content_color);
+        // Triangle bounding box ~5.5×5.5 pt, matching the stop
+        // square's visual weight.  Shifted left ~0.4 px because a
+        // right-pointing triangle's visual mass leans right of its
+        // geometric centre — standard play-button optical correction
+        let tri_size = 5.5_f32;
+        let cx = icon_center.x - 0.4;
+        let cy = icon_center.y;
+        let points = vec![
+            egui::pos2(cx - tri_size * 0.5, cy - tri_size * 0.5),
+            egui::pos2(cx - tri_size * 0.5, cy + tri_size * 0.5),
+            egui::pos2(cx + tri_size * 0.5, cy),
+        ];
+        painter.add(egui::Shape::convex_polygon(points, cutout, egui::Stroke::NONE));
     } else {
         // Windows / Linux: paint a filled ring in the foreground
         // colour and composite the Unicode glyph inside it in the
         // cutout colour, mimicking the SF Symbol's transparent
         // cutout against the card.  Per-glyph `unicode_y_offset`
         // tunes positioning against the system font's varied
-        // metrics for `■ ↺ ×` (each block sits at a different
+        // metrics for `↺ ×` (each block sits at a different
         // vertical position in its em-box)
         let icon_center = egui::pos2(start_x + icon_w * 0.5, baseline_y);
         painter.circle_filled(icon_center, icon_w * 0.5, content_color);
