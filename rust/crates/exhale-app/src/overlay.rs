@@ -100,6 +100,13 @@ pub struct OverlayHandle {
     /// Monitor this overlay covers.  `None` for the fallback overlay
     /// created when `available_monitors()` returned empty at startup
     monitor_key: Option<MonitorKey>,
+    /// `true` when the swap chain supports per-pixel alpha and the
+    /// window is acting as a true click-through overlay.  `false`
+    /// when the compositor / GPU only exposed Opaque alpha and we
+    /// reconfigured the window as a regular windowed app — used by
+    /// `create_all` to avoid spawning duplicate fallback windows on
+    /// every monitor
+    pub alpha_capable: bool,
 }
 
 impl OverlayHandle {
@@ -126,7 +133,19 @@ impl OverlayHandle {
                 event_loop, Arc::clone(&gpu), Some(monitor),
                 Arc::clone(&settings), Arc::clone(&state), max_circle_scale,
             ) {
-                Ok(h)  => handles.push(h),
+                Ok(h)  => {
+                    // If the system's swap chain doesn't support
+                    // per-pixel alpha, the first overlay reconfigured
+                    // itself as a regular windowed app (see
+                    // `create_one`).  Spawning more "overlays" on
+                    // additional monitors in this mode would just
+                    // produce duplicate windowed copies of the
+                    // animation, none of which act as overlays.
+                    // Bail out after the first
+                    let opaque_only = !h.alpha_capable;
+                    handles.push(h);
+                    if opaque_only { break; }
+                },
                 Err(e) => log::error!("overlay window error: {e}"),
             }
         }
@@ -241,33 +260,58 @@ impl OverlayHandle {
 
         let window = Arc::new(event_loop.create_window(attrs)?);
 
-        // Platform-specific: click-through, always-on-top, all-spaces.
-        platform::setup_overlay_window(&window);
-
+        // Probe the swap chain alpha modes BEFORE applying the
+        // platform-specific overlay window flags.  Some compositors
+        // (Wayland on real Linux hardware, WARP under Windows VMs,
+        // certain headless / remote-desktop sessions) only expose
+        // `Opaque` alpha to wgpu, which means a click-through topmost
+        // window would paint a blanket-black rectangle covering every
+        // pixel of every monitor.  In that case we reconfigure the
+        // window as a regular movable / resizable / decorated app
+        // window instead — the breath animation renders fine, just
+        // not as a click-through overlay.
         let size    = window.inner_size();
         let surface = gpu.instance.create_surface(Arc::clone(&window))?;
         let mut renderer =
             OverlayRenderer::new(Arc::clone(&gpu), surface, size.width, size.height)?;
-
-        // If the swap chain doesn't advertise any per-pixel alpha mode
-        // (typical for VM environments running WARP / Microsoft Basic
-        // Render Driver), hide the overlay window — otherwise it
-        // renders solid black across the entire screen with no way to
-        // see anything else, which makes the VM unusable.  The
-        // breathing animation will be invisible on this machine, but
-        // the rest of the app (settings window, tray, hotkeys) stays
-        // testable.  Real Windows hardware with an actual GPU exposes
-        // alpha-capable DXGI surfaces and renders correctly without
-        // hitting this branch.
         let alpha_capable = renderer.alpha_capable();
-        if !alpha_capable {
+
+        if alpha_capable {
+            // Standard overlay: click-through, always-on-top, all-Spaces
+            platform::setup_overlay_window(&window);
+        } else {
+            // Windowed-app fallback: undo the borderless / immovable
+            // attrs from the window builder and resize to something
+            // sensible.  We deliberately do NOT call
+            // `setup_overlay_window` (which would re-apply the
+            // click-through / topmost flags) — the user wants a
+            // normal app window they can move and bring to the
+            // foreground like any other window
             log::warn!(
-                "overlay swap chain only supports Opaque alpha; hiding \
-                 overlay window to avoid blanket-black-screen.  This is \
-                 typical under VMs running WARP — test on real GPU \
-                 hardware to see the breath animation."
+                "overlay swap chain only supports Opaque alpha; falling \
+                 back to a regular windowed app.  Common on real Wayland \
+                 hardware (compositor doesn't expose alpha-capable swap \
+                 chains to wgpu) and under VMs running WARP.  The breath \
+                 animation will render in a normal movable / resizable \
+                 window instead of as a fullscreen overlay."
             );
-            window.set_visible(false);
+            window.set_title("exhale");
+            let _ = window.request_inner_size(PhysicalSize::new(480u32, 360u32));
+            #[allow(deprecated)]
+            window.set_decorations(true);
+            #[allow(deprecated)]
+            window.set_resizable(true);
+            // Centre on the monitor we were assigned (or skip if we
+            // were given no monitor — the OS default placement takes
+            // over).
+            if let Some(m) = monitor.as_ref() {
+                let mp   = m.position();
+                let ms   = m.size();
+                let win  = window.outer_size();
+                let x    = mp.x + (ms.width  as i32 - win.width  as i32) / 2;
+                let y    = mp.y + (ms.height as i32 - win.height as i32) / 2;
+                window.set_outer_position(PhysicalPosition::new(x.max(mp.x), y.max(mp.y)));
+            }
         }
 
         // Spawn the per-overlay render thread.  It owns the renderer
@@ -291,7 +335,7 @@ impl OverlayHandle {
                 window.id(), e,
             ))?;
 
-        Ok(Self { window, msg_tx, thread: Some(thread), monitor_key })
+        Ok(Self { window, msg_tx, thread: Some(thread), monitor_key, alpha_capable })
     }
 
     /// Clone the channel sender so the controller's `request_draw`

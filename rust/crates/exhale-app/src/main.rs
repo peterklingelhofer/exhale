@@ -1000,6 +1000,11 @@ fn main() -> Result<()> {
     // cached size from the last `configure()`, which we DO call
     // from the main thread on every Resized event).
     //
+    // `sctk_adwaita` is the Wayland client-side decoration crate;
+    // some compositors send button events it doesn't recognise and
+    // it logs a WARN per event ("Ignoring unknown button type:").
+    // Not actionable from our side, so capped at ERROR.
+    //
     // Override via `RUST_LOG=info` to see everything when actually
     // debugging wgpu/naga/wayland issues.  Re-enable just the metal
     // adapter chatter with `RUST_LOG=wgpu_hal::metal=warn`.
@@ -1009,7 +1014,8 @@ fn main() -> Result<()> {
              wgpu_core=warn,\
              wgpu_hal=warn,\
              wgpu_hal::metal::adapter=error,\
-             naga=warn",
+             naga=warn,\
+             sctk_adwaita=error",
         ),
     );
     if let Ok(file) = std::fs::OpenOptions::new()
