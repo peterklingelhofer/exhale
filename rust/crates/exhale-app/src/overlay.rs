@@ -173,175 +173,38 @@ impl OverlayHandle {
         max_circle_scale: f32,
     ) -> Result<Self> {
         let monitor_key = monitor.as_ref().map(monitor_key);
-        // Borderless window sized to the monitor — NOT a macOS-fullscreen
-        // window.  `Fullscreen::Borderless` on macOS puts the window into
-        // its own fullscreen Space, which triggers the swipe animation and
-        // cancels the click-through / always-on-top overlay behavior.
-        // The Swift reference app builds a plain NSWindow with styleMask
-        // `[.borderless, .fullSizeContentView]` covering `screen.frame` at
-        // window level `NSScreenSaverWindowLevel`; we mirror that here by
-        // supplying explicit position + size and letting
-        // `platform::setup_overlay_window` apply the level and collection
-        // behavior on macOS (and equivalent flags on Windows / X11).
-        // Cross-platform transparency: `with_transparent(true)` selects
-        // an alpha-capable visual on macOS / Linux and routes through
-        // `WS_EX_LAYERED` + `DwmEnableBlurBehindWindow` on Windows.
-        // `WS_EX_NOREDIRECTIONBITMAP` is NOT a usable alternative on
-        // Windows because that path requires a DirectComposition visual
-        // tree (`CreateSwapChainForComposition` + bound DComp visual)
-        // for the swap chain to appear, and wgpu's stock DX12 backend
-        // uses `CreateSwapChainForHwnd` which doesn't wire that up:
-        // NRB-without-DComp produces solid-black output.  Layered +
-        // DwmEnableBlurBehindWindow is the supported wgpu-friendly
-        // alpha pipeline on Windows.
-        let mut attrs = Window::default_attributes()
-            .with_title("exhale-overlay")
-            .with_transparent(true)
-            .with_decorations(false)
-            .with_resizable(false)
-            .with_window_icon(crate::app_icon::window_icon());
 
-        // Wayland-specific demotion: place the overlay at
-        // `AlwaysOnBottom` so other windows naturally cover it.  Wayland
-        // (Mutter/GNOME on Ubuntu's default session) doesn't expose any
-        // protocol winit can use for click-through — `wp_input_region`
-        // isn't surfaced through the winit API — so a topmost overlay
-        // would block every click that should go to the desktop or
-        // another app.  Bottom-stacking lets the user Alt-Tab past the
-        // overlay (other apps come in front of it), and Alt-Tab back to
-        // see the breath animation when they want it.  On X11 sessions
-        // we keep our existing `setup_overlay_window` behavior with
-        // `_NET_WM_STATE_ABOVE` + XFixes click-through, where this isn't
-        // a problem.
-        // AlwaysOnBottom on Wayland is applied ONLY to the probe
-        // window — it will become the live overlay window only if
-        // the alpha probe below succeeds.  On the fallback path
-        // (compositor exposes Opaque alpha only) we drop the probe
-        // and create a fresh windowed-app window with no window-level
-        // overrides, so the user gets a normal movable / resizable
-        // app window that participates in z-order like anything else.
+        // ── Wayland: always take the windowed-app path ────────────
+        //
+        // Wayland's security model doesn't expose a portable
+        // always-on-top or click-through protocol to winit, so the
+        // fullscreen-overlay model fundamentally doesn't work the way
+        // it does on macOS / Windows / X11.  Even the AlwaysOnBottom
+        // workaround forces the user to "make room" by narrowing
+        // their other apps, which is more friction than a regular
+        // windowed app where they just position the exhale window
+        // wherever they want.  Mutter / GNOME (Ubuntu's default
+        // compositor) doesn't expose alpha-capable swap chains to
+        // wgpu either, so even if we did try the overlay path we'd
+        // immediately fall back here.  Skip the probe entirely and
+        // give the user a normal app window from the first frame.
         #[cfg(all(unix, not(target_os = "macos")))]
         let is_wayland = std::env::var("XDG_SESSION_TYPE")
             .map(|s| s.eq_ignore_ascii_case("wayland"))
             .unwrap_or(false);
-        #[cfg(all(unix, not(target_os = "macos")))]
-        if is_wayland {
-            attrs = attrs.with_window_level(
-                winit::window::WindowLevel::AlwaysOnBottom,
+        #[cfg(not(all(unix, not(target_os = "macos"))))]
+        let is_wayland = false;
+
+        let (window, mut renderer, alpha_capable) = if is_wayland {
+            log::info!(
+                "Wayland session: running exhale as a regular windowed \
+                 app (no fullscreen overlay).  Move / resize / Alt-Tab \
+                 the window like any other app; the breath animation \
+                 renders as its content."
             );
-        }
-
-        if let Some(m) = monitor.as_ref() {
-            let pos  = m.position();
-            let size = m.size();
-            // On Windows, shrink the overlay by 1 px on the bottom edge.
-            // Windows treats a topmost window that exactly matches the
-            // monitor's geometry as an "exclusive fullscreen
-            // application" and suspends the auto-hide taskbar reveal
-            // logic — moving the mouse to the bottom edge produces no
-            // animation.  Coming up 1 pixel short prevents the
-            // fullscreen-app classification, the taskbar trigger zone
-            // reappears, and the visible breath animation loses only
-            // the bottom physical pixel (imperceptible against the
-            // soft animated gradient).  Other platforms keep the
-            // exact monitor size — macOS doesn't have this issue;
-            // X11 EWMH FULLSCREEN we apply elsewhere is the intended
-            // signal there.
-            let win_h = if cfg!(target_os = "windows") {
-                size.height.saturating_sub(1).max(1)
-            } else {
-                size.height.max(1)
-            };
-            attrs = attrs
-                .with_position(PhysicalPosition::new(pos.x, pos.y))
-                .with_inner_size(PhysicalSize::new(size.width.max(1), win_h));
-        }
-
-        // Probe the swap chain alpha modes BEFORE deciding what kind
-        // of window to expose to the user.  Some compositors (Wayland
-        // on typical Linux hardware running Mutter / GNOME, WARP under
-        // Windows VMs, remote-desktop sessions) only expose `Opaque`
-        // alpha to wgpu, which means a click-through topmost overlay
-        // would paint a blanket-black rectangle covering every pixel
-        // of every monitor.  In that case we throw away the probe
-        // window + surface entirely and recreate as a regular
-        // movable / resizable / decorated app window — patching the
-        // overlay window's attrs after the fact doesn't reliably
-        // work on Wayland (decoration / position / level changes
-        // post-mapping are no-ops on Mutter).
-        //
-        // The probe window is created `with_visible(false)` so the
-        // user never sees the fullscreen-transparent probe surface
-        // flash on screen before the decision is made
-        attrs = attrs.with_visible(false);
-        let probe_window = Arc::new(event_loop.create_window(attrs)?);
-        let probe_size   = probe_window.inner_size();
-        let probe_surface = gpu.instance.create_surface(Arc::clone(&probe_window))?;
-        let probe_renderer = OverlayRenderer::new(
-            Arc::clone(&gpu), probe_surface, probe_size.width, probe_size.height,
-        )?;
-        let alpha_capable = probe_renderer.alpha_capable();
-
-        let (window, mut renderer) = if alpha_capable {
-            // Keep the probe window — it IS the overlay window.
-            // Apply platform overlay flags (click-through, topmost,
-            // all-Spaces) and then make it visible.
-            platform::setup_overlay_window(&probe_window);
-            probe_window.set_visible(true);
-            #[cfg(all(unix, not(target_os = "macos")))]
-            if is_wayland {
-                log::info!(
-                    "Wayland session with alpha-capable swap chain: \
-                     overlay running at AlwaysOnBottom (no portable \
-                     click-through API on Wayland — for full topmost \
-                     + click-through behaviour log out and pick an \
-                     X11 session at the login screen)."
-                );
-            }
-            (probe_window, probe_renderer)
+            create_windowed_app(event_loop, &gpu, monitor.as_ref())?
         } else {
-            log::warn!(
-                "overlay swap chain only supports Opaque alpha; recreating \
-                 as a regular windowed app.  Common on real Wayland hardware \
-                 (compositor doesn't expose alpha-capable swap chains to \
-                 wgpu) and under VMs running WARP.  The breath animation \
-                 will render in a normal movable / resizable window — you \
-                 can watch it directly, or send it behind your other apps \
-                 in Rectangle mode and narrow them so the edges show \
-                 through (Python bars-mode style)."
-            );
-            // Drop the probe window + renderer + surface.  Order
-            // matters: renderer holds the wgpu surface which holds a
-            // reference to the window — drop renderer first so the
-            // surface releases before the window does
-            drop(probe_renderer);
-            drop(probe_window);
-
-            // Build the windowed-app from scratch.  Fresh attrs (no
-            // AlwaysOnBottom, no fullscreen sizing, no transparent
-            // visual) — these all stick across Wayland's map cycle
-            // because we set them at creation time
-            let mut win_attrs = Window::default_attributes()
-                .with_title("exhale")
-                .with_inner_size(PhysicalSize::new(480u32, 360u32))
-                .with_decorations(true)
-                .with_resizable(true)
-                .with_window_icon(crate::app_icon::window_icon());
-            if let Some(m) = monitor.as_ref() {
-                let mp = m.position();
-                let ms = m.size();
-                let x  = mp.x + (ms.width  as i32 - 480) / 2;
-                let y  = mp.y + (ms.height as i32 - 360) / 2;
-                win_attrs = win_attrs
-                    .with_position(PhysicalPosition::new(x.max(mp.x), y.max(mp.y)));
-            }
-            let window = Arc::new(event_loop.create_window(win_attrs)?);
-            let size = window.inner_size();
-            let surface = gpu.instance.create_surface(Arc::clone(&window))?;
-            let renderer = OverlayRenderer::new(
-                Arc::clone(&gpu), surface, size.width, size.height,
-            )?;
-            (window, renderer)
+            create_overlay_or_fallback(event_loop, &gpu, monitor.as_ref())?
         };
 
         // Spawn the per-overlay render thread.  It owns the renderer
@@ -386,6 +249,113 @@ impl OverlayHandle {
     /// immediately.
     pub fn wake_render(&self) {
         let _ = self.msg_tx.send(RenderMsg::Frame);
+    }
+}
+
+/// Build a plain decorated / resizable / movable app window that
+/// renders the breath animation as its content.  Used unconditionally
+/// on Wayland (no portable always-on-top there) and as the fallback
+/// when the overlay probe finds the swap chain is Opaque-only
+/// (WARP / remote-desktop / certain VM GPU paths).  Always returns
+/// `alpha_capable = false` so the renderer paints onto the opaque
+/// surface without compositing artefacts
+fn create_windowed_app(
+    event_loop: &ActiveEventLoop,
+    gpu:        &Arc<GpuContext>,
+    monitor:    Option<&MonitorHandle>,
+) -> Result<(Arc<Window>, OverlayRenderer, bool)> {
+    let mut win_attrs = Window::default_attributes()
+        .with_title("exhale")
+        .with_inner_size(PhysicalSize::new(480u32, 360u32))
+        .with_decorations(true)
+        .with_resizable(true)
+        .with_window_icon(crate::app_icon::window_icon());
+    if let Some(m) = monitor {
+        // Position is a HINT on Wayland (compositor decides) but
+        // honoured on X11 / Windows / macOS — request the centre of
+        // the assigned monitor.
+        let mp = m.position();
+        let ms = m.size();
+        let x  = mp.x + (ms.width  as i32 - 480) / 2;
+        let y  = mp.y + (ms.height as i32 - 360) / 2;
+        win_attrs = win_attrs
+            .with_position(PhysicalPosition::new(x.max(mp.x), y.max(mp.y)));
+    }
+    let window   = Arc::new(event_loop.create_window(win_attrs)?);
+    let size     = window.inner_size();
+    let surface  = gpu.instance.create_surface(Arc::clone(&window))?;
+    let renderer = OverlayRenderer::new(
+        Arc::clone(gpu), surface, size.width, size.height,
+    )?;
+    Ok((window, renderer, false))
+}
+
+/// Try the platform-specific fullscreen overlay path (click-through,
+/// always-on-top, all-Spaces).  Builds the borderless transparent
+/// overlay window, probes the swap chain alpha modes, and either
+/// keeps the window (alpha capable) or drops it and falls back to a
+/// plain windowed app via [`create_windowed_app`].  Used on every
+/// platform EXCEPT Wayland, which always goes through the windowed
+/// path directly because none of these overlay flags are honoured by
+/// the Wayland security model anyway
+fn create_overlay_or_fallback(
+    event_loop: &ActiveEventLoop,
+    gpu:        &Arc<GpuContext>,
+    monitor:    Option<&MonitorHandle>,
+) -> Result<(Arc<Window>, OverlayRenderer, bool)> {
+    // Borderless, transparent, fullscreen on the target monitor.
+    // The `with_visible(false)` keeps the probe window off-screen
+    // until we've decided which path to take, so the user never sees
+    // a brief flash of a fullscreen transparent shell.
+    let mut attrs = Window::default_attributes()
+        .with_title("exhale-overlay")
+        .with_transparent(true)
+        .with_decorations(false)
+        .with_resizable(false)
+        .with_visible(false)
+        .with_window_icon(crate::app_icon::window_icon());
+    if let Some(m) = monitor {
+        let pos  = m.position();
+        let size = m.size();
+        // On Windows, shrink the overlay by 1 px on the bottom edge
+        // so Windows doesn't classify the topmost window as an
+        // "exclusive fullscreen application" and suspend the
+        // auto-hide taskbar reveal logic.
+        let win_h = if cfg!(target_os = "windows") {
+            size.height.saturating_sub(1).max(1)
+        } else {
+            size.height.max(1)
+        };
+        attrs = attrs
+            .with_position(PhysicalPosition::new(pos.x, pos.y))
+            .with_inner_size(PhysicalSize::new(size.width.max(1), win_h));
+    }
+
+    let probe_window   = Arc::new(event_loop.create_window(attrs)?);
+    let probe_size     = probe_window.inner_size();
+    let probe_surface  = gpu.instance.create_surface(Arc::clone(&probe_window))?;
+    let probe_renderer = OverlayRenderer::new(
+        Arc::clone(gpu), probe_surface, probe_size.width, probe_size.height,
+    )?;
+    let alpha_capable = probe_renderer.alpha_capable();
+
+    if alpha_capable {
+        platform::setup_overlay_window(&probe_window);
+        probe_window.set_visible(true);
+        Ok((probe_window, probe_renderer, true))
+    } else {
+        log::warn!(
+            "overlay swap chain only supports Opaque alpha; falling back \
+             to a regular windowed app.  Typical under VMs running WARP / \
+             Microsoft Basic Render Driver or remote-desktop sessions.  \
+             The breath animation will render in a normal movable / \
+             resizable window instead of as a click-through overlay."
+        );
+        // Order matters: drop renderer (releases the surface) before
+        // the window so the surface releases its reference cleanly.
+        drop(probe_renderer);
+        drop(probe_window);
+        create_windowed_app(event_loop, gpu, monitor)
     }
 }
 
