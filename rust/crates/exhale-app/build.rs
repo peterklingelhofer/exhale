@@ -15,7 +15,6 @@ fn main() {
     // us what OS we're compiling FOR (the host OS comes from
     // `std::env::consts::OS`, which is different).
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
-    if target_os != "windows" { return; }
 
     let src_png = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..").join("..").join("..")
@@ -30,13 +29,29 @@ fn main() {
     println!("cargo:rerun-if-changed={}", src_png.display());
 
     let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR set by cargo");
-    let ico_path = std::path::PathBuf::from(&out_dir).join("exhale.ico");
 
+    // ── All targets: pre-decode a 256×256 RGBA bitmap and emit raw
+    // bytes to `OUT_DIR/icon.rgba`.  The runtime `include_bytes!`s
+    // this and hands it to winit via `WindowAttributes::with_window_icon`
+    // so the dock / Alt-Tab / taskbar shows the exhale icon for any
+    // window the app creates.  Especially relevant on Linux where a
+    // raw binary run from a terminal has no `.desktop` file installed
+    // and the compositor otherwise falls back to a generic icon
+    let rgba_path = std::path::PathBuf::from(&out_dir).join("icon.rgba");
+    if let Err(e) = png_to_rgba_256(&src_png, &rgba_path) {
+        println!("cargo:warning=icon PNG→RGBA conversion failed: {e}; \
+                  binary windows will use the platform default icon");
+    }
+
+    // ── Windows: also produce a multi-resolution .ico and embed it
+    // as an .exe resource so Explorer / Start / Alt-Tab pick it up
+    // (separate from the window icon — Windows uses BOTH)
+    if target_os != "windows" { return; }
+    let ico_path = std::path::PathBuf::from(&out_dir).join("exhale.ico");
     if let Err(e) = png_to_ico(&src_png, &ico_path) {
         println!("cargo:warning=PNG→ICO conversion failed: {e}; skipping embed");
         return;
     }
-
     let mut res = winresource::WindowsResource::new();
     res.set_icon(ico_path.to_str().expect("ICO path is UTF-8"));
     if let Err(e) = res.compile() {
@@ -47,6 +62,20 @@ fn main() {
         println!("cargo:warning=icon resource embed failed: {e}; \
                   binary will have the default Windows icon");
     }
+}
+
+/// Decode the source PNG, resize to 256×256, write raw RGBA bytes
+/// (no headers — just `w*h*4` bytes) for the runtime to load.
+fn png_to_rgba_256(
+    src: &std::path::Path,
+    dst: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let img = image::open(src)?.to_rgba8();
+    let resized = image::imageops::resize(
+        &img, 256, 256, image::imageops::FilterType::Lanczos3,
+    );
+    std::fs::write(dst, resized.into_raw())?;
+    Ok(())
 }
 
 fn png_to_ico(

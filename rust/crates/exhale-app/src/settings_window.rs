@@ -357,7 +357,8 @@ impl SettingsWindow {
             .with_min_inner_size(winit::dpi::LogicalSize::new(SETTINGS_WIDTH, SETTINGS_MIN_HEIGHT))
             .with_resizable(true)
             .with_transparent(want_transparent)
-            .with_decorations(true);
+            .with_decorations(true)
+            .with_window_icon(crate::app_icon::window_icon());
 
         let window = Arc::new(event_loop.create_window(attrs)?);
 

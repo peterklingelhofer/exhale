@@ -198,7 +198,8 @@ impl OverlayHandle {
             .with_title("exhale-overlay")
             .with_transparent(true)
             .with_decorations(false)
-            .with_resizable(false);
+            .with_resizable(false)
+            .with_window_icon(crate::app_icon::window_icon());
 
         // Wayland-specific demotion: place the overlay at
         // `AlwaysOnBottom` so other windows naturally cover it.  Wayland
@@ -212,24 +213,22 @@ impl OverlayHandle {
         // we keep our existing `setup_overlay_window` behavior with
         // `_NET_WM_STATE_ABOVE` + XFixes click-through, where this isn't
         // a problem.
+        // AlwaysOnBottom on Wayland is applied ONLY to the probe
+        // window — it will become the live overlay window only if
+        // the alpha probe below succeeds.  On the fallback path
+        // (compositor exposes Opaque alpha only) we drop the probe
+        // and create a fresh windowed-app window with no window-level
+        // overrides, so the user gets a normal movable / resizable
+        // app window that participates in z-order like anything else.
         #[cfg(all(unix, not(target_os = "macos")))]
-        {
-            let is_wayland = std::env::var("XDG_SESSION_TYPE")
-                .map(|s| s.eq_ignore_ascii_case("wayland"))
-                .unwrap_or(false);
-            if is_wayland {
-                attrs = attrs.with_window_level(
-                    winit::window::WindowLevel::AlwaysOnBottom,
-                );
-                log::info!(
-                    "Wayland session detected: placing overlay at \
-                     AlwaysOnBottom so other windows can cover it.  \
-                     Wayland has no portable click-through API — for \
-                     full overlay behavior log out and pick \
-                     'Ubuntu on Xorg' (or any X11 session) at the \
-                     login screen."
-                );
-            }
+        let is_wayland = std::env::var("XDG_SESSION_TYPE")
+            .map(|s| s.eq_ignore_ascii_case("wayland"))
+            .unwrap_or(false);
+        #[cfg(all(unix, not(target_os = "macos")))]
+        if is_wayland {
+            attrs = attrs.with_window_level(
+                winit::window::WindowLevel::AlwaysOnBottom,
+            );
         }
 
         if let Some(m) = monitor.as_ref() {
@@ -258,61 +257,92 @@ impl OverlayHandle {
                 .with_inner_size(PhysicalSize::new(size.width.max(1), win_h));
         }
 
-        let window = Arc::new(event_loop.create_window(attrs)?);
+        // Probe the swap chain alpha modes BEFORE deciding what kind
+        // of window to expose to the user.  Some compositors (Wayland
+        // on typical Linux hardware running Mutter / GNOME, WARP under
+        // Windows VMs, remote-desktop sessions) only expose `Opaque`
+        // alpha to wgpu, which means a click-through topmost overlay
+        // would paint a blanket-black rectangle covering every pixel
+        // of every monitor.  In that case we throw away the probe
+        // window + surface entirely and recreate as a regular
+        // movable / resizable / decorated app window — patching the
+        // overlay window's attrs after the fact doesn't reliably
+        // work on Wayland (decoration / position / level changes
+        // post-mapping are no-ops on Mutter).
+        //
+        // The probe window is created `with_visible(false)` so the
+        // user never sees the fullscreen-transparent probe surface
+        // flash on screen before the decision is made
+        attrs = attrs.with_visible(false);
+        let probe_window = Arc::new(event_loop.create_window(attrs)?);
+        let probe_size   = probe_window.inner_size();
+        let probe_surface = gpu.instance.create_surface(Arc::clone(&probe_window))?;
+        let probe_renderer = OverlayRenderer::new(
+            Arc::clone(&gpu), probe_surface, probe_size.width, probe_size.height,
+        )?;
+        let alpha_capable = probe_renderer.alpha_capable();
 
-        // Probe the swap chain alpha modes BEFORE applying the
-        // platform-specific overlay window flags.  Some compositors
-        // (Wayland on real Linux hardware, WARP under Windows VMs,
-        // certain headless / remote-desktop sessions) only expose
-        // `Opaque` alpha to wgpu, which means a click-through topmost
-        // window would paint a blanket-black rectangle covering every
-        // pixel of every monitor.  In that case we reconfigure the
-        // window as a regular movable / resizable / decorated app
-        // window instead — the breath animation renders fine, just
-        // not as a click-through overlay.
-        let size    = window.inner_size();
-        let surface = gpu.instance.create_surface(Arc::clone(&window))?;
-        let mut renderer =
-            OverlayRenderer::new(Arc::clone(&gpu), surface, size.width, size.height)?;
-        let alpha_capable = renderer.alpha_capable();
-
-        if alpha_capable {
-            // Standard overlay: click-through, always-on-top, all-Spaces
-            platform::setup_overlay_window(&window);
-        } else {
-            // Windowed-app fallback: undo the borderless / immovable
-            // attrs from the window builder and resize to something
-            // sensible.  We deliberately do NOT call
-            // `setup_overlay_window` (which would re-apply the
-            // click-through / topmost flags) — the user wants a
-            // normal app window they can move and bring to the
-            // foreground like any other window
-            log::warn!(
-                "overlay swap chain only supports Opaque alpha; falling \
-                 back to a regular windowed app.  Common on real Wayland \
-                 hardware (compositor doesn't expose alpha-capable swap \
-                 chains to wgpu) and under VMs running WARP.  The breath \
-                 animation will render in a normal movable / resizable \
-                 window instead of as a fullscreen overlay."
-            );
-            window.set_title("exhale");
-            let _ = window.request_inner_size(PhysicalSize::new(480u32, 360u32));
-            #[allow(deprecated)]
-            window.set_decorations(true);
-            #[allow(deprecated)]
-            window.set_resizable(true);
-            // Centre on the monitor we were assigned (or skip if we
-            // were given no monitor — the OS default placement takes
-            // over).
-            if let Some(m) = monitor.as_ref() {
-                let mp   = m.position();
-                let ms   = m.size();
-                let win  = window.outer_size();
-                let x    = mp.x + (ms.width  as i32 - win.width  as i32) / 2;
-                let y    = mp.y + (ms.height as i32 - win.height as i32) / 2;
-                window.set_outer_position(PhysicalPosition::new(x.max(mp.x), y.max(mp.y)));
+        let (window, mut renderer) = if alpha_capable {
+            // Keep the probe window — it IS the overlay window.
+            // Apply platform overlay flags (click-through, topmost,
+            // all-Spaces) and then make it visible.
+            platform::setup_overlay_window(&probe_window);
+            probe_window.set_visible(true);
+            #[cfg(all(unix, not(target_os = "macos")))]
+            if is_wayland {
+                log::info!(
+                    "Wayland session with alpha-capable swap chain: \
+                     overlay running at AlwaysOnBottom (no portable \
+                     click-through API on Wayland — for full topmost \
+                     + click-through behaviour log out and pick an \
+                     X11 session at the login screen)."
+                );
             }
-        }
+            (probe_window, probe_renderer)
+        } else {
+            log::warn!(
+                "overlay swap chain only supports Opaque alpha; recreating \
+                 as a regular windowed app.  Common on real Wayland hardware \
+                 (compositor doesn't expose alpha-capable swap chains to \
+                 wgpu) and under VMs running WARP.  The breath animation \
+                 will render in a normal movable / resizable window — you \
+                 can watch it directly, or send it behind your other apps \
+                 in Rectangle mode and narrow them so the edges show \
+                 through (Python bars-mode style)."
+            );
+            // Drop the probe window + renderer + surface.  Order
+            // matters: renderer holds the wgpu surface which holds a
+            // reference to the window — drop renderer first so the
+            // surface releases before the window does
+            drop(probe_renderer);
+            drop(probe_window);
+
+            // Build the windowed-app from scratch.  Fresh attrs (no
+            // AlwaysOnBottom, no fullscreen sizing, no transparent
+            // visual) — these all stick across Wayland's map cycle
+            // because we set them at creation time
+            let mut win_attrs = Window::default_attributes()
+                .with_title("exhale")
+                .with_inner_size(PhysicalSize::new(480u32, 360u32))
+                .with_decorations(true)
+                .with_resizable(true)
+                .with_window_icon(crate::app_icon::window_icon());
+            if let Some(m) = monitor.as_ref() {
+                let mp = m.position();
+                let ms = m.size();
+                let x  = mp.x + (ms.width  as i32 - 480) / 2;
+                let y  = mp.y + (ms.height as i32 - 360) / 2;
+                win_attrs = win_attrs
+                    .with_position(PhysicalPosition::new(x.max(mp.x), y.max(mp.y)));
+            }
+            let window = Arc::new(event_loop.create_window(win_attrs)?);
+            let size = window.inner_size();
+            let surface = gpu.instance.create_surface(Arc::clone(&window))?;
+            let renderer = OverlayRenderer::new(
+                Arc::clone(&gpu), surface, size.width, size.height,
+            )?;
+            (window, renderer)
+        };
 
         // Spawn the per-overlay render thread.  It owns the renderer
         // for its entire lifetime; the main thread only sends Frame /
