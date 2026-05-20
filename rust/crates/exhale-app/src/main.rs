@@ -7,6 +7,7 @@
 // behavior Windows does for entry-point executables.
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 
+mod app_icon;
 mod bootstrap;
 #[cfg(feature = "global-hotkeys")]
 mod hotkeys;
