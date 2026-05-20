@@ -41,7 +41,7 @@ use crate::platform;
 /// render thread.  The render thread owns the wgpu surface + renderer and
 /// processes one message at a time, coalescing duplicate `Frame` requests
 /// so it never falls behind under controller bursts.
-enum RenderMsg {
+pub enum RenderMsg {
     /// Wake up and render the latest controller state.  The controller
     /// writes its state slot BEFORE sending this, so a `Frame` always
     /// observes the most recent breathing snapshot via the Mutex barrier
@@ -56,19 +56,41 @@ enum RenderMsg {
     Shutdown,
 }
 
-/// Wake handle for an overlay's render thread.  Clone-friendly so the
-/// controller can hold one per overlay and fan out frame signals
-/// without owning the [`OverlayHandle`].  Bypasses the main event
-/// loop's message queue entirely
+/// Wake handle for an overlay.  Clone-friendly so the controller can
+/// hold one per overlay and fan out frame signals without owning the
+/// [`OverlayHandle`].
+///
+/// Has two variants because overlays use two different rendering
+/// architectures depending on the platform:
+///
+///   - [`FrameSender::Channel`] — fires a `Frame` message into the
+///     per-window render thread's mpsc channel, bypassing the main
+///     event loop's message queue entirely.  Used on macOS / Windows
+///     / Linux X11 where wgpu can acquire a swap-chain texture from
+///     any thread.
+///   - [`FrameSender::Redraw`] — calls `window.request_redraw()`
+///     which causes winit to emit a `RedrawRequested` event on the
+///     main thread.  Used on Wayland where the compositor's
+///     frame-callback protocol requires `surface.get_current_texture()`
+///     to run on the main thread; a background-thread render leaves
+///     the xdg_toplevel in a "configured but unmapped" state
 #[derive(Clone)]
-pub struct FrameSender(Sender<RenderMsg>);
+pub enum FrameSender {
+    Channel(Sender<RenderMsg>),
+    Redraw(Arc<Window>),
+}
 
 impl FrameSender {
-    /// Wake the render thread.  Coalesced on the receiving side, so
-    /// calling this faster than the renderer can keep up just folds
-    /// into a single render pass against the latest controller state.
+    /// Signal that the overlay should render the latest controller
+    /// state.  Coalesced on the receiving side (channel: thread loop;
+    /// redraw: winit's per-frame `request_redraw` dedup), so calling
+    /// this faster than the renderer can keep up just folds into a
+    /// single render pass against the latest controller state.
     pub fn send_frame(&self) {
-        let _ = self.0.send(RenderMsg::Frame);
+        match self {
+            Self::Channel(tx) => { let _ = tx.send(RenderMsg::Frame); }
+            Self::Redraw(window) => window.request_redraw(),
+        }
     }
 }
 
@@ -89,14 +111,6 @@ impl FrameSender {
 /// channel that bypasses the Windows message queue entirely
 pub struct OverlayHandle {
     pub window: Arc<Window>,
-    /// Sender to the render thread.  Cloned for the controller's
-    /// `request_draw` callback so frame signals go straight to the
-    /// renderer without touching the main thread's message queue
-    msg_tx:     Sender<RenderMsg>,
-    /// Join handle for the render thread.  Taken on shutdown so we
-    /// can wait for the thread to drop the renderer / wgpu resources
-    /// before the app exits
-    thread:     Option<JoinHandle<()>>,
     /// Monitor this overlay covers.  `None` for the fallback overlay
     /// created when `available_monitors()` returned empty at startup
     monitor_key: Option<MonitorKey>,
@@ -107,6 +121,50 @@ pub struct OverlayHandle {
     /// `create_all` to avoid spawning duplicate fallback windows on
     /// every monitor
     pub alpha_capable: bool,
+    /// Render dispatch: per-window thread (macOS / Windows / Linux
+    /// X11) or main-thread synchronous rendering (Wayland)
+    mode:        HandleMode,
+}
+
+/// How this overlay's renderer is driven.
+///
+/// `Threaded` keeps a per-window background thread that owns the
+/// renderer outright and renders in response to `Frame` channel
+/// messages — the original architecture, used everywhere wgpu can
+/// safely acquire swap-chain textures from a non-main thread.
+///
+/// `MainThread` keeps the renderer in a [`Mutex`] on the handle so
+/// it can be locked and called from `main.rs`'s `RedrawRequested`
+/// event handler.  Required on Wayland: `surface.get_current_texture()`
+/// must run synchronized with the compositor's `frame_callback`
+/// protocol, which winit only delivers via `RedrawRequested` on the
+/// main thread.  A background-thread render on Wayland returns
+/// `Outdated` indefinitely and never commits a buffer, leaving the
+/// xdg_toplevel in a "configured but unmapped" state — visible in
+/// the dock but with nothing to display
+enum HandleMode {
+    Threaded {
+        /// Sender to the render thread.  Cloned for the controller's
+        /// `request_draw` callback so frame signals go straight to
+        /// the renderer without touching the main thread's message
+        /// queue.
+        msg_tx: Sender<RenderMsg>,
+        /// Join handle for the render thread.  Taken on shutdown so
+        /// we can wait for the thread to drop the renderer / wgpu
+        /// resources before the app exits.
+        thread: Option<JoinHandle<()>>,
+    },
+    /// Boxed because the `Mutex<OverlayRenderer>` payload is much
+    /// larger than the `Threaded` variant's two pointer-sized fields;
+    /// boxing keeps `HandleMode` itself compact
+    MainThread(Box<MainThreadState>),
+}
+
+struct MainThreadState {
+    renderer:         Mutex<OverlayRenderer>,
+    state:            Arc<Mutex<Option<BreathingState>>>,
+    settings:         Arc<RwLock<Settings>>,
+    max_circle_scale: f32,
 }
 
 impl OverlayHandle {
@@ -174,20 +232,20 @@ impl OverlayHandle {
     ) -> Result<Self> {
         let monitor_key = monitor.as_ref().map(monitor_key);
 
-        // ── Wayland: always take the windowed-app path ────────────
+        // ── Wayland: always take the windowed-app + main-thread path ──
         //
         // Wayland's security model doesn't expose a portable
         // always-on-top or click-through protocol to winit, so the
-        // fullscreen-overlay model fundamentally doesn't work the way
-        // it does on macOS / Windows / X11.  Even the AlwaysOnBottom
-        // workaround forces the user to "make room" by narrowing
-        // their other apps, which is more friction than a regular
-        // windowed app where they just position the exhale window
-        // wherever they want.  Mutter / GNOME (Ubuntu's default
-        // compositor) doesn't expose alpha-capable swap chains to
-        // wgpu either, so even if we did try the overlay path we'd
-        // immediately fall back here.  Skip the probe entirely and
-        // give the user a normal app window from the first frame.
+        // fullscreen-overlay model fundamentally doesn't work the
+        // way it does on macOS / Windows / X11.  Additionally,
+        // Mutter / GNOME (Ubuntu's default compositor) only exposes
+        // Opaque alpha to wgpu, so even an AlwaysOnBottom overlay
+        // would render as a solid-black rectangle covering the
+        // whole screen.  The right answer here is a regular
+        // windowed app the user can move / resize like anything
+        // else, rendered on the main thread so wgpu's surface
+        // acquisition stays synchronized with the compositor's
+        // frame-callback protocol (see `HandleMode` doc).
         #[cfg(all(unix, not(target_os = "macos")))]
         let is_wayland = std::env::var("XDG_SESSION_TYPE")
             .map(|s| s.eq_ignore_ascii_case("wayland"))
@@ -195,24 +253,42 @@ impl OverlayHandle {
         #[cfg(not(all(unix, not(target_os = "macos"))))]
         let is_wayland = false;
 
-        let (window, mut renderer, alpha_capable) = if is_wayland {
+        if is_wayland {
             log::info!(
                 "Wayland session: running exhale as a regular windowed \
-                 app (no fullscreen overlay).  Move / resize / Alt-Tab \
-                 the window like any other app; the breath animation \
-                 renders as its content."
+                 app (no fullscreen overlay).  Rendering on the main \
+                 thread via RedrawRequested so wgpu surface acquisition \
+                 stays in sync with the compositor's frame_callback \
+                 protocol — move / resize / Alt-Tab the window like \
+                 any other app; the breath animation renders as its \
+                 content."
             );
-            create_windowed_app(event_loop, &gpu, monitor.as_ref())?
-        } else {
-            create_overlay_or_fallback(event_loop, &gpu, monitor.as_ref())?
-        };
+            let (window, renderer, alpha_capable) =
+                create_windowed_app(event_loop, &gpu, monitor.as_ref())?;
+            // Kick off the first frame.  Wayland needs an initial
+            // RedrawRequested → render → buffer commit cycle for the
+            // xdg_toplevel to actually map; without this the window
+            // sits in the dock but never appears on screen.  This
+            // request lands on the main thread's event queue and
+            // fires as soon as resumed() returns
+            window.request_redraw();
+            return Ok(Self {
+                window,
+                monitor_key,
+                alpha_capable,
+                mode: HandleMode::MainThread(Box::new(MainThreadState {
+                    renderer: Mutex::new(renderer),
+                    state,
+                    settings,
+                    max_circle_scale,
+                })),
+            });
+        }
 
-        // Spawn the per-overlay render thread.  It owns the renderer
-        // for its entire lifetime; the main thread only sends Frame /
-        // Resize / Shutdown messages over the channel.  Frame messages
-        // bypass the Windows main-thread message pump entirely, so a
-        // WM_MOUSEMOVE storm over the settings window can't starve the
-        // overlay's render slots.
+        // ── Non-Wayland: per-window render thread ──────────────────
+        let (window, mut renderer, alpha_capable) =
+            create_overlay_or_fallback(event_loop, &gpu, monitor.as_ref())?;
+
         let (msg_tx, msg_rx) = mpsc::channel::<RenderMsg>();
         let thread = thread::Builder::new()
             .name(format!("exhale-overlay-{:?}", window.id()))
@@ -228,27 +304,64 @@ impl OverlayHandle {
                 window.id(), e,
             ))?;
 
-        Ok(Self { window, msg_tx, thread: Some(thread), monitor_key, alpha_capable })
+        Ok(Self {
+            window,
+            monitor_key,
+            alpha_capable,
+            mode: HandleMode::Threaded { msg_tx, thread: Some(thread) },
+        })
     }
 
-    /// Clone the channel sender so the controller's `request_draw`
-    /// closure can deliver Frame signals directly to this render
-    /// thread (bypassing the main event loop).
+    /// Build a [`FrameSender`] tuned to this overlay's render mode —
+    /// channel send for threaded overlays, `request_redraw` for
+    /// main-thread (Wayland) overlays.  See [`FrameSender`] doc.
     pub fn frame_sender(&self) -> FrameSender {
-        FrameSender(self.msg_tx.clone())
+        match &self.mode {
+            HandleMode::Threaded { msg_tx, .. } =>
+                FrameSender::Channel(msg_tx.clone()),
+            HandleMode::MainThread(_) =>
+                FrameSender::Redraw(Arc::clone(&self.window)),
+        }
     }
 
     pub fn resize(&self, size: PhysicalSize<u32>) {
-        let _ = self.msg_tx.send(RenderMsg::Resize(size));
+        match &self.mode {
+            HandleMode::Threaded { msg_tx, .. } => {
+                let _ = msg_tx.send(RenderMsg::Resize(size));
+            }
+            HandleMode::MainThread(state) => {
+                state.renderer.lock_or_recover().resize(size.width, size.height);
+            }
+        }
     }
 
-    /// Wake the render thread to draw one frame against the latest
-    /// shared controller state.  Used by main-thread code paths that
-    /// mutate settings outside of a controller tick (Start/Stop, theme
+    /// Wake the renderer to draw one frame against the latest shared
+    /// controller state.  Used by main-thread code paths that mutate
+    /// settings outside of a controller tick (Start/Stop, theme
     /// change, etc.) and want the overlay to reflect the change
     /// immediately.
     pub fn wake_render(&self) {
-        let _ = self.msg_tx.send(RenderMsg::Frame);
+        self.frame_sender().send_frame();
+    }
+
+    /// Render synchronously on the calling thread.  No-op for
+    /// threaded overlays (their render thread owns the renderer).
+    /// Called from `main.rs`'s `RedrawRequested` handler for
+    /// `MainThread` overlays — the only path that drives Wayland
+    /// rendering, since the compositor's frame_callback arrives
+    /// through the event loop and not via the controller's
+    /// background-thread `Frame` channel.
+    pub fn render_on_main(&self) {
+        if let HandleMode::MainThread(mt) = &self.mode {
+            let mut r = mt.renderer.lock_or_recover();
+            let snap = *mt.state.lock_or_recover();
+            if let Some(snap) = snap {
+                let s = mt.settings.read_or_recover();
+                if let Err(e) = r.render(&snap, &s, mt.max_circle_scale) {
+                    log::warn!("overlay main-thread render: {e}");
+                }
+            }
+        }
     }
 }
 
@@ -361,31 +474,28 @@ fn create_overlay_or_fallback(
 
 impl Drop for OverlayHandle {
     fn drop(&mut self) {
-        // Best-effort: tell the render thread to exit, then wait for
-        // it.  If the channel is already closed (thread panicked) the
-        // send fails silently and the join still works.  Joining
-        // before drop completes prevents the wgpu device from being
-        // released while the thread is mid-frame.
-        let _ = self.msg_tx.send(RenderMsg::Shutdown);
-        if let Some(h) = self.thread.take() {
-            let thread_name = h.thread().name().unwrap_or("exhale-overlay-?").to_string();
-            // Surface a panic in the render thread rather than silently
-            // swallowing it.  Previous code did `let _ = h.join();`
-            // which meant a wgpu device crash mid-frame produced only a
-            // missing log line; now we log loudly with the captured
-            // panic payload so post-mortem debugging has something to
-            // grep for.
-            match h.join() {
-                Ok(()) => {}
-                Err(payload) => {
-                    let msg = if let Some(s) = payload.downcast_ref::<&'static str>() {
-                        (*s).to_string()
-                    } else if let Some(s) = payload.downcast_ref::<String>() {
-                        s.clone()
-                    } else {
-                        "<non-string panic payload>".to_string()
-                    };
-                    log::error!("render thread `{thread_name}` panicked: {msg}");
+        // Threaded mode: tell the render thread to exit and wait for
+        // it so the wgpu device + queue + surface release cleanly
+        // before the app exits.  MainThread mode has no thread —
+        // the renderer drops with the handle automatically.
+        if let HandleMode::Threaded { msg_tx, thread } = &mut self.mode {
+            let _ = msg_tx.send(RenderMsg::Shutdown);
+            if let Some(h) = thread.take() {
+                let thread_name = h.thread().name().unwrap_or("exhale-overlay-?").to_string();
+                // Surface a panic in the render thread rather than
+                // silently swallowing it
+                match h.join() {
+                    Ok(()) => {}
+                    Err(payload) => {
+                        let msg = if let Some(s) = payload.downcast_ref::<&'static str>() {
+                            (*s).to_string()
+                        } else if let Some(s) = payload.downcast_ref::<String>() {
+                            s.clone()
+                        } else {
+                            "<non-string panic payload>".to_string()
+                        };
+                        log::error!("render thread `{thread_name}` panicked: {msg}");
+                    }
                 }
             }
         }
