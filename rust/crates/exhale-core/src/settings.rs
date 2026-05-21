@@ -86,6 +86,212 @@ pub struct Settings {
     pub animation_window_height: Option<u32>,
     #[serde(default)]
     pub animation_window_screen: Option<String>,
+
+    // ── User-customisable global hotkeys ─────────────────────────────────────
+    /// Per-action global keyboard shortcuts.  Users right-click the
+    /// matching button in the settings window to change one;
+    /// "Reset to Defaults" restores every shortcut to its
+    /// [`KeyboardShortcuts::default`] value.  Stored at the bottom of
+    /// the file with `#[serde(default)]` so older `settings.toml`
+    /// files without this section still load and pick up the defaults
+    #[serde(default)]
+    pub keyboard_shortcuts: KeyboardShortcuts,
+}
+
+// ── KeyboardShortcut bitmask constants ────────────────────────────────────────
+//
+// Used as a packed `u8` instead of a `bitflags` type so the on-disk
+// TOML representation is a simple integer the user can sanity-check
+// without consulting documentation.  Bits chosen to match the order
+// global-hotkey's `Modifiers` flags use internally
+/// Control / `^`
+pub const KBD_MOD_CTRL:  u8 = 1 << 0;
+/// Shift / `⇧`
+pub const KBD_MOD_SHIFT: u8 = 1 << 1;
+/// Alt / Option / `⌥`
+pub const KBD_MOD_ALT:   u8 = 1 << 2;
+/// Meta / Command / Windows key / `⌘`
+pub const KBD_MOD_META:  u8 = 1 << 3;
+
+/// A single global-hotkey binding.  `code` is the string form of
+/// [`keyboard_types::Code`] (e.g. `"KeyA"`, `"Comma"`, `"Digit1"`) so
+/// the serialised representation stays stable across crate-version
+/// bumps that might re-number the underlying enum
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyboardShortcut {
+    /// Bitmask of `KBD_MOD_*`.
+    pub modifiers: u8,
+    /// `keyboard_types::Code` variant name.
+    pub code:      String,
+}
+
+impl KeyboardShortcut {
+    pub fn new(modifiers: u8, code: impl Into<String>) -> Self {
+        Self { modifiers, code: code.into() }
+    }
+
+    pub fn ctrl_shift(code: impl Into<String>) -> Self {
+        Self::new(KBD_MOD_CTRL | KBD_MOD_SHIFT, code)
+    }
+
+    pub fn has_ctrl(&self)  -> bool { self.modifiers & KBD_MOD_CTRL  != 0 }
+    pub fn has_shift(&self) -> bool { self.modifiers & KBD_MOD_SHIFT != 0 }
+    pub fn has_alt(&self)   -> bool { self.modifiers & KBD_MOD_ALT   != 0 }
+    pub fn has_meta(&self)  -> bool { self.modifiers & KBD_MOD_META  != 0 }
+
+    /// Human-readable rendering for tooltips and capture prompts.
+    /// macOS users see the standard glyph triad (`⌃⇧⌥⌘`); other
+    /// platforms get textual `Ctrl+Shift+...` so the string remains
+    /// legible in any font.  The trailing key strips the `Key` /
+    /// `Digit` prefixes that come from `keyboard_types::Code`'s
+    /// variant names
+    pub fn display(&self) -> String {
+        #[cfg(target_os = "macos")]
+        let (ctrl, shift, alt, meta) = ("\u{2303}", "\u{21E7}", "\u{2325}", "\u{2318}");
+        #[cfg(not(target_os = "macos"))]
+        let (ctrl, shift, alt, meta) = ("Ctrl", "Shift", "Alt", "Meta");
+
+        let mut parts: Vec<String> = Vec::new();
+        if self.has_ctrl()  { parts.push(ctrl.into()); }
+        if self.has_alt()   { parts.push(alt.into()); }
+        if self.has_shift() { parts.push(shift.into()); }
+        if self.has_meta()  { parts.push(meta.into()); }
+        parts.push(human_key(&self.code));
+        #[cfg(target_os = "macos")]
+        { parts.join("") }
+        #[cfg(not(target_os = "macos"))]
+        { parts.join("+") }
+    }
+}
+
+fn human_key(code: &str) -> String {
+    if let Some(rest) = code.strip_prefix("Key")   { return rest.to_string(); }
+    if let Some(rest) = code.strip_prefix("Digit") { return rest.to_string(); }
+    match code {
+        "Comma"        => ",".into(),
+        "Period"       => ".".into(),
+        "Slash"        => "/".into(),
+        "Backslash"    => "\\".into(),
+        "Semicolon"    => ";".into(),
+        "Quote"        => "'".into(),
+        "Backquote"    => "`".into(),
+        "Minus"        => "-".into(),
+        "Equal"        => "=".into(),
+        "BracketLeft"  => "[".into(),
+        "BracketRight" => "]".into(),
+        "Space"        => "Space".into(),
+        "Enter"        => "Enter".into(),
+        "Tab"          => "Tab".into(),
+        "Escape"       => "Esc".into(),
+        "Backspace"    => "Backspace".into(),
+        "ArrowLeft"    => "←".into(),
+        "ArrowRight"   => "→".into(),
+        "ArrowUp"      => "↑".into(),
+        "ArrowDown"    => "↓".into(),
+        _              => code.into(),
+    }
+}
+
+/// Per-action global-hotkey defaults.  Bound to S/D/F for the main
+/// triad (Start / Stop / Reset), Q for Quit, and W for Preferences.
+/// The triad sits on the home row to favour muscle memory; A is
+/// avoided because Ctrl+Shift+A is captured by enough other apps
+/// (browsers, Teams, etc.) that the global registration looked
+/// silent on at least one tested macOS environment.  `W` over
+/// Cmd-style `,` because comma is also reported unreliable on
+/// macOS.  `Q` over Cmd+Q because Cmd+Q is the system-wide "quit
+/// current app" shortcut on macOS — registering it globally would
+/// steal it from every other app.  `Ctrl+Shift+Q` is rarely used
+/// globally on macOS / Windows / Linux
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyboardShortcuts {
+    #[serde(default = "KeyboardShortcuts::default_start")]
+    pub start:       KeyboardShortcut,
+    #[serde(default = "KeyboardShortcuts::default_stop")]
+    pub stop:        KeyboardShortcut,
+    #[serde(default = "KeyboardShortcuts::default_reset")]
+    pub reset:       KeyboardShortcut,
+    #[serde(default = "KeyboardShortcuts::default_quit")]
+    pub quit:        KeyboardShortcut,
+    #[serde(default = "KeyboardShortcuts::default_preferences")]
+    pub preferences: KeyboardShortcut,
+}
+
+impl KeyboardShortcuts {
+    pub fn default_start()       -> KeyboardShortcut { KeyboardShortcut::ctrl_shift("KeyS") }
+    pub fn default_stop()        -> KeyboardShortcut { KeyboardShortcut::ctrl_shift("KeyD") }
+    pub fn default_reset()       -> KeyboardShortcut { KeyboardShortcut::ctrl_shift("KeyF") }
+    pub fn default_quit()        -> KeyboardShortcut { KeyboardShortcut::ctrl_shift("KeyQ") }
+    pub fn default_preferences() -> KeyboardShortcut { KeyboardShortcut::ctrl_shift("KeyW") }
+}
+
+impl Default for KeyboardShortcuts {
+    fn default() -> Self {
+        Self {
+            start:       Self::default_start(),
+            stop:        Self::default_stop(),
+            reset:       Self::default_reset(),
+            quit:        Self::default_quit(),
+            preferences: Self::default_preferences(),
+        }
+    }
+}
+
+/// Names every per-action slot in [`KeyboardShortcuts`] so callers in
+/// `exhale-app` (UI capture state, dispatcher) can refer to a slot
+/// without owning the matching `KeyboardShortcut`
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ShortcutAction {
+    Start,
+    Stop,
+    Reset,
+    Quit,
+    Preferences,
+}
+
+impl ShortcutAction {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Start       => "Start",
+            Self::Stop        => "Stop",
+            Self::Reset       => "Reset",
+            Self::Quit        => "Quit",
+            Self::Preferences => "Preferences",
+        }
+    }
+}
+
+impl KeyboardShortcuts {
+    pub fn get(&self, action: ShortcutAction) -> &KeyboardShortcut {
+        match action {
+            ShortcutAction::Start       => &self.start,
+            ShortcutAction::Stop        => &self.stop,
+            ShortcutAction::Reset       => &self.reset,
+            ShortcutAction::Quit        => &self.quit,
+            ShortcutAction::Preferences => &self.preferences,
+        }
+    }
+
+    pub fn set(&mut self, action: ShortcutAction, sc: KeyboardShortcut) {
+        match action {
+            ShortcutAction::Start       => self.start       = sc,
+            ShortcutAction::Stop        => self.stop        = sc,
+            ShortcutAction::Reset       => self.reset       = sc,
+            ShortcutAction::Quit        => self.quit        = sc,
+            ShortcutAction::Preferences => self.preferences = sc,
+        }
+    }
+
+    pub fn reset_to_default(&mut self, action: ShortcutAction) {
+        let default = match action {
+            ShortcutAction::Start       => Self::default_start(),
+            ShortcutAction::Stop        => Self::default_stop(),
+            ShortcutAction::Reset       => Self::default_reset(),
+            ShortcutAction::Quit        => Self::default_quit(),
+            ShortcutAction::Preferences => Self::default_preferences(),
+        };
+        self.set(action, default);
+    }
 }
 
 /// Persisted-position view of either application window.  Acts as a
@@ -150,6 +356,8 @@ impl Default for Settings {
             animation_window_width:  None,
             animation_window_height: None,
             animation_window_screen: None,
+
+            keyboard_shortcuts: KeyboardShortcuts::default(),
         }
     }
 }

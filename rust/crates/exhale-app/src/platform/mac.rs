@@ -749,6 +749,34 @@ use super::*;
             let _: *mut AnyObject = msg_send![alert, addButtonWithTitle: &*reset_label];
             let _: *mut AnyObject = msg_send![alert, addButtonWithTitle: &*cancel_label];
 
+            // Raise the alert above the settings window.  By default
+            // an NSAlert's panel lives at `NSModalPanelWindowLevel`
+            // (=8), but `setup_settings_window` pins our settings
+            // NSWindow at `NS_WINDOW_LEVEL_SETTINGS` (=1001) so it
+            // can sit above the breath overlay (`NS_WINDOW_LEVEL_
+            // SCREEN_SAVER` = 1000).  Without explicit re-ordering
+            // the alert spawns BEHIND the settings window — the user
+            // hears the modal-sheet-blocked beep on every keystroke
+            // but can't see what's blocking input.
+            //
+            // Push the alert's NSPanel one level above the settings
+            // window AND force-activate the app so the alert grabs
+            // both window-z-order and key-focus
+            let app_cls = AnyClass::get(c"NSApplication");
+            if let Some(app_cls) = app_cls {
+                let shared: *mut AnyObject = msg_send![app_cls, sharedApplication];
+                if !shared.is_null() {
+                    let _: () = msg_send![shared, activateIgnoringOtherApps: true];
+                }
+            }
+            let alert_window: *mut AnyObject = msg_send![alert, window];
+            if !alert_window.is_null() {
+                // 1002 = one above NS_WINDOW_LEVEL_SETTINGS so the alert
+                // unambiguously wins over the settings window's level
+                let _: () = msg_send![alert_window, setLevel: 1002_i64];
+                let _: () = msg_send![alert_window, makeKeyAndOrderFront: std::ptr::null::<AnyObject>()];
+            }
+
             let response: i64 = msg_send![alert, runModal];
             let _: () = msg_send![alert, release];
             response == FIRST_BUTTON
@@ -813,18 +841,27 @@ use super::*;
             let apple_item = NSMenuItem::new(mtm);
             let apple_menu = NSMenu::new(mtm);
 
-            // About: route through AppKit's standard
-            // `orderFrontStandardAboutPanel:` which reads
-            // `CFBundleShortVersionString`, `NSHumanReadableCopyright`,
-            // and `CFBundleName` from `Info.plist` (which our
-            // `scripts/bundle-mas.sh` populates correctly).
+            // About: route through a custom handler that calls
+            // `orderFrontStandardAboutPanelWithOptions:` with an
+            // explicit version dictionary.  AppKit's default
+            // `orderFrontStandardAboutPanel:` reads from
+            // `Info.plist`'s `CFBundleShortVersionString` /
+            // `NSHumanReadableCopyright`, but unbundled / dev builds
+            // (`cargo run`) have no Info.plist so the panel comes up
+            // empty.  Passing the version from
+            // `env!("CARGO_PKG_VERSION")` at compile time keeps the
+            // panel populated in both bundled and unbundled builds
+            ensure_about_handler_registered();
             let about_title = NSString::from_str(&format!("About {app_name}"));
             let about = NSMenuItem::initWithTitle_action_keyEquivalent(
                 mtm.alloc::<NSMenuItem>(),
                 &about_title,
-                Some(sel!(orderFrontStandardAboutPanel:)),
+                Some(sel!(exhaleShowAbout:)),
                 &NSString::from_str(""),
             );
+            if let Some(handler) = about_handler_instance() {
+                let _: () = msg_send![&*about, setTarget: handler];
+            }
             apple_menu.addItem(&about);
             apple_menu.addItem(&NSMenuItem::separatorItem(mtm));
 
@@ -1057,6 +1094,157 @@ use super::*;
                 }
             }
         }
+    }
+
+    // ── About-panel handler ───────────────────────────────────────────────────
+    //
+    // AppKit's stock `orderFrontStandardAboutPanel:` reads version /
+    // copyright keys from the bundle's `Info.plist`.  Unbundled dev
+    // builds (`cargo run`) and any bundle whose `Info.plist` is
+    // missing `CFBundleShortVersionString` end up with a completely
+    // empty about panel.  We work around that by using the variant
+    // selector `orderFrontStandardAboutPanelWithOptions:` and
+    // passing an explicit options dictionary keyed by the
+    // documented `NSAboutPanelOption*` constants (their underlying
+    // NSString values are literally the suffix after the prefix —
+    // `"ApplicationName"`, `"ApplicationVersion"`, …).  The version
+    // string comes from `env!("CARGO_PKG_VERSION")` so it tracks
+    // `Cargo.toml` at compile time without any runtime plist lookup
+    static ABOUT_HANDLER: std::sync::atomic::AtomicPtr<objc2::runtime::AnyObject> =
+        std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+
+    /// Return the leaked `ExhaleAboutHandler` instance set up by
+    /// [`ensure_about_handler_registered`].  Returns `None` only when
+    /// the class registration step failed (extremely unlikely; would
+    /// imply objc runtime allocation failure)
+    pub(super) fn about_handler_instance() -> Option<&'static objc2::runtime::AnyObject> {
+        let p = ABOUT_HANDLER.load(std::sync::atomic::Ordering::Acquire);
+        if p.is_null() {
+            None
+        } else {
+            // SAFETY: pointer was registered exactly once via
+            // `objc_registerClassPair` + `alloc/init`, leaked, and is
+            // only ever read here.  AppKit retains menu-item targets
+            // weakly but our leak keeps the object alive for the
+            // process lifetime
+            Some(unsafe { &*p })
+        }
+    }
+
+    /// Idempotently define the `ExhaleAboutHandler` NSObject
+    /// subclass, allocate one instance, and stash it in
+    /// `ABOUT_HANDLER`.  Safe to call multiple times — the inner
+    /// `Once` guards against double-registration
+    pub(super) fn ensure_about_handler_registered() {
+        use objc2::msg_send;
+        use objc2::runtime::AnyObject;
+        use objc2_foundation::NSString;
+        use std::sync::Once;
+
+        // The actual menu-item action — assembles an options
+        // dictionary and forwards to AppKit's standard about panel.
+        // Signature follows objc method dispatch: (self, _cmd, sender).
+        extern "C" fn show_about(
+            _this:   &AnyObject,
+            _cmd:    objc2::runtime::Sel,
+            _sender: *mut AnyObject,
+        ) {
+            unsafe {
+                let app_cls = match objc2::runtime::AnyClass::get(c"NSApplication") {
+                    Some(c) => c,
+                    None    => return,
+                };
+                let app: *mut AnyObject = msg_send![app_cls, sharedApplication];
+                if app.is_null() { return; }
+
+                // Build NSMutableDictionary with the version / name /
+                // copyright keys.  Each key's literal NSString value
+                // is the documented public name of the
+                // `NSAboutPanelOption*` constant
+                let dict_cls = match objc2::runtime::AnyClass::get(c"NSMutableDictionary") {
+                    Some(c) => c,
+                    None    => return,
+                };
+                let dict: *mut AnyObject = msg_send![dict_cls, alloc];
+                let dict: *mut AnyObject = msg_send![dict, init];
+                if dict.is_null() { return; }
+
+                let put = |key_text: &str, val: &NSString| {
+                    let key = NSString::from_str(key_text);
+                    let _: () = msg_send![dict, setObject: val, forKey: &*key];
+                };
+                let app_name_val = NSString::from_str("exhale");
+                let app_ver_val  = NSString::from_str(env!("CARGO_PKG_VERSION"));
+                let copyright    = NSString::from_str("Copyright \u{00A9} Peter Klingelhofer");
+                put("ApplicationName",    &app_name_val);
+                put("ApplicationVersion", &app_ver_val);
+                put("Copyright",          &copyright);
+
+                // Surface the panel above the settings window.  Same
+                // problem as the reset alert: settings window sits at
+                // level 1001 and the about panel defaults to a
+                // normal modal level, so without explicit re-ordering
+                // it spawns behind and the user sees nothing
+                let _: () = msg_send![app, activateIgnoringOtherApps: true];
+                let _: () = msg_send![app, orderFrontStandardAboutPanelWithOptions: dict];
+                let _: () = msg_send![dict, release];
+                // After AppKit shows the panel, hoist its window to
+                // settings-window-plus-one so it can't get covered.
+                // The about panel is owned by AppKit; we look it up
+                // via its shared key window because the app just
+                // activated and brought it to the foreground
+                let win: *mut AnyObject = msg_send![app, keyWindow];
+                if !win.is_null() {
+                    let _: () = msg_send![win, setLevel: 1002_i64];
+                    let _: () = msg_send![win, makeKeyAndOrderFront: std::ptr::null::<AnyObject>()];
+                }
+            }
+        }
+
+        static INIT: Once = Once::new();
+        INIT.call_once(|| unsafe {
+            // 1. Allocate a new NSObject subclass.  Naming matches
+            //    the existing AppleEvent handler pattern in
+            //    `register_reopen_handler` for consistency
+            let super_cls = objc2::class!(NSObject);
+            let name      = c"ExhaleAboutHandler";
+            let new_cls   = objc2::ffi::objc_allocateClassPair(
+                (super_cls as *const _) as *const _,
+                name.as_ptr(),
+                0,
+            );
+            if new_cls.is_null() {
+                log::warn!("about handler: objc_allocateClassPair returned null");
+                return;
+            }
+
+            // 2. Add `exhaleShowAbout:` — type encoding `v@:@` = void
+            //    return, (self, _cmd, NSObject* sender).  AppKit
+            //    passes the menu item as `sender` per the standard
+            //    target/action protocol
+            let sel    = objc2::sel!(exhaleShowAbout:);
+            let imp: objc2::runtime::Imp = std::mem::transmute(show_about as *const ());
+            let added  = objc2::ffi::class_addMethod(
+                new_cls as *mut _, sel, imp, c"v@:@".as_ptr(),
+            );
+            if !added.as_bool() {
+                log::warn!("about handler: class_addMethod returned NO");
+            }
+            objc2::ffi::objc_registerClassPair(new_cls as *mut _);
+
+            // 3. Allocate one instance; leak it for the app's
+            //    lifetime (menu-item target+action stores the target
+            //    as a weak reference, so this leak is load-bearing —
+            //    a dropped instance would mean a dead "About"
+            //    selector and the menu item would silently no-op)
+            let instance: *mut AnyObject = msg_send![new_cls, alloc];
+            let instance: *mut AnyObject = msg_send![instance, init];
+            if instance.is_null() {
+                log::warn!("about handler: failed to alloc ExhaleAboutHandler");
+                return;
+            }
+            ABOUT_HANDLER.store(instance, std::sync::atomic::Ordering::Release);
+        });
     }
 
     /// Register a Dock-reopen handler **without swizzling winit's

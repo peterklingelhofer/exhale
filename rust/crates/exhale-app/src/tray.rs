@@ -35,7 +35,7 @@ pub fn build_tray() -> Result<(TrayIcon, TrayMenuIds)> {
     let prefs_item = MenuItem::new("Preferences",       true, Some(Accelerator::new(Some(cmd_only),   Code::KeyW)));
     let start_item = MenuItem::new("Start Animation",   true, Some(Accelerator::new(Some(ctrl_shift), Code::KeyA)));
     let stop_item  = MenuItem::new("Stop Animation",    true, Some(Accelerator::new(Some(ctrl_shift), Code::KeyS)));
-    let reset_item = MenuItem::new("Reset to Defaults", true, Some(Accelerator::new(Some(ctrl_shift), Code::KeyF)));
+    let reset_item = MenuItem::new("Reset to Defaults", true, Some(Accelerator::new(Some(ctrl_shift), Code::KeyD)));
     let quit_item  = MenuItem::new("Quit exhale",       true, Some(Accelerator::new(Some(cmd_only),   Code::KeyQ)));
 
     let ids = TrayMenuIds {
