@@ -97,16 +97,15 @@ use super::*;
                 (final_ex & WS_EX_TOPMOST)     != 0,
             );
         }
-        // Belt-and-suspenders: also tell winit explicitly that this
-        // window should be ignored for cursor hit-testing.  Internally
-        // winit goes through the same `WS_EX_TRANSPARENT` mechanism,
-        // but it routes the change through its own per-window style
-        // bookkeeping — which keeps the flag in sync if winit later
-        // re-applies styles for something else (visibility toggle,
-        // fullscreen mode change, taskbar-icon toggle)
-        if let Err(e) = window.set_cursor_hittest(false) {
-            log::warn!("set_cursor_hittest(false) failed: {e:?}");
-        }
+        // NOTE: do NOT call `window.set_cursor_hittest(false)` here.
+        // winit's implementation reads its own internal `WindowFlags`
+        // bitset (which does NOT track `WS_EX_LAYERED`), computes a
+        // new EX-style word from that bitset alone, and writes it
+        // back via `SetWindowLongPtrW`.  That overwrite drops the
+        // `WS_EX_LAYERED` bit we just set above and the window goes
+        // invisible — observed regression.  The manual
+        // `SetWindowLongPtrW` + `SWP_FRAMECHANGED` flow above is
+        // sufficient for hit-test transparency on its own
     }
 
     /// Re-bump the overlay HWND to the front of the topmost z-band.
