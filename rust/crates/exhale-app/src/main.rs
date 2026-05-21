@@ -59,6 +59,12 @@ enum AppEvent {
     ResetDefaults,
     #[cfg(feature = "global-hotkeys")]
     ResetDefaultsWithConfirm,
+    /// Re-read `settings.keyboard_shortcuts` and re-register every
+    /// global hotkey.  Fired by the settings window after the user
+    /// completes a capture (right-click → Change Shortcut…) or
+    /// resets a per-action shortcut to its default
+    #[cfg(feature = "global-hotkeys")]
+    RebindHotkeys,
     Quit,
 }
 
@@ -195,10 +201,26 @@ impl App {
             // all teardown (settings flush, controller stop, tray
             // destroy) runs in the canonical order.
             let proxy = self.proxy.clone();
-            let on_quit = Box::new(move || {
-                let _ = proxy.send_event(AppEvent::Quit);
+            let on_quit = Box::new({
+                let proxy = proxy.clone();
+                move || { let _ = proxy.send_event(AppEvent::Quit); }
             });
-            match SettingsWindow::new(event_loop, Arc::clone(gpu), &settings_snap, on_quit) {
+            // Rebind callback: SettingsWindow fires this after the user
+            // captures a new shortcut (or resets one to default) so we
+            // can re-register every global hotkey from the updated
+            // `settings.keyboard_shortcuts`.  Gated behind the
+            // `global-hotkeys` feature so the Mac App Store build (which
+            // ships without Carbon hotkey integration) doesn't end up
+            // sending an event variant whose dispatcher is also cfg-d out.
+            #[cfg(feature = "global-hotkeys")]
+            let on_rebind_hotkeys = Box::new(move || {
+                let _ = proxy.send_event(AppEvent::RebindHotkeys);
+            });
+            #[cfg(not(feature = "global-hotkeys"))]
+            let on_rebind_hotkeys = Box::new(|| {});
+            match SettingsWindow::new(
+                event_loop, Arc::clone(gpu), &settings_snap, on_quit, on_rebind_hotkeys,
+            ) {
                 Ok(sw) => {
                     self.settings_win_id = Some(sw.window.id());
                     self.settings_win    = Some(sw);
@@ -312,7 +334,36 @@ impl App {
         // is paused inside AppKit's modal session.
         #[cfg(target_os = "macos")]
         {
-            if platform::show_reset_alert() {
+            let approved = platform::show_reset_alert();
+            // Drop any input that piled up in the global-hotkey and
+            // tray-menu channels while `runModal` was blocking the
+            // main thread.  Anything the user pressed while looking
+            // at the modal was meant to be input for the modal
+            // itself (the modal handles its own keystrokes via
+            // AppKit), not a fresh app action.  Pre-drain, a second
+            // Ctrl+Shift+F press during the modal would queue up and
+            // re-trigger the alert immediately after the first was
+            // dismissed
+            #[cfg(feature = "global-hotkeys")]
+            {
+                let mut dropped = 0;
+                while GlobalHotKeyEvent::receiver().try_recv().is_ok() {
+                    dropped += 1;
+                }
+                if dropped > 0 {
+                    log::debug!("dropped {dropped} global-hotkey events queued during reset modal");
+                }
+            }
+            {
+                let mut dropped = 0;
+                while MenuEvent::receiver().try_recv().is_ok() {
+                    dropped += 1;
+                }
+                if dropped > 0 {
+                    log::debug!("dropped {dropped} tray-menu events queued during reset modal");
+                }
+            }
+            if approved {
                 self.do_reset();
             }
         }
@@ -332,6 +383,31 @@ impl App {
                 sw.window.focus_window();
                 sw.request_redraw();
             }
+        }
+    }
+
+    /// Unregister every currently-bound global hotkey and re-register
+    /// from `settings.keyboard_shortcuts`.  Triggered when the
+    /// settings window captures a new shortcut for any action.
+    /// Errors are logged but never propagated — a failed rebind
+    /// leaves the dispatcher with whatever ids did register, which
+    /// is preferable to a panic on a user action
+    #[cfg(feature = "global-hotkeys")]
+    fn do_rebind_hotkeys(&mut self) {
+        let Some(manager) = &self.hotkey_manager else {
+            log::warn!("rebind requested but hotkey manager not initialised");
+            return;
+        };
+        if let Some(old) = self.hotkey_ids.take() {
+            hotkeys::unregister_all(manager, &old);
+        }
+        let shortcuts = self.settings.read_or_recover().keyboard_shortcuts.clone();
+        match hotkeys::register_hotkeys(manager, &shortcuts) {
+            Ok(ids) => {
+                log::info!("hotkeys rebound from updated settings");
+                self.hotkey_ids = Some(ids);
+            }
+            Err(e) => log::error!("hotkey rebind: {e}"),
         }
     }
 
@@ -598,7 +674,8 @@ impl ApplicationHandler<AppEvent> for App {
         #[cfg(feature = "global-hotkeys")]
         match GlobalHotKeyManager::new() {
             Ok(mgr) => {
-                match hotkeys::register_hotkeys(&mgr) {
+                let shortcuts = self.settings.read_or_recover().keyboard_shortcuts.clone();
+                match hotkeys::register_hotkeys(&mgr, &shortcuts) {
                     Ok(ids) => { self.hotkey_ids = Some(ids); }
                     Err(e)  => error!("hotkey registration: {e}"),
                 }
@@ -654,6 +731,8 @@ impl ApplicationHandler<AppEvent> for App {
             AppEvent::ResetDefaults  => self.do_reset(),
             #[cfg(feature = "global-hotkeys")]
             AppEvent::ResetDefaultsWithConfirm => self.do_reset_with_confirm(event_loop),
+            #[cfg(feature = "global-hotkeys")]
+            AppEvent::RebindHotkeys  => self.do_rebind_hotkeys(),
             AppEvent::Quit => {
                 self.shutdown(event_loop);
             }
@@ -905,8 +984,11 @@ impl ApplicationHandler<AppEvent> for App {
             }
         }
 
-        // Poll tray menu events.
-        if let Ok(event) = MenuEvent::receiver().try_recv() {
+        // Poll tray menu events — drain the channel so multiple
+        // queued events (rare but possible if the user clicks
+        // through several menu items between event-loop ticks)
+        // get processed in one pass instead of one per call.
+        while let Ok(event) = MenuEvent::receiver().try_recv() {
             if let Some(ids) = &self.tray_ids {
                 let id = &event.id;
                 if id == &ids.preferences { let _ = self.proxy.send_event(AppEvent::ShowSettings); }
@@ -917,19 +999,67 @@ impl ApplicationHandler<AppEvent> for App {
             }
         }
 
-        // Poll global hotkey events.
+        // Poll global hotkey events.  Drain the channel completely:
+        // pre-drain, the loop popped only ONE event per
+        // `about_to_wait` tick.  Since each hotkey press generates
+        // both a Pressed and Released event, and the loop's idle
+        // wake cadence is 2 s (monitor scan), a quick sequence of
+        // keypresses could pile up many events and the visible
+        // result was "the first hotkey works, later ones lag by
+        // seconds or never get processed if the loop kept finding
+        // other things to do."  Draining here turns that into
+        // batch dispatch on the next tick instead.
+        //
+        // Within a single drain we also COALESCE duplicate ids so
+        // mashing the same hotkey twice in the same tick only
+        // sends one UserEvent.  Without this, two rapid Ctrl+Shift+F
+        // presses queued two reset-confirm alerts: the user would
+        // dismiss the first and a second alert would immediately
+        // pop up.  Coalescing matches the Swift app's behaviour
+        // where rapid presses while a modal is up are no-ops
         #[cfg(feature = "global-hotkeys")]
-        if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
-            use global_hotkey::HotKeyState;
-            if event.state == HotKeyState::Pressed {
-                if let Some(ids) = &self.hotkey_ids {
-                    let id = event.id;
-                    if id == ids.preferences || id == ids.preferences2 {
-                        let _ = self.proxy.send_event(AppEvent::ShowSettings);
-                    } else if id == ids.start { let _ = self.proxy.send_event(AppEvent::StartAnimation); }
-                    else if id == ids.stop    { let _ = self.proxy.send_event(AppEvent::StopAnimation); }
-                    else if id == ids.reset   { let _ = self.proxy.send_event(AppEvent::ResetDefaultsWithConfirm); }
+        {
+            // Suppress action dispatch while the settings window is in
+            // shortcut-capture mode — otherwise pressing the user's
+            // currently-bound combo to "see what it does" or as part
+            // of rebinding would fire BOTH the captured-key handler
+            // (which writes a new binding) and the existing global
+            // hotkey (which runs the old action).  Events still get
+            // drained so the channel stays empty on capture exit
+            let suppress = self.settings_win
+                .as_ref()
+                .is_some_and(|sw| sw.is_capturing_shortcut());
+            let mut sent_ids: std::collections::HashSet<u32> = std::collections::HashSet::new();
+            while let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
+                use global_hotkey::HotKeyState;
+                // We only act on Pressed; Released events for the same
+                // hotkey still get drained here (just no-op'd) so they
+                // don't queue up indefinitely.
+                if event.state != HotKeyState::Pressed {
+                    continue;
                 }
+                if suppress {
+                    log::debug!("global hotkey id={} ignored — capture overlay active", event.id);
+                    continue;
+                }
+                let Some(ids) = &self.hotkey_ids else { continue; };
+                let id = event.id;
+                if !sent_ids.insert(id) {
+                    log::debug!("global hotkey id={id} already dispatched this tick, coalescing");
+                    continue;
+                }
+                let (app_event, label): (AppEvent, &str) =
+                         if Some(id) == ids.preferences { (AppEvent::ShowSettings,               "Show settings") }
+                    else if Some(id) == ids.start       { (AppEvent::StartAnimation,            "Start animation") }
+                    else if Some(id) == ids.stop        { (AppEvent::StopAnimation,             "Stop animation") }
+                    else if Some(id) == ids.reset       { (AppEvent::ResetDefaultsWithConfirm,  "Reset to defaults (confirm)") }
+                    else if Some(id) == ids.quit        { (AppEvent::Quit,                      "Quit") }
+                    else {
+                        log::debug!("global hotkey event with unrecognised id={id}");
+                        continue;
+                    };
+                log::debug!("global hotkey fired: {label} (id={id})");
+                let _ = self.proxy.send_event(app_event);
             }
         }
 

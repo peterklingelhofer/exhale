@@ -7,7 +7,10 @@ pub mod types;
 
 pub use controller::{BreathingController, BreathingState};
 pub use easing::EasingTable;
-pub use settings::{Settings, WindowPlacement};
+pub use settings::{
+    KeyboardShortcut, KeyboardShortcuts, Settings, ShortcutAction, WindowPlacement,
+    KBD_MOD_ALT, KBD_MOD_CTRL, KBD_MOD_META, KBD_MOD_SHIFT,
+};
 pub use settings_manager::SettingsManager;
 pub use types::{
     AnimationMode, AnimationShape, AppVisibility, BreathingPhase, ColorFillGradient,

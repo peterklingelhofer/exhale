@@ -17,12 +17,13 @@ use widgets::*;
 use egui::ViewportId;
 use egui_wgpu::ScreenDescriptor;
 use exhale_core::{
-    settings::Settings,
+    settings::{KeyboardShortcut, Settings, ShortcutAction},
     settings_manager::SettingsManager,
     types::{
         AnimationMode, AnimationShape, AppVisibility, ColorFillGradient, HoldRippleMode,
     },
 };
+use crate::hotkeys::{egui_key_to_code, egui_modifiers_to_mask};
 use exhale_render::GpuContext;
 use winit::{
     dpi::PhysicalSize,
@@ -50,6 +51,13 @@ pub struct SettingsWindow {
     device:                Arc<wgpu::Device>,
     queue:                 Arc<wgpu::Queue>,
     pending_reset:         bool,
+    /// `Some(action)` when the user has chosen Change Shortcut from a
+    /// right-click context menu and the next valid key combination
+    /// should be captured and bound to `action`.  The capture overlay
+    /// rendered in [`settings_ui`] watches `ctx.input` for any key
+    /// pressed while this is `Some` and writes through to
+    /// `settings.keyboard_shortcuts` on the first match
+    capturing_shortcut_for: Option<ShortcutAction>,
     /// Fired when the user clicks the Quit button in the settings
     /// Controls row.  Wired up at construction so `SettingsWindow`
     /// can dispatch directly without `main.rs` having to poll a
@@ -57,6 +65,11 @@ pub struct SettingsWindow {
     /// the settings window could be moved off the main thread
     /// later — though right now it stays on main for egui_winit.
     on_quit:               Box<dyn Fn() + Send + Sync + 'static>,
+    /// Fired right after the user captures a new keyboard shortcut
+    /// (or resets one to its default) — the main loop receives an
+    /// `AppEvent::RebindHotkeys` and reconciles the global-hotkey
+    /// registrations with the updated `settings.keyboard_shortcuts`
+    on_rebind_hotkeys:     Box<dyn Fn() + Send + Sync + 'static>,
     /// Tracks the OS appearance so egui visuals + the wgpu clear color stay
     /// in sync with Light/Dark mode.  `None` means the platform doesn't
     /// report a theme (some Linux desktops); we default to Dark there.
@@ -184,10 +197,11 @@ const SETTINGS_MIN_HEIGHT: u32 = 100;
 
 impl SettingsWindow {
     pub fn new(
-        event_loop: &ActiveEventLoop,
-        gpu:        Arc<GpuContext>,
-        settings:   &exhale_core::settings::Settings,
-        on_quit:    Box<dyn Fn() + Send + Sync + 'static>,
+        event_loop:        &ActiveEventLoop,
+        gpu:               Arc<GpuContext>,
+        settings:          &exhale_core::settings::Settings,
+        on_quit:           Box<dyn Fn() + Send + Sync + 'static>,
+        on_rebind_hotkeys: Box<dyn Fn() + Send + Sync + 'static>,
     ) -> Result<Self> {
         // Width is fixed; only height is user-resizable.  Max height is set
         // later (once egui has measured the natural content size) so the
@@ -399,7 +413,9 @@ impl SettingsWindow {
             window, surface, config, egui_ctx, egui_state, egui_renderer,
             device, queue,
             pending_reset: false,
+            capturing_shortcut_for: None,
             on_quit,
+            on_rebind_hotkeys,
             theme,
             vev_ptr,
             icon_cache,
@@ -442,8 +458,18 @@ impl SettingsWindow {
         self.window.request_redraw();
     }
 
+    /// Whether the right-click → Change Shortcut overlay is currently
+    /// open and waiting for the user's next key combination.  The
+    /// main-loop dispatcher checks this before forwarding any
+    /// `GlobalHotKeyEvent`s so a previously-bound hotkey doesn't
+    /// execute its action AT THE SAME TIME the capture overlay reads
+    /// the keystroke as a new binding
+    pub fn is_capturing_shortcut(&self) -> bool {
+        self.capturing_shortcut_for.is_some()
+    }
+
     /// Raise the in-window Reset confirmation dialog on the next frame.
-    /// Used by the Ctrl+Shift+F global hotkey on Windows / Linux only —
+    /// Used by the Ctrl+Shift+D global hotkey on Windows / Linux only —
     /// macOS routes the same hotkey through a native `NSAlert.runModal()`
     /// in `do_reset_with_confirm` and never sets this flag.
     #[cfg(all(feature = "global-hotkeys", not(target_os = "macos")))]
@@ -511,7 +537,9 @@ impl SettingsWindow {
             content_height = settings_ui(
                 ctx, settings, settings_manager,
                 &mut self.pending_reset,
+                &mut self.capturing_shortcut_for,
                 &*self.on_quit,
+                &*self.on_rebind_hotkeys,
                 &self.icon_cache,
             );
         });
@@ -698,16 +726,55 @@ impl Drop for BackdropGuard {
 
 /// Returns the natural (fully-expanded) content height in logical points so
 /// the caller can clamp the window's max size.
+/// Attach the right-click "Change Shortcut…" / "Reset to Default"
+/// menu to a control-button [`Response`].  Lives next to the buttons
+/// rather than inside [`control_button`] because tooltip help text is
+/// already passed in — the context-menu hook is independent of the
+/// glyph rendering and easier to reason about as a separate concern
+fn shortcut_context_menu(
+    resp:                   &egui::Response,
+    action:                 ShortcutAction,
+    settings:               &mut Settings,
+    capturing_shortcut_for: &mut Option<ShortcutAction>,
+    dirty:                  &mut bool,
+    rebind_hotkeys:         &mut bool,
+) {
+    resp.context_menu(|ui| {
+        ui.label(format!("Current: {}", settings.keyboard_shortcuts.get(action).display()));
+        ui.separator();
+        if ui.button("Change Shortcut…").clicked() {
+            *capturing_shortcut_for = Some(action);
+            ui.close_menu();
+        }
+        if ui.button("Reset Shortcut to Default").clicked() {
+            settings.keyboard_shortcuts.reset_to_default(action);
+            *dirty = true;
+            *rebind_hotkeys = true;
+            ui.close_menu();
+        }
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
 fn settings_ui(
-    ctx:              &egui::Context,
-    settings:         &mut Settings,
-    settings_manager: &Arc<SettingsManager>,
-    pending_reset:    &mut bool,
-    on_quit:          &dyn Fn(),
-    icons:            &IconCache,
+    ctx:                    &egui::Context,
+    settings:               &mut Settings,
+    settings_manager:       &Arc<SettingsManager>,
+    pending_reset:          &mut bool,
+    capturing_shortcut_for: &mut Option<ShortcutAction>,
+    on_quit:                &dyn Fn(),
+    on_rebind_hotkeys:      &dyn Fn(),
+    icons:                  &IconCache,
 ) -> f32 {
     let mut dirty = false;
     let mut content_height = 0.0f32;
+    // Set on any action that updates `settings.keyboard_shortcuts` — both
+    // direct rebinds via the capture overlay and the per-action "Reset to
+    // Default" context-menu entry need to fire `on_rebind_hotkeys` so
+    // `main.rs` re-registers with the global-hotkey manager.  Set inside
+    // the panel closure and consumed once at the end so we don't fire
+    // the callback in the middle of an `egui::CentralPanel::show`
+    let mut rebind_hotkeys = false;
 
     // Swift's settings window has 14 pt horizontal padding + 14 pt top/bottom,
     // with a ScrollView wrapping everything below the pinned Controls card.
@@ -795,7 +862,30 @@ fn settings_ui(
                                 .max(1.0);
 
                     let dark = ui.visuals().dark_mode;
-                    if control_button(
+
+                    // Build per-button hover text that includes the CURRENT
+                    // (possibly user-customised) shortcut binding.  Re-read
+                    // from `settings.keyboard_shortcuts` every frame so the
+                    // tooltip stays in sync with whatever the user just
+                    // captured in the right-click → Change Shortcut overlay.
+                    let start_help = format!(
+                        "Start the app and re-initialize animation.\nShortcut: {}\nRight-click to change.",
+                        settings.keyboard_shortcuts.start.display(),
+                    );
+                    let stop_help = format!(
+                        "Stop the animation and remove all screen tints.\nShortcut: {}\nRight-click to change.",
+                        settings.keyboard_shortcuts.stop.display(),
+                    );
+                    let reset_help = format!(
+                        "Reset all settings to their default values.\nShortcut: {}\nRight-click to change.",
+                        settings.keyboard_shortcuts.reset.display(),
+                    );
+                    let quit_help = format!(
+                        "Quit exhale (full shutdown).\nShortcut: {}\nRight-click to change.",
+                        settings.keyboard_shortcuts.quit.display(),
+                    );
+
+                    let start_resp = control_button(
                         ui, btn_w,
                         // `icon` is the Unicode fallback when no SF
                         // Symbol texture is available AND
@@ -809,14 +899,19 @@ fn settings_ui(
                         "\u{25B6}", icons.play(dark),
                         None, 0.0, false, true,
                         "Start",
-                        "Start the app and re-initialize animation.",
-                    ).clicked()
-                    {
+                        &start_help,
+                    );
+                    shortcut_context_menu(
+                        &start_resp, ShortcutAction::Start, settings,
+                        capturing_shortcut_for, &mut dirty, &mut rebind_hotkeys,
+                    );
+                    if start_resp.clicked() {
                         settings.is_animating = true;
                         settings.is_paused    = false;
                         dirty = true;
                     }
-                    if control_button(
+
+                    let stop_resp = control_button(
                         ui, btn_w,
                         // `icon` and `icon_texture` are both ignored
                         // when `draw_inner_square: true` — we paint a
@@ -825,14 +920,19 @@ fn settings_ui(
                         "\u{25A0}", icons.stop(dark),
                         None, 0.0, true, false,
                         "Stop",
-                        "Stop the animation and remove all screen tints.",
-                    ).clicked()
-                    {
+                        &stop_help,
+                    );
+                    shortcut_context_menu(
+                        &stop_resp, ShortcutAction::Stop, settings,
+                        capturing_shortcut_for, &mut dirty, &mut rebind_hotkeys,
+                    );
+                    if stop_resp.clicked() {
                         settings.is_animating = false;
                         settings.is_paused    = false;
                         dirty = true;
                     }
-                    if control_button(
+
+                    let reset_resp = control_button(
                         ui, btn_w,
                         "\u{21BA}", icons.reset(dark),
                         // U+21BA ANTICLOCKWISE OPEN CIRCLE ARROW lives
@@ -848,11 +948,21 @@ fn settings_ui(
                         // uniformly.
                         Some(9.0), 0.0, false, false,
                         "Reset",
-                        "Reset all settings to their default values.",
-                    ).clicked()
-                    {
+                        &reset_help,
+                    );
+                    shortcut_context_menu(
+                        &reset_resp, ShortcutAction::Reset, settings,
+                        capturing_shortcut_for, &mut dirty, &mut rebind_hotkeys,
+                    );
+                    if reset_resp.clicked() {
                         settings.reset_preserving_runtime_state();
                         dirty = true;
+                        // Defaults include the keyboard-shortcut block, so a
+                        // full reset must also propagate to the global hotkey
+                        // manager.  Without this the user's previously-bound
+                        // custom shortcut would keep firing even though the
+                        // settings panel claims the default is back in effect
+                        rebind_hotkeys = true;
                     }
                     // Quit — full shutdown.  Dispatches directly via the
                     // injected `on_quit` callback (set up at
@@ -861,7 +971,7 @@ fn settings_ui(
                     // Matches the tray-menu Quit path so all teardown
                     // (settings flush, controller stop, tray destroy)
                     // runs in the canonical order.
-                    if control_button(
+                    let quit_resp = control_button(
                         ui, btn_w,
                         // U+00D7 MULTIPLICATION SIGN — Latin-1 Supplement
                         // block, part of basic Western font coverage so
@@ -899,9 +1009,13 @@ fn settings_ui(
                         // texture path is still acceptably aligned
                         Some(12.0), -1.0, false, false,
                         "Quit",
-                        "Quit exhale (full shutdown).",
-                    ).clicked()
-                    {
+                        &quit_help,
+                    );
+                    shortcut_context_menu(
+                        &quit_resp, ShortcutAction::Quit, settings,
+                        capturing_shortcut_for, &mut dirty, &mut rebind_hotkeys,
+                    );
+                    if quit_resp.clicked() {
                         on_quit();
                     }
                 });
@@ -1078,6 +1192,87 @@ fn settings_ui(
     if dirty {
         settings_manager.mark_dirty();
     }
+    // ── Shortcut capture overlay ──────────────────────────────────────────────
+    // Painted at the top z-order via egui::Window so it sits above the
+    // settings panel and intercepts the next keystroke.  Watching
+    // `ctx.input` for `Event::Key { pressed: true }` ignores hover /
+    // focus / scroll events so the user only has to press the new
+    // combination once.  Esc cancels; the close-button on the window
+    // also cancels by clearing `capturing_shortcut_for`
+    if let Some(action) = *capturing_shortcut_for {
+        let mut still_capturing = true;
+        let mut closed_via_button = false;
+        egui::Window::new(format!("Set Shortcut: {}", action.label()))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .open(&mut still_capturing)
+            .show(ctx, |ui| {
+                ui.set_width(280.0);
+                ui.label("Press the key combination you want to bind…");
+                ui.label("Include at least one modifier (Ctrl / Shift / Alt / Cmd).");
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    ui.label("Current binding:");
+                    ui.monospace(settings.keyboard_shortcuts.get(action).display());
+                });
+                ui.add_space(8.0);
+                if ui.button("Cancel").clicked() {
+                    closed_via_button = true;
+                }
+                ui.add_space(4.0);
+                ui.small("Press Esc to cancel.");
+            });
+
+        // egui::Window's `.open()` flips `still_capturing` to false when
+        // the user clicks the title-bar close button.  Either signal
+        // cancels capture and leaves the binding unchanged.
+        if !still_capturing || closed_via_button {
+            *capturing_shortcut_for = None;
+        } else {
+            // Inspect this frame's input events for a key press matching
+            // the "valid combo" criteria (at least one modifier).
+            let captured = ctx.input(|i| {
+                for event in &i.events {
+                    if let egui::Event::Key { key, modifiers, pressed: true, repeat: false, .. } = event {
+                        if *key == egui::Key::Escape && !modifiers.any() {
+                            return Some(None);
+                        }
+                        // Reject plain printable keys with no modifier so
+                        // the user doesn't accidentally bind `A` to Start
+                        // and then lose access to every text field.
+                        let has_modifier = modifiers.ctrl
+                            || modifiers.shift
+                            || modifiers.alt
+                            || modifiers.mac_cmd
+                            || modifiers.command;
+                        if !has_modifier { continue; }
+                        if let Some(code) = egui_key_to_code(*key) {
+                            return Some(Some((code, *modifiers)));
+                        }
+                    }
+                }
+                None
+            });
+            match captured {
+                Some(None) => { *capturing_shortcut_for = None; }
+                Some(Some((code, mods))) => {
+                    let mask = egui_modifiers_to_mask(mods);
+                    settings.keyboard_shortcuts.set(
+                        action,
+                        KeyboardShortcut::new(mask, code),
+                    );
+                    *capturing_shortcut_for = None;
+                    rebind_hotkeys = true;
+                    settings_manager.mark_dirty();
+                }
+                None => {}
+            }
+        }
+    }
+    if rebind_hotkeys {
+        on_rebind_hotkeys();
+    }
 
     // ── Reset confirmation dialog ─────────────────────────────────────────────
     if *pending_reset {
@@ -1093,6 +1288,9 @@ fn settings_ui(
                     if ui.button("Reset").clicked() {
                         settings.reset_preserving_runtime_state();
                         settings_manager.mark_dirty();
+                        // Defaults include keyboard shortcuts, so a
+                        // reset must reach the global-hotkey manager
+                        on_rebind_hotkeys();
                         *pending_reset = false;
                     }
                     if ui.button("Cancel").clicked() {
