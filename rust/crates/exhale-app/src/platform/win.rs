@@ -20,7 +20,7 @@ use super::*;
             GetWindow, GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos,
             GWL_EXSTYLE, GW_HWNDPREV, HWND_TOPMOST,
             SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-            WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+            WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
             WS_EX_TOPMOST, WS_EX_TRANSPARENT,
         },
     };
@@ -42,26 +42,26 @@ use super::*;
         if h.is_null() { return; }
         unsafe {
             // `WS_EX_LAYERED + WS_EX_TRANSPARENT` is the wgpu-compatible
-            // click-through transparency pattern on Windows.  winit's
-            // `with_transparent(true)` already adds the layered /
-            // redirection-bitmap setup; we only ADD `WS_EX_TRANSPARENT`
-            // (hit-testing transparency) and the activation / topmost
-            // / taskbar-hiding flags here.
-            //
-            // Pre-fix this routine also OR-ed in `WS_EX_LAYERED`
-            // defensively, but on builds where winit applied
-            // `WS_EX_NOREDIRECTIONBITMAP` instead (DWM-composited
-            // per-pixel-alpha path with no GDI redirection surface),
-            // forcibly setting LAYERED on top of NRB produces an
-            // unsupported combination and the OS quietly downgrades
-            // hit-testing back to "opaque window" — which is exactly
-            // the "I can't click anything behind the overlay"
-            // symptom.  Letting winit decide between LAYERED and NRB,
-            // and limiting our additions to TRANSPARENT + activation
-            // flags, keeps the OS in a configuration where
-            // WS_EX_TRANSPARENT actually applies
+            // click-through transparency pattern on Windows.  Both
+            // flags are required:
+            //   - `WS_EX_LAYERED` makes the window composite per-pixel
+            //     alpha through DWM so the breath animation is
+            //     actually VISIBLE.  Without it, a transparent
+            //     window is just an invisible window — the wgpu
+            //     surface paints but the user sees nothing
+            //     (regression observed when LAYERED was removed in
+            //     pursuit of better click-through).
+            //   - `WS_EX_TRANSPARENT` makes the window hit-test
+            //     transparent so clicks pass through to whatever
+            //     window sits behind it (the desktop, browser,
+            //     editor, etc.).  Without it the user can see the
+            //     breath animation but can't click anything behind.
+            // winit's `with_transparent(true)` already sets LAYERED
+            // up via `DwmEnableBlurBehindWindow`; we re-assert it
+            // here as a no-op-on-success defensive measure
             let ex = GetWindowLongPtrW(h, GWL_EXSTYLE) as isize;
             let new_ex = ex
+                | WS_EX_LAYERED     as isize
                 | WS_EX_TRANSPARENT as isize
                 | WS_EX_TOPMOST     as isize
                 | WS_EX_TOOLWINDOW  as isize
