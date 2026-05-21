@@ -20,7 +20,7 @@ use super::*;
             GetWindow, GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos,
             GWL_EXSTYLE, GW_HWNDPREV, HWND_TOPMOST,
             SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-            WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+            WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
             WS_EX_TOPMOST, WS_EX_TRANSPARENT,
         },
     };
@@ -43,28 +43,50 @@ use super::*;
         unsafe {
             // `WS_EX_LAYERED + WS_EX_TRANSPARENT` is the wgpu-compatible
             // click-through transparency pattern on Windows.  winit's
-            // `with_transparent(true)` already adds `WS_EX_LAYERED` and
-            // calls `DwmEnableBlurBehindWindow`, but we re-assert
-            // `WS_EX_LAYERED` defensively in case some other path
-            // stripped it.  Tool window + NoActivate keep the overlay
-            // out of Alt-Tab / taskbar and prevent focus theft;
-            // `WS_EX_TOPMOST` and the trailing `SetWindowPos(HWND_TOPMOST, ...)`
-            // are belt-and-suspenders for the always-on-top requirement.
+            // `with_transparent(true)` already adds the layered /
+            // redirection-bitmap setup; we only ADD `WS_EX_TRANSPARENT`
+            // (hit-testing transparency) and the activation / topmost
+            // / taskbar-hiding flags here.
+            //
+            // Pre-fix this routine also OR-ed in `WS_EX_LAYERED`
+            // defensively, but on builds where winit applied
+            // `WS_EX_NOREDIRECTIONBITMAP` instead (DWM-composited
+            // per-pixel-alpha path with no GDI redirection surface),
+            // forcibly setting LAYERED on top of NRB produces an
+            // unsupported combination and the OS quietly downgrades
+            // hit-testing back to "opaque window" — which is exactly
+            // the "I can't click anything behind the overlay"
+            // symptom.  Letting winit decide between LAYERED and NRB,
+            // and limiting our additions to TRANSPARENT + activation
+            // flags, keeps the OS in a configuration where
+            // WS_EX_TRANSPARENT actually applies
             let ex = GetWindowLongPtrW(h, GWL_EXSTYLE) as isize;
             let new_ex = ex
-                | WS_EX_LAYERED     as isize
                 | WS_EX_TRANSPARENT as isize
                 | WS_EX_TOPMOST     as isize
                 | WS_EX_TOOLWINDOW  as isize
                 | WS_EX_NOACTIVATE  as isize;
             SetWindowLongPtrW(h, GWL_EXSTYLE, new_ex);
-            SetWindowPos(h, HWND_TOPMOST, 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            // SWP_FRAMECHANGED is REQUIRED after `SetWindowLongPtrW`
+            // touches the EX-style bits.  Microsoft's docs:
+            //   "If you have changed certain window data using
+            //    SetWindowLong, you must call SetWindowPos with
+            //    SWP_FRAMECHANGED to flush the cached frame data."
+            // Without this flag the new `WS_EX_TRANSPARENT` bit
+            // sometimes lives in the EX style word but isn't honoured
+            // by the hit-tester until the next unrelated style edit
+            // (or until the window is hidden and reshown).  Adding
+            // SWP_FRAMECHANGED makes the change take effect
+            // immediately and reliably
+            const SWP_FRAMECHANGED: u32 = 0x0020;
+            SetWindowPos(
+                h, HWND_TOPMOST, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+            );
 
             // Diagnostic — log the final extended style so we can verify
             // in the running app's log file which transparency path is
-            // in effect.  `0x80000` = LAYERED, `0x200000` = NRB.  We
-            // expect LAYERED set and NRB clear with this approach.
+            // in effect.  `0x80000` = LAYERED, `0x200000` = NRB.
             let final_ex = GetWindowLongPtrW(h, GWL_EXSTYLE) as u32;
             log::info!(
                 "overlay extended-style after setup: 0x{final_ex:08x} \
@@ -74,6 +96,16 @@ use super::*;
                 (final_ex & WS_EX_TRANSPARENT) != 0,
                 (final_ex & WS_EX_TOPMOST)     != 0,
             );
+        }
+        // Belt-and-suspenders: also tell winit explicitly that this
+        // window should be ignored for cursor hit-testing.  Internally
+        // winit goes through the same `WS_EX_TRANSPARENT` mechanism,
+        // but it routes the change through its own per-window style
+        // bookkeeping — which keeps the flag in sync if winit later
+        // re-applies styles for something else (visibility toggle,
+        // fullscreen mode change, taskbar-icon toggle)
+        if let Err(e) = window.set_cursor_hittest(false) {
+            log::warn!("set_cursor_hittest(false) failed: {e:?}");
         }
     }
 
