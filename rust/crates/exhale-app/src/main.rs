@@ -9,6 +9,7 @@
 
 mod app_icon;
 mod bootstrap;
+mod placement;
 #[cfg(feature = "global-hotkeys")]
 mod hotkeys;
 mod overlay;
@@ -220,6 +221,12 @@ impl App {
         if let Some(c) = &self.controller {
             c.restart();
         }
+        // Windowed-mode (Wayland fallback): bring the animation
+        // window back if Stop had hidden it.  No-op on threaded
+        // fullscreen-overlay windows (they were never hidden).
+        for h in self.overlays.values() {
+            h.set_animation_visible(true);
+        }
         self.request_settings_redraw();
     }
 
@@ -231,6 +238,13 @@ impl App {
         self.settings_manager.mark_dirty();
         self.update_tray_state(&s);
         drop(s);
+        // Windowed-mode (Wayland fallback): hide the animation
+        // window so Stop actually closes it from the user's
+        // perspective.  Threaded fullscreen overlays stay mapped
+        // and instead render the "stopped" clear frame below
+        for h in self.overlays.values() {
+            h.set_animation_visible(false);
+        }
         // Force one final render so the shader sees display_mode=STOPPED and
         // clears to transparent — matches Swift `window.backgroundColor = .clear`.
         for h in self.overlays.values() { h.wake_render(); }
@@ -529,6 +543,16 @@ impl ApplicationHandler<AppEvent> for App {
         }
         let initial_senders: Vec<FrameSender> =
             handles.iter().map(|h| h.frame_sender()).collect();
+        // Honour the persisted `is_animating` flag on startup:
+        // windowed-mode overlays (Wayland fallback) should start
+        // hidden if the user quit the app while stopped, so they
+        // come back to a clean "Stop"-state instead of a window
+        // showing the stopped clear frame.  No-op for threaded
+        // fullscreen overlays.
+        let initial_animating = self.settings.read_or_recover().is_animating;
+        for h in &handles {
+            h.set_animation_visible(initial_animating);
+        }
         for h in handles {
             self.overlays.insert(h.window.id(), h);
         }
@@ -664,42 +688,18 @@ impl ApplicationHandler<AppEvent> for App {
                     self.next_settings_repaint = None;
                 }
                 match &event {
-                    WindowEvent::Moved(pos) => {
-                        // Persist the window position as an offset relative to
-                        // its current monitor, matching Swift's
-                        // AppDelegate.windowDidMove which saves screen name +
-                        // screen-relative x/y.  This survives monitor
-                        // reconfiguration: when the saved screen is gone we
-                        // fall back to default placement rather than restoring
-                        // off-screen coordinates.
+                    WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
+                        // Persist position + height via the shared
+                        // capture helper.  Height is stored as logical
+                        // points (settings window has a fixed width;
+                        // logical-vs-physical matters because next
+                        // launch feeds height back through
+                        // `LogicalSize::new(...)`).
+                        let placement = placement::capture_placement_logical_height(
+                            event_loop, &sw.window,
+                        );
                         let mut s = self.settings.write_or_recover();
-                        if let Some(mon) = sw.window.current_monitor() {
-                            let origin = mon.position();
-                            s.settings_window_x      = Some(pos.x - origin.x);
-                            s.settings_window_y      = Some(pos.y - origin.y);
-                            s.settings_window_screen = mon.name();
-                        } else {
-                            s.settings_window_x      = Some(pos.x);
-                            s.settings_window_y      = Some(pos.y);
-                            s.settings_window_screen = None;
-                        }
-                        self.settings_manager.mark_dirty();
-                    }
-                    WindowEvent::Resized(size) => {
-                        // Persist the height as LOGICAL points, not
-                        // physical pixels.  `size.height` is physical;
-                        // the next `SettingsWindow::new` reads this back
-                        // and feeds it into `LogicalSize::new(...)`.  If
-                        // we saved physical, every launch on a 2× display
-                        // would double the value (load-as-logical
-                        // multiplies by the scale factor at window
-                        // creation), eventually blowing past wgpu's
-                        // 16384-pixel surface limit and crashing on
-                        // configure.  Round to nearest integer point.
-                        let scale  = sw.window.scale_factor();
-                        let logical = (size.height as f64 / scale).round() as u32;
-                        let mut s = self.settings.write_or_recover();
-                        s.settings_window_height = Some(logical);
+                        s.set_settings_window_placement(placement);
                         self.settings_manager.mark_dirty();
                     }
                     WindowEvent::RedrawRequested => {
@@ -828,10 +828,30 @@ impl ApplicationHandler<AppEvent> for App {
         // bypassing it from a background thread leaves the
         // xdg_toplevel in a "configured but unmapped" state
         if let Some(handle) = self.overlays.get(&window_id) {
+            // Persist windowed-mode placement on every Moved /
+            // Resized via the shared capture helper.  No-op for
+            // fullscreen overlay windows: they're sized to the
+            // monitor at creation and the user can't drag them, so
+            // their `Moved` / `Resized` only fires on monitor
+            // hot-plug — already handled by `rescan_monitors`,
+            // doesn't need to bleed into the placement file
+            let is_windowed_mode = !handle.alpha_capable;
+            let persist_placement = is_windowed_mode && matches!(
+                &event,
+                WindowEvent::Moved(_) | WindowEvent::Resized(_),
+            );
             match event {
-                WindowEvent::Resized(size)        => handle.resize(size),
-                WindowEvent::RedrawRequested      => handle.render_on_main(),
+                WindowEvent::Resized(size)   => handle.resize(size),
+                WindowEvent::RedrawRequested => handle.render_on_main(),
                 _ => {}
+            }
+            if persist_placement {
+                let placement = placement::capture_placement(
+                    event_loop, &handle.window,
+                );
+                let mut s = self.settings.write_or_recover();
+                s.set_animation_window_placement(placement);
+                self.settings_manager.mark_dirty();
             }
             return;
         }
