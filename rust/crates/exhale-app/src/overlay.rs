@@ -264,7 +264,7 @@ impl OverlayHandle {
                  content."
             );
             let (window, renderer, alpha_capable) =
-                create_windowed_app(event_loop, &gpu, monitor.as_ref())?;
+                create_windowed_app(event_loop, &gpu, monitor.as_ref(), &settings)?;
             // Kick off the first frame.  Wayland needs an initial
             // RedrawRequested → render → buffer commit cycle for the
             // xdg_toplevel to actually map; without this the window
@@ -287,7 +287,7 @@ impl OverlayHandle {
 
         // ── Non-Wayland: per-window render thread ──────────────────
         let (window, mut renderer, alpha_capable) =
-            create_overlay_or_fallback(event_loop, &gpu, monitor.as_ref())?;
+            create_overlay_or_fallback(event_loop, &gpu, monitor.as_ref(), &settings)?;
 
         let (msg_tx, msg_rx) = mpsc::channel::<RenderMsg>();
         let thread = thread::Builder::new()
@@ -344,6 +344,30 @@ impl OverlayHandle {
         self.frame_sender().send_frame();
     }
 
+    /// Show or hide the underlying window.  Only meaningful for
+    /// windowed-mode (MainThread) overlays: when the user hits Stop
+    /// the window should close, and Start should bring it back.
+    /// On threaded fullscreen-overlay windows (macOS / Windows /
+    /// Linux X11) hiding would just remove the always-on-top
+    /// breath animation while the app keeps running — not what
+    /// Stop means on those platforms, where the render thread
+    /// instead paints a "stopped" clear frame.  So we gate this on
+    /// `alpha_capable`: threaded overlays ignore the toggle, the
+    /// windowed-app shows / hides
+    pub fn set_animation_visible(&self, visible: bool) {
+        if self.alpha_capable {
+            return;
+        }
+        self.window.set_visible(visible);
+        if visible {
+            // Wayland needs an explicit redraw request after a
+            // hide → show cycle to re-commit a buffer; without it
+            // the xdg_toplevel comes back to the dock but the
+            // surface stays unattached.
+            self.window.request_redraw();
+        }
+    }
+
     /// Render synchronously on the calling thread.  No-op for
     /// threaded overlays (their render thread owns the renderer).
     /// Called from `main.rs`'s `RedrawRequested` handler for
@@ -376,25 +400,46 @@ fn create_windowed_app(
     event_loop: &ActiveEventLoop,
     gpu:        &Arc<GpuContext>,
     monitor:    Option<&MonitorHandle>,
+    settings:   &Arc<RwLock<Settings>>,
 ) -> Result<(Arc<Window>, OverlayRenderer, bool)> {
-    let mut win_attrs = Window::default_attributes()
+    const DEFAULT_W: u32 = 480;
+    const DEFAULT_H: u32 = 360;
+
+    let placement = settings.read_or_recover().animation_window_placement();
+    let win_attrs = Window::default_attributes()
         .with_title("exhale")
-        .with_inner_size(PhysicalSize::new(480u32, 360u32))
+        .with_inner_size(PhysicalSize::new(
+            placement.width.unwrap_or(DEFAULT_W),
+            placement.height.unwrap_or(DEFAULT_H),
+        ))
         .with_decorations(true)
         .with_resizable(true)
         .with_window_icon(crate::app_icon::window_icon());
-    if let Some(m) = monitor {
-        // Position is a HINT on Wayland (compositor decides) but
-        // honoured on X11 / Windows / macOS — request the centre of
-        // the assigned monitor.
-        let mp = m.position();
-        let ms = m.size();
-        let x  = mp.x + (ms.width  as i32 - 480) / 2;
-        let y  = mp.y + (ms.height as i32 - 360) / 2;
-        win_attrs = win_attrs
-            .with_position(PhysicalPosition::new(x.max(mp.x), y.max(mp.y)));
+
+    let window  = Arc::new(event_loop.create_window(win_attrs)?);
+
+    // Apply the saved POSITION BEFORE creating the wgpu surface so
+    // any compositor that re-runs configure on outer-position
+    // changes settles into the final geometry before we configure
+    // the surface.  Size was already set via `with_inner_size` in
+    // the attrs above using the persisted (or default) physical
+    // pixel dimensions
+    crate::placement::apply_placement(event_loop, &window, &placement);
+    if placement.x.is_none() {
+        // First launch / no saved position: centre on the assigned
+        // monitor explicitly so X11 / Windows / macOS don't fall back
+        // to (0, 0).  Wayland still ignores this.
+        if let Some(m) = monitor {
+            let mp = m.position();
+            let ms = m.size();
+            let x  = mp.x + (ms.width  as i32 - DEFAULT_W as i32) / 2;
+            let y  = mp.y + (ms.height as i32 - DEFAULT_H as i32) / 2;
+            window.set_outer_position(PhysicalPosition::new(
+                x.max(mp.x), y.max(mp.y),
+            ));
+        }
     }
-    let window   = Arc::new(event_loop.create_window(win_attrs)?);
+
     let size     = window.inner_size();
     let surface  = gpu.instance.create_surface(Arc::clone(&window))?;
     let renderer = OverlayRenderer::new(
@@ -415,6 +460,7 @@ fn create_overlay_or_fallback(
     event_loop: &ActiveEventLoop,
     gpu:        &Arc<GpuContext>,
     monitor:    Option<&MonitorHandle>,
+    settings:   &Arc<RwLock<Settings>>,
 ) -> Result<(Arc<Window>, OverlayRenderer, bool)> {
     // Borderless, transparent, fullscreen on the target monitor.
     // The `with_visible(false)` keeps the probe window off-screen
@@ -468,7 +514,7 @@ fn create_overlay_or_fallback(
         // the window so the surface releases its reference cleanly.
         drop(probe_renderer);
         drop(probe_window);
-        create_windowed_app(event_loop, gpu, monitor)
+        create_windowed_app(event_loop, gpu, monitor, settings)
     }
 }
 

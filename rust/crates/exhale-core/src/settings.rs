@@ -53,13 +53,20 @@ pub struct Settings {
     /// Pause holds the animation on the current frame without resetting position.
     pub is_paused: bool,
 
-    // ── Window frame (persisted so the settings panel reopens where you left it) ─
+    // ── Window frame (persisted so each window reopens where you left it) ──
     //
     // Stored as an offset relative to a named monitor (matching Swift's
-    // per-screen persistence in AppDelegate.windowDidMove).  When the monitor
-    // listed in `settings_window_screen` is no longer connected we fall back
-    // to the OS default position rather than restoring to absolute coordinates
-    // that might now be off-screen.
+    // per-screen persistence in AppDelegate.windowDidMove).  When the saved
+    // monitor is no longer connected we clamp the position to whichever
+    // monitor still has visible real estate rather than restoring to
+    // off-screen coordinates.  Both windows use the same shape, see
+    // [`WindowPlacement`] / [`Settings::settings_window_placement`] /
+    // [`Settings::animation_window_placement`].
+    //
+    // The settings window has a fixed width; only its height is
+    // persisted (`settings_window_width` doesn't exist).  The animation
+    // window persists both dimensions because the user can resize it
+    // freely.
     #[serde(default)]
     pub settings_window_x: Option<i32>,
     #[serde(default)]
@@ -68,6 +75,33 @@ pub struct Settings {
     pub settings_window_height: Option<u32>,
     #[serde(default)]
     pub settings_window_screen: Option<String>,
+
+    #[serde(default)]
+    pub animation_window_x: Option<i32>,
+    #[serde(default)]
+    pub animation_window_y: Option<i32>,
+    #[serde(default)]
+    pub animation_window_width: Option<u32>,
+    #[serde(default)]
+    pub animation_window_height: Option<u32>,
+    #[serde(default)]
+    pub animation_window_screen: Option<String>,
+}
+
+/// Persisted-position view of either application window.  Acts as a
+/// shared shape between [`Settings::settings_window_placement`] /
+/// [`Settings::animation_window_placement`] so the apply-on-create
+/// and capture-on-move logic in `exhale-app::placement` is a single
+/// helper used by both windows.  Not directly serialized — the flat
+/// `*_window_*` fields above are the on-disk format, kept flat for
+/// backward compatibility with existing settings.toml files
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct WindowPlacement {
+    pub x:      Option<i32>,
+    pub y:      Option<i32>,
+    pub width:  Option<u32>,
+    pub height: Option<u32>,
+    pub screen: Option<String>,
 }
 
 impl Default for Settings {
@@ -110,7 +144,60 @@ impl Default for Settings {
             settings_window_y:      None,
             settings_window_height: None,
             settings_window_screen: None,
+
+            animation_window_x:      None,
+            animation_window_y:      None,
+            animation_window_width:  None,
+            animation_window_height: None,
+            animation_window_screen: None,
         }
+    }
+}
+
+impl Settings {
+    /// Read the persisted placement of the settings window.  Width is
+    /// always `None` because the settings window is fixed-width
+    pub fn settings_window_placement(&self) -> WindowPlacement {
+        WindowPlacement {
+            x:      self.settings_window_x,
+            y:      self.settings_window_y,
+            width:  None,
+            height: self.settings_window_height,
+            screen: self.settings_window_screen.clone(),
+        }
+    }
+
+    /// Write the persisted placement of the settings window.  Width
+    /// is ignored because the settings window is fixed-width.
+    pub fn set_settings_window_placement(&mut self, p: WindowPlacement) {
+        self.settings_window_x      = p.x;
+        self.settings_window_y      = p.y;
+        self.settings_window_height = p.height;
+        self.settings_window_screen = p.screen;
+    }
+
+    /// Read the persisted placement of the animation (windowed-mode
+    /// fallback) window.  Used only on platforms where the breath
+    /// animation runs as a regular app window instead of as a
+    /// fullscreen click-through overlay (currently Wayland and any
+    /// GPU path that exposes only Opaque alpha)
+    pub fn animation_window_placement(&self) -> WindowPlacement {
+        WindowPlacement {
+            x:      self.animation_window_x,
+            y:      self.animation_window_y,
+            width:  self.animation_window_width,
+            height: self.animation_window_height,
+            screen: self.animation_window_screen.clone(),
+        }
+    }
+
+    /// Write the persisted placement of the animation window.
+    pub fn set_animation_window_placement(&mut self, p: WindowPlacement) {
+        self.animation_window_x      = p.x;
+        self.animation_window_y      = p.y;
+        self.animation_window_width  = p.width;
+        self.animation_window_height = p.height;
+        self.animation_window_screen = p.screen;
     }
 }
 
