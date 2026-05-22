@@ -65,6 +65,12 @@ enum AppEvent {
     /// resets a per-action shortcut to its default
     #[cfg(feature = "global-hotkeys")]
     RebindHotkeys,
+    /// Open the settings window (creating it if necessary) and put
+    /// it into shortcut-capture mode for the given action.  Fired
+    /// from the tray menu's "Keyboard Shortcuts ▶" submenu so the
+    /// user can rebind any action — including Preferences, which
+    /// has no settings-window button to right-click
+    BeginCapturingShortcut(exhale_core::settings::ShortcutAction),
     Quit,
 }
 
@@ -289,7 +295,8 @@ impl App {
         let needs_tray = vis != AppVisibility::DockOnly;
         let has_tray   = self._tray.is_some();
         if needs_tray && !has_tray {
-            match tray::build_tray() {
+            let shortcuts = self.settings.read_or_recover().keyboard_shortcuts.clone();
+            match tray::build_tray(&shortcuts) {
                 Ok((t, ids)) => {
                     let s = self.settings.read_or_recover();
                     self._tray    = Some(t);
@@ -312,6 +319,20 @@ impl App {
         self.settings_manager.mark_dirty();
         self.update_tray_state(&s);
         drop(s);
+        // `reset_preserving_runtime_state` also clears the
+        // `keyboard_shortcuts` block back to its per-action default
+        // (None for everything except Preferences → ⌃⇧,).  Without
+        // re-running the rebind path the global-hotkey manager
+        // keeps the OLD bindings active and the tray menu keeps
+        // displaying them — both diverge from what the settings
+        // panel and `settings.toml` claim are in effect.  Cover the
+        // macOS NSAlert reset path (which feeds back into do_reset)
+        // and the tray-menu Reset click; the egui in-window
+        // confirmation flow already calls `on_rebind_hotkeys` for
+        // its own reasons but invoking the same routine twice is a
+        // cheap no-op
+        #[cfg(feature = "global-hotkeys")]
+        self.do_rebind_hotkeys();
         self.request_settings_redraw();
     }
 
@@ -408,6 +429,40 @@ impl App {
                 self.hotkey_ids = Some(ids);
             }
             Err(e) => log::error!("hotkey rebind: {e}"),
+        }
+        // Sync the tray menu's "Keyboard Shortcuts ▶" submenu and
+        // top-level item labels in place so the user immediately
+        // sees the new binding without having to close and reopen
+        // the tray menu.  Avoids a full tray rebuild — `set_text`
+        // on each MenuItem is cheap and doesn't flash the icon
+        if let Some(tray_ids) = &self.tray_ids {
+            tray_ids.refresh_labels(&shortcuts);
+        }
+    }
+
+    /// Open the settings window (creating it if necessary) and put
+    /// it into shortcut-capture mode for `action`.  Used by the
+    /// tray menu's "Keyboard Shortcuts ▶" submenu so the user can
+    /// rebind any action without first navigating to its button —
+    /// critical for Preferences, which has no button to right-click
+    fn do_begin_capturing_shortcut(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        action:     exhale_core::settings::ShortcutAction,
+    ) {
+        // Ensure the settings window is open and frontmost so the
+        // capture overlay it's about to draw is visible.
+        let visible = self.settings_win
+            .as_ref()
+            .and_then(|sw| sw.window.is_visible())
+            .unwrap_or(false);
+        if self.settings_win.is_none() || !visible {
+            self.toggle_settings(event_loop);
+        }
+        if let Some(sw) = &mut self.settings_win {
+            sw.begin_capturing(action);
+            sw.window.focus_window();
+            sw.request_redraw();
         }
     }
 
@@ -733,6 +788,7 @@ impl ApplicationHandler<AppEvent> for App {
             AppEvent::ResetDefaultsWithConfirm => self.do_reset_with_confirm(event_loop),
             #[cfg(feature = "global-hotkeys")]
             AppEvent::RebindHotkeys  => self.do_rebind_hotkeys(),
+            AppEvent::BeginCapturingShortcut(action) => self.do_begin_capturing_shortcut(event_loop, action),
             AppEvent::Quit => {
                 self.shutdown(event_loop);
             }
@@ -991,7 +1047,16 @@ impl ApplicationHandler<AppEvent> for App {
         while let Ok(event) = MenuEvent::receiver().try_recv() {
             if let Some(ids) = &self.tray_ids {
                 let id = &event.id;
-                if id == &ids.preferences { let _ = self.proxy.send_event(AppEvent::ShowSettings); }
+                // Check the "Keyboard Shortcuts ▶" submenu first —
+                // those items don't execute the action, they open
+                // the settings window in capture mode for the
+                // matching `ShortcutAction`.  `kb_action_for`
+                // returns `None` for any non-submenu id, falling
+                // through to the action-execution branches below
+                if let Some(action) = ids.kb_action_for(id) {
+                    let _ = self.proxy.send_event(AppEvent::BeginCapturingShortcut(action));
+                }
+                else if id == &ids.preferences { let _ = self.proxy.send_event(AppEvent::ShowSettings); }
                 else if id == &ids.start  { let _ = self.proxy.send_event(AppEvent::StartAnimation); }
                 else if id == &ids.stop   { let _ = self.proxy.send_event(AppEvent::StopAnimation); }
                 else if id == &ids.reset  { let _ = self.proxy.send_event(AppEvent::ResetDefaults); }

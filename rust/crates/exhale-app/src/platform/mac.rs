@@ -13,7 +13,15 @@ use super::*;
     /// `NSWindow.Level.screenSaver.rawValue` (`1000`).
     const NS_WINDOW_LEVEL_SCREEN_SAVER:  NSWindowLevel = 1000;
     /// Settings window sits one level above the overlay so it
-    /// remains usable at `overlay_opacity = 1.0`
+    /// remains visible at any `overlay_opacity` — including 1.0,
+    /// where the user would otherwise be stuck unable to see the
+    /// controls to lower opacity or quit the app.  Popup menus
+    /// would normally hide behind a window at this level, so
+    /// [`register_menu_tracking_observer`] raises any
+    /// `NSPopUpMenuWindowLevel` window above settings while it's
+    /// tracking — modifying the menu's own NSWindow rather than the
+    /// settings NSWindow, which keeps NSMenu from interpreting the
+    /// reorder as a focus-loss and cancelling tracking
     const NS_WINDOW_LEVEL_SETTINGS:      NSWindowLevel = 1001;
 
     /// `NSVisualEffectMaterial.popover` (6) — neutral dark blur, used
@@ -99,6 +107,164 @@ use super::*;
         // with a 0×0 initial drawable and a detached layer hierarchy).
         let Some(ns_win) = get_ns_window(window) else { return; };
         ns_win.setLevel(NS_WINDOW_LEVEL_SETTINGS);
+        // Settings sits at 1001 to stay visible above the overlay at
+        // any opacity, but popup menus default to
+        // `NSPopUpMenuWindowLevel` (101) and would otherwise hide
+        // beneath it.  Install a one-shot observer that lifts every
+        // popup-menu window to level 1002 (above settings, above
+        // overlay) the moment it starts tracking
+        register_menu_tracking_observer();
+    }
+
+    /// Idempotently install an `ExhaleMenuTracker` observer that
+    /// hoists every popup-menu window above the settings window the
+    /// moment it begins tracking.  Modifies the MENU's own NSWindow
+    /// rather than the settings NSWindow — mutating settings
+    /// mid-tracking caused NSMenu to interpret the resulting
+    /// window-order event as a focus loss and immediately cancel
+    /// tracking ("menu needs three clicks to stick" regression),
+    /// while modifying the menu's own window leaves focus on the
+    /// menu and doesn't trip that cancellation path
+    fn register_menu_tracking_observer() {
+        use objc2::msg_send;
+        use objc2::runtime::AnyObject;
+        use objc2_foundation::NSString;
+        use std::sync::Once;
+
+        /// Walk every visible NSWindow owned by this app and promote
+        /// anything below the overlay (level 1000) up to 1002 — past
+        /// the settings window at 1001.  Status-bar popup menus on
+        /// macOS don't necessarily open at the nominal
+        /// `NSPopUpMenuWindowLevel` (101); some AppKit revisions
+        /// route them through a different NSCarbonMenuWindow
+        /// instance whose level depends on the status item's owning
+        /// menu bar.  A precise `level == 101` filter missed those.
+        /// Broad sweep matches the menu regardless of which level
+        /// AppKit chose, while still leaving our own windows
+        /// (overlay 1000, settings 1001, reset alert / about panel
+        /// 1002) untouched
+        unsafe fn raise_menu_windows() {
+            let Some(app_cls) = objc2::runtime::AnyClass::get(c"NSApplication") else { return; };
+            let app: *mut AnyObject = msg_send![app_cls, sharedApplication];
+            if app.is_null() { return; }
+            let windows: *mut AnyObject = msg_send![app, windows];
+            if windows.is_null() { return; }
+            let count: usize = msg_send![windows, count];
+
+            let mut raised = 0_usize;
+            for i in 0..count {
+                let win: *mut AnyObject = msg_send![windows, objectAtIndex: i];
+                if win.is_null() { continue; }
+                let visible: bool = msg_send![win, isVisible];
+                if !visible { continue; }
+                let level: i64 = msg_send![win, level];
+
+                // Diagnostic: identify the window's class name via
+                // the documented `class_getName(Class)` runtime
+                // function — NOT via `[class name]`, which isn't a
+                // standard Class method.  An earlier revision used
+                // `msg_send![cls, name]` and crashed because the
+                // bogus selector returned register garbage that got
+                // reinterpreted as a C string pointer and panicked
+                // inside `CStr::from_ptr`
+                let cls: *mut objc2::runtime::AnyClass = msg_send![win, class];
+                let cls_str = if !cls.is_null() {
+                    let raw = objc2::ffi::class_getName(cls as *const _);
+                    if raw.is_null() {
+                        "<no-name>".to_string()
+                    } else {
+                        std::ffi::CStr::from_ptr(raw).to_string_lossy().into_owned()
+                    }
+                } else {
+                    "<no-class>".to_string()
+                };
+                log::debug!("menu tracker: visible NSWindow class={cls_str} level={level}");
+
+                // Skip our own windows: overlay (1000), settings
+                // (1001), reset alert / about panel (1002).
+                // Anything else that's visible and below 1000 is a
+                // popup of some flavour — promote it
+                if level < 1000 {
+                    let _: () = msg_send![win, setLevel: 1002_i64];
+                    raised += 1;
+                }
+            }
+            log::info!("menu tracker: raised {raised} popup window(s) above settings");
+        }
+
+        extern "C" fn handle_menu_begin(
+            _this:  &AnyObject,
+            _cmd:   objc2::runtime::Sel,
+            _notif: *mut AnyObject,
+        ) {
+            log::debug!("menu tracker: NSMenuDidBeginTracking fired");
+            unsafe { raise_menu_windows(); }
+        }
+
+        static INIT: Once = Once::new();
+        INIT.call_once(|| unsafe {
+            // Allocate `ExhaleMenuTracker` NSObject subclass — same
+            // pattern as `ExhaleAEHandler` (dock reopen) and
+            // `ExhaleAboutHandler` (about-panel options), avoiding
+            // any swizzle of system classes for MAS-review safety
+            let super_cls = objc2::class!(NSObject);
+            let name = c"ExhaleMenuTracker";
+            let new_cls = objc2::ffi::objc_allocateClassPair(
+                (super_cls as *const _) as *const _,
+                name.as_ptr(),
+                0,
+            );
+            if new_cls.is_null() {
+                log::warn!("menu tracker: objc_allocateClassPair returned null");
+                return;
+            }
+
+            // Type encoding `v@:@` = void return, (self, _cmd,
+            // NSNotification* notif).  AppKit's notification payload
+            // would let us inspect the specific NSMenu, but we
+            // don't need to — every popup menu in the app gets the
+            // same level-promotion treatment
+            let begin_sel = objc2::sel!(menuDidBeginTracking:);
+            let begin_imp: objc2::runtime::Imp = std::mem::transmute(handle_menu_begin as *const ());
+            objc2::ffi::class_addMethod(new_cls as *mut _, begin_sel, begin_imp, c"v@:@".as_ptr());
+            objc2::ffi::objc_registerClassPair(new_cls as *mut _);
+
+            // Leak the instance — NSNotificationCenter retains
+            // observers weakly, so a Rust-side drop here would mean
+            // a dead observer on the next menu open
+            let instance: *mut AnyObject = msg_send![new_cls, alloc];
+            let instance: *mut AnyObject = msg_send![instance, init];
+            if instance.is_null() {
+                log::warn!("menu tracker: failed to alloc ExhaleMenuTracker");
+                return;
+            }
+
+            let Some(nc_cls) = objc2::runtime::AnyClass::get(c"NSNotificationCenter") else {
+                log::warn!("menu tracker: NSNotificationCenter class not found");
+                return;
+            };
+            let nc: *mut AnyObject = msg_send![nc_cls, defaultCenter];
+            if nc.is_null() {
+                log::warn!("menu tracker: NSNotificationCenter defaultCenter returned null");
+                return;
+            }
+
+            // Subscribe to `NSMenuDidBeginTrackingNotification` with
+            // `object: null` — match against ANY NSMenu in the app,
+            // not just the tray's, so the Apple menu / Edit menu /
+            // Window menu / submenus all get the same treatment.
+            // No corresponding end-tracking observer — the menu's
+            // NSWindow is OS-managed; AppKit destroys or recycles
+            // it on close, so there's nothing to restore
+            let begin_name = NSString::from_str("NSMenuDidBeginTrackingNotification");
+            let _: () = msg_send![
+                nc,
+                addObserver: instance,
+                selector:    begin_sel,
+                name:        &*begin_name,
+                object:      std::ptr::null::<AnyObject>(),
+            ];
+        });
     }
 
     /// Reconstruct a `Retained<NSWindow>` from a backdrop pointer the
@@ -275,8 +441,9 @@ use super::*;
             backdrop.setHasShadow(false);
             backdrop.setIgnoresMouseEvents(true);
             backdrop.setReleasedWhenClosed(false);
-            // Match parent's window level (1001 set by setup_settings_window)
-            // so addChildWindow ordering isn't fighting a level mismatch.
+            // Match parent's window level (NS_WINDOW_LEVEL_SETTINGS = 1001
+            // set by setup_settings_window) so addChildWindow ordering
+            // isn't fighting a level mismatch.
             backdrop.setLevel(ns_win.level());
             // CanJoinAllSpaces | FullScreenAuxiliary so the backdrop
             // follows the parent across workspaces / fullscreen.

@@ -51,13 +51,17 @@ pub fn register_hotkeys(
         registered: Vec::new(),
     };
 
-    for (action, sc) in [
-        (ShortcutAction::Start,       &shortcuts.start),
-        (ShortcutAction::Stop,        &shortcuts.stop),
-        (ShortcutAction::Reset,       &shortcuts.reset),
-        (ShortcutAction::Quit,        &shortcuts.quit),
-        (ShortcutAction::Preferences, &shortcuts.preferences),
+    for (action, sc_opt) in [
+        (ShortcutAction::Start,       shortcuts.start.as_ref()),
+        (ShortcutAction::Stop,        shortcuts.stop.as_ref()),
+        (ShortcutAction::Reset,       shortcuts.reset.as_ref()),
+        (ShortcutAction::Quit,        shortcuts.quit.as_ref()),
+        (ShortcutAction::Preferences, shortcuts.preferences.as_ref()),
     ] {
+        let Some(sc) = sc_opt else {
+            log::info!("hotkey {} is unbound; skipping registration", action.label());
+            continue;
+        };
         let label = format!("{} ({})", sc.display(), action.label());
         let Some(hk) = shortcut_to_hotkey(sc) else {
             log::warn!("hotkey {label} unrecognised key code '{}'; skipping registration", sc.code);

@@ -192,37 +192,37 @@ fn human_key(code: &str) -> String {
     }
 }
 
-/// Per-action global-hotkey defaults.  Bound to S/D/F for the main
-/// triad (Start / Stop / Reset), Q for Quit, and W for Preferences.
-/// The triad sits on the home row to favour muscle memory; A is
-/// avoided because Ctrl+Shift+A is captured by enough other apps
-/// (browsers, Teams, etc.) that the global registration looked
-/// silent on at least one tested macOS environment.  `W` over
-/// Cmd-style `,` because comma is also reported unreliable on
-/// macOS.  `Q` over Cmd+Q because Cmd+Q is the system-wide "quit
-/// current app" shortcut on macOS — registering it globally would
-/// steal it from every other app.  `Ctrl+Shift+Q` is rarely used
-/// globally on macOS / Windows / Linux
+/// Per-action global-hotkey defaults.  Only Preferences ships with
+/// a binding (Ctrl+Shift+, — the conventional "open preferences"
+/// combo across desktop platforms).  Every other action defaults
+/// to `None` so we ship without any global hotkey that could
+/// silently conflict with the user's other apps; users opt into
+/// bindings via right-click → Change Shortcut on the matching
+/// settings-window button.  Avoids the long support tail of
+/// "Ctrl+Shift+A doesn't work on my mac" reports — anything we
+/// pre-register is anything we'd have to justify
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyboardShortcuts {
     #[serde(default = "KeyboardShortcuts::default_start")]
-    pub start:       KeyboardShortcut,
+    pub start:       Option<KeyboardShortcut>,
     #[serde(default = "KeyboardShortcuts::default_stop")]
-    pub stop:        KeyboardShortcut,
+    pub stop:        Option<KeyboardShortcut>,
     #[serde(default = "KeyboardShortcuts::default_reset")]
-    pub reset:       KeyboardShortcut,
+    pub reset:       Option<KeyboardShortcut>,
     #[serde(default = "KeyboardShortcuts::default_quit")]
-    pub quit:        KeyboardShortcut,
+    pub quit:        Option<KeyboardShortcut>,
     #[serde(default = "KeyboardShortcuts::default_preferences")]
-    pub preferences: KeyboardShortcut,
+    pub preferences: Option<KeyboardShortcut>,
 }
 
 impl KeyboardShortcuts {
-    pub fn default_start()       -> KeyboardShortcut { KeyboardShortcut::ctrl_shift("KeyS") }
-    pub fn default_stop()        -> KeyboardShortcut { KeyboardShortcut::ctrl_shift("KeyD") }
-    pub fn default_reset()       -> KeyboardShortcut { KeyboardShortcut::ctrl_shift("KeyF") }
-    pub fn default_quit()        -> KeyboardShortcut { KeyboardShortcut::ctrl_shift("KeyQ") }
-    pub fn default_preferences() -> KeyboardShortcut { KeyboardShortcut::ctrl_shift("KeyW") }
+    pub fn default_start()       -> Option<KeyboardShortcut> { None }
+    pub fn default_stop()        -> Option<KeyboardShortcut> { None }
+    pub fn default_reset()       -> Option<KeyboardShortcut> { None }
+    pub fn default_quit()        -> Option<KeyboardShortcut> { None }
+    pub fn default_preferences() -> Option<KeyboardShortcut> {
+        Some(KeyboardShortcut::ctrl_shift("Comma"))
+    }
 }
 
 impl Default for KeyboardShortcuts {
@@ -262,17 +262,17 @@ impl ShortcutAction {
 }
 
 impl KeyboardShortcuts {
-    pub fn get(&self, action: ShortcutAction) -> &KeyboardShortcut {
+    pub fn get(&self, action: ShortcutAction) -> Option<&KeyboardShortcut> {
         match action {
-            ShortcutAction::Start       => &self.start,
-            ShortcutAction::Stop        => &self.stop,
-            ShortcutAction::Reset       => &self.reset,
-            ShortcutAction::Quit        => &self.quit,
-            ShortcutAction::Preferences => &self.preferences,
+            ShortcutAction::Start       => self.start.as_ref(),
+            ShortcutAction::Stop        => self.stop.as_ref(),
+            ShortcutAction::Reset       => self.reset.as_ref(),
+            ShortcutAction::Quit        => self.quit.as_ref(),
+            ShortcutAction::Preferences => self.preferences.as_ref(),
         }
     }
 
-    pub fn set(&mut self, action: ShortcutAction, sc: KeyboardShortcut) {
+    pub fn set(&mut self, action: ShortcutAction, sc: Option<KeyboardShortcut>) {
         match action {
             ShortcutAction::Start       => self.start       = sc,
             ShortcutAction::Stop        => self.stop        = sc,
