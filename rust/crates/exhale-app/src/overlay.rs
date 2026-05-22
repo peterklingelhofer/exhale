@@ -499,8 +499,22 @@ fn create_overlay_or_fallback(
     let alpha_capable = probe_renderer.alpha_capable();
 
     if alpha_capable {
-        platform::setup_overlay_window(&probe_window);
+        // Order matters on Windows: `set_visible(true)` triggers
+        // winit's internal `apply_diff` which OVERWRITES the entire
+        // `GWL_EXSTYLE` word from winit's tracked `WindowFlags`
+        // bitset.  That bitset does NOT include `WS_EX_TRANSPARENT`
+        // (it only sets it when `IGNORE_CURSOR_EVENT` is on, which
+        // we don't toggle via winit's API), so any
+        // `WS_EX_TRANSPARENT` we OR-in BEFORE the visibility toggle
+        // gets silently stripped on the way to the screen — visible
+        // overlay, no click-through (the originally-reported
+        // regression).  Calling `setup_overlay_window` AFTER
+        // `set_visible` makes our raw `SetWindowLongPtrW` the LAST
+        // write to the EX-style word, so the flag survives.  No-op
+        // on non-Windows platforms — both calls are pure on macOS
+        // and Linux
         probe_window.set_visible(true);
+        platform::setup_overlay_window(&probe_window);
         Ok((probe_window, probe_renderer, true))
     } else {
         log::warn!(
