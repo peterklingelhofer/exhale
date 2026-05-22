@@ -468,6 +468,15 @@ impl SettingsWindow {
         self.capturing_shortcut_for.is_some()
     }
 
+    /// Externally arm shortcut-capture mode for `action`.  Used by
+    /// the tray menu's "Keyboard Shortcuts ▶" submenu so the
+    /// capture overlay shows the next time we render — same flow as
+    /// the right-click → Change Shortcut path inside the settings
+    /// window, just initiated from outside
+    pub fn begin_capturing(&mut self, action: ShortcutAction) {
+        self.capturing_shortcut_for = Some(action);
+    }
+
     /// Raise the in-window Reset confirmation dialog on the next frame.
     /// Used by the Ctrl+Shift+D global hotkey on Windows / Linux only —
     /// macOS routes the same hotkey through a native `NSAlert.runModal()`
@@ -740,7 +749,10 @@ fn shortcut_context_menu(
     rebind_hotkeys:         &mut bool,
 ) {
     resp.context_menu(|ui| {
-        ui.label(format!("Current: {}", settings.keyboard_shortcuts.get(action).display()));
+        let current = settings.keyboard_shortcuts.get(action)
+            .map(|sc| sc.display())
+            .unwrap_or_else(|| "(none)".to_string());
+        ui.label(format!("Current: {current}"));
         ui.separator();
         if ui.button("Change Shortcut…").clicked() {
             *capturing_shortcut_for = Some(action);
@@ -752,7 +764,29 @@ fn shortcut_context_menu(
             *rebind_hotkeys = true;
             ui.close_menu();
         }
+        if settings.keyboard_shortcuts.get(action).is_some()
+            && ui.button("Unbind Shortcut").clicked()
+        {
+            settings.keyboard_shortcuts.set(action, None);
+            *dirty = true;
+            *rebind_hotkeys = true;
+            ui.close_menu();
+        }
     });
+}
+
+/// Shared one-line helper for the button tooltip text — embeds the
+/// current binding when present, or "Right-click to set." when the
+/// slot is unbound (the default for Start / Stop / Reset / Quit
+/// after the "no opt-in defaults" simplification)
+fn shortcut_tooltip_line(
+    settings: &Settings,
+    action:   ShortcutAction,
+) -> String {
+    match settings.keyboard_shortcuts.get(action) {
+        Some(sc) => format!("Shortcut: {}\nRight-click to change.", sc.display()),
+        None     => "Shortcut: (none)\nRight-click to set.".to_string(),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -869,20 +903,20 @@ fn settings_ui(
                     // tooltip stays in sync with whatever the user just
                     // captured in the right-click → Change Shortcut overlay.
                     let start_help = format!(
-                        "Start the app and re-initialize animation.\nShortcut: {}\nRight-click to change.",
-                        settings.keyboard_shortcuts.start.display(),
+                        "Start the app and re-initialize animation.\n{}",
+                        shortcut_tooltip_line(settings, ShortcutAction::Start),
                     );
                     let stop_help = format!(
-                        "Stop the animation and remove all screen tints.\nShortcut: {}\nRight-click to change.",
-                        settings.keyboard_shortcuts.stop.display(),
+                        "Stop the animation and remove all screen tints.\n{}",
+                        shortcut_tooltip_line(settings, ShortcutAction::Stop),
                     );
                     let reset_help = format!(
-                        "Reset all settings to their default values.\nShortcut: {}\nRight-click to change.",
-                        settings.keyboard_shortcuts.reset.display(),
+                        "Reset all settings to their default values.\n{}",
+                        shortcut_tooltip_line(settings, ShortcutAction::Reset),
                     );
                     let quit_help = format!(
-                        "Quit exhale (full shutdown).\nShortcut: {}\nRight-click to change.",
-                        settings.keyboard_shortcuts.quit.display(),
+                        "Quit exhale (full shutdown).\n{}",
+                        shortcut_tooltip_line(settings, ShortcutAction::Quit),
                     );
 
                     let start_resp = control_button(
@@ -1214,7 +1248,10 @@ fn settings_ui(
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     ui.label("Current binding:");
-                    ui.monospace(settings.keyboard_shortcuts.get(action).display());
+                    let current = settings.keyboard_shortcuts.get(action)
+                        .map(|sc| sc.display())
+                        .unwrap_or_else(|| "(none)".to_string());
+                    ui.monospace(current);
                 });
                 ui.add_space(8.0);
                 if ui.button("Cancel").clicked() {
@@ -1260,7 +1297,7 @@ fn settings_ui(
                     let mask = egui_modifiers_to_mask(mods);
                     settings.keyboard_shortcuts.set(
                         action,
-                        KeyboardShortcut::new(mask, code),
+                        Some(KeyboardShortcut::new(mask, code)),
                     );
                     *capturing_shortcut_for = None;
                     rebind_hotkeys = true;
