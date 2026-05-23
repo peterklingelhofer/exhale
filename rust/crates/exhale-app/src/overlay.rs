@@ -520,10 +520,26 @@ fn create_overlay_or_fallback(
         log::warn!(
             "overlay swap chain only supports Opaque alpha; falling back \
              to a regular windowed app.  Typical under VMs running WARP / \
-             Microsoft Basic Render Driver or remote-desktop sessions.  \
-             The breath animation will render in a normal movable / \
-             resizable window instead of as a click-through overlay."
+             Microsoft Basic Render Driver or remote-desktop sessions, \
+             AND on bare-metal Windows 10 installs where Vulkan reports \
+             only Opaque alpha modes.  The breath animation will render \
+             in a normal movable / resizable window instead of as a \
+             click-through overlay."
         );
+        // Belt-and-suspenders teardown of the fullscreen probe before
+        // dropping: on a fresh Windows 10 install with NVIDIA Vulkan
+        // (RTX-class, driver 5xx), a probe window built with
+        // `.with_visible(false)` was reportedly leaving a
+        // monitor-sized opaque black compositor surface on screen
+        // even though the HWND should have been hidden.  Forcing
+        // `set_visible(false)` and moving it far off-screen before
+        // dropping the Arc<Window> ensures both WM_HIDE and a
+        // WindowPosChanged out of any visible region flush through
+        // the OS compositor before DestroyWindow runs.  No-op on
+        // Windows 11 / macOS / Linux where the bug doesn't reproduce
+        probe_window.set_visible(false);
+        let _ = probe_window.request_inner_size(PhysicalSize::new(1, 1));
+        probe_window.set_outer_position(PhysicalPosition::new(-32000, -32000));
         // Order matters: drop renderer (releases the surface) before
         // the window so the surface releases its reference cleanly.
         drop(probe_renderer);
@@ -597,11 +613,23 @@ fn render_thread_loop(
             renderer.resize(s.width, s.height);
         }
 
-        // Skip the render entirely on a swap chain that can only do
-        // Opaque alpha (VM/WARP) — the window is hidden so painting
-        // wastes GPU work that nobody will see.  Still drain the
-        // channel above so resize / shutdown messages flow.
-        if should_render && alpha_capable {
+        // Render on every Frame message regardless of `alpha_capable`.
+        //
+        // Earlier this branch skipped rendering when
+        // `alpha_capable == false` under the (now-stale) assumption
+        // that an Opaque-only swap chain meant "the overlay window is
+        // hidden, painting wastes GPU work".  Since the
+        // windowed-fallback path was added, `alpha_capable == false`
+        // ALSO means "we're running as a visible 480×360 windowed
+        // app".  Skipping the render in that case left the fallback
+        // window painted with whatever the GPU cleared at startup
+        // (typically white) and pressing Start did nothing user-
+        // visible — exactly the symptom reported on Windows 10
+        // systems where Vulkan reports only the `Opaque` alpha mode.
+        // Rendering is cheap (we already coalesce Frame bursts in
+        // `coalesce_messages`) and the Opaque-only swap chain accepts
+        // whatever colour we present, so just paint unconditionally
+        if should_render {
             // Read the latest snapshot and settings.  The controller
             // writes its state BEFORE sending us the Frame, and the
             // Mutex acquire here provides the matching release/acquire
@@ -618,6 +646,10 @@ fn render_thread_loop(
                 log::error!("overlay render: {e}");
             }
         }
+        // `alpha_capable` is still passed in because callers further
+        // down may grow uses for it; mark it `unused` to keep the
+        // compiler quiet without breaking the public signature
+        let _ = alpha_capable;
     }
 }
 
