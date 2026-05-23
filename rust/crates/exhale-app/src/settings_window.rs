@@ -1060,9 +1060,18 @@ fn settings_ui(
                 // Inhale color — no alpha (Swift: supportsOpacity: false)
                 labeled_row(ui, "Inhale Color", |ui| {
                     let mut c = to_color32(settings.inhale_color);
-                    if egui::color_picker::color_edit_button_srgba(
+                    let resp = egui::color_picker::color_edit_button_srgba(
                         ui, &mut c, egui::color_picker::Alpha::Opaque,
-                    ).changed() {
+                    );
+                    // Scroll the picker into view when Tab moves
+                    // focus to it from above/below the viewport —
+                    // egui's stock color button doesn't auto-scroll
+                    // on its own, so an off-screen color row would
+                    // silently swallow a Tab press otherwise
+                    if resp.gained_focus() {
+                        resp.scroll_to_me(None);
+                    }
+                    if resp.changed() {
                         settings.inhale_color = from_color32_opaque(c);
                         dirty = true;
                     }
@@ -1071,9 +1080,13 @@ fn settings_ui(
                 // Exhale color — no alpha (Swift: supportsOpacity: false)
                 labeled_row(ui, "Exhale Color", |ui| {
                     let mut c = to_color32(settings.exhale_color);
-                    if egui::color_picker::color_edit_button_srgba(
+                    let resp = egui::color_picker::color_edit_button_srgba(
                         ui, &mut c, egui::color_picker::Alpha::Opaque,
-                    ).changed() {
+                    );
+                    if resp.gained_focus() {
+                        resp.scroll_to_me(None);
+                    }
+                    if resp.changed() {
                         settings.exhale_color = from_color32_opaque(c);
                         dirty = true;
                     }
@@ -1081,15 +1094,30 @@ fn settings_ui(
 
                 // Background color (with alpha) — disabled for Fullscreen (matches Swift)
                 labeled_row(ui, "Background Color", |ui| {
-                    ui.add_enabled_ui(settings.shape != AnimationShape::Fullscreen, |ui| {
-                        let mut c = to_color32(settings.background_color);
-                        if egui::color_picker::color_edit_button_srgba(
-                            ui, &mut c, egui::color_picker::Alpha::OnlyBlend,
-                        ).changed() {
-                            settings.background_color = from_color32(c);
-                            dirty = true;
-                        }
-                    });
+                    // Background color is only visually meaningful when
+                    // `shape != Fullscreen`, but we deliberately render
+                    // the picker enabled regardless.  Wrapping it in
+                    // `add_enabled_ui(false, ...)` made egui call
+                    // `surrender_focus` on the disabled widget every
+                    // time Tab landed there — focus was lost mid-cycle
+                    // and the next Tab wrapped back to the first
+                    // focusable widget (Start button), so users with
+                    // `shape = Fullscreen` saw Tab go button-button-
+                    // button-button-Inhale-Exhale-Background-Start
+                    // instead of continuing through Overlay Opacity
+                    // and the rest of the panel.  The tooltip below
+                    // tells the user when the setting has no effect
+                    let mut c = to_color32(settings.background_color);
+                    let resp = egui::color_picker::color_edit_button_srgba(
+                        ui, &mut c, egui::color_picker::Alpha::OnlyBlend,
+                    );
+                    if resp.gained_focus() {
+                        resp.scroll_to_me(None);
+                    }
+                    if resp.changed() {
+                        settings.background_color = from_color32(c);
+                        dirty = true;
+                    }
                 }).on_hover_text("Choose the background color. No effect when Shape is Fullscreen.");
 
                 // Overlay opacity — Swift stores 0.0..1.0, displays 0..100 %.
@@ -1121,10 +1149,16 @@ fn settings_ui(
 
                 // Gradient — order matches Swift's enum declaration (Inner, Off, On)
                 // so segmented-picker placement is identical to the macOS app.
+                // Gradient picker stays focusable regardless of shape —
+                // passing `enabled = false` to `segmented_row` triggers
+                // egui's disabled-widget `surrender_focus` path, which
+                // broke Tab navigation downstream (see Background Color
+                // comment above).  The tooltip "(No effect when Shape is
+                // Fullscreen)" tells the user when the setting is inert
                 if segmented_row(
                     ui, "Gradient",
                     "Gradient color effect. No effect when Shape is Fullscreen.",
-                    settings.shape != AnimationShape::Fullscreen, picker_column_w,
+                    true, picker_column_w,
                     &mut settings.color_fill_gradient,
                     &[
                         ("Inner", ColorFillGradient::Inner),
@@ -1225,6 +1259,25 @@ fn settings_ui(
 
     if dirty {
         settings_manager.mark_dirty();
+    }
+
+    // Tab-wrap repaint nudge.  egui's focus traversal surrenders the
+    // current widget's focus this frame and gives focus to the FIRST
+    // widget that registers interest on the NEXT frame (via
+    // `give_to_next`).  Tab itself is a keyboard event that
+    // egui-winit reports with `repaint: true`, so a follow-up frame
+    // normally runs and the wrap completes — but if anything in the
+    // caller skips that second frame, the user sees focus
+    // disappear instead of wrapping to the top.  Explicit
+    // `request_repaint` guarantees the second frame runs no matter
+    // what; egui de-dupes repeat requests so this is a no-op when
+    // a frame was already going to happen
+    let tab_pressed = ctx.input(|i| i.events.iter().any(|e| matches!(
+        e,
+        egui::Event::Key { key: egui::Key::Tab, pressed: true, .. },
+    )));
+    if tab_pressed {
+        ctx.request_repaint();
     }
     // ── Shortcut capture overlay ──────────────────────────────────────────────
     // Painted at the top z-order via egui::Window so it sits above the
