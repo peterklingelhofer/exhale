@@ -159,6 +159,18 @@ pub(super) fn control_button(
     let button_h = ROW_H + 6.0;
     let size     = egui::vec2(width, button_h);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+    // When Tab moves focus to a control button that's currently
+    // scrolled out of the settings ScrollArea's viewport, the focus
+    // ring would render off-screen and the user would think Tab
+    // skipped past — `scroll_to_me(None)` nudges the ScrollArea just
+    // enough to bring the focused widget into view, no further.
+    // `gained_focus()` is true only on the FRAME focus arrived, so
+    // we don't re-scroll every subsequent frame the button is
+    // focused (which would cause the viewport to jitter every time
+    // the user tabs elsewhere and back)
+    if response.gained_focus() {
+        response.scroll_to_me(None);
+    }
 
     let enabled   = ui.is_enabled();
     let hovered   = response.hovered() && enabled;
@@ -220,6 +232,31 @@ pub(super) fn control_button(
         fill_color,
         egui::Stroke::new(1.0, with_alpha(primary, stroke_a)),
     );
+
+    // Keyboard-focus indicator.  When the button is reached via Tab
+    // (response.has_focus()), draw a subtle outer ring in the
+    // theme-inverse colour so the user can see where focus landed.
+    // The fill alone doesn't change visibly when focused — without
+    // this ring the user has to remember which button they just
+    // tabbed onto, especially in the top-row controls where every
+    // button shares the same chrome.  Multi-layer soft halo (3 px
+    // outside, mid-alpha) reads as a glow rather than a hard
+    // outline, matching the user's "subtle drop shadow glow"
+    // request
+    if response.has_focus() {
+        // Halo colour matches the `primary` foreground (white in
+        // dark mode, black in light mode) but at low alpha so it
+        // composites as a soft outer glow over whatever sits behind
+        // the panel.  Two stacked stroked rects with decreasing
+        // alpha produce the falloff a single thicker stroke can't
+        for (i, alpha) in [(1.0_f32, 110_u8), (2.5_f32, 60_u8), (4.0_f32, 28_u8)] {
+            painter.rect_stroke(
+                rect.expand(i),
+                BUTTON_RADIUS + i,
+                egui::Stroke::new(1.0, with_alpha(primary, alpha)),
+            );
+        }
+    }
 
     // Pressed state: Swift uses `.opacity(0.7)` + `.scaleEffect(0.97)`.  Scale
     // is awkward in immediate-mode; drop opacity instead — the user still gets
@@ -613,6 +650,12 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
                 // Interact first — gives us hover/press/click without drawing.
                 let seg_id = ui.id().with("seg").with(i).with(*text);
                 let resp = ui.interact(seg_rect, seg_id, egui::Sense::click());
+                // Same scroll-into-view nudge as `control_button` —
+                // see comment there.  Tab landing on an off-screen
+                // segment would otherwise appear to do nothing
+                if resp.gained_focus() {
+                    resp.scroll_to_me(None);
+                }
 
                 // Pill chrome (selected > pressed > hovered) drawn under text.
                 let pill_fill: Option<egui::Color32> = if is_selected {
@@ -635,6 +678,33 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
                 if let Some(fill) = pill_fill {
                     let pill = seg_rect.shrink(SELECTED_INSET);
                     ui.painter().rect_filled(pill, SELECTED_ROUNDING, fill);
+                }
+
+                // Keyboard-focus halo for the segment reached via Tab.
+                // Drawn ABOVE the selected/hover pill so the focus
+                // outline reads even when the segment is also the
+                // currently-selected one.  Three stacked stroked
+                // rects with decreasing alpha produce a soft glow
+                // (matching the control-button halo) so the
+                // segmented pickers stay legible without a hard
+                // border every time the user tabs through
+                if resp.has_focus() {
+                    let primary_color = if dark_mode {
+                        egui::Color32::WHITE
+                    } else {
+                        egui::Color32::BLACK
+                    };
+                    let pill = seg_rect.shrink(SELECTED_INSET);
+                    let with_alpha = |a: u8| egui::Color32::from_rgba_unmultiplied(
+                        primary_color.r(), primary_color.g(), primary_color.b(), a,
+                    );
+                    for (offset, alpha) in [(0.0_f32, 140_u8), (1.5_f32, 70_u8), (3.0_f32, 28_u8)] {
+                        ui.painter().rect_stroke(
+                            pill.expand(offset),
+                            SELECTED_ROUNDING + offset,
+                            egui::Stroke::new(1.0, with_alpha(alpha)),
+                        );
+                    }
                 }
 
                 // Selected text flips to primary; unselected uses default text color.
@@ -808,6 +878,12 @@ pub(super) fn stepper_row(
                 .id(edit_id)
                 .margin(egui::vec2(4.0, 2.0)),
         );
+        // Scroll into view when Tab moves focus to this field while
+        // it's off-screen — same pattern as `control_button` /
+        // segmented-picker segment focus handling
+        if field_resp.gained_focus() {
+            field_resp.scroll_to_me(None);
+        }
         if field_resp.changed() {
             if let Ok(parsed) = buf.trim().parse::<f64>() {
                 let mut disp = parsed.max(min);
@@ -816,6 +892,39 @@ pub(super) fn stepper_row(
                 if (v - *value).abs() > f64::EPSILON {
                     *value  = v;
                     changed = true;
+                }
+            }
+        }
+
+        // Arrow-key stepping: while the text field is focused, the
+        // up / down arrows nudge the value by one `step` per press.
+        // `consume_key` drains EVERY matching event in the queue
+        // this frame (including key-repeat fires from a held key)
+        // so hold-to-step works naturally — one tick per system
+        // repeat interval.  Singleline `TextEdit` doesn't do
+        // anything useful with vertical arrows, so consuming them
+        // here doesn't break editing
+        let mut arrow_stepped = false;
+        if field_resp.has_focus() {
+            let mut delta_steps = 0_i32;
+            ui.input_mut(|i| {
+                while i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
+                    delta_steps += 1;
+                }
+                while i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
+                    delta_steps -= 1;
+                }
+            });
+            if delta_steps != 0 {
+                let delta = step * delta_steps as f64;
+                let displayed = scale.to_display(*value);
+                let mut new_disp = (displayed + delta).max(min);
+                if let Some(m) = max_disp { new_disp = new_disp.min(m); }
+                let v = scale.from_display(new_disp);
+                if (v - *value).abs() > f64::EPSILON {
+                    *value = v;
+                    changed = true;
+                    arrow_stepped = true;
                 }
             }
         }
@@ -844,9 +953,11 @@ pub(super) fn stepper_row(
         }
 
         // Canonicalise the buffer when the field isn't focused, or when the
-        // stepper just nudged the value — prevents stale text hanging around
-        // after external state changes (reset, cross-row effects).
-        if !focused || stepper_changed.is_some() {
+        // stepper just nudged the value (button click OR arrow-key step) —
+        // prevents stale text hanging around after external state changes
+        // (reset, cross-row effects) and keeps the on-screen text in
+        // sync after an arrow nudge while focus remains on the field
+        if !focused || stepper_changed.is_some() || arrow_stepped {
             buf = format_num(scale.to_display(*value));
         }
         ui.data_mut(|d| d.insert_temp(edit_id, buf));
@@ -919,6 +1030,15 @@ pub(super) fn stepper_buttons(
     #[cfg(test)]
     test_hooks::record_stepper_rects(top_rect, bot_rect);
 
+    // When Tab moves focus to a stepper half that's currently
+    // scrolled out of the settings ScrollArea's viewport, nudge
+    // the viewport just enough to bring it into view — same
+    // pattern as `control_button` / segmented-picker segment.
+    // `gained_focus()` is true only on the FRAME focus arrived
+    // so we don't re-scroll every subsequent frame.
+    if up_resp.gained_focus() { up_resp.scroll_to_me(None); }
+    if dn_resp.gained_focus() { dn_resp.scroll_to_me(None); }
+
     paint_stepper_chrome(ui, top_rect, StepperDir::Up,   up_resp.hovered(), up_resp.is_pointer_button_down_on());
     paint_stepper_chrome(ui, bot_rect, StepperDir::Down, dn_resp.hovered(), dn_resp.is_pointer_button_down_on());
 
@@ -926,6 +1046,38 @@ pub(super) fn stepper_buttons(
     let tri_color = ui.visuals().text_color();
     paint_triangle(ui, top_rect, StepperDir::Up,   tri_color);
     paint_triangle(ui, bot_rect, StepperDir::Down, tri_color);
+
+    // Keyboard-focus halo for the stepper halves.  The button rects
+    // here are tiny (~13×9 px) so the layered glow that works on
+    // the top-row control buttons reads too soft — bump the inner
+    // ring alpha to fully-opaque so even at glance distance the
+    // user can see which half of the stepper Tab landed on (and
+    // why pressing Tab three more times before hitting the next
+    // control is the expected behaviour: TextEdit → ▲ → ▼ → next
+    // row).  Two stacked stroked rects with a brighter inner
+    // edge + a soft outer falloff
+    let dark_mode = ui.visuals().dark_mode;
+    let halo_color = if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK };
+    let with_alpha = |a: u8| egui::Color32::from_rgba_unmultiplied(
+        halo_color.r(), halo_color.g(), halo_color.b(), a,
+    );
+    let paint_halo = |rect: egui::Rect| {
+        // Inner crisp outline: opaque so the focused half is
+        // unambiguously highlighted even with the small footprint
+        for (offset, alpha, stroke_w) in [
+            (0.0_f32,  220_u8, 1.5_f32),
+            (1.5_f32,  120_u8, 1.0_f32),
+            (3.0_f32,   55_u8, 1.0_f32),
+        ] {
+            ui.painter().rect_stroke(
+                rect.expand(offset),
+                3.0 + offset,
+                egui::Stroke::new(stroke_w, with_alpha(alpha)),
+            );
+        }
+    };
+    if up_resp.has_focus() { paint_halo(top_rect); }
+    if dn_resp.has_focus() { paint_halo(bot_rect); }
 
     // Press-and-hold auto-repeat — matches macOS NSStepper / SwiftUI
     // Stepper.  A click fires once on press-down; holding the button past
