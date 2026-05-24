@@ -125,15 +125,33 @@ impl BreathingController {
     /// Restart the animation from inhale phase 0 on the next tick.
     /// Matches Swift `MetalBreathingController.start()` which always resets
     /// `cycleCount = 0` and `currentPhase = .inhale`.
+    ///
+    /// `unpark` wakes the controller out of its current
+    /// `park_timeout` sleep so the reset takes effect immediately,
+    /// not on the controller's next natural wakeup.  This matters
+    /// most when `restart()` is called from the Stop → Start
+    /// sequence: while `is_animating == false`, the tick function
+    /// returns a 10 s sleep interval (no work to do), and without
+    /// the unpark the user would see the animation start mid-cycle
+    /// in whatever state the renderer had cached and stay frozen
+    /// there for up to 10 s — a bug that read as "Start is
+    /// broken / animation is paused"
     pub fn restart(&self) {
         self.reset_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        if let Some(h) = &self.thread {
+            h.thread().unpark();
+        }
     }
 
-    /// Signal the controller to stop and join the thread.
+    /// Signal the controller to stop and join the thread.  Same
+    /// `unpark` rationale as [`Self::restart`] — without it,
+    /// shutdown could wait up to 10 s for the controller's
+    /// not-animating sleep to elapse before the join returns
     pub fn stop(&mut self) {
         self.stop_flag
             .store(true, std::sync::atomic::Ordering::Relaxed);
         if let Some(h) = self.thread.take() {
+            h.thread().unpark();
             let _ = h.join();
         }
     }
@@ -208,7 +226,17 @@ fn run_controller(
         let sleep_for = next_wakeup
             .saturating_duration_since(now)
             .max(Duration::from_millis(1));
-        thread::sleep(sleep_for);
+        // `park_timeout` instead of `thread::sleep` so `restart()` /
+        // `stop()` can wake us via `unpark()` mid-sleep.  When
+        // `is_animating == false` the tick function returns a 10 s
+        // sleep interval, and without interruptible sleep a Stop →
+        // Start press would wait up to 10 s before the controller
+        // noticed the reset_flag and started ticking again.  If
+        // unpark was called BEFORE we reached the park, the token
+        // is already pending and park_timeout returns immediately —
+        // which is exactly what we want (don't lose a wakeup
+        // signal that arrived during the previous tick's work)
+        thread::park_timeout(sleep_for);
     }
 }
 

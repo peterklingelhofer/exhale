@@ -889,6 +889,24 @@ impl ApplicationHandler<AppEvent> for App {
                             self.timers.reschedule_auto_stop(&settings);
                             self.update_tray_state(&settings);
                         }
+                        // Sync windowed-fallback visibility with
+                        // `is_animating`.  Settings-panel Start /
+                        // Stop buttons mutate `is_animating` here and
+                        // need the overlay's window to show / hide to
+                        // match — `do_start` / `do_stop` (the global
+                        // hotkey, tray-menu, and close-X paths) call
+                        // `set_animation_visible` themselves, so this
+                        // line specifically covers the panel-button
+                        // path.  `set_animation_visible` is a no-op
+                        // on alpha-capable (fullscreen click-through)
+                        // overlays, so this is harmless on the
+                        // transparent-overlay path on macOS /
+                        // Windows 11 / X11
+                        if diff.animating_changed {
+                            for h in self.overlays.values() {
+                                h.set_animation_visible(settings.is_animating);
+                            }
+                        }
                         if diff.reminder_changed {
                             self.timers.reschedule_reminder(&settings);
                             // Request notification permission when reminders are first enabled
@@ -914,7 +932,28 @@ impl ApplicationHandler<AppEvent> for App {
                         if should_restart {
                             if let Some(c) = &self.controller { c.restart(); }
                         }
-                        if should_redraw {
+                        // Only fire an immediate redraw when we are
+                        // NOT also restarting the controller.
+                        //
+                        // `c.restart()` now wakes the controller via
+                        // `unpark()` and produces a fresh frame
+                        // through its own `request_draw` path with
+                        // the post-reset `BreathingState`.  If we
+                        // ALSO `wake_render` here, the render thread
+                        // receives our message first — reads whatever
+                        // stale state is still sitting in the shared
+                        // mutex from before the Stop, paints it, and
+                        // the user sees a one-frame flash of the
+                        // previous cycle's animation before the
+                        // controller's reset-driven frame arrives.
+                        // Skipping `wake_render` in the restart case
+                        // means the next visible frame is always the
+                        // post-reset one.  Non-restart redraws
+                        // (visual / paused changes while idle) still
+                        // need the explicit nudge since the
+                        // controller is sleeping for the long
+                        // not-animating interval
+                        if should_redraw && !should_restart {
                             for h in self.overlays.values() { h.wake_render(); }
                         }
                     }
