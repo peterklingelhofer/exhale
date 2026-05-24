@@ -889,35 +889,6 @@ impl ApplicationHandler<AppEvent> for App {
                             self.timers.reschedule_auto_stop(&settings);
                             self.update_tray_state(&settings);
                         }
-                        // Windowed-fallback show / hide.  The four
-                        // Start/Stop entry points all need to land in
-                        // a consistent visible state on the windowed-
-                        // fallback overlay (Wayland sessions without
-                        // alpha, some Windows 10 + Vulkan GPU combos,
-                        // WARP, remote-desktop).  `do_start` /
-                        // `do_stop` — fired by the global hotkey, the
-                        // tray menu, AND the native close X via
-                        // `WindowEvent::CloseRequested` — already call
-                        // `set_animation_visible` directly.  The
-                        // settings-panel Start / Stop buttons mutate
-                        // `settings.is_animating` instead and ride
-                        // this diff handler back to the controller +
-                        // tray, but pre-fix they never propagated to
-                        // the window's visibility.  A QA-style spam
-                        // of "X to hide → settings Start → settings
-                        // Stop → settings Start" would leave the
-                        // overlay hidden even though `is_animating ==
-                        // true`, and the user would think Start did
-                        // nothing.  `set_animation_visible` is a
-                        // no-op on alpha-capable (fullscreen click-
-                        // through) overlays, so this single line
-                        // covers windowed-fallback without breaking
-                        // the transparent-overlay path
-                        if diff.animating_changed {
-                            for h in self.overlays.values() {
-                                h.set_animation_visible(settings.is_animating);
-                            }
-                        }
                         if diff.reminder_changed {
                             self.timers.reschedule_reminder(&settings);
                             // Request notification permission when reminders are first enabled
