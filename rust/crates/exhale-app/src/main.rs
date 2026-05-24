@@ -975,6 +975,18 @@ impl ApplicationHandler<AppEvent> for App {
                 &event,
                 WindowEvent::Moved(_) | WindowEvent::Resized(_),
             );
+            // In windowed-fallback mode (Wayland, Windows 10 Vulkan
+            // without alpha support, WARP / remote-desktop) the
+            // overlay is a regular OS window with title-bar X / Alt-
+            // F4 / red dot.  Native conventions are that clicking
+            // close on a movable app window dismisses it; treating
+            // that as a Stop press (hide window, halt animation,
+            // tray + settings stay alive) matches every other "Stop"
+            // input source — keyboard hotkey, tray menu, Stop
+            // button.  Fullscreen click-through overlays (alpha-
+            // capable path) never receive `CloseRequested` because
+            // they have no chrome to close from
+            let was_close = matches!(&event, WindowEvent::CloseRequested);
             match event {
                 WindowEvent::Resized(size)   => handle.resize(size),
                 WindowEvent::RedrawRequested => handle.render_on_main(),
@@ -987,6 +999,13 @@ impl ApplicationHandler<AppEvent> for App {
                 let mut s = self.settings.write_or_recover();
                 s.set_animation_window_placement(placement);
                 self.settings_manager.mark_dirty();
+            }
+            if was_close && is_windowed_mode {
+                // Route through `do_stop` (not raw `set_visible`) so
+                // we also clear `is_animating`, reschedule auto-stop,
+                // update tray menu state, etc. — identical effect to
+                // pressing the Stop button in the settings panel
+                self.do_stop();
             }
             return;
         }
