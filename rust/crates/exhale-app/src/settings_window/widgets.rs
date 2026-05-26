@@ -153,85 +153,53 @@ pub(super) fn control_button(
     text:                    &str,
     help:                    &str,
 ) -> egui::Response {
-    // Match Swift's `.padding(.vertical, 6)` around a 16-pt SF Symbol
-    // + 12-pt label.  ROW_H + 6 ~= 28 lands on the same physical
-    // button height as `ControlButton.swift`
-    let button_h = ROW_H + 6.0;
-    let size     = egui::vec2(width, button_h);
-    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+    // Stock `egui::Button` chrome — themed fill / stroke / hover /
+    // pressed states / focus indicator — same widget the inline
+    // reset-confirmation Cancel and Reset buttons render with, so
+    // all six buttons in the Controls section land in a single
+    // visually-consistent style.  The button is laid out with an
+    // empty label so its centred-text slot is empty; we paint the
+    // icon + label ourselves on top of the chrome below.  Pre-fix
+    // this routine painted its OWN translucent Swift-style fill +
+    // stroke, which read as off-brand next to the egui-default
+    // Cancel / Reset buttons.  Button height drops from `ROW_H + 6`
+    // (Swift's tall 28-pt tile) to `ROW_H` (egui's default 22 pt)
+    // so the top row matches the Cancel / Reset pair height
+    // exactly; the icon + label rendering below still fits since
+    // we paint at 16-pt icon and 12-pt label, both within the
+    // 22-pt bounds
+    let size     = egui::vec2(width, ROW_H);
+    let response = ui.add_sized(size, egui::Button::new(""));
+    let rect     = response.rect;
+
     // When Tab moves focus to a control button that's currently
     // scrolled out of the settings ScrollArea's viewport, the focus
-    // ring would render off-screen and the user would think Tab
+    // halo would render off-screen and the user would think Tab
     // skipped past — `scroll_to_me(None)` nudges the ScrollArea just
     // enough to bring the focused widget into view, no further.
     // `gained_focus()` is true only on the FRAME focus arrived, so
     // we don't re-scroll every subsequent frame the button is
-    // focused (which would cause the viewport to jitter every time
-    // the user tabs elsewhere and back)
+    // focused
     if response.gained_focus() {
         response.scroll_to_me(None);
     }
 
     let enabled   = ui.is_enabled();
-    let hovered   = response.hovered() && enabled;
     let pressed   = response.is_pointer_button_down_on() && enabled;
     let dark_mode = ui.visuals().dark_mode;
 
-    // Button styling: solid dark button surface with light text in dark mode,
-    // solid light button surface with dark text in light mode — mirroring
-    // Swift ControlButton's "lighter wash on darker card" look but with
-    // enough contrast to remain legible against the opaque cards we now use.
-    //
-    // Dark mode: card is near-solid #1C1C20; button surface slightly lighter
-    //            (#333338) so the button reads as a distinct tile; border
-    //            and text pure white.
-    // Light mode: card is #F0F0F2; button surface slightly darker (#D8D8DC)
-    //             for the same "distinct tile" effect; border and text pure
-    //             black.
-    // EXACT match for Swift's `ControlButton`:
-    //   .background(RoundedRectangle(7).fill(Color.primary.opacity(rest:0.05/hover:0.10)))
-    //   .overlay(RoundedRectangle(7).strokeBorder(Color.primary.opacity(rest:0.12/hover:0.20), lineWidth: 1))
-    // `Color.primary` is white in dark mode and black in light mode, so the
-    // button is a translucent wash + outline of the *foreground* colour
-    // over whatever's behind (the card fill).
+    // `primary` and `with_alpha` are still used by the icon
+    // painting paths below — white-in-dark / black-in-light is the
+    // colour we paint the `.circle.fill` ring + the label, matching
+    // the unchanged-from-before icon rendering the user explicitly
+    // asked us to preserve.  The egui Button chrome above paints
+    // its own fill / stroke independently of these
     let primary = if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK };
-    // Light mode keeps Swift's exact `Color.primary.opacity(...)` —
-    // black wash over the light card / vibrancy reads as a faint
-    // depressed tile, matching ControlButton.swift.
-    //
-    // Dark mode deliberately deviates: instead of Swift's white wash
-    // (which our compositing path makes brighter than the AppKit
-    // version), we use a BLACK wash so the buttons land slightly
-    // DARKER than the card behind.  That matches the user's "match the
-    // Swift button" goal while keeping the buttons readable as
-    // distinct tiles.  Stroke stays as `primary` (white in dark) at a
-    // muted alpha for a subtle outline.
-    let (fill_color, stroke_a): (egui::Color32, u8) = if dark_mode {
-        let (fa, sa) = match (hovered, pressed) {
-            (_, true)      => (70, 38),
-            (true,  false) => (45, 26),
-            (false, false) => (28, 16),
-        };
-        (egui::Color32::from_rgba_unmultiplied(0, 0, 0, fa), sa)
-    } else {
-        let (fa, sa) = match (hovered, pressed) {
-            (_, true)      => (38, 64),
-            (true,  false) => (26, 51),
-            (false, false) => (13, 31),
-        };
-        (egui::Color32::from_rgba_unmultiplied(0, 0, 0, fa), sa)
-    };
     let with_alpha = |base: egui::Color32, a: u8| {
         egui::Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), a)
     };
 
     let painter = ui.painter().clone();
-    painter.rect(
-        rect,
-        BUTTON_RADIUS,
-        fill_color,
-        egui::Stroke::new(1.0, with_alpha(primary, stroke_a)),
-    );
 
     // Keyboard-focus indicator.  When the button is reached via Tab
     // (response.has_focus()), draw a subtle outer ring in the
@@ -273,7 +241,13 @@ pub(super) fn control_button(
     // (`▶ ■ ↺`)
     let icon_font_size = icon_font_size_override.unwrap_or(8.0);
     let font_icon = egui::FontId::proportional(icon_font_size);
-    let icon_w     = 16.0_f32;
+    // Ring diameter — dropped from 16 pt to 13 pt because at 16 pt
+    // the filled circle visibly dominated the 22 pt button height
+    // next to the 12 pt label text (icon read as larger than the
+    // word it sat beside).  13 pt leaves the ring just a touch
+    // taller than the label cap-height — same family of weights
+    // egui's segmented-picker glyphs use elsewhere in the panel
+    let icon_w     = 13.0_f32;
     let label_size = ui.fonts(|f| f.layout_no_wrap(text.to_string(), font_label.clone(), content_color).size());
     let gap        = 6.0_f32;
     let total_w    = icon_w + gap + label_size.x;
@@ -314,7 +288,9 @@ pub(super) fn control_button(
         // adjacent `.circle.fill` SF Symbols (whose negative-space
         // play triangle, reset arrow, and power glyph all sit a
         // touch smaller than half the ring's diameter)
-        let square_size = 5.0_f32;
+        // Square scaled proportionally with `icon_w` (13 / 16 ≈ 0.81)
+        // so the inner shape keeps its ~31 % ring-fill ratio
+        let square_size = 4.0_f32;
         let square_rect = egui::Rect::from_center_size(
             icon_center,
             egui::vec2(square_size, square_size),
@@ -330,7 +306,10 @@ pub(super) fn control_button(
         // dims — the texture itself is a white silhouette in dark
         // mode and black in light mode (see `render_sf_symbol`'s
         // template + SourceAtop pass)
-        let icon_size = 16.0_f32;
+        // Match the icon_w ring-painting paths so the SF Symbol
+        // texture renders at the same diameter as the Win / Linux
+        // primitives below; both targets land at 13 pt
+        let icon_size = 13.0_f32;
         let icon_rect = egui::Rect::from_min_size(
             egui::pos2(start_x, baseline_y - icon_size / 2.0),
             egui::vec2(icon_size, icon_size),
@@ -361,7 +340,10 @@ pub(super) fn control_button(
         // for a 5.5 pt triangle that's ~0.9 px.  Adding the shift
         // moves the centroid to the ring's centre, where the eye
         // expects "centred" to mean
-        let tri_size = 5.5_f32;
+        // Triangle scaled proportionally with the smaller ring
+        // (4.5 ≈ 5.5 × 13 / 16) so its visual weight relative to
+        // the ring matches the stop-square ratio above
+        let tri_size = 4.5_f32;
         let cx = icon_center.x + tri_size / 6.0;
         let cy = icon_center.y;
         let points = vec![
