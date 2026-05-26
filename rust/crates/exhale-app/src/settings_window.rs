@@ -172,7 +172,13 @@ impl IconCache {
 /// allocates for the whole `.circle.fill` icon.  Returns `None`
 /// off-macOS or if the symbol isn't found.
 fn load_sf_icon(ctx: &egui::Context, name: &str, dark_mode: bool) -> Option<egui::TextureHandle> {
-    let (bytes, w, h) = platform::render_sf_symbol(name, 16.0, dark_mode)?;
+    // Rasterise at 13 pt to match the reduced ring diameter set in
+    // `widgets::control_button` (`icon_w = 13.0`).  Pre-fix this
+    // was 16.0 alongside the 16 pt ring; with the smaller ring egui
+    // would have to downsample 32-pixel-at-2× textures into a
+    // 13-pt paint slot, costing a touch of sharpness for no
+    // benefit
+    let (bytes, w, h) = platform::render_sf_symbol(name, 13.0, dark_mode)?;
     let image = egui::ColorImage::from_rgba_unmultiplied(
         [w as usize, h as usize],
         &bytes,
@@ -982,7 +988,12 @@ fn settings_ui(
                         // Unicode fallback path (Win / Linux); macOS
                         // uses the SF Symbol texture which is sized
                         // uniformly.
-                        Some(9.0), 0.0, false, false,
+                        // Scaled with the 13 pt ring (was 9.0 alongside
+                        // the 16 pt ring; 7.3 ≈ 9.0 × 13 / 16 → 7.5
+                        // rounded keeps the arrow visually centred
+                        // without poking past the ring's rim on the
+                        // Unicode-fallback path)
+                        Some(7.5), 0.0, false, false,
                         "Reset",
                         &reset_help,
                     );
@@ -1047,7 +1058,12 @@ fn settings_ui(
                         // need the offset, but the unified inner
                         // offset is small enough at 1 px that the
                         // texture path is still acceptably aligned
-                        Some(12.0), -1.0, false, false,
+                        // Scaled with the 13 pt ring (was 12.0 alongside
+                        // the 16 pt ring; 9.75 ≈ 12.0 × 13 / 16 → 10.0
+                        // rounded so the `×` keeps its visible weight
+                        // against the smaller ring on the Unicode-
+                        // fallback path)
+                        Some(10.0), -1.0, false, false,
                         "Quit",
                         &quit_help,
                     );
@@ -1100,24 +1116,58 @@ fn settings_ui(
                         .color(ui.visuals().weak_text_color()),
                     );
                     ui.add_space(4.0);
+                    // Cancel + Reset are paired, equal-weight
+                    // actions — easier to read when they share the
+                    // exact same footprint and sit symmetrically
+                    // under the warning text rather than left-
+                    // aligned and unevenly sized (Cancel's longer
+                    // glyph string would otherwise auto-grow it
+                    // wider than Reset).  Per-button width comes
+                    // from the same `(avail - spacing * (n-1)) / n`
+                    // formula the top row uses with n=4, so each
+                    // confirmation button lines up exactly with one
+                    // of the Start / Stop / Reset / Quit slots
+                    // above it.  The pair sits centred in the row
+                    // via explicit left padding
+                    const BTN_GAP:  f32 = 8.0;
+                    const BTN_H:    f32 = ROW_H;
+                    const TOP_ROW_N: f32 = 4.0;
+                    let avail = ui.available_width();
+                    let btn_w = ((avail - BTN_GAP * (TOP_ROW_N - 1.0))
+                                 / TOP_ROW_N)
+                                .floor()
+                                .max(1.0);
+                    let pair_w   = btn_w * 2.0 + BTN_GAP;
+                    let left_pad = ((avail - pair_w) * 0.5).max(0.0);
                     ui.horizontal(|ui| {
-                        // Cancel sits left, takes the muted default
-                        // action styling.  Wired to Esc as well via
-                        // egui's input handling below so a user who
-                        // accidentally hit Reset can dismiss with
-                        // the keyboard
-                        if ui.button("Cancel").clicked() {
+                        ui.spacing_mut().item_spacing.x = BTN_GAP;
+                        if left_pad > 0.0 {
+                            ui.add_space(left_pad);
+                        }
+                        // Cancel — muted default styling.  Esc also
+                        // dismisses via the input handling below so
+                        // a user who hit Reset by accident can fall
+                        // back to the keyboard
+                        if ui.add_sized(
+                            egui::vec2(btn_w, BTN_H),
+                            egui::Button::new("Cancel"),
+                        ).clicked() {
                             *pending_reset = false;
                         }
-                        // Confirm sits right.  The red `RichText`
-                        // tints the label without changing button
-                        // chrome — keeps it focusable via Tab so the
-                        // keyboard-nav path still works (Tab onto
-                        // Reset, Enter / Space to confirm)
-                        if ui.button(
-                            egui::RichText::new("Reset")
-                                .color(warning_color)
-                                .strong(),
+                        // Reset — destructive, red label.  Same
+                        // dimensions as Cancel so the visual weight
+                        // of the choice is equal; the colour is the
+                        // only thing that flags it as the dangerous
+                        // option.  Stays focusable via Tab so
+                        // keyboard-nav (Tab onto Reset, Enter /
+                        // Space to confirm) still works
+                        if ui.add_sized(
+                            egui::vec2(btn_w, BTN_H),
+                            egui::Button::new(
+                                egui::RichText::new("Reset")
+                                    .color(warning_color)
+                                    .strong(),
+                            ),
                         ).clicked() {
                             settings.reset_preserving_runtime_state();
                             dirty = true;
