@@ -989,14 +989,18 @@ fn settings_ui(
                         capturing_shortcut_for, &mut dirty, &mut rebind_hotkeys,
                     );
                     if reset_resp.clicked() {
-                        settings.reset_preserving_runtime_state();
-                        dirty = true;
-                        // Defaults include the keyboard-shortcut block, so a
-                        // full reset must also propagate to the global hotkey
-                        // manager.  Without this the user's previously-bound
-                        // custom shortcut would keep firing even though the
-                        // settings panel claims the default is back in effect
-                        rebind_hotkeys = true;
+                        // Defer the actual reset to an inline
+                        // confirmation card below the button row —
+                        // an unconfirmed Reset wipes every setting
+                        // including custom keyboard shortcuts, and
+                        // a single misclick (or focused-Reset + Space
+                        // bar from the keyboard nav path) shouldn't
+                        // be unrecoverable.  Setting `pending_reset`
+                        // makes the confirmation card render this
+                        // frame; the user picks Cancel or Reset to
+                        // resolve it.  Idempotent — clicking Reset
+                        // again while already pending is a no-op
+                        *pending_reset = true;
                     }
                     // Quit — full shutdown.  Dispatches directly via the
                     // injected `on_quit` callback (set up at
@@ -1053,6 +1057,91 @@ fn settings_ui(
                         on_quit();
                     }
                 });
+
+                // ── Inline reset-confirmation card ─────────────────────────
+                //
+                // Rendered just below the Start/Stop/Reset/Quit row
+                // when the user has clicked Reset (or fired the
+                // Ctrl+Shift+D global hotkey on non-macOS).  Lives
+                // inside the same `section` as the buttons so the
+                // prompt sits in the document flow rather than as a
+                // floating `egui::Window` popup — the user asked
+                // for it integrated into the settings UI directly.
+                // Reset is destructive (wipes every setting AND the
+                // user's custom keyboard shortcuts), so the
+                // confirmation lays out the consequence in plain
+                // language and offers Cancel as the more prominent
+                // default action; the destructive `Reset` button is
+                // a `small`-styled red text label to lower its
+                // visual weight relative to Cancel and reduce
+                // misclick risk
+                if *pending_reset {
+                    ui.add_space(ROW_GAP);
+                    let dark_mode = ui.visuals().dark_mode;
+                    let warning_color = if dark_mode {
+                        // Pastel red on dark — enough contrast to
+                        // read as "warning" without screaming
+                        egui::Color32::from_rgb(255, 130, 130)
+                    } else {
+                        egui::Color32::from_rgb(180, 0, 0)
+                    };
+                    ui.label(
+                        egui::RichText::new("Reset all settings to their defaults?")
+                            .strong(),
+                    );
+                    ui.label(
+                        egui::RichText::new(
+                            "This restores every appearance, timing, and \
+                             keyboard-shortcut setting. Cannot be undone."
+                        )
+                        .small()
+                        .color(ui.visuals().weak_text_color()),
+                    );
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        // Cancel sits left, takes the muted default
+                        // action styling.  Wired to Esc as well via
+                        // egui's input handling below so a user who
+                        // accidentally hit Reset can dismiss with
+                        // the keyboard
+                        if ui.button("Cancel").clicked() {
+                            *pending_reset = false;
+                        }
+                        // Confirm sits right.  The red `RichText`
+                        // tints the label without changing button
+                        // chrome — keeps it focusable via Tab so the
+                        // keyboard-nav path still works (Tab onto
+                        // Reset, Enter / Space to confirm)
+                        if ui.button(
+                            egui::RichText::new("Reset")
+                                .color(warning_color)
+                                .strong(),
+                        ).clicked() {
+                            settings.reset_preserving_runtime_state();
+                            dirty = true;
+                            // Defaults include the keyboard-shortcut
+                            // block, so the rebind path must fire to
+                            // re-register globals from the new
+                            // (default) shortcut set.  Otherwise the
+                            // user's pre-reset bindings would keep
+                            // firing despite the settings file
+                            // claiming defaults
+                            rebind_hotkeys = true;
+                            *pending_reset = false;
+                        }
+                    });
+                    // Esc dismisses the confirmation without
+                    // resetting — matches the platform convention
+                    // for any prompt with a Cancel button.  Only
+                    // consume the key while the prompt is open so
+                    // it stays available to text fields / other
+                    // egui widgets otherwise
+                    if ui.input_mut(|i| i.consume_key(
+                        egui::Modifiers::NONE, egui::Key::Escape,
+                    )) {
+                        *pending_reset = false;
+                    }
+                }
             });
 
             // ── Appearance ───────────────────────────────────────────────────
@@ -1364,31 +1453,11 @@ fn settings_ui(
         on_rebind_hotkeys();
     }
 
-    // ── Reset confirmation dialog ─────────────────────────────────────────────
-    if *pending_reset {
-        egui::Window::new("Reset to Defaults")
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .show(ctx, |ui| {
-                ui.set_width(210.0);
-                ui.label("Reset all settings to their default values? This cannot be undone.");
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Reset").clicked() {
-                        settings.reset_preserving_runtime_state();
-                        settings_manager.mark_dirty();
-                        // Defaults include keyboard shortcuts, so a
-                        // reset must reach the global-hotkey manager
-                        on_rebind_hotkeys();
-                        *pending_reset = false;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        *pending_reset = false;
-                    }
-                });
-            });
-    }
+    // Reset confirmation is now rendered inline inside the
+    // Controls section above (see the `if *pending_reset` block)
+    // rather than as a floating `egui::Window` popup — matches
+    // the user request to integrate the confirmation into the
+    // settings UI rather than spawn a separate window
 
     content_height
 }
