@@ -876,79 +876,12 @@ use super::*;
         }
     }
 
-    /// Show a native `NSAlert` "Reset to Defaults?" modal and return
-    /// `true` if the user picked Reset, `false` for Cancel.  Blocks
-    /// the calling thread until the user dismisses the alert — which
-    /// is fine because this is the main thread and there's nothing
-    /// else for it to do while the modal is up (winit's event loop is
-    /// paused by AppKit during a modal session).
-    ///
-    /// Matches Swift `AppDelegate.showResetConfirmation()` which uses
-    /// the same `NSAlert.runModal()` pattern, giving users the native
-    /// look, keyboard shortcuts, and VoiceOver behaviour they expect
-    pub fn show_reset_alert() -> bool {
-        use objc2::msg_send;
-        use objc2::runtime::{AnyClass, AnyObject};
-        use objc2_foundation::NSString;
-
-        let Some(cls) = AnyClass::get(c"NSAlert") else { return false; };
-        // `NSAlertFirstButtonReturn` (1000) = first button (Reset).
-        const FIRST_BUTTON: i64 = 1000;
-
-        unsafe {
-            let alert: *mut AnyObject = msg_send![cls, alloc];
-            let alert: *mut AnyObject = msg_send![alert, init];
-            if alert.is_null() { return false; }
-
-            let message = NSString::from_str("Reset to Defaults?");
-            let detail  = NSString::from_str(
-                "All settings will be restored to their defaults.  This can't be undone.",
-            );
-            let _: () = msg_send![alert, setMessageText:     &*message];
-            let _: () = msg_send![alert, setInformativeText: &*detail];
-            // `NSAlertStyleWarning = 0` (default for destructive ops).
-            let _: () = msg_send![alert, setAlertStyle: 0_u64];
-
-            // Reset first so Cmd-Return (default key equivalent on
-            // the first button) maps to it.
-            let reset_label  = NSString::from_str("Reset");
-            let cancel_label = NSString::from_str("Cancel");
-            let _: *mut AnyObject = msg_send![alert, addButtonWithTitle: &*reset_label];
-            let _: *mut AnyObject = msg_send![alert, addButtonWithTitle: &*cancel_label];
-
-            // Raise the alert above the settings window.  By default
-            // an NSAlert's panel lives at `NSModalPanelWindowLevel`
-            // (=8), but `setup_settings_window` pins our settings
-            // NSWindow at `NS_WINDOW_LEVEL_SETTINGS` (=1001) so it
-            // can sit above the breath overlay (`NS_WINDOW_LEVEL_
-            // SCREEN_SAVER` = 1000).  Without explicit re-ordering
-            // the alert spawns BEHIND the settings window — the user
-            // hears the modal-sheet-blocked beep on every keystroke
-            // but can't see what's blocking input.
-            //
-            // Push the alert's NSPanel one level above the settings
-            // window AND force-activate the app so the alert grabs
-            // both window-z-order and key-focus
-            let app_cls = AnyClass::get(c"NSApplication");
-            if let Some(app_cls) = app_cls {
-                let shared: *mut AnyObject = msg_send![app_cls, sharedApplication];
-                if !shared.is_null() {
-                    let _: () = msg_send![shared, activateIgnoringOtherApps: true];
-                }
-            }
-            let alert_window: *mut AnyObject = msg_send![alert, window];
-            if !alert_window.is_null() {
-                // 1002 = one above NS_WINDOW_LEVEL_SETTINGS so the alert
-                // unambiguously wins over the settings window's level
-                let _: () = msg_send![alert_window, setLevel: 1002_i64];
-                let _: () = msg_send![alert_window, makeKeyAndOrderFront: std::ptr::null::<AnyObject>()];
-            }
-
-            let response: i64 = msg_send![alert, runModal];
-            let _: () = msg_send![alert, release];
-            response == FIRST_BUTTON
-        }
-    }
+    // `show_reset_alert` was removed when the macOS Reset confirm
+    // path was consolidated onto the in-window inline egui card —
+    // the panel's button-click and global-hotkey paths now share
+    // the same confirmation UI on every OS, eliminating the
+    // platform-specific NSAlert that used to spawn for the hotkey
+    // case on macOS
 
     /// Install a minimal `NSMainMenu` so the menu bar shows the
     /// standard Apple, Edit, Window, and Help menus.  Without this

@@ -51,7 +51,7 @@ mod mac;
 #[cfg(target_os = "macos")]
 pub use mac::{
     activate_running_exhale, apply_app_visibility, install_main_menu,
-    install_settings_vibrancy, render_sf_symbol, show_reset_alert,
+    install_settings_vibrancy, render_sf_symbol,
     sync_settings_backdrop_frame,
     uninstall_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, setup_overlay_window, setup_settings_window,
@@ -83,16 +83,6 @@ pub use linux::{
 /// in-window controls are the UI surface there.
 #[cfg(not(target_os = "macos"))]
 pub fn install_main_menu() {}
-
-/// Non-macOS stub for `show_reset_alert`.  Returns `false` so callers
-/// fall back to the in-window egui reset confirmation, which is the
-/// only path on Windows / Linux.  The actual `do_reset_with_confirm`
-/// branch in main.rs cfg-out the macOS path on non-macOS, so this
-/// stub is never called — `allow(dead_code)` to silence the linter
-/// while keeping the API surface consistent across platforms.
-#[cfg(not(target_os = "macos"))]
-#[allow(dead_code)]
-pub fn show_reset_alert() -> bool { false }
 
 /// Non-macOS stub for `render_sf_symbol` — SF Symbols are AppKit-only.
 /// Callers fall back to Unicode glyphs when this returns `None`.

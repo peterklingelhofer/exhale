@@ -477,11 +477,13 @@ impl SettingsWindow {
         self.capturing_shortcut_for = Some(action);
     }
 
-    /// Raise the in-window Reset confirmation dialog on the next frame.
-    /// Used by the Ctrl+Shift+D global hotkey on Windows / Linux only —
-    /// macOS routes the same hotkey through a native `NSAlert.runModal()`
-    /// in `do_reset_with_confirm` and never sets this flag.
-    #[cfg(all(feature = "global-hotkeys", not(target_os = "macos")))]
+    /// Raise the in-window Reset confirmation card on the next frame.
+    /// Used by the Reset global hotkey (default Ctrl+Shift+D) on
+    /// every OS — macOS originally routed this through a native
+    /// `NSAlert.runModal()` for the system look, but consolidated to
+    /// the inline egui card so the confirmation chrome matches the
+    /// button-click path the user already sees in the settings panel
+    #[cfg(feature = "global-hotkeys")]
     pub fn request_reset_confirmation(&mut self) {
         self.pending_reset = true;
     }

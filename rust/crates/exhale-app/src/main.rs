@@ -336,74 +336,34 @@ impl App {
         self.request_settings_redraw();
     }
 
-    /// Open the settings window (if hidden) and raise the reset confirmation
-    /// dialog.  Matches Swift's `showResetConfirmation()` on the Ctrl+Shift+F
-    /// global hotkey — an `NSAlert` is shown before `resetToDefaults` runs.
+    /// Open the settings window (if hidden) and raise the inline
+    /// Reset-confirmation card.  Used by the Reset global hotkey
+    /// (default Ctrl+Shift+D) on every OS.
+    ///
+    /// Originally the macOS path here ran a native
+    /// `NSAlert.runModal()` for the system look + Cmd-period / Cmd-
+    /// Return shortcuts, but that diverged from the button-click
+    /// path the user sees in the settings panel — pressing the Reset
+    /// button shows the inline card while pressing the hotkey
+    /// showed a system alert, even though both meant the same
+    /// thing.  Consolidated to the inline card on every OS so the
+    /// confirmation chrome is consistent regardless of how the
+    /// reset was initiated.  The card lives directly under the
+    /// button row inside the Controls section — Esc cancels, Tab +
+    /// Enter / Space on either Cancel or Reset resolves it
     #[cfg(feature = "global-hotkeys")]
-    fn do_reset_with_confirm(
-        &mut self,
-        // Used only on Windows / Linux to lazily create the settings
-        // window for the in-window egui confirmation.  macOS uses a
-        // native NSAlert via `runModal` and doesn't need the event loop.
-        #[cfg_attr(target_os = "macos", allow(unused_variables))]
-        event_loop: &ActiveEventLoop,
-    ) {
-        // macOS: use a native NSAlert (matches Swift `AppDelegate.
-        // showResetConfirmation()` and gives users the system look,
-        // keyboard shortcuts, and VoiceOver behaviour).  Blocks the
-        // main thread until the user dismisses — fine because winit
-        // is paused inside AppKit's modal session.
-        #[cfg(target_os = "macos")]
-        {
-            let approved = platform::show_reset_alert();
-            // Drop any input that piled up in the global-hotkey and
-            // tray-menu channels while `runModal` was blocking the
-            // main thread.  Anything the user pressed while looking
-            // at the modal was meant to be input for the modal
-            // itself (the modal handles its own keystrokes via
-            // AppKit), not a fresh app action.  Pre-drain, a second
-            // Ctrl+Shift+F press during the modal would queue up and
-            // re-trigger the alert immediately after the first was
-            // dismissed
-            #[cfg(feature = "global-hotkeys")]
-            {
-                let mut dropped = 0;
-                while GlobalHotKeyEvent::receiver().try_recv().is_ok() {
-                    dropped += 1;
-                }
-                if dropped > 0 {
-                    log::debug!("dropped {dropped} global-hotkey events queued during reset modal");
-                }
-            }
-            {
-                let mut dropped = 0;
-                while MenuEvent::receiver().try_recv().is_ok() {
-                    dropped += 1;
-                }
-                if dropped > 0 {
-                    log::debug!("dropped {dropped} tray-menu events queued during reset modal");
-                }
-            }
-            if approved {
-                self.do_reset();
-            }
+    fn do_reset_with_confirm(&mut self, event_loop: &ActiveEventLoop) {
+        let visible = self.settings_win
+            .as_ref()
+            .and_then(|sw| sw.window.is_visible())
+            .unwrap_or(false);
+        if self.settings_win.is_none() || !visible {
+            self.toggle_settings(event_loop);
         }
-
-        // Windows / Linux: fall back to the in-window egui confirmation.
-        #[cfg(not(target_os = "macos"))]
-        {
-            let visible = self.settings_win
-                .as_ref()
-                .and_then(|sw| sw.window.is_visible())
-                .unwrap_or(false);
-            if self.settings_win.is_none() || !visible {
-                self.toggle_settings(event_loop);
-            }
-            if let Some(sw) = &mut self.settings_win {
-                sw.request_reset_confirmation();
-                sw.window.focus_window();
-                sw.request_redraw();
-            }
+        if let Some(sw) = &mut self.settings_win {
+            sw.request_reset_confirmation();
+            sw.window.focus_window();
+            sw.request_redraw();
         }
     }
 
