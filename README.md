@@ -176,14 +176,17 @@ Reproduce via `cargo run --release --example cpu_bench -p exhale-render` for the
 
 ## Ship & distribute
 
-| Target                       | Status | Notes |
-|------------------------------|--------|-------|
-| Mac App Store                | ready  | Sandbox-safe `flock(2)` single-instance guard; sandbox-friendly AppleEvent registration; `rust/scripts/bundle-mas.sh` (universal binary, Developer-ID signed `.pkg`, sandbox entitlements) |
-| macOS standalone (signed)    | ready  | `rust/scripts/bundle-mas.sh` |
-| Microsoft Store              | ready  | MSIX wrapper via `rust/scripts/bundle-msix.ps1`, all required tile assets generated (Wide310x150, Square71x71, Square310x310, SplashScreen) |
-| Windows standalone           | ready  | `cargo build --release` produces a self-contained `.exe` |
-| Snap Store                   | ready  | Strict-confined snap with the `gnome` extension. Upload is currently manual from a Multipass `snap-creds` VM (`snapcraft upload`) |
-| Linux `.deb` / AppImage      | ready  | `cargo deb` + `rust/scripts/bundle-appimage.sh` |
+Per-release build, sign, package, and store-upload instructions for every supported target live in [DEPLOYMENT.md](DEPLOYMENT.md). Quick summary:
+
+| Target                       | Script                          |
+|------------------------------|---------------------------------|
+| Mac App Store                | `rust/scripts/bundle-mas.sh`    |
+| Microsoft Store              | `rust\scripts\bundle-msix.ps1`  |
+| Snap Store                   | CI builds, manual upload via Multipass `snap-creds` VM |
+| Linux `.deb` / AppImage      | `cargo deb` + `rust/scripts/bundle-appimage.sh` |
+| Windows standalone `.exe`    | `cargo build --release`         |
+
+CI in [.github/workflows/release.yml](.github/workflows/release.yml) builds every artifact on a `v*` tag.
 
 ## Minimal Python script fallback
 
