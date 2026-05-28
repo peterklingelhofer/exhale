@@ -106,7 +106,16 @@ fn submenu_label(action: ShortcutAction, shortcuts: &KeyboardShortcuts) -> Strin
 /// to [`TrayMenuIds::refresh_labels`] when bindings change to keep
 /// the menu in sync
 pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuIds)> {
-    let icon = make_icon();
+    // Propagate icon-construction failures via `?` rather than
+    // panicking — callers (`App::sync_tray_to_visibility`) already
+    // log + continue when `build_tray` returns `Err`, so a bad
+    // RGBA buffer or platform limitation degrades gracefully to
+    // "no tray icon" instead of aborting the whole process at
+    // launch.  In practice the buffer is hardcoded RGBA we
+    // generate ourselves, so this branch is never expected to
+    // fire — but a `.expect()` here was the difference between
+    // "app didn't open" and "log line + app keeps running"
+    let icon = make_icon()?;
 
     // No `Accelerator::new(...)` on any item.  Reasons:
     //   1. Bindings are user-customisable now; a static accelerator
@@ -190,7 +199,11 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
 /// Outlined-ring tray icon generated at runtime, matching the Swift
 /// `StatusBarIcon` asset (15×17 ring shape).  Drawn with anti-aliased edges
 /// in near-black so it reads well on both light and dark menu bars.
-fn make_icon() -> tray_icon::Icon {
+/// Returns `Result` so a failed `Icon::from_rgba` (corrupt buffer,
+/// platform limitation) bubbles up through `build_tray` and the
+/// caller can log + run without a tray instead of panicking at
+/// startup
+fn make_icon() -> Result<tray_icon::Icon> {
     let (w, h) = (15u32, 17u32);
     let cx = w as f32 / 2.0;
     let cy = h as f32 / 2.0;
@@ -213,5 +226,6 @@ fn make_icon() -> tray_icon::Icon {
         }))
         .collect();
 
-    tray_icon::Icon::from_rgba(rgba, w, h).expect("tray icon")
+    tray_icon::Icon::from_rgba(rgba, w, h)
+        .map_err(|e| anyhow::anyhow!("tray icon from_rgba: {e}"))
 }

@@ -282,6 +282,21 @@ use super::*;
     /// alive, the backdrop is too).
     fn backdrop_from_ptr(backdrop_ptr: usize) -> Option<objc2::rc::Retained<objc2_app_kit::NSWindow>> {
         if backdrop_ptr == 0 { return None; }
+        // SAFETY: `backdrop_ptr` is the value written by
+        // `install_settings_vibrancy` via `Retained::into_raw`,
+        // which leaves a +1 retain on a valid `NSWindow*`.  The
+        // window lives as long as the parent settings window
+        // (added via `addChildWindow:ordered:`), and the parent
+        // window outlives every call site here — `SettingsWindow`
+        // owns the `usize` in `vev_ptr` and zeros it in `Drop`
+        // before the parent NSWindow itself releases, so any
+        // non-zero pointer reaching this line is guaranteed to
+        // still point at a valid retained NSWindow.
+        // `Retained::retain` adds a +1 to that retain count;
+        // dropping the returned `Retained` later releases it.
+        // The cast `usize → *mut NSWindow` is just a numeric
+        // round-trip — `usize` is the same width as `*mut _` on
+        // every macOS target we support
         unsafe { objc2::rc::Retained::retain(backdrop_ptr as *mut objc2_app_kit::NSWindow) }
     }
 
