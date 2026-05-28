@@ -298,8 +298,27 @@ fn tick(
         return (false, Duration::from_secs(10));
     }
 
-    // ── Paused / static fullscreen ────────────────────────────────────────────
-    if is_paused || (shape_is_fullscreen && colors_match) {
+    // ── Paused / static fullscreen / all-zero-duration tint ──────────────────
+    //
+    // `cycle_is_static` catches the degenerate input where the user
+    // has zeroed every duration field.  Without this short-circuit
+    // the controller would cycle through Inhale → Hold → Exhale →
+    // Hold in 400 ms (each phase floored to 0.1 s by `.max(0.1)` in
+    // `phase_duration_for`), strobing the breath animation at
+    // ~2.5 Hz.  Treating it as static instead: the existing one-
+    // frame-per-second cadence renders whatever the last
+    // `BreathingState` was, the shader keeps drawing that state,
+    // and CPU stays as low as the matching-colour fullscreen tint
+    // path.  Threshold is 0.05 s (50 ms) — comfortably below the
+    // 0.1 s phase floor and below human flicker-fusion frequency,
+    // so anything the user could meaningfully type as "a real
+    // animation" stays above it
+    let cycle_is_static = inhale_dur < 0.05
+        && post_inhale_dur < 0.05
+        && exhale_dur      < 0.05
+        && post_exhale_dur < 0.05;
+
+    if is_paused || (shape_is_fullscreen && colors_match) || cycle_is_static {
         let elapsed = now.duration_since(inner.last_draw_time);
         if elapsed >= Duration::from_secs(1) {
             inner.last_draw_time = now;
