@@ -26,19 +26,22 @@ Pre-built binaries for each OS are on the [Releases](https://github.com/peterkli
 ![rectangle](https://user-images.githubusercontent.com/60944077/226204986-7522cb4d-7df1-4d65-96de-e629197e9854.gif)
 <img width="447" height="981" alt="Settings panel" src="https://github.com/user-attachments/assets/32e1d10e-72e3-4acb-ae35-be186cd7cb19" />
 
-The **Tint** (Pause) feature tints the screen with the current background colour, useful for nighttime work and compounds well with [Night Shift](https://support.apple.com/en-us/102191) and [f.lux](https://justgetflux.com/).
-
 ### Global keyboard shortcuts
 
-| Shortcut                                    | Action               |
-|---------------------------------------------|----------------------|
-| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> | Start animation      |
-| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> | Stop animation       |
-| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> | Tint screen          |
-| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> | Reset to defaults    |
-| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>W</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>,</kbd> | Open/Close preferences |
+Only one shortcut ships bound by default:
 
-**Notice:** A high opacity value can obscure the Preferences pane in the current workspace. Use <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> to reset, or:
+| Shortcut                                    | Action                 |
+|---------------------------------------------|------------------------|
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>,</kbd> | Open / close Preferences |
+
+Every other action (Start / Stop / Reset / Quit) is **unbound** on first launch so exhale never collides with another app's global shortcut without the user opting in. Customise via either path:
+
+- **Right-click** the Start / Stop / Reset / Quit buttons in the Preferences panel → "Change Shortcut…" → press your combo
+- **Tray menu** → "Keyboard Shortcuts ▶" → pick any of the five actions to start a capture
+
+Press **Esc** in the capture overlay to cancel. "Reset Shortcut to Default" in the right-click menu restores the per-action factory value (which, for everything except Preferences, is "unbound"). Reset to Defaults in the panel clears all custom bindings too.
+
+**Notice:** A high opacity value can obscure the Preferences pane in the current workspace. Bind a Reset shortcut as described above and use it to recover, or:
 
 1. Swipe to a different workspace.
 2. Close Preferences from the menu bar.
@@ -175,12 +178,12 @@ Reproduce via `cargo run --release --example cpu_bench -p exhale-render` for the
 
 | Target                       | Status | Notes |
 |------------------------------|--------|-------|
-| Mac App Store                | ready  | Sandbox-safe `flock(2)` single-instance guard; sandbox-friendly AppleEvent registration; `scripts/bundle-mas.sh` (universal binary, Developer-ID signed `.pkg`, sandbox entitlements) |
-| macOS standalone (signed)    | ready  | `scripts/bundle-mas.sh` |
-| Microsoft Store              | ready  | MSIX wrapper via `bundle-msix.ps1`, all required tile assets generated (Wide310x150, Square71x71, Square310x310, SplashScreen) |
+| Mac App Store                | ready  | Sandbox-safe `flock(2)` single-instance guard; sandbox-friendly AppleEvent registration; `rust/scripts/bundle-mas.sh` (universal binary, Developer-ID signed `.pkg`, sandbox entitlements) |
+| macOS standalone (signed)    | ready  | `rust/scripts/bundle-mas.sh` |
+| Microsoft Store              | ready  | MSIX wrapper via `rust/scripts/bundle-msix.ps1`, all required tile assets generated (Wide310x150, Square71x71, Square310x310, SplashScreen) |
 | Windows standalone           | ready  | `cargo build --release` produces a self-contained `.exe` |
 | Snap Store                   | ready  | Strict-confined snap with the `gnome` extension. Upload is currently manual from a Multipass `snap-creds` VM (`snapcraft upload`) |
-| Linux `.deb` / AppImage      | ready  | `cargo deb` + `scripts/bundle-appimage.sh` |
+| Linux `.deb` / AppImage      | ready  | `cargo deb` + `rust/scripts/bundle-appimage.sh` |
 
 ## Minimal Python script fallback
 
