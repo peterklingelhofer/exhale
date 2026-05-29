@@ -87,6 +87,13 @@ jobs:
         with:
           workspaces: rust
 
+      - name: Install coreutils (for gtimeout)
+        # bundle-mas.sh wraps codesign + productbuild in `gtimeout` so a
+        # hang in Apple's TSA or installer-cert chain validation fails the
+        # job in minutes instead of eating an hour-plus of runner time.
+        # gtimeout ships with GNU coreutils, not macOS by default
+        run: brew install coreutils
+
       - name: Import signing identities
         if: env.HAS_MAC_CERTS == 'true'
         env:
