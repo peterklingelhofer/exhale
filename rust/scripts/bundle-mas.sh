@@ -219,22 +219,68 @@ if [[ "$DRY_RUN" != "1" ]]; then
 fi
 
 # ── 5. Sign the .app ─────────────────────────────────────────────────────────
+#
+# Both `codesign --timestamp` and `productbuild --sign` reach out to Apple's
+# RFC 3161 timestamp authority (timestamp.apple.com). The CLI tools have no
+# default client-side timeout, so when the TSA is overloaded the signing
+# step hangs indefinitely — eating runner-minutes on CI and leaving local
+# devs wondering whether to kill it. Wrap both in `gtimeout` (macOS comes
+# with `gtimeout` via coreutils on CI runners; fall back to a plain `timeout`
+# on other shells, then to `perl -e alarm` as last resort) with retry, so a
+# transient TSA hiccup fails fast and the script tries again instead of
+# blocking the whole pipeline
+TIMEOUT_BIN=""
+if   command -v gtimeout >/dev/null 2>&1; then TIMEOUT_BIN="gtimeout"
+elif command -v timeout  >/dev/null 2>&1; then TIMEOUT_BIN="timeout"
+fi
+run_with_timeout() {
+    local secs="$1"; shift
+    if [[ -n "$TIMEOUT_BIN" ]]; then
+        "$TIMEOUT_BIN" --kill-after=10s "$secs" "$@"
+    else
+        # Pure-bash fallback: background the command, kill it if it doesn't
+        # exit within $secs.  Slightly less precise than gtimeout but no
+        # extra dep
+        ( "$@" ) & local pid=$!
+        ( sleep "$secs"; kill -TERM "$pid" 2>/dev/null; sleep 10; kill -KILL "$pid" 2>/dev/null ) & local watchdog=$!
+        if wait "$pid" 2>/dev/null; then kill "$watchdog" 2>/dev/null; return 0
+        else                              kill "$watchdog" 2>/dev/null; return 124
+        fi
+    fi
+}
+retry_signing() {
+    local name="$1"; local secs="$2"; shift 2
+    local attempt
+    for attempt in 1 2 3; do
+        log "$name (attempt $attempt, ${secs}s timeout)…"
+        if run_with_timeout "$secs" "$@"; then return 0; fi
+        local rc=$?
+        if [[ $rc -eq 124 ]]; then
+            log "$name timed out after ${secs}s — likely Apple TSA flake, retrying"
+        else
+            die "$name failed with exit $rc (not a timeout)"
+        fi
+        sleep $((attempt * 10))
+    done
+    die "$name failed after 3 timeout retries — TSA outage? Try later"
+}
+
 if [[ "$DRY_RUN" != "1" ]]; then
-    log "signing $APP_NAME.app…"
     # Single-binary bundle: no nested executables to sign individually.
-    codesign --force --timestamp \
-        --entitlements "$BUILD_DIR/exhale.entitlements" \
-        --sign "$APP_IDENT" \
-        "$APP_BUNDLE"
+    retry_signing "codesign --sign" 300 \
+        codesign --force --timestamp \
+            --entitlements "$BUILD_DIR/exhale.entitlements" \
+            --sign "$APP_IDENT" \
+            "$APP_BUNDLE"
 
     codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE" \
         || die "codesign verification failed"
 
     # ── 6. Build signed .pkg ─────────────────────────────────────────────────
-    log "productbuild → $OUT_PKG"
-    productbuild --component "$APP_BUNDLE" /Applications \
-        --sign "$INSTALLER_IDENT" \
-        "$OUT_PKG"
+    retry_signing "productbuild → $OUT_PKG" 300 \
+        productbuild --component "$APP_BUNDLE" /Applications \
+            --sign "$INSTALLER_IDENT" \
+            "$OUT_PKG"
 fi
 
 # ── 7. Done ──────────────────────────────────────────────────────────────────
