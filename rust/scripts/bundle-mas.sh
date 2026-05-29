@@ -252,8 +252,8 @@ else
     echo "       open /Applications/$APP_NAME.app"
     echo "  2. Confirm settings persist under"
     echo "       ~/Library/Containers/$BUNDLE_ID/Data/…"
-    echo "  3. Upload to App Store Connect:"
-    echo "       xcrun altool --upload-app -f \"$OUT_PKG\" -t osx \\"
-    echo "         -u <apple-id> -p <app-specific-pw>"
-    echo "     or drag the .pkg into Transporter.app."
+    echo "  3. Upload to App Store Connect via Transporter.app:"
+    echo "       open -a Transporter \"$OUT_PKG\""
+    echo "     (xcrun altool was removed in Xcode 15; use Transporter,"
+    echo "      xcrun iTMSTransporter, or the App Store Connect REST API.)"
 fi

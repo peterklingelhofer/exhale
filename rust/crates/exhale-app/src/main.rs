@@ -12,6 +12,7 @@ mod bootstrap;
 mod placement;
 #[cfg(feature = "global-hotkeys")]
 mod hotkeys;
+mod keymap;
 mod overlay;
 mod platform;
 mod settings_window;
