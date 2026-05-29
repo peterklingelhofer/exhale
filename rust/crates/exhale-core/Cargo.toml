@@ -1,0 +1,15 @@
+[package]
+name    = "exhale-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde      = { workspace = true }
+toml       = { workspace = true }
+anyhow     = { workspace = true }
+log        = { workspace = true }
+rand       = { workspace = true }
+directories = "5"
+
+[dev-dependencies]
+approx = "0.5"

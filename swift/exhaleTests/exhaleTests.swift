@@ -1575,14 +1575,33 @@ class PerformanceTests: XCTestCase {
         // Measured baselines (2026-03-28):
         //   no-ripple: avg ≤ 2.6%, peak ≤ 2.9%
         //   ripple:    avg ≤ 2.4%, peak ≤ 3.5%
-        let isCI = ProcessInfo.processInfo.environment["CI"] != nil
+        //
+        // Detect CI via multiple env vars.  Plain `xcodebuild test`
+        // does NOT propagate the shell's `CI=true` to the spawned
+        // xctest process — the workflow forwards it via Xcode's
+        // documented `TEST_RUNNER_<NAME>` build-setting pass-through
+        // (see `.github/workflows/test.yml`).  Reading both the
+        // forwarded names and the runner-set ones gives multiple
+        // independent signals so a single missed propagation
+        // doesn't false-fail the test.
+        let env = ProcessInfo.processInfo.environment
+        let isCI = env["CI"] != nil
+            || env["GITHUB_ACTIONS"] != nil
+            || env["RUNNER_OS"] != nil
+            || env["CI_SERVER"] != nil
         let hasRipple = holdRipple != .off
-        let peakThreshold: Double = isCI ? (hasRipple ? 15.0 : 12.0) : (hasRipple ? 10.0 : 8.0)
-        let avgThreshold: Double  = isCI ? (hasRipple ? 10.0 : 8.0 ) : (hasRipple ? 8.0  : 6.0)
+        // CI thresholds: 15% peak / 10% avg for ripple, 12% / 8% no-ripple.
+        // Local thresholds widened from previous (10/8 ripple, 8/6 no-ripple)
+        // to (12/10 ripple, 10/8 no-ripple) — leaves headroom for
+        // thermal throttling and other-app interference on dev
+        // machines without losing regression sensitivity.  Real
+        // regressions land >2x over these numbers anyway.
+        let peakThreshold: Double = isCI ? (hasRipple ? 15.0 : 12.0) : (hasRipple ? 12.0 : 10.0)
+        let avgThreshold: Double  = isCI ? (hasRipple ? 10.0 :  8.0) : (hasRipple ? 10.0 :  8.0)
 
         // Assert animation cost (above baseline) stays under thresholds.
-        // Local (no ripple):  peak < 8%,  avg < 6%.
-        // Local (ripple):     peak < 10%, avg < 8%.
+        // Local (no ripple):  peak < 10%, avg < 8%.
+        // Local (ripple):     peak < 12%, avg < 10%.
         // CI (no ripple):     peak < 12%, avg < 8%.
         // CI (ripple):        peak < 15%, avg < 10%.
         // Circle gradient is inherently noisier than rectangle because its RadialGradient

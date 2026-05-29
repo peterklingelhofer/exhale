@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Microsoft Store (MSIX) manifest for the Rust port of exhale.
+
+  Identity values below are the ones assigned by Partner Center for the
+  "exhale" listing (Store ID 9P79Z1NJMZB3, Package Family
+  `PeterKlingelhofer.exhale_rrj7wxvvetjy2`).  They MUST match exactly or
+  Store submission rejects with "publisher does not match".
+
+  Version must increase monotonically per Store submission (A.B.C.D; keep
+  D=0 and bump the short version in Cargo.toml — the bundle-msix.ps1
+  script derives A.B.C from there).
+
+  Reference:
+    https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/root-elements
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="PeterKlingelhofer.exhale"
+    Publisher="CN=9A8CF6D1-0FEC-465C-AC4E-ED194AFC84A1"
+    Version="2.0.20.0" />
+
+  <Properties>
+    <DisplayName>exhale!</DisplayName>
+    <PublisherDisplayName>Peter Klingelhofer</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>A full-screen breathing overlay for mindful breathing.</Description>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop"
+                        MinVersion="10.0.17763.0"
+                        MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application
+      Id="App"
+      Executable="exhale.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="exhale!"
+        Description="A full-screen breathing overlay for mindful breathing."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <!-- Default tile assets.  Wide310x150 and Square71x71 (small)
+             are required by Store cert; Square310x310 is the large
+             tile shown on the Start menu's "Show more tiles" mode. -->
+        <uap:DefaultTile
+          Wide310x150Logo="Assets\Wide310x150Logo.png"
+          Square71x71Logo="Assets\Square71x71Logo.png"
+          Square310x310Logo="Assets\Square310x310Logo.png" />
+        <!-- Splash screen shown briefly during cold start.  AppKit
+             equivalent is the LaunchScreen storyboard on iOS / nothing
+             on macOS; here the splash bridges the gap between
+             `CreateProcess` and our first `RedrawRequested`. -->
+        <uap:SplashScreen Image="Assets\SplashScreen.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- The app is a traditional Win32 desktop binary wrapped in MSIX,
+         so it needs `runFullTrust` to run outside the UWP sandbox.
+         No network, no filesystem, no location — matches macOS. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>
