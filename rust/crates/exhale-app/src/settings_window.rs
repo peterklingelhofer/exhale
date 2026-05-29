@@ -23,7 +23,7 @@ use exhale_core::{
         AnimationMode, AnimationShape, AppVisibility, ColorFillGradient, HoldRippleMode,
     },
 };
-use crate::hotkeys::{egui_key_to_code, egui_modifiers_to_mask};
+use crate::keymap::{egui_key_to_code, egui_modifiers_to_mask};
 use exhale_render::GpuContext;
 use winit::{
     dpi::PhysicalSize,
