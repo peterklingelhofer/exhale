@@ -84,6 +84,14 @@ for t in cargo codesign productbuild iconutil sips lipo plutil rustup; do need "
 
 DRY_RUN="${DRY_RUN:-0}"
 
+# SKIP_PKG=1 — skip productbuild, emit a signed `.app.zip` instead. Set in CI
+# because productbuild deterministically hangs on macos-latest runners (likely
+# OCSP / CRL revocation check on an unreachable endpoint that the codesign
+# code path doesn't trigger). Local devs leave it off so they keep getting a
+# `.pkg` for Transporter. App Store submissions go through Transporter from a
+# local build anyway; the CI artifact is just for the GitHub Release page
+SKIP_PKG="${SKIP_PKG:-0}"
+
 [[ -f "$MASTER_ICON" ]] || die "master icon missing: $MASTER_ICON"
 
 if [[ "$DRY_RUN" != "1" ]]; then
@@ -280,11 +288,20 @@ if [[ "$DRY_RUN" != "1" ]]; then
     codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE" \
         || die "codesign verification failed"
 
-    # ── 6. Build signed .pkg ─────────────────────────────────────────────────
-    retry_signing "productbuild → $OUT_PKG" 300 \
-        productbuild --component "$APP_BUNDLE" /Applications \
-            --sign "$INSTALLER_IDENT" \
-            "$OUT_PKG"
+    if [[ "$SKIP_PKG" != "1" ]]; then
+        # ── 6a. Signed .pkg for Transporter / App Store Connect ──────────────
+        retry_signing "productbuild → $OUT_PKG" 300 \
+            productbuild --component "$APP_BUNDLE" /Applications \
+                --sign "$INSTALLER_IDENT" \
+                "$OUT_PKG"
+    else
+        # ── 6b. Signed .app.zip — sideload-friendly fallback when productbuild
+        #        won't cooperate (CI keychain / revocation-check issues) ──────
+        OUT_ZIP="$OUT_DIR/$APP_NAME-$VERSION-mac.zip"
+        log "SKIP_PKG=1: skipping productbuild, emitting $(basename "$OUT_ZIP")"
+        ( cd "$OUT_DIR" && rm -f "$(basename "$OUT_ZIP")" \
+            && zip -qr "$(basename "$OUT_ZIP")" "$APP_NAME.app" )
+    fi
 fi
 
 # ── 7. Done ──────────────────────────────────────────────────────────────────
@@ -295,12 +312,22 @@ if [[ "$DRY_RUN" == "1" ]]; then
     echo "(Gatekeeper will warn on first launch — right-click → Open to bypass)"
 else
     log "success"
-    printf '\n  %s\n  %s\n\n' "$APP_BUNDLE" "$OUT_PKG"
+    if [[ "$SKIP_PKG" != "1" ]]; then
+        printf '\n  %s\n  %s\n\n' "$APP_BUNDLE" "$OUT_PKG"
+    else
+        printf '\n  %s\n  %s\n\n' "$APP_BUNDLE" "$OUT_ZIP"
+    fi
     echo "next steps:"
-    echo "  1. Upload to App Store Connect via Transporter.app:"
-    echo "       open -a Transporter \"$OUT_PKG\""
-    echo "     (xcrun altool was removed in Xcode 15; use Transporter,"
-    echo "      xcrun iTMSTransporter, or the App Store Connect REST API.)"
+    if [[ "$SKIP_PKG" != "1" ]]; then
+        echo "  1. Upload to App Store Connect via Transporter.app:"
+        echo "       open -a Transporter \"$OUT_PKG\""
+        echo "     (xcrun altool was removed in Xcode 15; use Transporter,"
+        echo "      xcrun iTMSTransporter, or the App Store Connect REST API.)"
+    else
+        echo "  1. SKIP_PKG=1 was set — no .pkg was produced."
+        echo "     Upload to App Store Connect from a local .pkg build:"
+        echo "       (unset SKIP_PKG; rust/scripts/bundle-mas.sh; open -a Transporter \"$OUT_PKG\")"
+    fi
     echo "  2. After processing, test in real sandbox via TestFlight."
     echo "     (Do not 'sudo installer -pkg …' an MAS-signed .pkg locally —"
     echo "      macOS silently refuses to write the .app since the embedded"
