@@ -1,0 +1,292 @@
+use std::sync::Arc;
+
+use anyhow::{Context, Result};
+use bytemuck::cast_slice;
+use exhale_core::{controller::BreathingState, settings::Settings};
+use log::{debug, warn};
+use wgpu::util::DeviceExt;
+
+use crate::{gpu_context::GpuContext, uniforms::OverlayUniforms};
+
+const SHADER_SRC: &str = include_str!("shaders/overlay.wgsl");
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+/// wgpu renderer for a single breathing overlay window.
+///
+/// Each screen gets its own `OverlayRenderer` with its own **isolated
+/// `wgpu::Device` + `wgpu::Queue`** minted from the shared
+/// [`GpuContext`]'s adapter — so the overlay's command submissions
+/// don't serialize behind the settings window's on a shared queue.
+/// See `GpuContext::new_render_device` for the rationale.
+pub struct OverlayRenderer {
+    /// Per-window device — owns its own `ID3D12CommandQueue` /
+    /// Metal queue / Vulkan queue.  Independent of any other
+    /// window's renderer.
+    device:         Arc<wgpu::Device>,
+    queue:          Arc<wgpu::Queue>,
+    surface:        wgpu::Surface<'static>,
+    config:         wgpu::SurfaceConfiguration,
+    pipeline:       wgpu::RenderPipeline,
+    uniform_buffer: wgpu::Buffer,
+    bind_group:     wgpu::BindGroup,
+}
+
+impl OverlayRenderer {
+    /// Create a renderer for an existing surface.  Takes the shared
+    /// `GpuContext` to access the adapter + instance, then mints its
+    /// own (`Device`, `Queue`) pair so it doesn't share a command
+    /// queue with other windows' renderers.
+    pub fn new(
+        gpu:    Arc<GpuContext>,
+        surface: wgpu::Surface<'static>,
+        width:  u32,
+        height: u32,
+    ) -> Result<Self> {
+        // Mint a fresh device + queue for this window.  Independent of
+        // the settings window's device, so settings repaints don't
+        // block this overlay's presents on a shared queue.
+        let (device, queue) = gpu.new_render_device()
+            .context("overlay per-window device")?;
+
+        // Re-use the shared adapter to query surface caps.  Adapters
+        // are stateless — caps depend on the (adapter, surface) pair,
+        // not the device, so this is correct.
+        let surface_caps   = surface.get_capabilities(&gpu.adapter);
+
+        let surface_format = prefer_format(&surface_caps);
+        let alpha_mode     = pick_alpha_mode(&surface_caps);
+
+        // Diagnostic: log every alpha mode the surface advertises and
+        // the one we picked.  On Windows (especially under WARP / VMs
+        // without GPU passthrough) the surface can be limited to
+        // `Opaque` only — in which case alpha is ignored regardless of
+        // window flags or shader output, and the overlay renders as
+        // solid black.  Surfacing this in the log lets us tell apart
+        // "code wrong" from "platform doesn't support per-pixel alpha
+        // here" without a debugger.
+        log::info!(
+            "overlay surface alpha_modes={:?}, picked={:?}",
+            surface_caps.alpha_modes, alpha_mode,
+        );
+
+        let config = wgpu::SurfaceConfiguration {
+            usage:                         wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format:                        surface_format,
+            width:                         width.max(1),
+            height:                        height.max(1),
+            present_mode:                  wgpu::PresentMode::Fifo,
+            desired_maximum_frame_latency: 2,
+            alpha_mode,
+            view_formats:                  vec![],
+        };
+        surface.configure(&device, &config);
+
+        let (pipeline, uniform_buffer, bind_group) =
+            build_pipeline(&device, surface_format)?;
+
+        Ok(Self { device, queue, surface, config, pipeline, uniform_buffer, bind_group })
+    }
+
+    pub fn resize(&mut self, width: u32, height: u32) {
+        if width == 0 || height == 0 { return; }
+        self.config.width  = width;
+        self.config.height = height;
+        self.surface.configure(&self.device, &self.config);
+        debug!("overlay resized to {width}×{height}");
+    }
+
+    pub fn render(
+        &mut self,
+        state:            &BreathingState,
+        settings:         &Settings,
+        max_circle_scale: f32,
+    ) -> Result<()> {
+        let output = match self.surface.get_current_texture() {
+            Ok(t)  => t,
+            Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
+                self.surface.configure(&self.device, &self.config);
+                warn!("overlay surface lost — reconfigured");
+                return Ok(());
+            }
+            Err(e) => return Err(e).context("overlay get_current_texture"),
+        };
+
+        let view = output.texture.create_view(&Default::default());
+
+        let uniforms = OverlayUniforms::from_state(
+            state, settings, self.config.width, self.config.height, max_circle_scale,
+        );
+        self.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(&[uniforms]));
+
+        let mut enc = self.device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor { label: Some("overlay-frame") }
+        );
+        {
+            let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label:                    Some("overlay-pass"),
+                color_attachments:        &[Some(wgpu::RenderPassColorAttachment {
+                    view:           &view,
+                    resolve_target: None,
+                    ops:            wgpu::Operations {
+                        load:  wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes:         None,
+                occlusion_query_set:      None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &self.bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+        self.queue.submit(std::iter::once(enc.finish()));
+        output.present();
+        Ok(())
+    }
+
+    pub fn width(&self)  -> u32 { self.config.width }
+    pub fn height(&self) -> u32 { self.config.height }
+    pub fn surface_format(&self) -> wgpu::TextureFormat { self.config.format }
+
+    /// `true` when the swap chain advertises a per-pixel-alpha mode
+    /// (`PreMultiplied`, `PostMultiplied`, or `Inherit`).  `false` when
+    /// it could only do `Opaque` — typical for VM environments running
+    /// the Microsoft Basic Render Driver (WARP), where the emulated
+    /// DXGI surface doesn't expose alpha modes.  Callers can use this
+    /// to hide the overlay window in those environments instead of
+    /// painting full-screen opaque black on top of everything.
+    pub fn alpha_capable(&self) -> bool {
+        !matches!(self.config.alpha_mode, wgpu::CompositeAlphaMode::Opaque)
+    }
+}
+
+// ─── Pipeline ─────────────────────────────────────────────────────────────────
+
+pub(crate) fn build_pipeline(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+) -> Result<(wgpu::RenderPipeline, wgpu::Buffer, wgpu::BindGroup)> {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label:  Some("overlay-shader"),
+        source: wgpu::ShaderSource::Wgsl(SHADER_SRC.into()),
+    });
+
+    let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label:    Some("overlay-uniforms"),
+        contents: bytemuck::bytes_of(&OverlayUniforms::zeroed()),
+        usage:    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    });
+
+    let bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label:   Some("overlay-bgl"),
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding:    0,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty:         wgpu::BindingType::Buffer {
+                ty:                 wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size:   None,
+            },
+            count: None,
+        }],
+    });
+
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label:   Some("overlay-bg"),
+        layout:  &bgl,
+        entries: &[wgpu::BindGroupEntry {
+            binding:  0,
+            resource: uniform_buffer.as_entire_binding(),
+        }],
+    });
+
+    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label:                Some("overlay-layout"),
+        bind_group_layouts:   &[&bgl],
+        push_constant_ranges: &[],
+    });
+
+    let premult = wgpu::BlendState {
+        color: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::One,
+            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+            operation:  wgpu::BlendOperation::Add,
+        },
+        alpha: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::One,
+            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+            operation:  wgpu::BlendOperation::Add,
+        },
+    };
+
+    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label:    Some("overlay-pipeline"),
+        layout:   Some(&layout),
+        vertex:   wgpu::VertexState {
+            module:              &shader,
+            entry_point:         "vs_main",
+            buffers:             &[],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module:              &shader,
+            entry_point:         "fs_main",
+            targets:             &[Some(wgpu::ColorTargetState {
+                format,
+                blend:      Some(premult),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        }),
+        primitive:     wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::TriangleList, ..Default::default() },
+        depth_stencil: None,
+        multisample:   wgpu::MultisampleState::default(),
+        multiview:     None,
+        cache:         None,
+    });
+
+    Ok((pipeline, uniform_buffer, bind_group))
+}
+
+// ─── Surface helpers ──────────────────────────────────────────────────────────
+
+/// Prefer non-sRGB (linear byte) formats so color values fed into the shader
+/// land in the framebuffer 1:1 — matching Swift's `MTKView.colorPixelFormat =
+/// .bgra8Unorm`.  With a `*UnormSrgb` surface wgpu would gamma-encode the
+/// shader output (linear → sRGB) and mid-tone blends would render noticeably
+/// brighter than the Swift reference.
+fn prefer_format(caps: &wgpu::SurfaceCapabilities) -> wgpu::TextureFormat {
+    for &f in &[
+        wgpu::TextureFormat::Bgra8Unorm,
+        wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::TextureFormat::Bgra8UnormSrgb,
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+    ] {
+        if caps.formats.contains(&f) { return f; }
+    }
+    // Driver bug guard: wgpu specifies `formats` as non-empty, but a
+    // misbehaving driver could in principle return an empty list.
+    // Falling back to a hard-coded `Bgra8Unorm` keeps us from indexing
+    // `formats[0]` past the end and crashing the renderer
+    caps.formats.first().copied().unwrap_or(wgpu::TextureFormat::Bgra8Unorm)
+}
+
+fn pick_alpha_mode(caps: &wgpu::SurfaceCapabilities) -> wgpu::CompositeAlphaMode {
+    use wgpu::CompositeAlphaMode as M;
+    for &m in &[M::PreMultiplied, M::PostMultiplied, M::Inherit] {
+        if caps.alpha_modes.contains(&m) { return m; }
+    }
+    // Same driver-bug guard as `prefer_format`.  `Opaque` is always
+    // composable on every backend (it ignores the alpha channel
+    // entirely), so it's the safest "I have no idea what to pick"
+    // default
+    caps.alpha_modes.first().copied().unwrap_or(M::Opaque)
+}
+
+// ─── Zeroed helper ────────────────────────────────────────────────────────────
+
+impl OverlayUniforms {
+    pub(crate) fn zeroed() -> Self { bytemuck::Zeroable::zeroed() }
+}
