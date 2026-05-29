@@ -220,49 +220,50 @@ fi
 
 # ── 5. Sign the .app ─────────────────────────────────────────────────────────
 #
-# Both `codesign --timestamp` and `productbuild --sign` reach out to Apple's
-# RFC 3161 timestamp authority (timestamp.apple.com). The CLI tools have no
-# default client-side timeout, so when the TSA is overloaded the signing
-# step hangs indefinitely — eating runner-minutes on CI and leaving local
-# devs wondering whether to kill it. Wrap both in `gtimeout` (macOS comes
-# with `gtimeout` via coreutils on CI runners; fall back to a plain `timeout`
-# on other shells, then to `perl -e alarm` as last resort) with retry, so a
-# transient TSA hiccup fails fast and the script tries again instead of
-# blocking the whole pipeline
-TIMEOUT_BIN=""
+# `codesign --timestamp` reaches out to Apple's RFC 3161 TSA
+# (timestamp.apple.com); `productbuild --sign` walks the installer cert
+# chain and on a fresh keychain without WWDR can hang fetching the
+# intermediate. Neither tool has a default client-side timeout, so
+# when either back-end flakes the step blocks indefinitely. We wrap
+# both in `gtimeout` (GNU coreutils) on macOS to bound the wait and
+# retry on the timeout-specific exit code 124. CI installs coreutils
+# explicitly; locally, install via `brew install coreutils` or the
+# script will run without timeout protection (and warn once at top)
 if   command -v gtimeout >/dev/null 2>&1; then TIMEOUT_BIN="gtimeout"
 elif command -v timeout  >/dev/null 2>&1; then TIMEOUT_BIN="timeout"
+else
+    TIMEOUT_BIN=""
+    log "warning: gtimeout/timeout not found; signing steps will run without"
+    log "         timeout protection. Install via 'brew install coreutils'"
+    log "         if you want bounded retries on TSA / cert-chain hangs"
 fi
-run_with_timeout() {
-    local secs="$1"; shift
-    if [[ -n "$TIMEOUT_BIN" ]]; then
-        "$TIMEOUT_BIN" --kill-after=10s "$secs" "$@"
-    else
-        # Pure-bash fallback: background the command, kill it if it doesn't
-        # exit within $secs.  Slightly less precise than gtimeout but no
-        # extra dep
-        ( "$@" ) & local pid=$!
-        ( sleep "$secs"; kill -TERM "$pid" 2>/dev/null; sleep 10; kill -KILL "$pid" 2>/dev/null ) & local watchdog=$!
-        if wait "$pid" 2>/dev/null; then kill "$watchdog" 2>/dev/null; return 0
-        else                              kill "$watchdog" 2>/dev/null; return 124
-        fi
-    fi
-}
+
+# Retry $@ up to 3 times, each attempt bounded by $secs.  Distinguishes
+# "command timed out" (exit 124 from gtimeout) from "command failed"
+# (any other non-zero exit). Captures the wrapped command's exit code
+# directly into rc instead of via `if … ; then return 0; fi; rc=$?`
+# (which is a notorious bash trap: $? after `if` with no else returns
+# 0 when the test failed, masking the real exit code)
 retry_signing() {
-    local name="$1"; local secs="$2"; shift 2
-    local attempt
+    local name="$1" secs="$2"; shift 2
+    local attempt rc
     for attempt in 1 2 3; do
         log "$name (attempt $attempt, ${secs}s timeout)…"
-        if run_with_timeout "$secs" "$@"; then return 0; fi
-        local rc=$?
-        if [[ $rc -eq 124 ]]; then
-            log "$name timed out after ${secs}s — likely Apple TSA flake, retrying"
+        if [[ -n "$TIMEOUT_BIN" ]]; then
+            "$TIMEOUT_BIN" --kill-after=10s "$secs" "$@"
         else
-            die "$name failed with exit $rc (not a timeout)"
+            "$@"
         fi
-        sleep $((attempt * 10))
+        rc=$?
+        if [[ $rc -eq 0 ]]; then return 0; fi
+        if [[ $rc -eq 124 || $rc -eq 137 ]]; then
+            log "$name timed out after ${secs}s, retrying"
+            sleep $((attempt * 10))
+            continue
+        fi
+        die "$name failed with exit $rc (not a timeout)"
     done
-    die "$name failed after 3 timeout retries — TSA outage? Try later"
+    die "$name still timing out after 3 attempts; check Apple TSA / keychain"
 }
 
 if [[ "$DRY_RUN" != "1" ]]; then
