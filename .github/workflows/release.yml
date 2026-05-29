@@ -117,15 +117,23 @@ jobs:
           security import "$RUNNER_TEMP/installer.p12" -k "$KC" -P "$INSTALLER_P12_PASSWORD"  -T /usr/bin/productbuild
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KC" >/dev/null
 
-          # Apple Worldwide Developer Relations CA intermediate. codesign --sign
-          # passes the chain validation on its own, but productbuild --sign does
-          # a stricter chain walk; on a fresh CI keychain (no Xcode-installed
-          # intermediates) productbuild blocks indefinitely trying to resolve
-          # WWDR. Importing it explicitly fixes the hang and is harmless if it
-          # was already present
-          curl -fsSL "https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer" \
-              -o "$RUNNER_TEMP/AppleWWDRCAG3.cer"
-          security import "$RUNNER_TEMP/AppleWWDRCAG3.cer" -k "$KC" -T /usr/bin/productbuild
+          # Apple Worldwide Developer Relations CA intermediates. codesign
+          # passes the chain validation on its own, but productbuild --sign
+          # walks the chain more strictly; on a fresh CI keychain (no Xcode-
+          # installed intermediates) it blocks indefinitely. Apple distribution
+          # certs issued in different eras chain via different WWDR generations
+          # (G3 → ~2024, G6 current as of 2026); import all generations so the
+          # cert's actual issuer is present regardless of when it was issued
+          for cer in \
+              AppleWWDRCAG3.cer AppleWWDRCAG4.cer AppleWWDRCAG6.cer \
+              AppleIncRootCertificate.cer AppleRootCA-G3.cer; do
+              # `|| true` so a future-dropped cert URL doesn't fail the job;
+              # only the cert that matches our installer's chain matters
+              curl -fsSL "https://www.apple.com/certificateauthority/$cer" \
+                  -o "$RUNNER_TEMP/$cer" \
+                  && security import "$RUNNER_TEMP/$cer" -k "$KC" -T /usr/bin/productbuild 2>/dev/null \
+                  || true
+          done
 
           mkdir -p rust/signing
           echo "$PROVISION_PROFILE_B64" | base64 --decode > rust/signing/exhale.provisionprofile
