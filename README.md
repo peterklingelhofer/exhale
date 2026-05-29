@@ -55,9 +55,9 @@ Single Rust workspace (`rust/`) producing one cross-platform binary.
 - **Renderer**: `wgpu` + a single WGSL fragment shader (`crates/exhale-render`)
 - **Window system**: `winit`
 - **Settings UI**: `egui` (hand-rolled stepper, segmented picker, control buttons painted directly via `egui::Painter` to match `NSSegmentedControl` / `NSStepper` look)
-- **AppKit interop**: typed FFI via `objc2`, no raw `msg_send!` after the migration
+- **AppKit interop**: typed FFI via `objc2` for the menu-bar, status-bar level, and `NSApplicationActivationPolicy` paths. `platform/mac.rs` and `timers.rs` still use raw `msg_send!` where typed bindings don't exist yet (window-level juggling, NSUserNotification plumbing)
 - **Threading model**: per-overlay-window render thread + per-window `wgpu::Device` so overlay frame delivery isn't gated by the main thread's message queue or the settings window's GPU submissions
-- **Animation cadence**: 24 fps fast / 12 fps slow (matches the legacy Swift `MetalBreathingController`). Hardcoded — per-frame CPU runs ≤ 2 % on every scene tested, so the earlier user-tunable preset was removed
+- **Animation cadence**: 24 fps while the breath animation is running (matches the legacy Swift `MetalBreathingController`); drops to 1 fps when the controller has nothing dynamic to draw (paused, fullscreen-with-matching-colors tint, or all-zero durations). Hardcoded — per-frame CPU runs ≤ 2 % on every scene tested, so the earlier user-tunable preset was removed
 
 ### Crates
 
@@ -67,7 +67,7 @@ Single Rust workspace (`rust/`) producing one cross-platform binary.
 
 ## Build & run
 
-The `cargo run` family **builds and then launches** the binary in one step. The `cargo build` family only compiles — you have to invoke the binary yourself afterwards.
+The `cargo run` family builds and then launches the binary in one step. The `cargo build` family only compiles — you have to invoke the binary yourself afterwards.
 
 | Command                  | Builds | Runs | Build profile               |
 |--------------------------|:------:|:----:|-----------------------------|
@@ -134,7 +134,7 @@ X11 and Xfixes are loaded via `x11-dl` at run time using whatever's already inst
 What each one is for:
 - `libgtk-3` + `libayatana-appindicator3`: system-tray icon backend
 - `libwayland-client` + `libxkbcommon`: winit's Wayland + keyboard input
-- `libxdo`: `global-hotkey` crate's X11 keyboard binding (the `libxdo.so.3` you saw missing)
+- `libxdo`: `global-hotkey` crate's X11 keyboard binding (`libxdo.so.3` at runtime)
 - `libssl`: TLS for crates that fetch over HTTPS
 - `pkg-config`: build-time library discovery (compile-only)
 
@@ -144,11 +144,12 @@ Settings are saved as TOML under the platform config dir (via the `directories` 
 
 | Platform | Path |
 |----------|------|
-| macOS    | `~/Library/Application Support/com.peterklingelhofer.exhale/settings.toml` |
+| macOS (dev / standalone) | `~/Library/Application Support/com.peterklingelhofer.exhale/settings.toml` |
+| macOS (Mac App Store)    | `~/Library/Containers/peterklingelhofer.exhale/Data/Library/Application Support/com.peterklingelhofer.exhale/settings.toml` |
 | Windows  | `%APPDATA%\peterklingelhofer\exhale\config\settings.toml` |
 | Linux    | `~/.config/exhale/settings.toml` |
 
-Settings are reloaded on launch and persisted on every change via a debounced background writer thread; corrupt TOML is logged and the file is rewritten with defaults.
+The MAS path differs because the App Store build runs sandboxed; the sandbox redirects `~/Library/Application Support` writes into the per-app container. Settings are reloaded on launch and persisted on every change via a debounced background writer thread; corrupt TOML is logged and the file is rewritten with defaults.
 
 ## Platform notes
 
