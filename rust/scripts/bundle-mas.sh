@@ -249,12 +249,15 @@ retry_signing() {
     local attempt rc
     for attempt in 1 2 3; do
         log "$name (attempt $attempt, ${secs}s timeout)…"
+        # Append `|| rc=$?` so errexit (set -e) doesn't bail before we can
+        # inspect the return code. Without this, a 124 from gtimeout exits
+        # the whole script instead of letting us retry
+        rc=0
         if [[ -n "$TIMEOUT_BIN" ]]; then
-            "$TIMEOUT_BIN" --kill-after=10s "$secs" "$@"
+            "$TIMEOUT_BIN" --kill-after=10s "$secs" "$@" || rc=$?
         else
-            "$@"
+            "$@" || rc=$?
         fi
-        rc=$?
         if [[ $rc -eq 0 ]]; then return 0; fi
         if [[ $rc -eq 124 || $rc -eq 137 ]]; then
             log "$name timed out after ${secs}s, retrying"
