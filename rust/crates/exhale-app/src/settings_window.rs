@@ -470,6 +470,9 @@ impl SettingsWindow {
     /// `GlobalHotKeyEvent`s so a previously-bound hotkey doesn't
     /// execute its action AT THE SAME TIME the capture overlay reads
     /// the keystroke as a new binding
+    // Only consumed by the global-hotkey suppression block in main.rs;
+    // MAS build (no hotkey crate) has no caller, hence the cfg_attr allow
+    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
     pub fn is_capturing_shortcut(&self) -> bool {
         self.capturing_shortcut_for.is_some()
     }

@@ -29,11 +29,19 @@ pub struct TrayMenuIds {
     // text via `set_text` on rebind) and acts as a click target that
     // opens the settings window in capture mode for that action.
     // Storing the handles here lets us update labels in place without
-    // a tray rebuild
+    // a tray rebuild. The handles themselves are only `set_text`'d by
+    // `refresh_labels`, which only runs from the hotkey-rebind path
+    // (feature-gated). MAS build keeps the fields populated so the
+    // constructor stays one shape; lint silenced on that build
+    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
     pub kb_start_item:       MenuItem,
+    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
     pub kb_stop_item:        MenuItem,
+    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
     pub kb_reset_item:       MenuItem,
+    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
     pub kb_quit_item:        MenuItem,
+    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
     pub kb_preferences_item: MenuItem,
     pub kb_start:       tray_icon::menu::MenuId,
     pub kb_stop:        tray_icon::menu::MenuId,
@@ -60,6 +68,7 @@ impl TrayMenuIds {
     /// after the user reassigns one.  Called from the rebind path so
     /// the tray menu stays in sync with `settings.keyboard_shortcuts`
     /// without a full tray rebuild (which would flash the tray icon)
+    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
     pub fn refresh_labels(&self, shortcuts: &KeyboardShortcuts) {
         self.preferences_item.set_text(top_level_label("Preferences",       shortcuts.get(ShortcutAction::Preferences)));
         self.start_item.set_text(      top_level_label("Start Animation",   shortcuts.get(ShortcutAction::Start)));
