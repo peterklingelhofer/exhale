@@ -114,7 +114,7 @@ pub const KBD_MOD_ALT:   u8 = 1 << 2;
 pub const KBD_MOD_META:  u8 = 1 << 3;
 
 /// A single global-hotkey binding.  `code` is the string form of
-/// [`keyboard_types::Code`] (e.g. `"KeyA"`, `"Comma"`, `"Digit1"`) so
+/// `keyboard_types::Code` (e.g. `"KeyA"`, `"Comma"`, `"Digit1"`) so
 /// the serialised representation stays stable across crate-version
 /// bumps that might re-number the underlying enum
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -441,7 +441,7 @@ impl SettingsDiff {
     /// Compute the diff between `before` (snapshot taken pre-render)
     /// and `after` (settings as mutated by the egui frame).  All
     /// float comparisons use an epsilon — 1e-9 for timing values
-    /// (seconds) and 1e-4 for the [0,1] overlay opacity, both well
+    /// (seconds) and 1e-4 for the `[0,1]` overlay opacity, both well
     /// below user-perceptible differences
     pub fn from(before: &Settings, after: &Settings) -> Self {
         let animating_changed = after.is_animating != before.is_animating;

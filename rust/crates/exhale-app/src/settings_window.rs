@@ -747,7 +747,7 @@ impl Drop for BackdropGuard {
 /// Returns the natural (fully-expanded) content height in logical points so
 /// the caller can clamp the window's max size.
 /// Attach the right-click "Change Shortcut…" / "Reset to Default"
-/// menu to a control-button [`Response`].  Lives next to the buttons
+/// menu to a control-button `Response`.  Lives next to the buttons
 /// rather than inside [`control_button`] because tooltip help text is
 /// already passed in — the context-menu hook is independent of the
 /// glyph rendering and easier to reason about as a separate concern

@@ -6,7 +6,7 @@ use global_hotkey::{
 };
 
 /// Per-action ids returned by [`register_hotkeys`].  The dispatcher in
-/// `main.rs` matches incoming [`GlobalHotKeyEvent`]s by `id`, so
+/// `main.rs` matches incoming `GlobalHotKeyEvent`s by `id`, so
 /// missing actions (registration failed, or no key code matched) stay
 /// `None` and silently no-op rather than dispatching the wrong event.
 ///
@@ -115,7 +115,7 @@ pub fn shortcut_to_hotkey(sc: &KeyboardShortcut) -> Option<HotKey> {
     Some(HotKey::new(Some(mods), code))
 }
 
-/// Map our string-form key code (a [`keyboard_types::Code`] variant
+/// Map our string-form key code (a `keyboard_types::Code` variant
 /// name like `"KeyA"`, `"Comma"`, `"Digit1"`, `"F5"`) to the actual
 /// `Code` value.  The string form is what we persist to disk, chosen
 /// over the underlying `u32` because the enum's discriminant ordering
