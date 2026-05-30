@@ -138,26 +138,23 @@ jobs:
           mkdir -p rust/signing
           echo "$PROVISION_PROFILE_B64" | base64 --decode > rust/signing/exhale.provisionprofile
 
-      - name: Build + package (.app + .app.zip)
+      - name: Build (smoke test, no shippable artifact)
         env:
           DRY_RUN: ${{ env.HAS_MAC_CERTS == 'true' && '0' || '1' }}
-          # productbuild deterministically hangs on macos-latest runners even
-          # with every Apple intermediate imported and gtimeout in place; the
-          # actual .pkg for MAS submission is built locally and uploaded via
-          # Transporter. CI just produces a signed .app.zip for the GitHub
-          # Release page (sideload-friendly). See bundle-mas.sh for context
+          # SKIP_PKG: bundle-mas.sh produces a signed .app but skips both
+          # productbuild and zip.  Productbuild deterministically hangs on
+          # the runners (see DEPLOYMENT.md "CI caveat"); zipping the Apple-
+          # Distribution-signed .app produces a binary that launchd refuses
+          # to spawn outside the App Store (the embedded provisioning
+          # profile + sandbox entitlements only validate via MAS delivery).
+          # Net: there is no shippable macOS artifact from CI today. The
+          # actual MAS submission is built locally and uploaded via
+          # Transporter; this job's only purpose is verifying the macOS
+          # build still compiles + signs cleanly on tag push
           SKIP_PKG: '1'
         run: |
           chmod +x rust/scripts/bundle-mas.sh
           rust/scripts/bundle-mas.sh
-
-      - uses: actions/upload-artifact@v5
-        with:
-          name: macos-${{ env.VERSION }}
-          path: |
-            rust/target/mas/*.pkg
-            rust/target/mas/*.zip
-          if-no-files-found: error
 
   # ─── Ubuntu: .deb (cargo-deb) + .AppImage ─────────────────────────────────
   linux-direct:
@@ -335,9 +332,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
+          # No macOS asset: Mac users install via the App Store. CI's macos
+          # job is a build smoke-test only (see DEPLOYMENT.md "CI caveat")
           find artifacts -type f \( \
-            -name '*.pkg' -o -name '*-mac.zip' \
-            -o -name '*.deb' -o -name '*.AppImage' \
+            -name '*.deb' -o -name '*.AppImage' \
             -o -name '*.snap' \
             -o -name '*.msix' \
           \) -exec cp {} release/ \;
