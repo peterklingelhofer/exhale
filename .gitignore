@@ -35,6 +35,17 @@ rust/signing/
 *.p12
 *.cer
 
+ # Xcode
+ xcuserdata/
+ *.xcuserstate
+ DerivedData/
+ *.xcworkspace/xcuserdata/
++build/
++*.dSYM/
++*.swiftpm/xcode/
++*.profraw
+
+
 # Local secrets — release credentials (base64 of p12s, passwords, etc.)
 .env
 .env.*
