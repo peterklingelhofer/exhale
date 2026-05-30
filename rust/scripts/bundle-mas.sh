@@ -289,18 +289,21 @@ if [[ "$DRY_RUN" != "1" ]]; then
         || die "codesign verification failed"
 
     if [[ "$SKIP_PKG" != "1" ]]; then
-        # ── 6a. Signed .pkg for Transporter / App Store Connect ──────────────
+        # ── 6. Signed .pkg for Transporter / App Store Connect ───────────────
         retry_signing "productbuild → $OUT_PKG" 300 \
             productbuild --component "$APP_BUNDLE" /Applications \
                 --sign "$INSTALLER_IDENT" \
                 "$OUT_PKG"
     else
-        # ── 6b. Signed .app.zip — sideload-friendly fallback when productbuild
-        #        won't cooperate (CI keychain / revocation-check issues) ──────
-        OUT_ZIP="$OUT_DIR/$APP_NAME-$VERSION-mac.zip"
-        log "SKIP_PKG=1: skipping productbuild, emitting $(basename "$OUT_ZIP")"
-        ( cd "$OUT_DIR" && rm -f "$(basename "$OUT_ZIP")" \
-            && zip -qr "$(basename "$OUT_ZIP")" "$APP_NAME.app" )
+        # SKIP_PKG=1 (CI only): stop after codesign. No .pkg, no .zip.
+        # An Apple-Distribution-signed .app zipped and downloaded directly
+        # cannot launch on a user's Mac — the embedded provisioning profile
+        # + sandbox entitlements only validate when the package is delivered
+        # via the App Store. So shipping a CI-produced .zip just creates a
+        # broken download. Mac users go through the App Store badge in the
+        # README / GitHub Release notes; this job exists for build smoke-
+        # testing only
+        log "SKIP_PKG=1: codesign passed, skipping productbuild and zip"
     fi
 fi
 
@@ -314,24 +317,20 @@ else
     log "success"
     if [[ "$SKIP_PKG" != "1" ]]; then
         printf '\n  %s\n  %s\n\n' "$APP_BUNDLE" "$OUT_PKG"
-    else
-        printf '\n  %s\n  %s\n\n' "$APP_BUNDLE" "$OUT_ZIP"
-    fi
-    echo "next steps:"
-    if [[ "$SKIP_PKG" != "1" ]]; then
+        echo "next steps:"
         echo "  1. Upload to App Store Connect via Transporter.app:"
         echo "       open -a Transporter \"$OUT_PKG\""
         echo "     (xcrun altool was removed in Xcode 15; use Transporter,"
         echo "      xcrun iTMSTransporter, or the App Store Connect REST API.)"
+        echo "  2. After processing, test in real sandbox via TestFlight."
+        echo "     (Do not 'sudo installer -pkg …' an MAS-signed .pkg locally —"
+        echo "      macOS silently refuses to write the .app since the embedded"
+        echo "      provisioning profile is only valid via the App Store /"
+        echo "      TestFlight delivery path. Receipt registers anyway, making"
+        echo "      it look broken when nothing is wrong.)"
     else
-        echo "  1. SKIP_PKG=1 was set — no .pkg was produced."
-        echo "     Upload to App Store Connect from a local .pkg build:"
-        echo "       (unset SKIP_PKG; rust/scripts/bundle-mas.sh; open -a Transporter \"$OUT_PKG\")"
+        printf '\n  %s\n\n' "$APP_BUNDLE"
+        echo "SKIP_PKG=1 mode — build smoke test only, no .pkg or .zip."
+        echo "For a real MAS submission, unset SKIP_PKG and re-run locally."
     fi
-    echo "  2. After processing, test in real sandbox via TestFlight."
-    echo "     (Do not 'sudo installer -pkg …' an MAS-signed .pkg locally —"
-    echo "      macOS silently refuses to write the .app since the embedded"
-    echo "      provisioning profile is only valid via the App Store /"
-    echo "      TestFlight delivery path. Receipt registers anyway, making"
-    echo "      it look broken when nothing is wrong.)"
 fi

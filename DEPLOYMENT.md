@@ -144,11 +144,19 @@ For every subsequent release:
 
 No new certs / profile unless entitlements change.
 
-### CI caveat: MAS `.pkg` is built locally only
+### CI caveat: no shippable macOS artifact comes from CI
 
-`productbuild --sign` deterministically hangs on the `macos-latest` GitHub Actions runners even with every Apple WWDR intermediate imported into the temp keychain. Suspected root cause is an unreachable OCSP / CRL endpoint during installer-cert chain validation, but root-causing it further hasn't been worth the time given there's a clean workaround.
+Two compounding problems make CI unable to produce a usable macOS download:
 
-CI sets `SKIP_PKG=1` in [release.yml](.github/workflows/release.yml) so the macOS job emits a signed `.app.zip` for the GitHub Release page (sideload-friendly) instead of running `productbuild`. The actual `.pkg` for MAS submission is built locally by running `rust/scripts/bundle-mas.sh` without `SKIP_PKG` and uploaded via Transporter, as documented above. If you ever need to revisit the CI `.pkg` path, the investigation starting point is whether `productbuild` is blocked on `ocsp.apple.com` — `sample $(pgrep productbuild)` inside a 60-second timeout would confirm or rule it out.
+1. **`productbuild --sign` deterministically hangs on `macos-latest` runners** even with every Apple WWDR intermediate (G3, G4, G6) imported into the temp keychain. Suspected root cause is an unreachable OCSP / CRL endpoint during installer-cert chain validation, but `gtimeout` confirmed each attempt times out at 300s consistently. Root-causing further hasn't been worth the time given there's a clean workaround at the release level (manual Transporter upload).
+
+2. **A zipped Apple-Distribution-signed `.app` cannot launch outside the App Store.** The embedded provisioning profile + `app-sandbox` entitlements only validate when delivered via MAS. Downloading and unzipping such a build produces a `.app` that `launchd` refuses to spawn with `Launchd job spawn failed` (POSIX 153). So even if we sidestep productbuild by zipping the signed `.app`, the artifact is dead-on-arrival for sideload.
+
+Current setup: CI sets `SKIP_PKG=1` in [release.yml](.github/workflows/release.yml) so the macOS job runs codesign + verify as a build smoke-test, then stops. No `.pkg`, no `.zip`, no upload. Mac users install via the App Store badge in the README / GitHub Release notes.
+
+The real `.pkg` for MAS submission is built locally with `rust/scripts/bundle-mas.sh` (no `SKIP_PKG`) and uploaded via Transporter, as documented above.
+
+If you want a sideload-friendly macOS download some day, the path is "Developer ID Application" cert + notarization. That's a separate cert from Apple Distribution and requires `xcrun notarytool submit --wait` + `xcrun stapler staple`. Out of scope for now.
 
 ---
 
