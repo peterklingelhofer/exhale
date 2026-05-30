@@ -57,12 +57,12 @@ use super::*;
 
     use objc2_app_kit::NSWindowLevel;
 
-    /// Look up the [`NSWindow`] hosting a winit window.  Returns `None`
+    /// Look up the `NSWindow` hosting a winit window.  Returns `None`
     /// when the window's raw handle isn't an AppKit one (shouldn't
     /// happen on macOS in practice, but the winit API permits it).
     ///
     /// Uses objc2's typed bindings so the caller gets a
-    /// [`Retained<NSWindow>`] that auto-releases on drop and method
+    /// `Retained<NSWindow>` that auto-releases on drop and method
     /// calls go through the compile-time-checked AppKit method tables
     fn get_ns_window(window: &Window) -> Option<objc2::rc::Retained<objc2_app_kit::NSWindow>> {
         use objc2::msg_send;
