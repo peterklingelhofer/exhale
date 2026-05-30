@@ -29,7 +29,7 @@ use exhale_core::{
 /// |     80 |   16 | inhale_color         |
 /// |     96 |   16 | exhale_color         |
 ///
-/// WGSL naturally pads from offset 52→64 (vec4<f32> alignment = 16).
+/// WGSL naturally pads from offset 52→64 (`vec4<f32>` alignment = 16).
 /// Rust's repr(C) does not, so two explicit `u32` padding fields are needed
 /// after display_mode.
 #[repr(C)]
