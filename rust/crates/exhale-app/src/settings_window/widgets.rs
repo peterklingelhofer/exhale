@@ -108,7 +108,7 @@ pub(super) fn section_header(ui: &mut egui::Ui, text: &str) {
 ///     the foreground colour then composite the Unicode glyph
 ///     (`▶ ■ ↺ ×`) on top in a muted contrasting colour, mimicking
 ///     SF Symbol's transparent cutout look.  Per-glyph
-///     [`unicode_y_offset`] tunes positioning against system fonts'
+///     `unicode_y_offset` tunes positioning against system fonts'
 ///     varied glyph metrics.
 ///
 /// `icon_font_size_override` lets a caller bump the font size used for
