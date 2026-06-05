@@ -6,6 +6,26 @@ members = [
 ]
 resolver = "2"
 
+[patch.crates-io]
+# Local fork that stubs out `Window::set_blur` on macOS. Upstream calls
+# `_CGSSetWindowBackgroundBlurRadius`, a private CoreGraphics symbol that
+# Apple's App Store review rejects (non-public API). We never call set_blur
+# ourselves, but the symbol survives LTO because the call site is gated on
+# a runtime field. See vendor/winit/src/platform_impl/macos/window_delegate.rs
+winit = { path = "../vendor/winit" }
+
+[profile.release]
+# Cross-crate dead-code elimination. Without this, winit's unused
+# `Window::set_blur` is retained and pulls in its `extern "C"`
+# declaration of the private `_CGSSetWindowBackgroundBlurRadius`,
+# which Apple's App Store review flags as a non-public API and
+# rejects the submission. LTO=true (fat) strips unreachable fns
+# across the whole crate graph and removes the symbol.
+# Build time ~2-3x longer for release, binary slightly smaller
+lto         = true
+codegen-units = 1
+strip       = "symbols"
+
 [workspace.dependencies]
 exhale-core   = { path = "crates/exhale-core" }
 exhale-render = { path = "crates/exhale-render" }
