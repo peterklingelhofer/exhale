@@ -10,7 +10,7 @@ The information and guidance provided by this app are intended for general infor
 
 ## Download
 
-Pre-built binaries for each OS are on the [Releases](https://github.com/peterklingelhofer/exhale/releases) page. Using the latest release is recommended; if you hit a problem, please [open an issue](https://github.com/peterklingelhofer/exhale/issues/new).
+Linux `.deb` and AppImage packages are on the [Releases](https://github.com/peterklingelhofer/exhale/releases) page, and Mac and Windows install from their app stores. Using the latest release is recommended; if you hit a problem, please [open an issue](https://github.com/peterklingelhofer/exhale/issues/new).
 
 **Mac**
 
@@ -80,6 +80,14 @@ All commands run from `rust/`. Use dev builds while iterating (compile is ~10× 
 
 - Dev:     `rust/target/debug/exhale` (or `.exe` on Windows)
 - Release: `rust/target/release/exhale` (or `.exe` on Windows)
+
+### Browsing the type-level docs
+
+```sh
+cargo doc --no-deps --workspace --open
+```
+
+Generates HTML docs for the three local crates and opens them in your browser. `--no-deps` skips the ~200 dependency crates so you only see exhale's own types. See [LEARNING.md](LEARNING.md) for a beginner's tour of the codebase.
 
 ### Running an already-built binary
 
