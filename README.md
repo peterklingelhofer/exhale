@@ -81,6 +81,14 @@ All commands run from `rust/`. Use dev builds while iterating (compile is ~10× 
 - Dev:     `rust/target/debug/exhale` (or `.exe` on Windows)
 - Release: `rust/target/release/exhale` (or `.exe` on Windows)
 
+### Browsing the type-level docs
+
+```sh
+cargo doc --no-deps --workspace --open
+```
+
+Generates HTML docs for the three local crates and opens them in your browser. `--no-deps` skips the ~200 dependency crates so you only see exhale's own types. See [LEARNING.md](LEARNING.md) for a beginner's tour of the codebase.
+
 ### Running an already-built binary
 
 After `cargo build`, run the binary directly without going through cargo:
