@@ -144,6 +144,27 @@ For every subsequent release:
 
 No new certs / profile unless entitlements change.
 
+### Vendored winit patch (load-bearing for MAS)
+
+`vendor/winit/` is a copy of upstream `winit 0.30.13` with one 13-line change: the body of `Window::set_blur` is stubbed to do nothing. Upstream's implementation calls `_CGSSetWindowBackgroundBlurRadius`, a private CoreGraphics symbol that Apple's App Store review rejects (we found out the hard way after the v2.0.20 submission). We never call winit's `set_blur` ourselves (the settings-window blur uses the public `NSVisualEffectView` instead), but the symbol survived LTO because the call site is gated on a runtime field. Patching it out is the cleanest fix that doesn't require an external fork repo. [`rust/Cargo.toml`](rust/Cargo.toml) wires the patched copy in via `[patch.crates-io]`.
+
+If you ever need to bump winit (rare, ~once a year), the workflow is:
+
+```sh
+# 1. Pull new upstream into the vendor dir
+rm -rf vendor/winit
+cargo update -p winit                                       # populates the cache
+cp -R ~/.cargo/registry/src/index.crates.io-*/winit-X.Y.Z vendor/winit
+
+# 2. Re-apply the patch (search for `pub fn set_blur` in window_delegate.rs
+#    and replace the body with an empty block, see git log for the exact form)
+
+# 3. Verify symbol gone after the next release build
+nm -u rust/target/aarch64-apple-darwin/release/exhale | grep CGSSet
+```
+
+When upstream winit removes its `_CGSSetWindowBackgroundBlurRadius` call (or makes it gated on a feature flag), we can delete `vendor/winit` + the `[patch.crates-io]` block entirely.
+
 ### CI caveat: no shippable macOS artifact comes from CI
 
 Two compounding problems make CI unable to produce a usable macOS download:
