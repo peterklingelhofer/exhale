@@ -60,9 +60,14 @@ jobs:
           else
             V="2.0.21"
           fi
+          # BUILD = commit count + 10000. Apple requires CFBundleVersion to
+          # be monotonically increasing across all uploads, so derive from
+          # commit count (always growing) rather than VERSION (would collide
+          # on every resubmission). See rust/scripts/release.sh for context
+          BUILD="$(( $(git rev-list --count HEAD) + 10000 ))"
           echo "version=$V"                  >> "$GITHUB_OUTPUT"
-          echo "build=${V//./}"              >> "$GITHUB_OUTPUT"
-          echo "resolved VERSION=$V"
+          echo "build=$BUILD"                >> "$GITHUB_OUTPUT"
+          echo "resolved VERSION=$V BUILD=$BUILD"
 
   # ─── macOS: universal binary, code-signed .app + .pkg for Mac App Store ───
   macos:
