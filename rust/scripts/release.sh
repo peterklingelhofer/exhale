@@ -38,9 +38,17 @@ case "$MODE" in ""|--dry-run|--tag) ;; *)
     exit 2
 ;; esac
 
-# MSIX / release.yml short build number: full version with dots stripped
-# (e.g. 2.0.15 → 2015). Matches the computation in release.yml.
-BUILD="${VERSION//./}"
+# MAS / MSIX / release.yml short build number. Apple App Store requires
+# CFBundleVersion to be monotonically increasing across every upload for
+# the bundle ID, including rejected/resubmitted ones. The old formula
+# `${VERSION//./}` was deterministic-per-VERSION which meant every
+# resubmission burned the next version's BUILD slot (shipped 2020 then
+# 2021 as v2.0.20 resubmissions, then v2.0.21's default 2021 collided
+# with App Store Connect rejection ID 8a9458f3-...). Using commit count
+# instead gives a monotonic value that doesn't depend on VERSION, plus a
+# 10000 offset to clear the historical 2020–2022 range we already burned.
+# Matches the computation in release.yml + bundle-mas.sh
+BUILD="$(( $(git rev-list --count HEAD) + 10000 ))"
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
