@@ -58,7 +58,7 @@ jobs:
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             V="${GITHUB_REF#refs/tags/v}"
           else
-            V="2.0.20"
+            V="2.0.21"
           fi
           echo "version=$V"                  >> "$GITHUB_OUTPUT"
           echo "build=${V//./}"              >> "$GITHUB_OUTPUT"
