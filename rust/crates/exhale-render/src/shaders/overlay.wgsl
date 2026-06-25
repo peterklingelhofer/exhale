@@ -123,38 +123,50 @@ fn ripple_color() -> vec4<f32> {
 
 /// Gradient mode: Off=0, Inner=1, On=2
 
-fn gradient_circle(base: vec4<f32>, pixel: vec2<f32>, bg: vec4<f32>) -> vec4<f32> {
+fn gradient_circle(base: vec4<f32>, pixel: vec2<f32>, _bg: vec4<f32>) -> vec4<f32> {
     let center   = u.viewport_size * 0.5;
     let min_dim  = min(u.viewport_size.x, u.viewport_size.y);
     let prog_sq  = u.progress * u.progress;
     let radius   = max((min_dim * prog_sq * u.max_circle_scale) * 0.5, 0.001);
     let dist    = length(pixel - center);
 
-    if u.gradient_mode == 1u { // Inner
-        return lerp_color(bg, base, clamp01(dist / radius));
+    // Same wallpaper-bleed fix as `gradient_rectangle`: hold base.rgb
+    // constant and fade only alpha so transparent zones at the gradient's
+    // endpoints don't reveal a dark wallpaper as a perceived "ring."
+    // Smoothstep softens the visual falloff
+    if u.gradient_mode == 1u { // Inner: center invisible → outer edge fully base
+        let t = smoothstep(0.0, 1.0, clamp01(dist / radius));
+        return vec4<f32>(base.rgb, base.a * t);
     }
 
-    // On: radial from center, peaks at midpoint
+    // On: radial bell, peaks at the half-radius mark, falls off symmetrically
     let ext_r = radius * max(u.circle_gradient_scale, 1.0);
-    let t     = clamp01(dist / ext_r);
-    if t <= 0.5 {
-        return lerp_color(bg, base, t * 2.0);
-    }
-    return lerp_color(base, bg, (t - 0.5) * 2.0);
+    let r01   = clamp01(dist / ext_r);
+    let dist_from_mid = abs(r01 - 0.5) * 2.0;
+    let t     = smoothstep(0.0, 1.0, 1.0 - dist_from_mid);
+    return vec4<f32>(base.rgb, base.a * t);
 }
 
-fn gradient_rectangle(base: vec4<f32>, pixel: vec2<f32>, rect_h: f32, bg: vec4<f32>) -> vec4<f32> {
+fn gradient_rectangle(base: vec4<f32>, pixel: vec2<f32>, rect_h: f32, _bg: vec4<f32>) -> vec4<f32> {
     let y01 = clamp01(pixel.y / max(rect_h, 1.0));
 
-    if u.gradient_mode == 1u { // Inner: bottom=bg → top=base
-        return lerp_color(bg, base, y01);
+    // Both modes fade the BASE color's alpha rather than lerping toward bg's
+    // RGB. With the default `background_color = [0,0,0,0]`, lerping toward bg
+    // produces (rgb=0, low alpha) at the rectangle's edges, which composites
+    // over dark wallpapers (notably Tahoe's new desktop visuals) as visible
+    // black bands at the top + bottom of the shape. Holding base.rgb constant
+    // and fading only alpha keeps any wallpaper bleed-through harmonious
+    // with the base hue. Smoothstep softens the falloff so the transition
+    // isn't a perceptual band even on darker wallpapers
+    if u.gradient_mode == 1u { // Inner: bottom invisible → top fully base
+        let t = smoothstep(0.0, 1.0, y01);
+        return vec4<f32>(base.rgb, base.a * t);
     }
 
-    // On: bottom=bg, middle=base, top=bg
-    if y01 <= 0.5 {
-        return lerp_color(bg, base, y01 * 2.0);
-    }
-    return lerp_color(base, bg, (y01 - 0.5) * 2.0);
+    // On: bell-shaped alpha, peaks in the middle, falls off symmetrically
+    let dist = abs(y01 - 0.5) * 2.0;   // 0 at middle, 1 at top/bottom edges
+    let t    = smoothstep(0.0, 1.0, 1.0 - dist);
+    return vec4<f32>(base.rgb, base.a * t);
 }
 
 // ─── Screen-edge ripple ───────────────────────────────────────────────────────
