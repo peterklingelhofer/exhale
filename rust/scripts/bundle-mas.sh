@@ -36,7 +36,8 @@
 #   APP_IDENT       default: "Apple Distribution: …VZCHHV7VNW…"
 #   INSTALLER_IDENT default: "3rd Party Mac Developer Installer: …VZCHHV7VNW…"
 #   VERSION         default: cargo version from Cargo.toml (bumped manually)
-#   BUILD           default: VERSION with dots stripped
+#   BUILD           default: 10000 + git commit count (monotonic across all
+#                            uploads to MAS; survives resubmissions)
 #   PROVISION_PROFILE default: rust/signing/exhale.provisionprofile
 #   DRY_RUN=1       skip identity checks, profile requirement, and signing;
 #                   emit an unsigned exhale.app for local validation.  Useful
@@ -73,7 +74,10 @@ PROVISION_PROFILE="${PROVISION_PROFILE:-$RUST_ROOT/signing/exhale.provisionprofi
 # Swift 2.0.7 → 2.0.8 expectation by default so a fresh run produces a
 # submission one higher than the current MAS listing.
 VERSION="${VERSION:-2.0.21}"
-BUILD="${BUILD:-${VERSION//./}}"
+# CFBundleVersion. Apple requires this to be monotonically increasing
+# across all uploads (rejected ones count too), so derive from git commit
+# count rather than VERSION — see release.sh for the full story
+BUILD="${BUILD:-$(( $(git -C "$REPO_ROOT" rev-list --count HEAD 2>/dev/null || echo 0) + 10000 ))}"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 log()  { printf '\033[1;34m[mas]\033[0m %s\n' "$*" >&2; }
