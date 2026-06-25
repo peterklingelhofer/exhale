@@ -1042,7 +1042,7 @@ dependencies = [
 
 [[package]]
 name = "exhale-app"
-version = "2.0.20"
+version = "2.0.21"
 dependencies = [
  "anyhow",
  "block2 0.6.2",
