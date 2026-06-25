@@ -1,6 +1,6 @@
 [package]
 name        = "exhale-app"
-version     = "2.0.20"
+version     = "2.0.21"
 edition     = "2021"
 description = "A full-screen breathing overlay that helps you breathe mindfully."
 license     = "MIT"
