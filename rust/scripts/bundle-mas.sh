@@ -73,7 +73,7 @@ PROVISION_PROFILE="${PROVISION_PROFILE:-$RUST_ROOT/signing/exhale.provisionprofi
 # reads 0.1.0, so users will almost always want to override — but we match the
 # Swift 2.0.7 → 2.0.8 expectation by default so a fresh run produces a
 # submission one higher than the current MAS listing.
-VERSION="${VERSION:-2.0.21}"
+VERSION="${VERSION:-2.0.22}"
 # CFBundleVersion. Apple requires this to be monotonically increasing
 # across all uploads (rejected ones count too), so derive from git commit
 # count rather than VERSION — see release.sh for the full story

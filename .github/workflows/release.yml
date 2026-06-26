@@ -58,7 +58,7 @@ jobs:
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             V="${GITHUB_REF#refs/tags/v}"
           else
-            V="2.0.21"
+            V="2.0.22"
           fi
           # BUILD = commit count + 10000. Apple requires CFBundleVersion to
           # be monotonically increasing across all uploads, so derive from
