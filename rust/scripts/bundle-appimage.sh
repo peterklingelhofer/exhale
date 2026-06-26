@@ -30,7 +30,7 @@ APPDIR="$OUT_DIR/exhale.AppDir"
 TOOL_DIR="$OUT_DIR/bin"
 APPIMAGETOOL="$TOOL_DIR/appimagetool"
 
-VERSION="${VERSION:-2.0.21}"
+VERSION="${VERSION:-2.0.22}"
 OUT_APPIMAGE="$OUT_DIR/exhale-${VERSION}-x86_64.AppImage"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
