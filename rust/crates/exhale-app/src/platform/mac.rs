@@ -98,6 +98,16 @@ use super::*;
         ns_win.setIgnoresMouseEvents(true);
         ns_win.setCollectionBehavior(behavior);
         ns_win.setLevel(NS_WINDOW_LEVEL_SCREEN_SAVER);
+        // Suppress NSWindow's default drop shadow. On macOS Tahoe the new
+        // compositor renders the shadow along the visible-alpha boundaries
+        // of our transparent overlay (i.e. wherever the breathing shape
+        // fades into transparency), which shows up as a thin grey line at
+        // the top + bottom of the rectangle / outer edge of the circle.
+        // Pre-Tahoe this default shadow was effectively invisible on a
+        // borderless transparent window; the new compositor is more
+        // aggressive about painting it. Same fix as the settings backdrop
+        // window uses (`install_settings_vibrancy`)
+        ns_win.setHasShadow(false);
     }
 
     pub fn setup_settings_window(window: &Window) {
