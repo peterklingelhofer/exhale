@@ -1,16 +1,40 @@
 name: exhale-app
+title: exhale
 base: core22
 version: '2.0.22'
 summary: A full-screen breathing overlay for mindful breathing.
 description: |
-  exhale is a calming full-screen overlay that paces your breathing with a
-  tunable inhale/exhale/hold rhythm.  Runs as a menu-bar / system-tray app
-  with customisable colours, shapes, and cadence, and optional reminder
-  notifications.
+  A minimal cross-platform breathing overlay, a friendly indicator and
+  reminder to take full, deep breaths while looking at screens. Research
+  indicates we blink less and breathe more shallowly when staring at
+  displays, and exhale is a small tool to help counter that.
 
-  Controls live in the system tray: Start/Stop animation, toggle pause,
-  reset to defaults, open preferences.  The overlay itself is click-through
-  so it never interrupts whatever you're doing.
+  The overlay is a translucent, always-on-top, click-through window that
+  gently expands on inhale and contracts on exhale, so it never interrupts
+  whatever you are doing. Inhale, post-inhale hold, exhale, and post-exhale
+  hold durations are all configurable. A good starting point is 4 seconds in
+  and 4 seconds out; eventually 6 and 8, with the exhale twice as long as the
+  inhale to engage the parasympathetic nervous system. Box breathing is
+  4 / 4 / 4 / 4.
+
+  Features:
+  - Translucent, click-through overlay that expands on inhale and contracts
+    on exhale
+  - Fully tunable inhale / hold / exhale / hold cadence
+  - Customisable colours, shapes (fullscreen, circle, or rectangle), and
+    opacity
+  - Runs from the system tray: start/stop animation, pause, reset to
+    defaults, open preferences
+  - Optional reminder notifications
+
+  Take breaks if intense feelings arise; it is important not to overdo it.
+
+  Disclaimer: The information and guidance provided by this app are for
+  general informational purposes only and are not medical advice. The creator
+  is not a medical professional. Always seek the advice of a qualified
+  healthcare provider with any questions about your health, and do not
+  disregard or delay professional medical advice because of this app. Use is
+  at your own risk.
 
 grade:       stable
 confinement: strict
