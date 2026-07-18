@@ -1,6 +1,6 @@
 # exhale
 
-A minimal cross-platform breathing overlay — a friendly indicator and reminder to take full, deep breaths while looking at screens. Research indicates we blink less and breathe more shallowly when staring at displays, and this is intended as a small tool to help counter that.
+A minimal cross-platform breathing overlay - a friendly indicator and reminder to take full, deep breaths while looking at screens. Research indicates we blink less and breathe more shallowly when staring at displays, and this is intended as a small tool to help counter that.
 
 The overlay is a translucent always-on-top window that gently expands on inhale and contracts on exhale. Inhale, post-inhale hold, exhale, and post-exhale hold durations are all configurable. A good starting point is `4` seconds in and `4` seconds out; eventually `6` and `8` with the out twice as long as the in (to engage the parasympathetic nervous system). Box breathing is `4` / `4` / `4` / `4`. Take breaks if intense feelings arise — it's important not to overdo it.
 
