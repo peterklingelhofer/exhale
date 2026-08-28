@@ -1,0 +1,2011 @@
+[
+  {
+    "id": "albulescu2022-micro-breaks",
+    "type": "article-journal",
+    "title": "\"Give me a break!\" A systematic review and meta-analysis on the efficacy of micro-breaks for increasing well-being and performance",
+    "author": [
+      {
+        "family": "Albulescu",
+        "given": "Patricia"
+      },
+      {
+        "family": "Macsinga",
+        "given": "Irina"
+      },
+      {
+        "family": "Rusu",
+        "given": "Andrei"
+      },
+      {
+        "family": "Sulea",
+        "given": "Coralia"
+      },
+      {
+        "family": "Bodnaru",
+        "given": "Alexandra"
+      },
+      {
+        "family": "Tulbure",
+        "given": "Bogdan Tudor"
+      }
+    ],
+    "container-title": "PLOS ONE",
+    "volume": "17",
+    "issue": "8",
+    "page": "e0272460",
+    "issued": {
+      "date-parts": [
+        [
+          2022
+        ]
+      ]
+    },
+    "DOI": "10.1371/journal.pone.0272460",
+    "URL": "https://doi.org/10.1371/journal.pone.0272460",
+    "custom": {
+      "group": "premise",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "A",
+      "backsClaims": [
+        "short breaks of ten minutes or less from a work task reduce fatigue and increase vigor",
+        "an interruption long enough to run one breath cycle is a plausible unit of recovery"
+      ],
+      "caveat": "22 studies, 19 manuscripts. The performance effect was smaller and less consistent than the well-being effect, and the authors report it depended on task type. None of the included studies used a breathing exercise as the break activity, so this supports the general shape of exhale's reminder timer, not its specific content."
+    }
+  },
+  {
+    "id": "bae2021-exhalation-inhalation-ratio",
+    "type": "article-journal",
+    "title": "Increased exhalation to inhalation ratio during breathing enhances high-frequency heart rate variability in healthy adults",
+    "author": [
+      {
+        "family": "Bae",
+        "given": "Dalbyeol"
+      },
+      {
+        "family": "Matthews",
+        "given": "Jacob J. L."
+      },
+      {
+        "family": "Chen",
+        "given": "J. Jean"
+      },
+      {
+        "family": "Mah",
+        "given": "Linda"
+      }
+    ],
+    "container-title": "Psychophysiology",
+    "volume": "58",
+    "issue": "11",
+    "page": "e13905",
+    "issued": {
+      "date-parts": [
+        [
+          2021
+        ]
+      ]
+    },
+    "DOI": "10.1111/psyp.13905",
+    "URL": "https://doi.org/10.1111/psyp.13905",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "a 2:1 exhale-to-inhale cue raised RMSSD and HF-HRV relative to a 1:1 cue at the participant's own breathing rate",
+        "the HF-HRV elevation persisted about four minutes after the 2:1 block ended"
+      ],
+      "caveat": "n = 28 (16 young, 12 older). Note the manipulation check: the achieved ratios were 1.08 and 1.33, nowhere near the instructed 1:1 and 2:1, and pacing was at each participant's spontaneous rate rather than in the resonance range. One of four studies that disagree about the ratio; see vandiest2014-ie-ratio-relaxation (also positive), lin2014-equal-ratio-hrv (favours the equal ratio) and meehan2024-longer-exhalations (null). Gap 4 in the ledger tabulates all four."
+    }
+  },
+  {
+    "id": "balban2023-cyclic-sighing",
+    "type": "article-journal",
+    "title": "Brief structured respiration practices enhance mood and reduce physiological arousal",
+    "author": [
+      {
+        "family": "Balban",
+        "given": "Melis Yilmaz"
+      },
+      {
+        "family": "Neri",
+        "given": "Eric"
+      },
+      {
+        "family": "Kogon",
+        "given": "Manuela M."
+      },
+      {
+        "family": "Weed",
+        "given": "Lara"
+      },
+      {
+        "family": "Nouriani",
+        "given": "Bita"
+      },
+      {
+        "family": "Jo",
+        "given": "Booil"
+      },
+      {
+        "family": "Holl",
+        "given": "Gary"
+      },
+      {
+        "family": "Zeitzer",
+        "given": "Jamie M."
+      },
+      {
+        "family": "Spiegel",
+        "given": "David"
+      },
+      {
+        "family": "Huberman",
+        "given": "Andrew D."
+      }
+    ],
+    "container-title": "Cell Reports Medicine",
+    "volume": "4",
+    "issue": "1",
+    "page": "100895",
+    "issued": {
+      "date-parts": [
+        [
+          2023
+        ]
+      ]
+    },
+    "DOI": "10.1016/j.xcrm.2022.100895",
+    "URL": "https://doi.org/10.1016/j.xcrm.2022.100895",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "A",
+      "backsClaims": [
+        "five minutes a day of exhale-emphasising cyclic sighing improved mood and lowered respiratory rate more than an equal period of mindfulness meditation over one month",
+        "box breathing, equal inhale / hold / exhale, was tested head-to-head and was not the best-performing arm"
+      ],
+      "caveat": "Remote randomised controlled study, pre-registered as NCT05304000. The primary comparator is mindfulness meditation, not a sham, so the arms differ in more than breath ratio. The mood difference reached p < 0.05 in a mixed-effects model; this is a real but modest separation. Directly relevant to exhale twice over: it is the best evidence that a longer exhale is the right emphasis, and it is the reason the README should stop presenting box breathing as equivalent."
+    }
+  },
+  {
+    "id": "chaddha2019-slow-breathing-bp",
+    "type": "article-journal",
+    "title": "Device and non-device-guided slow breathing to reduce blood pressure: A systematic review and meta-analysis",
+    "author": [
+      {
+        "family": "Chaddha",
+        "given": "Ashish"
+      },
+      {
+        "family": "Modaff",
+        "given": "Daniel"
+      },
+      {
+        "family": "Hooper-Lane",
+        "given": "Christopher"
+      },
+      {
+        "family": "Feldstein",
+        "given": "David A."
+      }
+    ],
+    "container-title": "Complementary Therapies in Medicine",
+    "volume": "45",
+    "page": "179-184",
+    "issued": {
+      "date-parts": [
+        [
+          2019
+        ]
+      ]
+    },
+    "DOI": "10.1016/j.ctim.2019.03.005",
+    "URL": "https://doi.org/10.1016/j.ctim.2019.03.005",
+    "custom": {
+      "group": "slow-breathing",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "A",
+      "backsClaims": [
+        "sustained slow breathing programmes lower systolic blood pressure by about 5.6 mmHg and diastolic by about 3.0 mmHg in hypertensive and prehypertensive adults"
+      ],
+      "caveat": "17 RCTs. Heterogeneity was high for every analysis, and the authors say so. Inclusion required at least 5 minutes of breathing at 10 breaths/min or slower, on at least 3 days a week, for at least 4 weeks. exhale asks for none of that and measures none of it, so this describes a dose exhale does not deliver. Read alongside vandijk2018-close-the-book."
+    }
+  },
+  {
+    "id": "deniz2024-forward-head-lung-volumes",
+    "type": "article-journal",
+    "title": "The effect of forward head posture on dynamic lung volumes in young adults: a systematic review",
+    "author": [
+      {
+        "family": "Deniz",
+        "given": "Yasemin"
+      },
+      {
+        "family": "Ertekın",
+        "given": "Damla"
+      },
+      {
+        "family": "Cokar",
+        "given": "Dılek"
+      }
+    ],
+    "container-title": "Bulletin of Faculty of Physical Therapy",
+    "volume": "29",
+    "issue": "1",
+    "page": "15",
+    "issued": {
+      "date-parts": [
+        [
+          2024
+        ]
+      ]
+    },
+    "DOI": "10.1186/s43161-024-00186-7",
+    "URL": "https://doi.org/10.1186/s43161-024-00186-7",
+    "custom": {
+      "group": "premise",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "B",
+      "backsClaims": [
+        "across four comparison studies totalling 115 participants, forward head posture was associated with FVC reductions of 0.25 to 0.81 L and FEV1 reductions of 0.16 to 0.93 L",
+        "craniovertebral angle correlates positively with dynamic pulmonary volumes"
+      ],
+      "caveat": "Systematic review without meta-analysis; the authors phrase the conclusion as FHP 'can potentially cause' pulmonary abnormalities. Searched ResearchGate alongside PubMed and Google Scholar, which is an unusual database choice. This is the posture half of the screen-breathing argument: it is about head position, not about screens, and the link to screens comes from jung2016-smartphone-posture-respiration."
+    }
+  },
+  {
+    "id": "fincham2023-breathwork-meta",
+    "type": "article-journal",
+    "title": "Effect of breathwork on stress and mental health: A meta-analysis of randomised-controlled trials",
+    "author": [
+      {
+        "family": "Fincham",
+        "given": "Guy William"
+      },
+      {
+        "family": "Strauss",
+        "given": "Clara"
+      },
+      {
+        "family": "Montero-Marin",
+        "given": "Jesus"
+      },
+      {
+        "family": "Cavanagh",
+        "given": "Kate"
+      }
+    ],
+    "container-title": "Scientific Reports",
+    "volume": "13",
+    "issue": "1",
+    "page": "432",
+    "issued": {
+      "date-parts": [
+        [
+          2023
+        ]
+      ]
+    },
+    "DOI": "10.1038/s41598-022-27247-y",
+    "URL": "https://doi.org/10.1038/s41598-022-27247-y",
+    "custom": {
+      "group": "slow-breathing",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "A",
+      "backsClaims": [
+        "breathwork lowers self-reported stress against control conditions, g = -0.35 (95% CI -0.55 to -0.14), 12 RCTs, 785 adults",
+        "comparable small-to-medium effects for anxiety (g = -0.32, k = 20) and depressive symptoms (g = -0.40, k = 18)"
+      ],
+      "caveat": "Most included studies were rated at moderate risk of bias. Effects are small-to-medium and self-reported. This is the strongest single warrant for the claim that a breathing practice does something, and it is still a g of about a third of a standard deviation."
+    }
+  },
+  {
+    "id": "fincham2024-high-ventilation-rct",
+    "type": "article-journal",
+    "title": "Effects of brief remote high ventilation breathwork with retention on mental health and wellbeing: a randomised placebo-controlled trial",
+    "author": [
+      {
+        "family": "Fincham",
+        "given": "Guy W."
+      },
+      {
+        "family": "Epel",
+        "given": "Elissa"
+      },
+      {
+        "family": "Colasanti",
+        "given": "Alessandro"
+      },
+      {
+        "family": "Strauss",
+        "given": "Clara"
+      },
+      {
+        "family": "Cavanagh",
+        "given": "Kate"
+      }
+    ],
+    "container-title": "Scientific Reports",
+    "volume": "14",
+    "issue": "1",
+    "page": "16893",
+    "issued": {
+      "date-parts": [
+        [
+          2024
+        ]
+      ]
+    },
+    "DOI": "10.1038/s41598-024-64254-7",
+    "URL": "https://doi.org/10.1038/s41598-024-64254-7",
+    "custom": {
+      "group": "safety",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "B",
+      "backsClaims": [
+        "high-ventilation breathwork with retention is a distinct practice from slow-paced breathing and warrants a placebo-controlled evaluation of its own"
+      ],
+      "caveat": "NUMBERS NOT READ 2026-08-28; carried for the distinction it draws rather than for its effect estimate. It matters to exhale because exhale's sliders can be set to fast, hold-heavy patterns that leave the slow-breathing evidence base entirely. Adverse-event reporting across this field is sparse: reviews note that only a minority of breathwork trials report on adverse events at all, which is the honest basis for the README's advice to stop if intense feelings arise."
+    }
+  },
+  {
+    "id": "grassmann2016-cognitive-load-respiration",
+    "type": "article-journal",
+    "title": "Respiratory Changes in Response to Cognitive Load: A Systematic Review",
+    "author": [
+      {
+        "family": "Grassmann",
+        "given": "Mariel"
+      },
+      {
+        "family": "Vlemincx",
+        "given": "Elke"
+      },
+      {
+        "family": "von Leupoldt",
+        "given": "Andreas"
+      },
+      {
+        "family": "Mittelstädt",
+        "given": "Justin M."
+      },
+      {
+        "family": "Van den Bergh",
+        "given": "Omer"
+      }
+    ],
+    "container-title": "Neural Plasticity",
+    "volume": "2016",
+    "page": "8146809",
+    "issued": {
+      "date-parts": [
+        [
+          2016
+        ]
+      ]
+    },
+    "DOI": "10.1155/2016/8146809",
+    "URL": "https://doi.org/10.1155/2016/8146809",
+    "custom": {
+      "group": "premise",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "A",
+      "backsClaims": [
+        "mentally demanding work is reliably marked by faster breathing, with medium to large effects",
+        "respiratory amplitude stays roughly stable under cognitive load rather than shrinking",
+        "cognitive load lowers end-tidal CO2, meaning ventilation runs ahead of metabolic need"
+      ],
+      "caveat": "54 experiments across 53 articles. Careful with this one: it establishes that cognitive load raises rate while leaving amplitude roughly stable, so it does NOT support 'shallow' if shallow means less air moved. Minute ventilation goes up. For the diaphragmatic-to-thoracic shift that 'shallow' actually names, cite schleifer2002-hyperventilation-job-stress; for the same effect measured at a real keyboard, cite schleifer1994-vdt-petco2 and schleifer2008-emg-gaps-computer-work. This entry is the general cognitive-load backdrop."
+    }
+  },
+  {
+    "id": "johnson2023-20-20-20",
+    "type": "article-journal",
+    "title": "20-20-20 Rule: Are These Numbers Justified?",
+    "author": [
+      {
+        "family": "Johnson",
+        "given": "Sophia"
+      },
+      {
+        "family": "Rosenfield",
+        "given": "Mark"
+      }
+    ],
+    "container-title": "Optometry and Vision Science",
+    "volume": "100",
+    "issue": "1",
+    "page": "52-56",
+    "issued": {
+      "date-parts": [
+        [
+          2023
+        ]
+      ]
+    },
+    "DOI": "10.1097/OPX.0000000000001971",
+    "URL": "https://doi.org/10.1097/OPX.0000000000001971",
+    "custom": {
+      "group": "premise",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "the widely repeated 20-20-20 rule has little peer-reviewed support",
+        "scheduled 20-second breaks every 5, 10 or 20 minutes produced no significant effect on ocular symptoms, reading speed or task accuracy"
+      ],
+      "caveat": "n = 30, 40-minute tablet reading task, four break schedules. Symptoms rose significantly in all four conditions including the most frequent break schedule. Included here as a caution against exhale's own genre: a periodic on-screen nudge is not self-evidently effective just because it is popular and plausible."
+    }
+  },
+  {
+    "id": "jung2016-smartphone-posture-respiration",
+    "type": "article-journal",
+    "title": "The effect of smartphone usage time on posture and respiratory function",
+    "author": [
+      {
+        "family": "Jung",
+        "given": "Sang In"
+      },
+      {
+        "family": "Lee",
+        "given": "Na Kyung"
+      },
+      {
+        "family": "Kang",
+        "given": "Kyung Woo"
+      },
+      {
+        "family": "Kim",
+        "given": "Kyoung"
+      },
+      {
+        "family": "Lee",
+        "given": "Do Youn"
+      }
+    ],
+    "container-title": "Journal of Physical Therapy Science",
+    "volume": "28",
+    "issue": "1",
+    "page": "186-189",
+    "issued": {
+      "date-parts": [
+        [
+          2016
+        ]
+      ]
+    },
+    "DOI": "10.1589/jpts.28.186",
+    "URL": "https://doi.org/10.1589/jpts.28.186",
+    "custom": {
+      "group": "premise",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "people using smartphones more than four hours a day had significantly worse craniovertebral angle, worse scapular index and lower peak expiratory flow than people using them less than four hours a day"
+      ],
+      "caveat": "n = 50, cross-sectional, two groups split on self-reported usage. Correlational: heavy users may differ in many ways besides screen time, and peak expiratory flow was the only respiratory measure that separated (FVC and FEV1 did not). Crossref carries no license; access level taken from J Phys Ther Sci being fully open access."
+    }
+  },
+  {
+    "id": "laborde2021-ie-ratio-pauses",
+    "type": "article-journal",
+    "title": "Slow-Paced Breathing: Influence of Inhalation/Exhalation Ratio and of Respiratory Pauses on Cardiac Vagal Activity",
+    "author": [
+      {
+        "family": "Laborde",
+        "given": "Sylvain"
+      },
+      {
+        "family": "Iskra",
+        "given": "Maša"
+      },
+      {
+        "family": "Zammit",
+        "given": "Nina"
+      },
+      {
+        "family": "Borges",
+        "given": "Uirassu"
+      },
+      {
+        "family": "You",
+        "given": "Min"
+      },
+      {
+        "family": "Sevoz-Couche",
+        "given": "Caroline"
+      },
+      {
+        "family": "Dosseville",
+        "given": "Fabrice"
+      }
+    ],
+    "container-title": "Sustainability",
+    "volume": "13",
+    "issue": "14",
+    "page": "7775",
+    "issued": {
+      "date-parts": [
+        [
+          2021
+        ]
+      ]
+    },
+    "DOI": "10.3390/su13147775",
+    "URL": "https://doi.org/10.3390/su13147775",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "inhalation/exhalation ratio and the presence of respiratory pauses were manipulated directly against cardiac vagal activity as the outcome"
+      ],
+      "caveat": "NUMBERS NOT READ 2026-08-28. Carried for the design question it asks, which is exactly the question exhale's four sliders pose. It is the fifth study bearing on the ratio disagreement tabulated in gap 4, and the only one that also manipulates respiratory pauses, which makes it the highest-value full text still unread in this corpus: it bears on both gap 4 and gap 11. Read it before quoting any effect from it."
+    }
+  },
+  {
+    "id": "laborde2021-spb-6cpm-biofeedback",
+    "type": "article-journal",
+    "title": "Psychophysiological effects of slow-paced breathing at six cycles per minute with or without heart rate variability biofeedback",
+    "author": [
+      {
+        "family": "Laborde",
+        "given": "Sylvain"
+      },
+      {
+        "family": "Allen",
+        "given": "Mark S."
+      },
+      {
+        "family": "Borges",
+        "given": "Uirassu"
+      },
+      {
+        "family": "Iskra",
+        "given": "Maša"
+      },
+      {
+        "family": "Zammit",
+        "given": "Nina"
+      },
+      {
+        "family": "You",
+        "given": "Min"
+      },
+      {
+        "family": "Hosang",
+        "given": "Thomas"
+      },
+      {
+        "family": "Mosley",
+        "given": "Emma"
+      },
+      {
+        "family": "Dosseville",
+        "given": "Fabrice"
+      }
+    ],
+    "container-title": "Psychophysiology",
+    "volume": "59",
+    "issue": "1",
+    "page": "e13952",
+    "issued": {
+      "date-parts": [
+        [
+          2021
+        ]
+      ]
+    },
+    "DOI": "10.1111/psyp.13952",
+    "URL": "https://doi.org/10.1111/psyp.13952",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "slow-paced breathing at six cycles per minute raised RMSSD relative to control in every condition tested",
+        "adding heart-rate-variability biofeedback on top of the six-per-minute pace did not add a further benefit"
+      ],
+      "caveat": "Crossref records this as issued 2021, appearing in the January 2022 issue (59:1). Together with tabor2022-guided-breathing-design this is why exhale needs no sensor: the pace is doing the work, not the feedback loop."
+    }
+  },
+  {
+    "id": "laborde2022-vsb-meta",
+    "type": "article-journal",
+    "title": "Effects of voluntary slow breathing on heart rate and heart rate variability: A systematic review and a meta-analysis",
+    "author": [
+      {
+        "family": "Laborde",
+        "given": "S."
+      },
+      {
+        "family": "Allen",
+        "given": "M. S."
+      },
+      {
+        "family": "Borges",
+        "given": "U."
+      },
+      {
+        "family": "Dosseville",
+        "given": "F."
+      },
+      {
+        "family": "Hosang",
+        "given": "T. J."
+      },
+      {
+        "family": "Iskra",
+        "given": "M."
+      },
+      {
+        "family": "Mosley",
+        "given": "E."
+      },
+      {
+        "family": "Salvotti",
+        "given": "C."
+      },
+      {
+        "family": "Spolverato",
+        "given": "L."
+      },
+      {
+        "family": "Zammit",
+        "given": "N."
+      },
+      {
+        "family": "Javelle",
+        "given": "F."
+      }
+    ],
+    "container-title": "Neuroscience & Biobehavioral Reviews",
+    "volume": "138",
+    "page": "104711",
+    "issued": {
+      "date-parts": [
+        [
+          2022
+        ]
+      ]
+    },
+    "DOI": "10.1016/j.neubiorev.2022.104711",
+    "URL": "https://doi.org/10.1016/j.neubiorev.2022.104711",
+    "custom": {
+      "group": "slow-breathing",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "A",
+      "backsClaims": [
+        "voluntary slow breathing raises vagally-mediated HRV during the session, immediately after a single session, and after a multi-session intervention",
+        "few adverse effects are expected from slow breathing practice"
+      ],
+      "caveat": "223 studies from 1842 screened abstracts (172 during, 16 immediately-after, 49 after-intervention). This is the central warrant for exhale's whole premise. Note what it establishes: an effect on a cardiac index of parasympathetic activity, not an effect on how anyone feels or works."
+    }
+  },
+  {
+    "id": "lehrer2014-hrv-biofeedback",
+    "type": "article-journal",
+    "title": "Heart rate variability biofeedback: how and why does it work?",
+    "author": [
+      {
+        "family": "Lehrer",
+        "given": "Paul M."
+      },
+      {
+        "family": "Gevirtz",
+        "given": "Richard"
+      }
+    ],
+    "container-title": "Frontiers in Psychology",
+    "volume": "5",
+    "page": "756",
+    "issued": {
+      "date-parts": [
+        [
+          2014
+        ]
+      ]
+    },
+    "DOI": "10.3389/fpsyg.2014.00756",
+    "URL": "https://doi.org/10.3389/fpsyg.2014.00756",
+    "custom": {
+      "group": "mechanism",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "D",
+      "backsClaims": [
+        "maximum heart-rate oscillation is usually reached breathing at approximately 0.1 Hz, six breaths per minute",
+        "refined measurement puts the average resonance frequency nearer 0.09 Hz, about 5.5 breaths per minute, a breath lasting roughly 11 seconds",
+        "resonance frequency is individual: taller people and men tend to have lower resonance frequencies",
+        "baroreflex gain increases substantially during HRV biofeedback"
+      ],
+      "caveat": "Narrative mechanistic review by the technique's principal developers. Read as the mechanism argument, not as independent evidence. The individual-variation point is the honest reason exhale's timing sliders are user-editable at all: there is no single correct number to hardcode."
+    }
+  },
+  {
+    "id": "li2016-sigh-circuit",
+    "type": "article-journal",
+    "title": "The peptidergic control circuit for sighing",
+    "author": [
+      {
+        "family": "Li",
+        "given": "Peng"
+      },
+      {
+        "family": "Janczewski",
+        "given": "Wiktor A."
+      },
+      {
+        "family": "Yackle",
+        "given": "Kevin"
+      },
+      {
+        "family": "Kam",
+        "given": "Kaiwen"
+      },
+      {
+        "family": "Pagliardini",
+        "given": "Silvia"
+      },
+      {
+        "family": "Krasnow",
+        "given": "Mark A."
+      },
+      {
+        "family": "Feldman",
+        "given": "Jack L."
+      }
+    ],
+    "container-title": "Nature",
+    "volume": "530",
+    "issue": "7590",
+    "page": "293-297",
+    "issued": {
+      "date-parts": [
+        [
+          2016
+        ]
+      ]
+    },
+    "DOI": "10.1038/nature16964",
+    "URL": "https://doi.org/10.1038/nature16964",
+    "custom": {
+      "group": "mechanism",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "D",
+      "backsClaims": [
+        "sighing is generated by a dedicated peptidergic circuit projecting onto the preBotzinger complex, not as a byproduct of ordinary breathing rhythm"
+      ],
+      "caveat": "Mouse work. It establishes that the sigh is a distinct, hardwired respiratory behaviour, which is the mechanistic backdrop for the cyclic-sighing result in balban2023-cyclic-sighing. It says nothing about humans deliberately performing sighs, and must not be cited as if it did."
+    }
+  },
+  {
+    "id": "lin2014-equal-ratio-hrv",
+    "type": "article-journal",
+    "title": "Breathing at a rate of 5.5 breaths per minute with equal inhalation-to-exhalation ratio increases heart rate variability",
+    "author": [
+      {
+        "family": "Lin",
+        "given": "I. M."
+      },
+      {
+        "family": "Tai",
+        "given": "L. Y."
+      },
+      {
+        "family": "Fan",
+        "given": "S. Y."
+      }
+    ],
+    "container-title": "International Journal of Psychophysiology",
+    "volume": "91",
+    "issue": "3",
+    "page": "206-211",
+    "issued": {
+      "date-parts": [
+        [
+          2014
+        ]
+      ]
+    },
+    "DOI": "10.1016/j.ijpsycho.2013.12.006",
+    "URL": "https://doi.org/10.1016/j.ijpsycho.2013.12.006",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "5.5 breaths per minute with an equal 5:5 inhale-to-exhale ratio produced higher SDNN and LF power than 6 bpm or than a 4:6 ratio",
+        "all four slow-breathing patterns increased self-reported relaxation relative to spontaneous breathing"
+      ],
+      "caveat": "n = 47, Latin-square counterbalanced. The clearest published result AGAINST a longer exhale on HRV grounds, and it is why exhale's README no longer asserts the 1:2 mechanism. Note the second claim carefully: every pattern tested increased relaxation, so the ratio argument is about which slow pattern is best, not about whether slow breathing works."
+    }
+  },
+  {
+    "id": "linardon2020-app-attrition",
+    "type": "article-journal",
+    "title": "Attrition and adherence in smartphone-delivered interventions for mental health problems: A systematic and meta-analytic review",
+    "author": [
+      {
+        "family": "Linardon",
+        "given": "Jake"
+      },
+      {
+        "family": "Fuller-Tyszkiewicz",
+        "given": "Matthew"
+      }
+    ],
+    "container-title": "Journal of Consulting and Clinical Psychology",
+    "volume": "88",
+    "issue": "1",
+    "page": "1-13",
+    "issued": {
+      "date-parts": [
+        [
+          2020
+        ]
+      ]
+    },
+    "DOI": "10.1037/ccp0000459",
+    "URL": "https://doi.org/10.1037/ccp0000459",
+    "custom": {
+      "group": "safety",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "A",
+      "backsClaims": [
+        "dropout and non-adherence are the dominant practical failure mode of smartphone-delivered mental health interventions, even where efficacy trials are positive"
+      ],
+      "caveat": "NUMBERS NOT READ 2026-08-28. Carried as the reality check on every other entry in this corpus: an effect measured in a supervised session says little about a tool someone installs and forgets. exhale has no telemetry and therefore no idea whether anyone keeps it running, which is stated plainly in the gaps ledger rather than hidden."
+    }
+  },
+  {
+    "id": "little2025-a52-breath-method",
+    "type": "article-journal",
+    "title": "The A52 Breath Method: A Narrative Review of Breathwork for Mental Health and Stress Resilience",
+    "author": [
+      {
+        "family": "Little",
+        "given": "Abbie L."
+      }
+    ],
+    "container-title": "Stress and Health",
+    "volume": "41",
+    "issue": "4",
+    "page": "e70098",
+    "issued": {
+      "date-parts": [
+        [
+          2025
+        ]
+      ]
+    },
+    "DOI": "10.1002/smi.70098",
+    "URL": "https://doi.org/10.1002/smi.70098",
+    "custom": {
+      "group": "slow-breathing",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "D",
+      "backsClaims": [
+        "a 5 s inhale, 5 s exhale, 2 s post-exhale hold at five breaths per minute is a protocol a recent review argues is representative of the effective literature",
+        "23 of 30 reviewed studies reported significant HRV improvement; 10 reported anxiety reduction and 9 reported reduced perceived stress",
+        "benefits appear larger in people with elevated baseline distress"
+      ],
+      "caveat": "Narrative review, single author, 465 abstracts screened and 30 full texts analysed, with no meta-analysis and no risk-of-bias assessment. It proposes the protocol it reviews, which is a conflict of framing worth naming. Its A52 shape maps onto exhale's four sliders as 5 / 0 / 5 / 2, which is 5 breaths per minute and inside the tested band, unlike exhale's shipped default. Note that marchant2025-square-478-six found no-hold 6 bpm outperformed both hold-bearing patterns it tested, so the 2 s retention here is the least supported part of the protocol."
+    }
+  },
+  {
+    "id": "marchant2025-square-478-six",
+    "type": "article-journal",
+    "title": "Comparing the Effects of Square, 4-7-8, and 6 Breaths-per-Minute Breathing Conditions on Heart Rate Variability, CO2 Levels, and Mood",
+    "author": [
+      {
+        "family": "Marchant",
+        "given": "Joshua"
+      },
+      {
+        "family": "Khazan",
+        "given": "Inna"
+      },
+      {
+        "family": "Cressman",
+        "given": "Mikel"
+      },
+      {
+        "family": "Steffen",
+        "given": "Patrick"
+      }
+    ],
+    "container-title": "Applied Psychophysiology and Biofeedback",
+    "volume": "50",
+    "issue": "2",
+    "page": "261-276",
+    "issued": {
+      "date-parts": [
+        [
+          2025
+        ]
+      ]
+    },
+    "DOI": "10.1007/s10484-025-09688-z",
+    "URL": "https://doi.org/10.1007/s10484-025-09688-z",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "B",
+      "backsClaims": [
+        "breathing at 6 breaths per minute raised HRV more than either square (box) breathing or 4-7-8 breathing, with small to medium effects",
+        "square and 4-7-8 breathing are popularly promoted but have little empirical support",
+        "none of the four conditions produced meaningful changes in blood pressure or mood",
+        "breathing at 6 breaths per minute unexpectedly produced mild over-breathing"
+      ],
+      "caveat": "n = 84 college students, within-subjects, four conditions: square, 4-7-8, 6 bpm at 4:6, and 6 bpm at 5:5. Single session, so it speaks to acute effect only. This is the head-to-head that answers exhale's default-preset question directly, and it answers against box breathing and against 4-7-8. The over-breathing finding is the uncomfortable one: see gap 5 in the ledger."
+    }
+  },
+  {
+    "id": "meehan2024-longer-exhalations",
+    "type": "article-journal",
+    "title": "Do Longer Exhalations Increase HRV During Slow-Paced Breathing?",
+    "author": [
+      {
+        "family": "Meehan",
+        "given": "Zachary M."
+      },
+      {
+        "family": "Shaffer",
+        "given": "Fred"
+      }
+    ],
+    "container-title": "Applied Psychophysiology and Biofeedback",
+    "volume": "49",
+    "issue": "3",
+    "page": "407-417",
+    "issued": {
+      "date-parts": [
+        [
+          2024
+        ]
+      ]
+    },
+    "DOI": "10.1007/s10484-024-09637-2",
+    "URL": "https://doi.org/10.1007/s10484-024-09637-2",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "B",
+      "backsClaims": [
+        "at 6 breaths per minute, a 1:2 inhale-to-exhale ratio produced no HRV advantage over 1:1 in either an original experiment or its replication",
+        "the finding held across time-domain, frequency-domain and nonlinear HRV metrics"
+      ],
+      "caveat": "Original n = 26, replication n = 16; both undergraduate samples, both within-subjects with manipulation checks. Small, but it is the only entry in this corpus that ran its own replication. Its scope condition matters: it holds rate fixed inside the resonance range, so it does not rule out a ratio effect at a person's spontaneous rate, which is what bae2021-exhalation-inhalation-ratio measured. One of four disagreeing studies; see also vandiest2014-ie-ratio-relaxation and lin2014-equal-ratio-hrv. Critically, all four measured HRV; none of them measured how participants felt except vandiest2014-ie-ratio-relaxation, which is why exhale's recommendation now rests on the subjective outcome rather than on this dispute."
+    }
+  },
+  {
+    "id": "moraveji2011-peripheral-paced-respiration",
+    "type": "paper-conference",
+    "title": "Peripheral paced respiration: influencing user physiology during information work",
+    "author": [
+      {
+        "family": "Moraveji",
+        "given": "Neema"
+      },
+      {
+        "family": "Olson",
+        "given": "Ben"
+      },
+      {
+        "family": "Nguyen",
+        "given": "Truc"
+      },
+      {
+        "family": "Saadat",
+        "given": "Mahmoud"
+      },
+      {
+        "family": "Khalighi",
+        "given": "Yaser"
+      },
+      {
+        "family": "Pea",
+        "given": "Roy"
+      },
+      {
+        "family": "Heer",
+        "given": "Jeffrey"
+      }
+    ],
+    "container-title": "Proceedings of the 24th Annual ACM Symposium on User Interface Software and Technology (UIST '11)",
+    "page": "423-428",
+    "issued": {
+      "date-parts": [
+        [
+          2011
+        ]
+      ]
+    },
+    "DOI": "10.1145/2047196.2047250",
+    "URL": "https://doi.org/10.1145/2047196.2047250",
+    "custom": {
+      "group": "interface",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "a translucent animated bar spanning the screen, running in the periphery of attention during normal information work, significantly lowered participants' breathing rate",
+        "peripheral pacing does not require the user's full attention to change breathing"
+      ],
+      "caveat": "This is the closest published analogue to exhale that exists, and its limitation is the important part: the reduction occurred while the pacing feedback was active and did not persist as a lasting change in respiratory pattern. An always-on overlay should be understood as an effect that lasts as long as it is on. A free author copy is posted at vis.stanford.edu; the ACM Digital Library version is paywalled."
+    }
+  },
+  {
+    "id": "muktibodhananda1998-hatha-yoga-pradipika",
+    "type": "book",
+    "title": "Hatha Yoga Pradipika",
+    "author": [
+      {
+        "family": "Muktibodhananda",
+        "given": "Swami"
+      }
+    ],
+    "publisher": "Bihar School of Yoga",
+    "publisher-place": "Munger, Bihar, India",
+    "ISBN": "9788185787381",
+    "issued": {
+      "date-parts": [
+        [
+          1998
+        ]
+      ]
+    },
+    "URL": "https://openlibrary.org/search?q=hatha+yoga+pradipika+muktibodhananda",
+    "custom": {
+      "group": "tradition",
+      "verification": "openlibrary-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "E",
+      "backsClaims": [
+        "the classical hatha text and commentary in which timed inhale, retention and exhale ratios are set out is the historical origin of the ratio instructions modern breathing apps repeat"
+      ],
+      "caveat": "NOT READ 2026-08-28. Bibliographic record checked against Open Library (Bihar School of Yoga, 1998 record). Not peer reviewed, and a commentary on a fifteenth-century text rather than a primary source in any modern sense. Carried because the 'longer exhale' instruction exhale ships did not come from a laboratory: it came from here, centuries before anyone measured HRV. Naming that is more honest than retrofitting a citation to psychophysiology. It must never back a physiological claim."
+    }
+  },
+  {
+    "id": "rosenfield2011-computer-vision-syndrome",
+    "type": "article-journal",
+    "title": "Computer vision syndrome: a review of ocular causes and potential treatments",
+    "author": [
+      {
+        "family": "Rosenfield",
+        "given": "Mark"
+      }
+    ],
+    "container-title": "Ophthalmic and Physiological Optics",
+    "volume": "31",
+    "issue": "5",
+    "page": "502-515",
+    "issued": {
+      "date-parts": [
+        [
+          2011
+        ]
+      ]
+    },
+    "DOI": "10.1111/j.1475-1313.2011.00834.x",
+    "URL": "https://doi.org/10.1111/j.1475-1313.2011.00834.x",
+    "custom": {
+      "group": "premise",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "B",
+      "backsClaims": [
+        "blink rate falls substantially during display work relative to other tasks",
+        "reduced and incomplete blinking is a principal mechanism of computer vision syndrome"
+      ],
+      "caveat": "Narrative review of the ocular literature. Load-bearing for the blink half of exhale's opening claim only. exhale does nothing about blinking; see the gaps ledger."
+    }
+  },
+  {
+    "id": "russo2017-slow-breathing-physiology",
+    "type": "article-journal",
+    "title": "The physiological effects of slow breathing in the healthy human",
+    "author": [
+      {
+        "family": "Russo",
+        "given": "Marc A."
+      },
+      {
+        "family": "Santarelli",
+        "given": "Danielle M."
+      },
+      {
+        "family": "O'Rourke",
+        "given": "Dean"
+      }
+    ],
+    "container-title": "Breathe",
+    "volume": "13",
+    "issue": "4",
+    "page": "298-309",
+    "issued": {
+      "date-parts": [
+        [
+          2017
+        ]
+      ]
+    },
+    "DOI": "10.1183/20734735.009817",
+    "URL": "https://doi.org/10.1183/20734735.009817",
+    "custom": {
+      "group": "slow-breathing",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "D",
+      "backsClaims": [
+        "slow breathing improves ventilation efficiency and alters cardiorespiratory coupling, respiratory sinus arrhythmia and sympathovagal balance"
+      ],
+      "caveat": "Narrative review. The authors close by calling explicitly for further research, and describe the health claims as potential rather than demonstrated. Use it to explain a mechanism, not to assert an outcome."
+    }
+  },
+  {
+    "id": "satyananda2008-apmb",
+    "type": "book",
+    "title": "Asana Pranayama Mudra Bandha",
+    "author": [
+      {
+        "family": "Saraswati",
+        "given": "Swami Satyananda"
+      }
+    ],
+    "publisher": "Yoga Publications Trust",
+    "publisher-place": "Munger, Bihar, India",
+    "number-of-pages": "553",
+    "ISBN": "9788186336144",
+    "issued": {
+      "date-parts": [
+        [
+          2008
+        ]
+      ]
+    },
+    "URL": "https://openlibrary.org/books/OL22138410M/Asana_pranayama_mudra_bandha",
+    "custom": {
+      "group": "tradition",
+      "verification": "openlibrary-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "E",
+      "backsClaims": [
+        "the systematic pranayama tradition from which exhale's controllable inhale / retention / exhale / retention structure descends is documented in a standard modern reference manual"
+      ],
+      "caveat": "NOT READ 2026-08-28. Bibliographic record checked against Open Library, which returns the Yoga Publications Trust edition at 553 pages under this ISBN but dates its record 1999, while the printing in question is described as the 2008 Fourth Revised Edition revised under Swami Niranjanananda Saraswati; the edition history of this title is genuinely tangled and this entry does not resolve it. Not peer reviewed. Cited ONLY for lineage: it is where exhale's four-phase structure comes from, and pretending the design was derived from 2020s psychophysiology would be revisionist. It must never back a physiological claim."
+    }
+  },
+  {
+    "id": "schleifer1994-vdt-petco2",
+    "type": "article-journal",
+    "title": "End-tidal PCO2 as an index of psychophysiological activity during VDT data-entry work and relaxation",
+    "author": [
+      {
+        "family": "Schleifer",
+        "given": "Lawrence M."
+      },
+      {
+        "family": "Ley",
+        "given": "Ronald"
+      }
+    ],
+    "container-title": "Ergonomics",
+    "volume": "37",
+    "issue": "2",
+    "page": "245-254",
+    "issued": {
+      "date-parts": [
+        [
+          1994
+        ]
+      ]
+    },
+    "DOI": "10.1080/00140139408963642",
+    "URL": "https://doi.org/10.1080/00140139408963642",
+    "custom": {
+      "group": "premise",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "during computer data-entry work, end-tidal CO2 was significantly lower and respiration frequency significantly higher than during either baseline relaxation or progressive muscle relaxation",
+        "breathing changes measurably at a screen, and end-tidal CO2 discriminates the state"
+      ],
+      "caveat": "n = 11 data-entry operators monitored continuously across three consecutive six-hour work days. Small sample, but this is real screen work over real working days, not a lab proxy. This entry retracts an earlier claim in this repo that no peer-reviewed study had measured respiration during ordinary screen use. It had; this is it, from 1994."
+    }
+  },
+  {
+    "id": "schleifer2002-hyperventilation-job-stress",
+    "type": "article-journal",
+    "title": "A hyperventilation theory of job stress and musculoskeletal disorders",
+    "author": [
+      {
+        "family": "Schleifer",
+        "given": "Lawrence M."
+      },
+      {
+        "family": "Ley",
+        "given": "Ronald"
+      },
+      {
+        "family": "Spalding",
+        "given": "Thomas W."
+      }
+    ],
+    "container-title": "American Journal of Industrial Medicine",
+    "volume": "41",
+    "issue": "5",
+    "page": "420-432",
+    "issued": {
+      "date-parts": [
+        [
+          2002
+        ]
+      ]
+    },
+    "DOI": "10.1002/ajim.10061",
+    "URL": "https://doi.org/10.1002/ajim.10061",
+    "custom": {
+      "group": "premise",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "D",
+      "backsClaims": [
+        "hyperventilation is often characterised by a shift from a diaphragmatic to a thoracic breathing pattern",
+        "thoracic breathing recruits sternocleidomastoid, scalene and trapezius muscles, imposing biomechanical stress on the neck and shoulder region",
+        "breathing training and rest breaks are a rationale-backed response to this pattern at work"
+      ],
+      "caveat": "Theory paper, not an experiment, hence tier D. It is nonetheless the closest thing in the peer-reviewed literature to the folk claim about 'shallow' breathing at a screen: the diaphragmatic-to-thoracic shift IS what people mean by shallow. Cite it for the pattern, never for a measured tidal volume, and note it theorises the shift rather than demonstrating it in screen users."
+    }
+  },
+  {
+    "id": "schleifer2008-emg-gaps-computer-work",
+    "type": "article-journal",
+    "title": "Mental stress and trapezius muscle activation under psychomotor challenge: A focus on EMG gaps during computer work",
+    "author": [
+      {
+        "family": "Schleifer",
+        "given": "Lawrence M."
+      },
+      {
+        "family": "Spalding",
+        "given": "Thomas W."
+      },
+      {
+        "family": "Kerick",
+        "given": "Scott E."
+      },
+      {
+        "family": "Cram",
+        "given": "Jeffrey R."
+      },
+      {
+        "family": "Ley",
+        "given": "Ronald"
+      },
+      {
+        "family": "Hatfield",
+        "given": "Bradley D."
+      }
+    ],
+    "container-title": "Psychophysiology",
+    "volume": "45",
+    "issue": "3",
+    "page": "356-365",
+    "issued": {
+      "date-parts": [
+        [
+          2008
+        ]
+      ]
+    },
+    "DOI": "10.1111/j.1469-8986.2008.00645.x",
+    "URL": "https://doi.org/10.1111/j.1469-8986.2008.00645.x",
+    "custom": {
+      "group": "premise",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "end-tidal CO2 was lower under high mental workload than low during computer data entry, replicating the over-breathing finding in a second sample",
+        "lower end-tidal CO2 tracked reduced trapezius EMG-gap frequency, suggesting over-breathing mediates muscle tension at the keyboard"
+      ],
+      "caveat": "n = 23. The second independent measurement by this group of the same effect, fourteen years after schleifer1994-vdt-petco2. Two small samples pointing the same way is what the screen-breathing claim actually rests on."
+    }
+  },
+  {
+    "id": "sevozcouche2022-coherence-resonance",
+    "type": "article-journal",
+    "title": "Heart rate variability and slow-paced breathing: when coherence meets resonance",
+    "author": [
+      {
+        "family": "Sevoz-Couche",
+        "given": "Caroline"
+      },
+      {
+        "family": "Laborde",
+        "given": "Sylvain"
+      }
+    ],
+    "container-title": "Neuroscience & Biobehavioral Reviews",
+    "volume": "135",
+    "page": "104576",
+    "issued": {
+      "date-parts": [
+        [
+          2022
+        ]
+      ]
+    },
+    "DOI": "10.1016/j.neubiorev.2022.104576",
+    "URL": "https://doi.org/10.1016/j.neubiorev.2022.104576",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "D",
+      "backsClaims": [
+        "coherence and resonance are distinct phenomena that are frequently conflated in the slow-breathing literature"
+      ],
+      "caveat": "Narrative review. Carried as a terminology guard: much of the popular writing exhale competes with uses 'coherence' loosely, and this is the paper to check before adopting that vocabulary in the app or the README."
+    }
+  },
+  {
+    "id": "sheppard2018-digital-eye-strain",
+    "type": "article-journal",
+    "title": "Digital eye strain: prevalence, measurement and amelioration",
+    "author": [
+      {
+        "family": "Sheppard",
+        "given": "Amy L."
+      },
+      {
+        "family": "Wolffsohn",
+        "given": "James S."
+      }
+    ],
+    "container-title": "BMJ Open Ophthalmology",
+    "volume": "3",
+    "issue": "1",
+    "page": "e000146",
+    "issued": {
+      "date-parts": [
+        [
+          2018
+        ]
+      ]
+    },
+    "DOI": "10.1136/bmjophth-2018-000146",
+    "URL": "https://doi.org/10.1136/bmjophth-2018-000146",
+    "custom": {
+      "group": "premise",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "B",
+      "backsClaims": [
+        "digital eye strain is common among heavy display users",
+        "reduced blink rate and incomplete blinks during screen work are among its established contributors"
+      ],
+      "caveat": "Crossref carries no license field for this record; access level is taken from BMJ Open Ophthalmology being a fully open-access title."
+    }
+  },
+  {
+    "id": "tabor2022-guided-breathing-design",
+    "type": "article-journal",
+    "title": "Comparing heart rate variability biofeedback and simple paced breathing to inform the design of guided breathing technologies",
+    "author": [
+      {
+        "family": "Tabor",
+        "given": "Aaron"
+      },
+      {
+        "family": "Bateman",
+        "given": "Scott"
+      },
+      {
+        "family": "Scheme",
+        "given": "Erik J."
+      },
+      {
+        "family": "schraefel",
+        "given": "m.c."
+      }
+    ],
+    "container-title": "Frontiers in Computer Science",
+    "volume": "4",
+    "page": "926649",
+    "issued": {
+      "date-parts": [
+        [
+          2022
+        ]
+      ]
+    },
+    "DOI": "10.3389/fcomp.2022.926649",
+    "URL": "https://doi.org/10.3389/fcomp.2022.926649",
+    "custom": {
+      "group": "interface",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "an expanding and contracting circle pacing 6 breaths per minute produced HRV amplitude gains statistically indistinguishable from sensor-driven HRV biofeedback",
+        "both conditions took roughly two minutes for effects to appear",
+        "paced breathing needs no sensor, no real-time processing and no sustained attention, which suits it to use as a secondary task"
+      ],
+      "caveat": "Between-subjects, n = 28 (14 per group), single 10-minute session. This is the strongest published warrant for exhale's specific design choices: an expanding/contracting shape, no hardware, no account, watchable while doing something else."
+    }
+  },
+  {
+    "id": "tsubota1993-vdt-blink",
+    "type": "article-journal",
+    "title": "Dry Eyes and Video Display Terminals",
+    "author": [
+      {
+        "family": "Tsubota",
+        "given": "Kazuo"
+      },
+      {
+        "family": "Nakamori",
+        "given": "Katsu"
+      }
+    ],
+    "container-title": "New England Journal of Medicine",
+    "volume": "328",
+    "issue": "8",
+    "page": "584",
+    "issued": {
+      "date-parts": [
+        [
+          1993
+        ]
+      ]
+    },
+    "DOI": "10.1056/NEJM199302253280817",
+    "URL": "https://doi.org/10.1056/NEJM199302253280817",
+    "custom": {
+      "group": "premise",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "blink rate during display work is far below blink rate at rest"
+      ],
+      "caveat": "NUMBERS NOT READ 2026-08-28. This is a one-page correspondence item, not a full paper, and it is paywalled to automated fetch. It is the origin of the widely quoted '22 blinks/min at rest, 7 during screen work' figures, which circulate almost entirely by secondary citation. Cite it for the direction of the effect. For a magnitude you can defend, use rosenfield2011-computer-vision-syndrome or sheppard2018-digital-eye-strain instead."
+    }
+  },
+  {
+    "id": "vandiest2014-ie-ratio-relaxation",
+    "type": "article-journal",
+    "title": "Inhalation/Exhalation Ratio Modulates the Effect of Slow Breathing on Heart Rate Variability and Relaxation",
+    "author": [
+      {
+        "family": "Van Diest",
+        "given": "Ilse"
+      },
+      {
+        "family": "Verstappen",
+        "given": "Karen"
+      },
+      {
+        "family": "Aubert",
+        "given": "André E."
+      },
+      {
+        "family": "Widjaja",
+        "given": "Devy"
+      },
+      {
+        "family": "Vansteenwegen",
+        "given": "Debora"
+      },
+      {
+        "family": "Vlemincx",
+        "given": "Elke"
+      }
+    ],
+    "container-title": "Applied Psychophysiology and Biofeedback",
+    "volume": "39",
+    "issue": "3-4",
+    "page": "171-180",
+    "issued": {
+      "date-parts": [
+        [
+          2014
+        ]
+      ]
+    },
+    "DOI": "10.1007/s10484-014-9253-x",
+    "URL": "https://doi.org/10.1007/s10484-014-9253-x",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "participants reported more relaxation, more stress reduction, more mindfulness and more positive energy breathing with a low inhale/exhale ratio (longer exhale) than a high one",
+        "a low inhale/exhale ratio also produced more HF-HRV power, but only in the slow breathing condition",
+        "slowing the rate on its own improved only self-reported positive energy"
+      ],
+      "caveat": "n = 30, four patterns crossing rate (6 or 12 breaths/min) with i/e ratio (0.42 or 2.33). This is the single most important entry for exhale's longer-exhale recommendation, and for a reason easy to miss: it is the only study in this corpus that measured how people FELT across ratios, and on that outcome the longer exhale clearly won. The HRV studies that disagree about ratio were measuring something else."
+    }
+  },
+  {
+    "id": "vandijk2018-close-the-book",
+    "type": "article-journal",
+    "title": "It is time to close the book on device-guided slow breathing",
+    "author": [
+      {
+        "family": "van Dijk",
+        "given": "Peter R."
+      },
+      {
+        "family": "van Hateren",
+        "given": "Kornelis J. J."
+      },
+      {
+        "family": "Kleefstra",
+        "given": "Nanne"
+      },
+      {
+        "family": "Landman",
+        "given": "Gijs W. D."
+      }
+    ],
+    "container-title": "Blood Pressure",
+    "volume": "27",
+    "issue": "3",
+    "page": "181-182",
+    "issued": {
+      "date-parts": [
+        [
+          2018
+        ]
+      ]
+    },
+    "DOI": "10.1080/08037051.2018.1435260",
+    "URL": "https://doi.org/10.1080/08037051.2018.1435260",
+    "custom": {
+      "group": "slow-breathing",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": null,
+      "backsClaims": [
+        "a body of specialist opinion holds that the blood-pressure case for device-guided slow breathing is weak and should be considered closed"
+      ],
+      "caveat": "Editorial, two pages, not a study, hence no evidence tier. Carried deliberately: it is the strongest published dissent against the cardiovascular claims exhale sits next to, and a corpus that omitted it would be advocacy rather than provenance."
+    }
+  },
+  {
+    "id": "vlemincx2013-sigh-reset-model",
+    "type": "article-journal",
+    "title": "Respiratory variability and sighing: A psychophysiological reset model",
+    "author": [
+      {
+        "family": "Vlemincx",
+        "given": "Elke"
+      },
+      {
+        "family": "Abelson",
+        "given": "James L."
+      },
+      {
+        "family": "Lehrer",
+        "given": "Paul M."
+      },
+      {
+        "family": "Davenport",
+        "given": "Paul W."
+      },
+      {
+        "family": "Van Diest",
+        "given": "Ilse"
+      },
+      {
+        "family": "Van den Bergh",
+        "given": "Omer"
+      }
+    ],
+    "container-title": "Biological Psychology",
+    "volume": "93",
+    "issue": "1",
+    "page": "24-32",
+    "issued": {
+      "date-parts": [
+        [
+          2013
+        ]
+      ]
+    },
+    "DOI": "10.1016/j.biopsycho.2012.12.001",
+    "URL": "https://doi.org/10.1016/j.biopsycho.2012.12.001",
+    "custom": {
+      "group": "mechanism",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "D",
+      "backsClaims": [
+        "sighs act as resetters of respiratory variability: random variability is elevated before a sigh and correlated variability increases after one"
+      ],
+      "caveat": "Theoretical model paper with supporting data. Carried because it is the honest place to point when someone asks why a deliberately irregular breath might be useful, which is the only literature adjacent to exhale's randomised-timing sliders. It is not evidence that those sliders help; see the gaps ledger."
+    }
+  },
+  {
+    "id": "vlemincx2016-sigh-relief",
+    "type": "article-journal",
+    "title": "A sigh of relief or a sigh to relieve: The psychological and physiological relief effect of deep breaths",
+    "author": [
+      {
+        "family": "Vlemincx",
+        "given": "Elke"
+      },
+      {
+        "family": "Van Diest",
+        "given": "Ilse"
+      },
+      {
+        "family": "Van den Bergh",
+        "given": "Omer"
+      }
+    ],
+    "container-title": "Physiology & Behavior",
+    "volume": "165",
+    "page": "127-135",
+    "issued": {
+      "date-parts": [
+        [
+          2016
+        ]
+      ]
+    },
+    "DOI": "10.1016/j.physbeh.2016.07.004",
+    "URL": "https://doi.org/10.1016/j.physbeh.2016.07.004",
+    "custom": {
+      "group": "mechanism",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "self-reported relief was higher after an instructed deep breath than before it",
+        "spontaneous sighs were followed by a gradual fall in muscle tension, most clearly in people high in anxiety sensitivity"
+      ],
+      "caveat": "NUMBERS NOT READ 2026-08-28; paywalled to automated fetch, findings taken from the abstract. The instructed-breath result is the closest thing in this corpus to evidence that being told to take one deliberate breath, which is precisely what exhale's reminder does, changes how a person feels."
+    }
+  },
+  {
+    "id": "wongsuphasawat2012-cant-force-calm",
+    "type": "paper-conference",
+    "title": "You can't force calm: designing and evaluating respiratory regulating interfaces for calming technology",
+    "author": [
+      {
+        "family": "Wongsuphasawat",
+        "given": "Kanit"
+      },
+      {
+        "family": "Gamburg",
+        "given": "Alex"
+      },
+      {
+        "family": "Moraveji",
+        "given": "Neema"
+      }
+    ],
+    "container-title": "Adjunct Proceedings of the 25th Annual ACM Symposium on User Interface Software and Technology (UIST '12 Adjunct)",
+    "page": "69-70",
+    "issued": {
+      "date-parts": [
+        [
+          2012
+        ]
+      ]
+    },
+    "DOI": "10.1145/2380296.2380326",
+    "URL": "https://doi.org/10.1145/2380296.2380326",
+    "custom": {
+      "group": "interface",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "visual pacing produced more measured respiratory change than auditory pacing, but auditory pacing was rated as subjectively more calming"
+      ],
+      "caveat": "Two-page adjunct paper, effectively a poster; treat the finding as a design signal, not a result. It is carried anyway because it is the one published comparison that puts exhale's visual-only design at a disadvantage on the outcome most users actually care about, which is whether they feel calmer."
+    }
+  },
+  {
+    "id": "yackle2017-breathing-arousal-neurons",
+    "type": "article-journal",
+    "title": "Breathing control center neurons that promote arousal in mice",
+    "author": [
+      {
+        "family": "Yackle",
+        "given": "Kevin"
+      },
+      {
+        "family": "Schwarz",
+        "given": "Lindsay A."
+      },
+      {
+        "family": "Kam",
+        "given": "Kaiwen"
+      },
+      {
+        "family": "Sorokin",
+        "given": "Jordan M."
+      },
+      {
+        "family": "Huguenard",
+        "given": "John R."
+      },
+      {
+        "family": "Feldman",
+        "given": "Jack L."
+      },
+      {
+        "family": "Luo",
+        "given": "Liqun"
+      },
+      {
+        "family": "Krasnow",
+        "given": "Mark A."
+      }
+    ],
+    "container-title": "Science",
+    "volume": "355",
+    "issue": "6332",
+    "page": "1411-1415",
+    "issued": {
+      "date-parts": [
+        [
+          2017
+        ]
+      ]
+    },
+    "DOI": "10.1126/science.aai7984",
+    "URL": "https://doi.org/10.1126/science.aai7984",
+    "custom": {
+      "group": "mechanism",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "D",
+      "backsClaims": [
+        "a small preBotzinger subpopulation projects to and positively regulates noradrenergic locus coeruleus neurons, giving breathing a direct anatomical route to arousal state",
+        "ablating those roughly 175 neurons left breathing intact but increased calm behaviours"
+      ],
+      "caveat": "Mouse work, and the direction is breathing pattern to arousal rather than voluntarily slow breathing to calm. It is the single best answer to 'why would breathing slowly change how I feel at all', and it is still an inference from mice. Do not cite it for a human effect."
+    }
+  },
+  {
+    "id": "yasuma2004-rsa",
+    "type": "article-journal",
+    "title": "Respiratory Sinus Arrhythmia: Why Does the Heartbeat Synchronize With Respiratory Rhythm?",
+    "author": [
+      {
+        "family": "Yasuma",
+        "given": "Fumihiko"
+      },
+      {
+        "family": "Hayano",
+        "given": "Jun-ichiro"
+      }
+    ],
+    "container-title": "Chest",
+    "volume": "125",
+    "issue": "2",
+    "page": "683-690",
+    "issued": {
+      "date-parts": [
+        [
+          2004
+        ]
+      ]
+    },
+    "DOI": "10.1378/chest.125.2.683",
+    "URL": "https://doi.org/10.1378/chest.125.2.683",
+    "custom": {
+      "group": "mechanism",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "D",
+      "backsClaims": [
+        "heart rate rises on inhalation and falls on exhalation, and this respiratory sinus arrhythmia is the coupling that HRV-based breathing claims rest on"
+      ],
+      "caveat": "Review. This is the physiological fact underneath every 'longer exhale calms you' claim in this corpus, which is why the claim is so intuitive and why meehan2024-longer-exhalations failing to find a ratio effect is worth taking seriously: a real beat-to-beat mechanism does not guarantee a measurable session-level outcome."
+    }
+  },
+  {
+    "id": "you2023-respiratory-frequency",
+    "type": "article-journal",
+    "title": "Influence of Respiratory Frequency of Slow-Paced Breathing on Vagally-Mediated Heart Rate Variability",
+    "author": [
+      {
+        "family": "You",
+        "given": "Min"
+      },
+      {
+        "family": "Laborde",
+        "given": "Sylvain"
+      },
+      {
+        "family": "Ackermann",
+        "given": "Stefan"
+      },
+      {
+        "family": "Borges",
+        "given": "Uirassu"
+      },
+      {
+        "family": "Dosseville",
+        "given": "Fabrice"
+      },
+      {
+        "family": "Mosley",
+        "given": "Emma"
+      }
+    ],
+    "container-title": "Applied Psychophysiology and Biofeedback",
+    "volume": "49",
+    "issue": "1",
+    "page": "133-143",
+    "issued": {
+      "date-parts": [
+        [
+          2023
+        ]
+      ]
+    },
+    "DOI": "10.1007/s10484-023-09605-2",
+    "URL": "https://doi.org/10.1007/s10484-023-09605-2",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "five minutes of slow-paced breathing at 5, 5.5, 6, 6.5 and 7 cycles per minute all raised cardiac vagal activity above spontaneous breathing",
+        "LF-HRV discriminated between the tested frequencies more sensitively than RMSSD",
+        "the band actually tested and supported is 5 to 7 cycles per minute"
+      ],
+      "caveat": "Crossref records this as issued 2023 (online 8 December); it appears in the March 2024 issue, 49(1), which is how it is usually cited. The citekey follows the Crossref issued year, as everywhere else in this corpus. n = 75, all athletes aged 19-31, single lab session. Generalisation to a desk worker is an assumption, not a finding. This is the source that puts a number on exhale's default: 5 s in and 10 s out is 4.0 cycles per minute, below the bottom of the band this study tested."
+    }
+  },
+  {
+    "id": "zaccaro2018-slow-breathing-review",
+    "type": "article-journal",
+    "title": "How Breath-Control Can Change Your Life: A Systematic Review on Psycho-Physiological Correlates of Slow Breathing",
+    "author": [
+      {
+        "family": "Zaccaro",
+        "given": "Andrea"
+      },
+      {
+        "family": "Piarulli",
+        "given": "Andrea"
+      },
+      {
+        "family": "Laurino",
+        "given": "Marco"
+      },
+      {
+        "family": "Garbella",
+        "given": "Erika"
+      },
+      {
+        "family": "Menicucci",
+        "given": "Danilo"
+      },
+      {
+        "family": "Neri",
+        "given": "Bruno"
+      },
+      {
+        "family": "Gemignani",
+        "given": "Angelo"
+      }
+    ],
+    "container-title": "Frontiers in Human Neuroscience",
+    "volume": "12",
+    "page": "353",
+    "issued": {
+      "date-parts": [
+        [
+          2018
+        ]
+      ]
+    },
+    "DOI": "10.3389/fnhum.2018.00353",
+    "URL": "https://doi.org/10.3389/fnhum.2018.00353",
+    "custom": {
+      "group": "slow-breathing",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "B",
+      "backsClaims": [
+        "slow breathing, conventionally defined as under 10 breaths per minute, is associated with increased HRV and shifts in central and autonomic measures",
+        "reported psychological correlates include increased comfort and relaxation and reduced anxiety and arousal"
+      ],
+      "caveat": "Systematic review without meta-analysis. The included studies vary widely in technique, rate and duration, so the pooled picture is directional rather than dose-specific."
+    }
+  },
+  {
+    "id": "zelano2016-nasal-respiration-limbic",
+    "type": "article-journal",
+    "title": "Nasal Respiration Entrains Human Limbic Oscillations and Modulates Cognitive Function",
+    "author": [
+      {
+        "family": "Zelano",
+        "given": "Christina"
+      },
+      {
+        "family": "Jiang",
+        "given": "Heidi"
+      },
+      {
+        "family": "Zhou",
+        "given": "Guangyu"
+      },
+      {
+        "family": "Arora",
+        "given": "Nikita"
+      },
+      {
+        "family": "Schuele",
+        "given": "Stephan"
+      },
+      {
+        "family": "Rosenow",
+        "given": "Joshua"
+      },
+      {
+        "family": "Gottfried",
+        "given": "Jay A."
+      }
+    ],
+    "container-title": "The Journal of Neuroscience",
+    "volume": "36",
+    "issue": "49",
+    "page": "12448-12467",
+    "issued": {
+      "date-parts": [
+        [
+          2016
+        ]
+      ]
+    },
+    "DOI": "10.1523/JNEUROSCI.2586-16.2016",
+    "URL": "https://doi.org/10.1523/JNEUROSCI.2586-16.2016",
+    "custom": {
+      "group": "mechanism",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "nasal breathing entrains oscillations in human piriform cortex, amygdala and hippocampus, and the effect is specific to the nasal route rather than to breathing as such"
+      ],
+      "caveat": "Human intracranial recordings in a small epilepsy-surgery cohort plus behavioural experiments. Carried because it is the reason nose-versus-mouth is a real variable and not folklore. exhale gives no nasal-breathing guidance at all, which is a defensible omission for a wordless overlay but should be a conscious one."
+    }
+  }
+]
