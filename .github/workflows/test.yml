@@ -66,3 +66,21 @@ jobs:
         with:
           name: TestResults
           path: TestResults.xcresult
+
+  # docs/CITATIONS.md is generated from the CSL-JSON corpus plus the
+  # hand-written notes, so it can silently fall behind either one.  This
+  # job also validates citekey format, the group / verification / access /
+  # tier enums, and every anchor link the gaps ledger makes into the
+  # corpus, so a renamed entry fails here rather than rotting in the docs.
+  # Stdlib only and no Rust toolchain, so it costs seconds
+  citations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check generated citations are current
+        run: python3 scripts/generate-citations.py --check
