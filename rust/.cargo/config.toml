@@ -1,0 +1,12 @@
+# Statically link the MSVC C runtime on Windows so the shipped binary carries no
+# dependency on the Microsoft Visual C++ Redistributable. Store certification
+# (policy 10.2.4.1, Security - Software Dependencies) flags that runtime as
+# undisclosed non-integrated software; linking it statically removes the
+# dependency instead of merely disclosing it.
+#
+# Scoped to the MSVC target only, so macOS and Linux builds are unaffected. Safe
+# here because the dependency tree is pure Rust (wgpu, egui, winit, tray-icon,
+# windows-sys bindings, image with default-features off) with no `cc`-built C
+# code that could pick up a mismatched /MD runtime
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
