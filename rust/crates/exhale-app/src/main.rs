@@ -1076,6 +1076,11 @@ impl ApplicationHandler<AppEvent> for App {
                     let _ = self.proxy.send_event(AppEvent::BeginCapturingShortcut(action));
                 }
                 else if id == &ids.preferences { let _ = self.proxy.send_event(AppEvent::ShowSettings); }
+                // Handled inline rather than through an `AppEvent`:
+                // opening a URL touches no app state, and
+                // `about_to_wait` already runs on the main thread,
+                // which is where `NSWorkspace` has to be called from
+                else if id == &ids.research { platform::open_url(tray::RESEARCH_URL); }
                 else if id == &ids.start  { let _ = self.proxy.send_event(AppEvent::StartAnimation); }
                 else if id == &ids.stop   { let _ = self.proxy.send_event(AppEvent::StopAnimation); }
                 else if id == &ids.reset  { let _ = self.proxy.send_event(AppEvent::ResetDefaults); }

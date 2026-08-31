@@ -5,10 +5,34 @@ use tray_icon::{
     TrayIcon, TrayIconBuilder,
 };
 
+// ─── Research link ────────────────────────────────────────────────────────────
+
+/// Deep link into the gaps ledger, not the top of the citation list.
+///
+/// Landing the reader on 48 references reads as a wall of authority;
+/// landing them on the fourteen things the literature does *not*
+/// support is the same click with the opposite effect.  The anchor is
+/// as much the feature as the menu item is, so both are pinned here
+/// together and `scripts/generate-citations.py` validates that this
+/// heading still exists.
+///
+/// Pinned to `main` rather than a release tag on purpose.  A binary
+/// stays installed long after its tag stops being the current state
+/// of the evidence, and a retraction has to reach the people running
+/// old builds.  A moved anchor is a CI failure; a stale claim is not
+pub const RESEARCH_URL: &str =
+    "https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md#gaps-and-unsupported-choices";
+
+/// Named next to the URL because the wording and the anchor are one
+/// decision.  "Citations" would promise a bibliography; this promises
+/// the limits, which is what the destination actually leads with
+const RESEARCH_LABEL: &str = "Research, and what it doesn't support";
+
 // ─── Menu item IDs ────────────────────────────────────────────────────────────
 
 pub struct TrayMenuIds {
     pub preferences: tray_icon::menu::MenuId,
+    pub research:    tray_icon::menu::MenuId,
     pub start:       tray_icon::menu::MenuId,
     pub stop:        tray_icon::menu::MenuId,
     pub reset:       tray_icon::menu::MenuId,
@@ -21,6 +45,10 @@ pub struct TrayMenuIds {
     // when the user changes a shortcut, instead of rebuilding the
     // whole tray
     pub preferences_item: MenuItem,
+    // No binding is embedded in this one's label, so `refresh_labels`
+    // never touches it; the handle is kept only so the menu owns it
+    // for as long as the tray lives
+    pub research_item:    MenuItem,
     pub reset_item:       MenuItem,
     pub quit_item:        MenuItem,
     // ── "Keyboard Shortcuts ▶" submenu ────────────────────────────────────────
@@ -140,6 +168,7 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
     let start_item = MenuItem::new(top_level_label("Start Animation",   shortcuts.get(ShortcutAction::Start)),       true, None);
     let stop_item  = MenuItem::new(top_level_label("Stop Animation",    shortcuts.get(ShortcutAction::Stop)),        true, None);
     let reset_item = MenuItem::new(top_level_label("Reset to Defaults", shortcuts.get(ShortcutAction::Reset)),       true, None);
+    let research_item = MenuItem::new(RESEARCH_LABEL, true, None);
     let quit_item  = MenuItem::new(top_level_label("Quit exhale",       shortcuts.get(ShortcutAction::Quit)),        true, None);
 
     // ── Keyboard Shortcuts submenu ────────────────────────────────────────────
@@ -159,6 +188,7 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
 
     let ids = TrayMenuIds {
         preferences: prefs_item.id().clone(),
+        research:    research_item.id().clone(),
         start:       start_item.id().clone(),
         stop:        stop_item.id().clone(),
         reset:       reset_item.id().clone(),
@@ -171,6 +201,7 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
         start_item,
         stop_item,
         preferences_item:    prefs_item,
+        research_item,
         reset_item,
         quit_item,
         kb_start_item:       kb_start,
@@ -182,6 +213,7 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
 
     let menu = Menu::new();
     menu.append(&ids.preferences_item)?;
+    menu.append(&ids.research_item)?;
     menu.append(&PredefinedMenuItem::separator())?;
     menu.append(&ids.start_item)?;
     menu.append(&ids.stop_item)?;

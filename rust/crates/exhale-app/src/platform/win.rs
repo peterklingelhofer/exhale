@@ -269,3 +269,37 @@ use super::*;
             SetWindowLongPtrW(h, GWL_EXSTYLE, ex);
         }
     }
+
+    /// Windows half of [`super::open_url`].  Scheme validation
+    /// happens in the caller, which matters more here than
+    /// elsewhere: `ShellExecuteW` resolves whatever it is handed
+    /// through the shell association table, so a `file:` URL would
+    /// launch a local program.
+    ///
+    /// `Win32_UI_Shell` is already enabled for this crate, so this
+    /// costs no new feature and no new dependency.  The return value
+    /// is an `HINSTANCE`-shaped error code by legacy convention:
+    /// anything `> 32` is success
+    pub(super) fn open_url_impl(url: &str) {
+        use windows_sys::Win32::UI::{
+            Shell::ShellExecuteW,
+            WindowsAndMessaging::SW_SHOWNORMAL,
+        };
+
+        // Both strings have to outlive the call, hence the bindings
+        let file: Vec<u16> = url.encode_utf16().chain(std::iter::once(0)).collect();
+        let verb: Vec<u16> = "open\0".encode_utf16().collect();
+        let rc = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                verb.as_ptr(),
+                file.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                SW_SHOWNORMAL,
+            )
+        };
+        if (rc as isize) <= 32 {
+            log::warn!("open_url: ShellExecuteW failed ({}) for {url:?}", rc as isize);
+        }
+    }
