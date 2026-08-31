@@ -27,6 +27,8 @@ CORPUS = DOCS / "CITATIONS.csl.json"
 NOTES = DOCS / "citations-notes.md"
 OUT = DOCS / "CITATIONS.md"
 README = ROOT / "README.md"
+# The one place the shipped binary names this document. See check_binary_deep_link
+TRAY = ROOT / "rust/crates/exhale-app/src/tray.rs"
 
 # Section order in the rendered document. Each group answers one question the
 # app actually raises, rather than following the shape of the literature
@@ -205,6 +207,50 @@ def check_note_links(records: list[dict], text: str, where: str) -> None:
         )
 
 
+def slugify(heading: str) -> str:
+    """GitHub's heading-anchor rule, reduced to what these headings use.
+
+    Lowercase, drop everything that is not a word character, space or hyphen,
+    then spaces to hyphens. The corpus headings are plain prose, so the full
+    GitHub algorithm (duplicate suffixes, emoji, HTML) buys nothing here
+    """
+    slug = heading.strip().lower()
+    slug = re.sub(r"[^\w \-]", "", slug)
+    return slug.replace(" ", "-")
+
+
+def check_binary_deep_link(rendered: str) -> None:
+    """The tray menu's URL is the only reference to this document that ships.
+
+    Every other link into the corpus lives in a file the reader can see is
+    stale. This one is compiled into a binary that stays installed for months,
+    so a renamed heading strands a user on the top of a 48-entry list at the
+    exact moment they went looking for the limits. Renaming the heading is
+    allowed; renaming it silently is not
+    """
+    if not TRAY.exists():
+        return
+
+    m = re.search(r'RESEARCH_URL: &str =\s*\n?\s*"([^"]+)"', TRAY.read_text(encoding="utf-8"))
+    if not m:
+        raise CorpusError(
+            f"  - {TRAY.relative_to(ROOT)} no longer defines RESEARCH_URL; the shipped\n"
+            "    binary has lost its only pointer at the evidence"
+        )
+
+    url = m.group(1)
+    path, _, fragment = url.partition("#")
+    if not path.endswith("/docs/CITATIONS.md"):
+        raise CorpusError(f"  - RESEARCH_URL points outside the corpus: {url}")
+
+    anchors = {slugify(h) for h in re.findall(r"^#{1,6} +(.+)$", rendered, re.M)}
+    if fragment not in anchors:
+        raise CorpusError(
+            f"  - RESEARCH_URL anchor #{fragment} matches no heading in {OUT.name}.\n"
+            f"    The tray menu would drop the reader at the top of the file instead"
+        )
+
+
 def authors(rec: dict) -> str:
     people = rec.get("author") or []
     return "; ".join(
@@ -354,6 +400,12 @@ def main() -> int:
 
     if not rendered.endswith("\n"):
         rendered += "\n"
+
+    try:
+        check_binary_deep_link(rendered)
+    except CorpusError as exc:
+        print(f"{OUT.name}: broken deep link\n{exc}", file=sys.stderr)
+        return 1
 
     if check:
         current = OUT.read_text(encoding="utf-8") if OUT.exists() else ""
