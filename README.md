@@ -8,7 +8,7 @@ Slow paced breathing is the countermeasure with the most evidence behind it ([La
 
 Blink rate also falls sharply at a display ([Tsubota & Nakamori 1993](docs/CITATIONS.md#tsubota1993-vdt-blink), [Rosenfield 2011](docs/CITATIONS.md#rosenfield2011-computer-vision-syndrome), [Sheppard & Wolffsohn 2018](docs/CITATIONS.md#sheppard2018-digital-eye-strain)). exhale does nothing about that; it paces breathing only.
 
-Every claim above and below is sourced in **[docs/CITATIONS.md](docs/CITATIONS.md)**, 42 verified references. Each link lands on that source's corpus entry, which carries its DOI, its access level, its evidence tier and its caveats, rather than on the paper directly, because several of these findings are weaker than a bare citation would suggest. The [gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices) collects fourteen places where exhale ships something the literature does not back.
+Every claim above and below is sourced in **[docs/CITATIONS.md](docs/CITATIONS.md)**, 48 verified references. Each link lands on that source's corpus entry, which carries its DOI, its access level, its evidence tier and its caveats, rather than on the paper directly, because several of these findings are weaker than a bare citation would suggest. The [gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices) collects fourteen places where exhale ships something the literature does not back.
 
 The overlay is a translucent always-on-top window that gently expands on inhale and contracts on exhale. Inhale, post-inhale hold, exhale, and post-exhale hold durations are all configurable.
 
@@ -65,9 +65,9 @@ breathing pattern to arousal state. It is mice, and it is a reason rather than a
 ## Research and evidence
 
 exhale's premise, its defaults and its interface choices are traced to the literature in
-**[docs/CITATIONS.md](docs/CITATIONS.md)**: 42 sources, 40 verified against the Crossref REST API and
-2 against Open Library, each carrying an access level, an evidence tier and the specific claims it is
-allowed to back.
+**[docs/CITATIONS.md](docs/CITATIONS.md)**: 48 sources, 45 verified against the Crossref REST API,
+2 against Open Library and 1 against PubMed, each carrying an access level, an evidence tier and the
+specific claims it is allowed to back.
 
 The corpus is deliberately not a sales pitch. Alongside the meta-analyses that support slow paced
 breathing it carries the published dissent: a meta-analysis finds sustained slow breathing lowers
@@ -102,8 +102,19 @@ uv run --no-project scripts/generate-citations.py           # regenerate
 uv run --no-project scripts/generate-citations.py --check   # fail if stale
 ```
 
-`--check` also validates citekey format, enum values and every anchor link the gaps ledger makes into
-the corpus, so a renamed entry breaks the build rather than rotting silently.
+`--check` also validates citekey format, enum values, every anchor link the gaps ledger makes into
+the corpus, the source counts quoted in this file, and the deep link the app itself compiles in, so a
+renamed entry or a stale number breaks the build rather than rotting silently. It refuses phrasing
+this project has retracted anywhere it could still be asserted: the Rust sources, the Snap
+description and the Microsoft Store listing copy.
+
+**In the app.** The menu bar carries a *Research, and what it doesn't support* item that opens the
+gaps ledger rather than the top of the reference list. The Timing panel computes the current rate
+from the four duration fields and prints it against the tested range, unprompted, so a configuration
+outside that range says so where it is being chosen. The binary states arithmetic and one range and
+nothing else: no effect, no benefit, no condition. That restraint is deliberate. Everything
+evidentiary lives in this repository, which can be corrected in an afternoon, rather than in a
+signed binary that takes a store-review cycle to withdraw.
 
 Nothing in this section is medical advice; see the [disclaimer](#disclaimer) above.
 

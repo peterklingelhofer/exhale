@@ -2,8 +2,14 @@
 
 Brief for an agent picking this up cold. Read this before touching the settings window.
 
-**Status:** phases 0 and 1 are done and are on `feat/provenance-and-drift-enhancements`. Phases 2-4
-are designed and not started. Phase 5 is deliberately deferred.
+**Status:** phases 0, 1, 2 and 3 are done and are on `feat/provenance-and-drift-enhancements`.
+Phase 4 is designed and not started. Phase 5 is deliberately deferred.
+
+What phases 2 and 3 actually shipped is recorded under each phase heading below. Two things were
+found while building them that are not in the design: the README's source counts had been wrong
+since the corpus grew (42/40/2 against an actual 48/45/2/1), and the gaps ledger still described a
+drift step of 0.01 percentage points when the code shipped 0.1. Both are fixed, and both now have
+`--check` gates so they fail the build rather than rotting again.
 
 The design below is the verdict of a four-specialist review (UX, full-stack, egui/frontend, and a
 psychophysiology professor) that argued to convergence. Where they disagreed, the resolution and the
@@ -21,10 +27,12 @@ with new evidence.
 | Generated render | [`docs/CITATIONS.md`](docs/CITATIONS.md) |
 | Generator, stdlib only, `--check` mode | [`scripts/generate-citations.py`](scripts/generate-citations.py) |
 | CI: `citations` + `core-check` | [`.github/workflows/test.yml`](.github/workflows/test.yml) |
+| Tray deep link + `platform::open_url` | [`tray.rs`](rust/crates/exhale-app/src/tray.rs), [`platform.rs`](rust/crates/exhale-app/src/platform.rs) |
+| Pacing arithmetic and the copy derived from it | [`pacing.rs`](rust/crates/exhale-core/src/pacing.rs) |
 | Store copy under denylist | [`snap/snapcraft.yaml`](snap/snapcraft.yaml), [`rust/packaging/windows/store-listing.md`](rust/packaging/windows/store-listing.md) |
 
-**The binary has no research surface at all.** `git grep -i "citation\|research\|evidence" -- rust/`
-returns only a code comment in `controller.rs`. `platform::open_url` does not exist.
+~~**The binary has no research surface at all.**~~ It has two, as of phases 2 and 3. `platform::open_url`
+now exists with three cfg'd implementations and an `https://`-only allowlist.
 
 ---
 
@@ -126,7 +134,31 @@ Rules that follow:
 
 ## 4. Phases
 
-### Phase 2: tray link. Ship-blocker. ~25 lines.
+### Phase 2: tray link. Ship-blocker. DONE, commit `cfbb180`.
+
+**Shipped as designed.** `RESEARCH_URL` and its label are pinned together in `tray.rs` because the
+wording and the anchor are one decision; the item sits directly under Preferences; the handler is
+inline in the `MenuEvent` loop rather than routed through an `AppEvent`, since opening a URL touches
+no app state and `about_to_wait` is already on the main thread, which is where `NSWorkspace` has to
+be called from.
+
+Three things worth knowing before changing it:
+
+- The URL is pinned to `main`, not to a release tag. A binary outlives its tag, and a retraction has
+  to reach people running old builds. A moved anchor is a CI failure; a stale claim is not.
+- `scripts/generate-citations.py` now parses `RESEARCH_URL` out of `tray.rs` and fails if the
+  constant disappears or its fragment matches no heading in the rendered document. Both failure
+  modes were tested by injection.
+- The allowlist is `is_openable` in `platform.rs`, with tests. It is load-bearing rather than
+  decorative even though every current caller passes a constant: `ShellExecuteW` resolves a `file:`
+  URL through the shell association table and would launch a local program.
+
+macOS reaches `NSWorkspace` through `class!` + `msg_send!` rather than the typed bindings, so no new
+cargo feature and no new dependency were needed on any platform. **The signed-sandboxed smoke test is
+still outstanding** and is the one thing here that was verified by reading rather than by clicking.
+
+Original design notes follow.
+
 
 One `MenuItem` in [`tray.rs`](rust/crates/exhale-app/src/tray.rs) beside `preferences_item`, one arm
 in the `MenuEvent` loop at [`main.rs:1066`](rust/crates/exhale-app/src/main.rs), plus
@@ -140,7 +172,37 @@ support"**. Same code, opposite epistemic effect.
 Smoke-test `NSWorkspace openURL:` on a signed sandboxed build before submission. The API surface,
 feature flags and entitlements were verified; an actual signed click was not.
 
-### Phase 3: computed readout. The highest-value item.
+### Phase 3: computed readout. DONE.
+
+**Shipped, with three changes to the design, all deliberate.**
+
+1. **The copy lives in `exhale-core`, not next to the widget.** CI runs `cargo test -p exhale-core`
+   and does not compile `exhale-app`, which needs wgpu, winit and GTK. Copy that makes a coverage
+   statement should not be the only text in the project with no test behind it. `pacing.rs` holds
+   the range constants, the classification and the strings; the widget only paints.
+2. **The drift line reports a doubling time as well as an hour-out rate.** "0.1 % per cycle" tells
+   nobody whether they picked something gentle or something that runs away before lunch; "twice this
+   cycle length after 4.2 hours" does. `Settings::breaths_per_min_after` turned out to have an exact
+   closed form (`D = c + 60·T·(d − 1)`, derived in the doc comment), so both numbers are one line of
+   arithmetic with no loop and no `powi`. A cycle-by-cycle simulation is kept as a test oracle.
+3. **A fourth coverage state was added.** A pace that starts inside the tested range and drifts out
+   of it within the hour says so, rather than reporting only its starting classification, which
+   would read "one of them" and be misleading.
+
+Two details that are constraints rather than polish: the classification runs on the **rounded**
+displayed rate, so the panel can never print "5.0 breaths a minute" above "slower than any of them";
+and `no_line_names_an_effect_a_benefit_or_a_condition` is a denylist test over the generated strings,
+not a style rule. It is what enforces section 3's rule inside the binary, and it is the reason
+`custom.backsClaims` still cannot be quoted verbatim however well-sourced those strings are.
+
+`INITIAL_PREFERRED_H` went 796 -> 848 to keep the Randomization card above the fold on first run. The
+figure is estimated, not measured, which is safe in both directions: it only picks the first-run
+height, a saved height always wins, and `set_max_inner_size` clamps to laid-out content on frame one.
+**Nobody has looked at this on a screen yet.** Everything above is compile-, test- and
+arithmetic-verified; the visual result is not.
+
+Original design notes follow.
+
 
 One live line under the Timing sliders, computed from real settings:
 
@@ -221,7 +283,9 @@ strings are ruled out by both.
 
 ## 6. Open decisions and loose ends
 
-- **`feat/provenance-and-drift-enhancements` has no PR.** Commit `60d567b`.
+- **`feat/provenance-and-drift-enhancements` has no PR.** Four commits, from `60d567b`.
+- **Neither phase 2 nor phase 3 has been seen running.** The tray item needs a click on a signed
+  sandboxed build; the readout needs a look at the Timing card at the shipped window width.
 - **The Snap listing is still live with the retracted claims.** `snapcraft.yaml` is fixed in the repo,
   but the store shows the old copy until someone re-uploads. Memory says Snap upload is manual via
   Docker `snapcore/snapcraft` + interactive `snapcraft login`.
