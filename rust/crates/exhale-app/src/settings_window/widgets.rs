@@ -743,6 +743,50 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
 
 /// Duration row (seconds). Swift's CombinedStepperTextField with `limits: (0, nil)`
 /// and step 1.0 — so the ±-button step matches the Stepper control on macOS.
+/// The pacing readout: what the current timing settings actually work
+/// out to, and how that sits against the range with direct
+/// experimental support.
+///
+/// Every string comes from [`exhale_core::pacing::readout_lines`],
+/// which is where the copy is tested. This function only paints.
+///
+/// Rendered unprompted, never behind a hover or a disclosure triangle.
+/// The reason is specific rather than stylistic: exhale's shipped
+/// default is 4.0 breaths a minute, below the tested range, and a
+/// disclosure only reaches the people who go looking. The default is
+/// imposed on everyone who never opens this panel at all, so the one
+/// place it can honestly be qualified is the first place it is shown.
+///
+/// A tooltip could not carry this either. `egui`'s tooltip width
+/// clamps to `ctx.screen_rect()`, which here is a 360 pt window, so
+/// anything this long truncates
+pub(super) fn pacing_readout(ui: &mut egui::Ui, settings: &exhale_core::settings::Settings) {
+    let lines = exhale_core::pacing::readout_lines(settings);
+    if lines.is_empty() {
+        return;
+    }
+    ui.add_space(2.0);
+    // Scoped so the tighter spacing does not leak into the rest of the
+    // card. `section` sets `item_spacing.y = ROW_GAP` for control rows,
+    // which is right between a slider and the next slider and wrong
+    // between two sentences: at 8 pt these read as three unrelated
+    // statements rather than one paragraph
+    ui.scope(|ui| {
+        ui.spacing_mut().item_spacing.y = 2.0;
+        for line in lines {
+            // Wrapping, not truncating. `paint_label_with_width` sets
+            // `max_rows: 1` with an ellipsis, which is right for a
+            // control label in a fixed column and wrong for a sentence
+            // whose second half is the qualification
+            ui.label(
+                egui::RichText::new(line)
+                    .small()
+                    .color(ui.visuals().weak_text_color()),
+            );
+        }
+    });
+}
+
 pub(super) fn duration_row(ui: &mut egui::Ui, label: &str, help: &str, value: &mut f64) -> bool {
     stepper_row(ui, label, help, None, value, 1.0, 0.0, None, ValueScale::Identity)
 }
