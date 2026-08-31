@@ -1370,10 +1370,23 @@ fn settings_ui(
                 // as a percentage above 1.0 so "1" reads as "+1 % per cycle".
                 // Swift's stepper has no upper limit (`max: nil`).  Minimum
                 // stays at 0 % (drift = 1.0) per the `defaultMin` clamp.
+                //
+                // Step is 0.1 percentage points, not 1: compounding makes whole
+                // percents enormous. From a 15 s cycle, 1 % doubles the breath in
+                // 70 cycles (~25 min), which runs away inside one sitting; 0.1 %
+                // takes 693 cycles (~4.2 h), which is a working day. The useful
+                // range sat entirely below the old minimum step, so whole percents
+                // offered no gentle setting at all. Finer values can still be
+                // typed: `format_num` caps display at three decimals, so 0.001 %
+                // is the finest value the field round-trips.
+                //
+                // Display is `(stored - 1) * 100`, so the user reads 0 for "off"
+                // and never sees the multiplier. One step up from off is 0.1 %,
+                // stored as 1.001. See `ValueScale::DriftPercent`.
                 if stepper_row(
                     ui, "Drift (%)",
-                    "Multiplicative drift per cycle. 1-5% recommended for gradually lengthening breath.",
-                    None, &mut settings.drift, 1.0, 0.0, None,
+                    "Lengthens every cycle by this much, compounding, for pranayama-style graded extension. Off by default. Type a value for finer control than the arrows give.",
+                    None, &mut settings.drift, 0.1, 0.0, None,
                     ValueScale::DriftPercent,
                 ) { dirty = true; }
             });

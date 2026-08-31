@@ -21,10 +21,12 @@ import re
 import sys
 from pathlib import Path
 
-DOCS = Path(__file__).resolve().parent.parent / "docs"
+ROOT = Path(__file__).resolve().parent.parent
+DOCS = ROOT / "docs"
 CORPUS = DOCS / "CITATIONS.csl.json"
 NOTES = DOCS / "citations-notes.md"
 OUT = DOCS / "CITATIONS.md"
+README = ROOT / "README.md"
 
 # Section order in the rendered document. Each group answers one question the
 # app actually raises, rather than following the shape of the literature
@@ -39,7 +41,7 @@ GROUPS = [
 ]
 GROUP_IDS = {g for g, _ in GROUPS}
 
-VERIFICATIONS = {"crossref-verified", "openlibrary-verified", "unverified"}
+VERIFICATIONS = {"crossref-verified", "openlibrary-verified", "pubmed-verified", "unverified"}
 ACCESS_LEVELS = {"open-access", "paywalled"}
 TIERS = {"A", "B", "C", "D", "E", None}
 
@@ -127,18 +129,77 @@ def check_cross_references(records: list[dict]) -> None:
         raise CorpusError("\n".join("  - " + p for p in problems))
 
 
-def check_note_links(records: list[dict], notes: str) -> None:
-    """The gaps ledger links to entries by anchor. Catch the ones that rot."""
+# Claims this project has retracted. The gaps ledger records WHY each was
+# withdrawn; this list is what stops a withdrawn claim surviving somewhere the
+# ledger has no jurisdiction.
+#
+# Scope is deliberate. Only surfaces that ASSERT are scanned: store listings and
+# anything compiled into the binary. `docs/` and `README.md` are exempt because
+# they are the retraction record itself and have to be able to quote what they
+# withdraw. snapcraft.yaml went on shipping the parasympathetic claim to the
+# Snap Store for two days after the README retracted it, which is the exact
+# failure this catches
+RETRACTED_PHRASES: list[tuple[str, str]] = [
+    ("engage the parasympathetic nervous system", "gaps ledger 4: split 2-for / 1-against / 1-null"),
+    ("engages the parasympathetic nervous system", "gaps ledger 4: split 2-for / 1-against / 1-null"),
+    ("breathe more shallowly", "gaps ledger 1: unsupported as stated; the finding is faster and chest-high"),
+    ("screen apnea", "gaps ledger 1: no peer-reviewed source"),
+    ("email apnea", "gaps ledger 1: no peer-reviewed source"),
+]
+
+# Surfaces where one of the phrases above would be an assertion rather than a
+# citation of one. Missing files are skipped: the Microsoft handoff is untracked,
+# so it is present locally and absent in CI
+ASSERTING_SURFACES: list[str] = [
+    "snap/snapcraft.yaml",
+    "rust/packaging/windows/AppxManifest.xml",
+    "MICROSOFT_STORE_HANDOFF.md",
+]
+ASSERTING_GLOBS: list[str] = ["rust/crates/**/*.rs"]
+
+
+def check_retracted_phrases() -> None:
+    """Fail if a withdrawn claim survives on a surface that asserts it."""
+    targets = [ROOT / rel for rel in ASSERTING_SURFACES]
+    for pattern in ASSERTING_GLOBS:
+        targets.extend(sorted(ROOT.glob(pattern)))
+
+    problems: list[str] = []
+    for path in targets:
+        if not path.exists():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        lowered = text.lower()
+        for phrase, why in RETRACTED_PHRASES:
+            if phrase in lowered:
+                line = lowered[: lowered.index(phrase)].count("\n") + 1
+                rel = path.relative_to(ROOT)
+                problems.append(f"{rel}:{line} still asserts \"{phrase}\" ({why})")
+
+    if problems:
+        raise CorpusError("\n".join("  - " + p for p in problems))
+
+
+def check_note_links(records: list[dict], text: str, where: str) -> None:
+    """Prose links to entries by anchor. Catch the ones that rot.
+
+    Both the gaps ledger and the README deep-link into the corpus by citekey.
+    A rename silently breaks every one of them, and the README is the project's
+    front door, so it is checked on exactly the same footing as the notes
+    """
     known = {r["id"] for r in records}
     # Only anchors shaped like a citekey are entry references; the rest are
     # ordinary intra-document links to headings in the notes
-    referenced = {
-        a for a in re.findall(r"\]\(#([a-z0-9-]+)\)", notes) if ID_RE.match(a)
-    }
+    # The notes link as (#citekey); the README links as (docs/CITATIONS.md#citekey)
+    anchors = re.findall(r"\]\((?:docs/CITATIONS\.md)?#([a-z0-9-]+)\)", text)
+    referenced = {a for a in anchors if ID_RE.match(a)}
     dangling = sorted(referenced - known)
     if dangling:
         raise CorpusError(
-            "\n".join(f"  - {NOTES.name} links to unknown entry #{d}" for d in dangling)
+            "\n".join(f"  - {where} links to unknown entry #{d}" for d in dangling)
         )
 
 
@@ -178,13 +239,18 @@ def render_entry(rec: dict) -> list[str]:
     source = rec.get("container-title") or ": ".join(
         p for p in (rec.get("publisher-place"), rec.get("publisher")) if p
     )
-    head = f'{authors(rec)}. ({year(rec)}). *{rec["title"]}*{tail} {source}'
+    who = authors(rec)
+    # An author list ending in an initial already supplies its own period
+    who_sep = "" if who.endswith(".") else "."
+    head = f'{who}{who_sep} ({year(rec)}). *{rec["title"]}*{tail} {source}'
     loc = locator(rec)
     lines.append(head + (f" {loc}" if loc else ""))
     lines.append("")
 
     if rec.get("DOI"):
         lines.append(f'- DOI: [{rec["DOI"]}](https://doi.org/{rec["DOI"]})')
+    elif rec.get("PMID"):
+        lines.append(f'- PMID: [{rec["PMID"]}]({rec["URL"]}) (no DOI exists)')
     elif rec.get("ISBN"):
         lines.append(f'- ISBN: {rec["ISBN"]} | [Open Library record]({rec["URL"]})')
     elif rec.get("URL"):
@@ -264,8 +330,11 @@ def main() -> int:
     try:
         records = load_corpus()
         check_cross_references(records)
+        check_retracted_phrases()
         notes = NOTES.read_text(encoding="utf-8")
-        check_note_links(records, notes)
+        check_note_links(records, notes, NOTES.name)
+        if README.exists():
+            check_note_links(records, README.read_text(encoding="utf-8"), README.name)
     except CorpusError as exc:
         print(f"{CORPUS.name}: invalid corpus\n{exc}", file=sys.stderr)
         return 1

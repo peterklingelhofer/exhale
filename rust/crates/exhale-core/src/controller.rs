@@ -581,7 +581,10 @@ mod tests {
 
     #[test]
     fn drift_accumulates_correctly() {
-        let settings = Settings::default(); // drift = 1.01
+        // Drift is off by default now, so set it explicitly: this test is
+        // about compounding, not about what ships
+        let mut settings = Settings::default();
+        settings.drift = 1.01;
         let now = Instant::now();
         let mut inner = Inner {
             phase:           BreathingPhase::HoldAfterExhale,
@@ -618,8 +621,10 @@ mod tests {
 
     #[test]
     fn drift_matches_pow() {
-        // current_drift should equal drift^cycle_count at every cycle boundary.
-        let settings = Settings::default();
+        // current_drift should equal drift^cycle_count at every cycle boundary,
+        // for as long as the ceiling has not been reached.
+        let mut settings = Settings::default();
+        settings.drift = 1.01;
         let now = Instant::now();
         let mut inner = Inner {
             phase:           BreathingPhase::HoldAfterExhale,
@@ -633,12 +638,22 @@ mod tests {
             last_drawn_progress: -1.0,
         };
 
-        for cycle in 0..10_u64 {
+        // Deliberately far more cycles than any plausible session: drift is
+        // unbounded by design, so this must hold arbitrarily far out. An
+        // earlier revision capped the compounding; that cap was removed
+        // because advanced pranayama practice legitimately reaches breaths
+        // far longer than the research literature happens to have studied.
+        // See docs/CITATIONS.md gaps ledger item 6
+        for cycle in 0..2_000_u64 {
             // advance one full cycle (4 phases)
             advance_n_phases(&mut inner, 4, &settings);
             let expected = settings.drift.powi((cycle + 1) as i32);
+            // Relative, not absolute: repeated multiplication and `powi` agree
+            // to ~13 significant figures, but drift is unbounded, so by cycle
+            // ~1200 the values are in the hundreds of thousands and a fixed
+            // 1e-9 epsilon compares the wrong thing entirely
             assert!(
-                (inner.current_drift - expected).abs() < 1e-9,
+                (inner.current_drift - expected).abs() <= expected * 1e-12,
                 "cycle={cycle}: drift={} pow={expected}",
                 inner.current_drift
             );
