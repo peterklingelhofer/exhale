@@ -1535,6 +1535,39 @@ use super::*;
         app.setActivationPolicy(policy);
     }
 
+    /// macOS half of [`super::open_url`].  Scheme validation happens
+    /// in the caller.
+    ///
+    /// `NSWorkspace` and `NSURL` are public, unentitled APIs, so this
+    /// works unchanged inside the App Sandbox — `bundle-mas.sh` ships
+    /// only app-sandbox + user-selected read-only and needs no new
+    /// entitlement for it.  Reached via `class!` + `msg_send!` rather
+    /// than the typed `objc2-app-kit` bindings so no new cargo
+    /// feature is needed, matching [`activate_running_exhale`] above.
+    ///
+    /// `URLWithString:` returns nil for a string AppKit can't parse;
+    /// we null-check rather than passing nil into `openURL:`
+    pub(super) fn open_url_impl(url: &str) {
+        use objc2::msg_send;
+        use objc2::runtime::AnyObject;
+        use objc2_foundation::NSString;
+
+        let s = NSString::from_str(url);
+        unsafe {
+            let ns_url: *mut AnyObject = msg_send![objc2::class!(NSURL), URLWithString: &*s];
+            if ns_url.is_null() {
+                log::warn!("open_url: NSURL rejected {url:?}");
+                return;
+            }
+            let workspace: *mut AnyObject = msg_send![objc2::class!(NSWorkspace), sharedWorkspace];
+            if workspace.is_null() { return; }
+            let opened: bool = msg_send![workspace, openURL: ns_url];
+            if !opened {
+                log::warn!("open_url: NSWorkspace declined to open {url:?}");
+            }
+        }
+    }
+
     // ─── Regression tests for AppKit FFI ──────────────────────────────────
     //
     // Cover the parts of the AppKit surface that can be verified without
