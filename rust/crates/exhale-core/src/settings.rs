@@ -34,6 +34,14 @@ pub struct Settings {
     pub post_exhale_hold_duration: f64,
 
     /// Per-cycle duration multiplier. 1.01 = each cycle 1 % longer (drift).
+    ///
+    /// Defaults to 1.0 (off). Pranayama's graded extension is the reason this
+    /// exists and it is a reasonable thing to turn on, but it should not be
+    /// imposed: heart-rate-variability amplitude peaks at 4.5-6.5 breaths a
+    /// minute rather than rising without limit, and exhale's default cadence
+    /// already sits below that band, so drifting slower from cycle one moves
+    /// every new user further from the studied range. When it IS on, the
+    /// compounding is bounded by [`crate::controller::DRIFT_MAX_CYCLE_SECS`].
     pub drift: f64,
 
     // ── Randomisation (±seconds of jitter per phase) ─────────────────────────
@@ -333,7 +341,7 @@ impl Default for Settings {
             post_inhale_hold_duration: 0.0,
             exhale_duration:           10.0,
             post_exhale_hold_duration: 0.0,
-            drift:                     1.01,
+            drift:                     1.0,
 
             randomized_timing_inhale:             0.0,
             randomized_timing_post_inhale_hold:   0.0,
@@ -558,7 +566,7 @@ mod tests {
         assert_eq!(s.exhale_duration, 10.0);
         assert_eq!(s.post_inhale_hold_duration, 0.0);
         assert_eq!(s.post_exhale_hold_duration, 0.0);
-        assert!((s.drift - 1.01).abs() < 1e-9);
+        assert!((s.drift - 1.0).abs() < 1e-9);
         assert!((s.overlay_opacity - 0.25).abs() < 1e-6);
         assert_eq!(s.shape, AnimationShape::Rectangle);
         assert_eq!(s.color_fill_gradient, ColorFillGradient::On);

@@ -84,3 +84,28 @@ jobs:
 
       - name: Check generated citations are current
         run: python3 scripts/generate-citations.py --check
+
+  # 8,400 lines of Rust currently have no compile gate anywhere in CI: the
+  # release and dev-build workflows only ever run `cargo build --release`, and
+  # there is no `cargo test` / `check` / `clippy` job. `exhale-core` is the
+  # cheap half to cover, since it has no wgpu, winit or GTK dependency and so
+  # needs no system packages. It is also where a generated presets table would
+  # land if the research-panel work proceeds, and a checked-in generated .rs
+  # that nothing compiles is a silent time bomb
+  core-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: cargo check
+        working-directory: rust
+        run: cargo check -p exhale-core --all-targets
+
+      - name: cargo test
+        working-directory: rust
+        run: cargo test -p exhale-core

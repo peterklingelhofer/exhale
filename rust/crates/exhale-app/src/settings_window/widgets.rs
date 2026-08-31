@@ -1356,6 +1356,34 @@ mod tests {
         assert!((ValueScale::DriftPercent.from_display(0.0) - 1.0).abs() < 1e-9);
     }
 
+    /// The Drift row shows a percentage, never the multiplier it stores.
+    /// Zero must mean "no drift" so that "off" is legible without the user
+    /// knowing anything about how it is stored, and one 0.1 step up from off
+    /// must land on 1.001 rather than anything coarser.
+    #[test]
+    fn drift_zero_is_off_and_one_step_is_a_tenth_of_a_percent() {
+        const STEP: f64 = 0.1; // matches the Drift stepper_row in settings_window.rs
+
+        // Off: the user sees 0, the controller multiplies by 1.0, a no-op
+        assert_eq!(ValueScale::DriftPercent.from_display(0.0), 1.0);
+        assert_eq!(ValueScale::DriftPercent.to_display(1.0), 0.0);
+
+        // One press of the up arrow from off
+        let after_one = ValueScale::DriftPercent.from_display(0.0 + STEP);
+        assert!(
+            (after_one - 1.001).abs() < 1e-12,
+            "one 0.1 % step should store 1.001, got {after_one}"
+        );
+
+        // And it keeps stepping in tenths rather than snapping to whole percents
+        let after_two = ValueScale::DriftPercent.from_display(0.0 + STEP * 2.0);
+        assert!((after_two - 1.002).abs() < 1e-12, "two steps should store 1.002, got {after_two}");
+
+        // Ten steps reaches the old minimum, 1 %
+        let after_ten = ValueScale::DriftPercent.from_display(0.0 + STEP * 10.0);
+        assert!((after_ten - 1.01).abs() < 1e-12, "ten steps should store 1.01, got {after_ten}");
+    }
+
     #[test]
     fn round_trips_at_sample_points() {
         for stored in [0.0, 0.1, 0.5, 1.0, 1.01, 2.5, 5.0, 100.0] {

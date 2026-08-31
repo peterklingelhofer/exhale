@@ -1,6 +1,6 @@
 # Citation corpus
 
-42 sources: 40 Crossref-verified, 2 verified against Open Library. 5 are cited from their abstract only and say so, and 2 are not peer-reviewed and are tiered E so they can back lineage but never a claim.
+48 sources: 45 Crossref-verified, 2 verified against Open Library. 6 are cited from their abstract only and say so, and 2 are not peer-reviewed and are tiered E so they can back lineage but never a claim.
 
 Machine-readable companion: [`CITATIONS.csl.json`](./CITATIONS.csl.json) (CSL-JSON).
 Verification pass completed 2026-08-28 against the Crossref REST API.
@@ -57,25 +57,26 @@ establish that it does.
 
 | Verification | n |
 |---|---|
-| crossref-verified | 40 |
+| crossref-verified | 45 |
 | openlibrary-verified | 2 |
-| **total** | **42** |
+| pubmed-verified | 1 |
+| **total** | **48** |
 
 | Access level | n |
 |---|---|
-| open-access | 17 |
-| paywalled | 25 |
-| **total** | **42** |
+| open-access | 21 |
+| paywalled | 27 |
+| **total** | **48** |
 
 | Evidence tier | n |
 |---|---|
 | A | 7 |
-| B | 7 |
-| C | 16 |
-| D | 9 |
+| B | 8 |
+| C | 20 |
+| D | 10 |
 | E | 2 |
 | null (not a study) | 1 |
-| **total** | **42** |
+| **total** | **48** |
 
 ---
 
@@ -162,7 +163,7 @@ Schleifer, Lawrence M.; Ley, Ronald. (1994). *End-tidal PCO2 as an index of psyc
 
 #### `schleifer2002-hyperventilation-job-stress`
 
-Schleifer, Lawrence M.; Ley, Ronald; Spalding, Thomas W.. (2002). *A hyperventilation theory of job stress and musculoskeletal disorders*. American Journal of Industrial Medicine 41(5): 420-432
+Schleifer, Lawrence M.; Ley, Ronald; Spalding, Thomas W. (2002). *A hyperventilation theory of job stress and musculoskeletal disorders*. American Journal of Industrial Medicine 41(5): 420-432
 
 - DOI: [10.1002/ajim.10061](https://doi.org/10.1002/ajim.10061)
 - Verification: crossref-verified | Access: paywalled | evidence tier **D**
@@ -174,7 +175,7 @@ Schleifer, Lawrence M.; Ley, Ronald; Spalding, Thomas W.. (2002). *A hyperventil
 
 #### `schleifer2008-emg-gaps-computer-work`
 
-Schleifer, Lawrence M.; Spalding, Thomas W.; Kerick, Scott E.; Cram, Jeffrey R.; Ley, Ronald; Hatfield, Bradley D.. (2008). *Mental stress and trapezius muscle activation under psychomotor challenge: A focus on EMG gaps during computer work*. Psychophysiology 45(3): 356-365
+Schleifer, Lawrence M.; Spalding, Thomas W.; Kerick, Scott E.; Cram, Jeffrey R.; Ley, Ronald; Hatfield, Bradley D. (2008). *Mental stress and trapezius muscle activation under psychomotor challenge: A focus on EMG gaps during computer work*. Psychophysiology 45(3): 356-365
 
 - DOI: [10.1111/j.1469-8986.2008.00645.x](https://doi.org/10.1111/j.1469-8986.2008.00645.x)
 - Verification: crossref-verified | Access: paywalled | evidence tier **C**
@@ -185,7 +186,7 @@ Schleifer, Lawrence M.; Spalding, Thomas W.; Kerick, Scott E.; Cram, Jeffrey R.;
 
 #### `sheppard2018-digital-eye-strain`
 
-Sheppard, Amy L.; Wolffsohn, James S.. (2018). *Digital eye strain: prevalence, measurement and amelioration*. BMJ Open Ophthalmology 3(1): e000146
+Sheppard, Amy L.; Wolffsohn, James S. (2018). *Digital eye strain: prevalence, measurement and amelioration*. BMJ Open Ophthalmology 3(1): e000146
 
 - DOI: [10.1136/bmjophth-2018-000146](https://doi.org/10.1136/bmjophth-2018-000146)
 - Verification: crossref-verified | Access: open-access | evidence tier **B**
@@ -212,7 +213,7 @@ Tsubota, Kazuo; Nakamori, Katsu. (1993). *Dry Eyes and Video Display Terminals*.
 
 #### `chaddha2019-slow-breathing-bp`
 
-Chaddha, Ashish; Modaff, Daniel; Hooper-Lane, Christopher; Feldstein, David A.. (2019). *Device and non-device-guided slow breathing to reduce blood pressure: A systematic review and meta-analysis*. Complementary Therapies in Medicine 45: 179-184
+Chaddha, Ashish; Modaff, Daniel; Hooper-Lane, Christopher; Feldstein, David A. (2019). *Device and non-device-guided slow breathing to reduce blood pressure: A systematic review and meta-analysis*. Complementary Therapies in Medicine 45: 179-184
 
 - DOI: [10.1016/j.ctim.2019.03.005](https://doi.org/10.1016/j.ctim.2019.03.005)
 - Verification: crossref-verified | Access: paywalled | evidence tier **A**
@@ -233,7 +234,7 @@ Fincham, Guy William; Strauss, Clara; Montero-Marin, Jesus; Cavanagh, Kate. (202
 
 #### `laborde2022-vsb-meta`
 
-Laborde, S.; Allen, M. S.; Borges, U.; Dosseville, F.; Hosang, T. J.; Iskra, M.; Mosley, E.; Salvotti, C.; Spolverato, L.; Zammit, N.; Javelle, F.. (2022). *Effects of voluntary slow breathing on heart rate and heart rate variability: A systematic review and a meta-analysis*. Neuroscience & Biobehavioral Reviews 138: 104711
+Laborde, S.; Allen, M. S.; Borges, U.; Dosseville, F.; Hosang, T. J.; Iskra, M.; Mosley, E.; Salvotti, C.; Spolverato, L.; Zammit, N.; Javelle, F. (2022). *Effects of voluntary slow breathing on heart rate and heart rate variability: A systematic review and a meta-analysis*. Neuroscience & Biobehavioral Reviews 138: 104711
 
 - DOI: [10.1016/j.neubiorev.2022.104711](https://doi.org/10.1016/j.neubiorev.2022.104711)
 - Verification: crossref-verified | Access: paywalled | evidence tier **A**
@@ -244,7 +245,7 @@ Laborde, S.; Allen, M. S.; Borges, U.; Dosseville, F.; Hosang, T. J.; Iskra, M.;
 
 #### `little2025-a52-breath-method`
 
-Little, Abbie L.. (2025). *The A52 Breath Method: A Narrative Review of Breathwork for Mental Health and Stress Resilience*. Stress and Health 41(4): e70098
+Little, Abbie L. (2025). *The A52 Breath Method: A Narrative Review of Breathwork for Mental Health and Stress Resilience*. Stress and Health 41(4): e70098
 
 - DOI: [10.1002/smi.70098](https://doi.org/10.1002/smi.70098)
 - Verification: crossref-verified | Access: open-access | evidence tier **D**
@@ -266,7 +267,7 @@ Russo, Marc A.; Santarelli, Danielle M.; O'Rourke, Dean. (2017). *The physiologi
 
 #### `vandijk2018-close-the-book`
 
-van Dijk, Peter R.; van Hateren, Kornelis J. J.; Kleefstra, Nanne; Landman, Gijs W. D.. (2018). *It is time to close the book on device-guided slow breathing*. Blood Pressure 27(3): 181-182
+van Dijk, Peter R.; van Hateren, Kornelis J. J.; Kleefstra, Nanne; Landman, Gijs W. D. (2018). *It is time to close the book on device-guided slow breathing*. Blood Pressure 27(3): 181-182
 
 - DOI: [10.1080/08037051.2018.1435260](https://doi.org/10.1080/08037051.2018.1435260)
 - Verification: crossref-verified | Access: paywalled | no evidence tier (not a study)
@@ -289,7 +290,7 @@ Zaccaro, Andrea; Piarulli, Andrea; Laurino, Marco; Garbella, Erika; Menicucci, D
 
 ## What the numbers should be
 
-10 sources.
+14 sources.
 
 #### `bae2021-exhalation-inhalation-ratio`
 
@@ -304,7 +305,7 @@ Bae, Dalbyeol; Matthews, Jacob J. L.; Chen, J. Jean; Mah, Linda. (2021). *Increa
 
 #### `balban2023-cyclic-sighing`
 
-Balban, Melis Yilmaz; Neri, Eric; Kogon, Manuela M.; Weed, Lara; Nouriani, Bita; Jo, Booil; Holl, Gary; Zeitzer, Jamie M.; Spiegel, David; Huberman, Andrew D.. (2023). *Brief structured respiration practices enhance mood and reduce physiological arousal*. Cell Reports Medicine 4(1): 100895
+Balban, Melis Yilmaz; Neri, Eric; Kogon, Manuela M.; Weed, Lara; Nouriani, Bita; Jo, Booil; Holl, Gary; Zeitzer, Jamie M.; Spiegel, David; Huberman, Andrew D. (2023). *Brief structured respiration practices enhance mood and reduce physiological arousal*. Cell Reports Medicine 4(1): 100895
 
 - DOI: [10.1016/j.xcrm.2022.100895](https://doi.org/10.1016/j.xcrm.2022.100895)
 - Verification: crossref-verified | Access: open-access | evidence tier **A**
@@ -312,6 +313,28 @@ Balban, Melis Yilmaz; Neri, Eric; Kogon, Manuela M.; Weed, Lara; Nouriani, Bita;
   - five minutes a day of exhale-emphasising cyclic sighing improved mood and lowered respiratory rate more than an equal period of mindfulness meditation over one month
   - box breathing, equal inhale / hold / exhale, was tested head-to-head and was not the best-performing arm
 - Caveat: Remote randomised controlled study, pre-registered as NCT05304000. The primary comparator is mindfulness meditation, not a sham, so the arms differ in more than breath ratio. The mood difference reached p < 0.05 in a mixed-effects model; this is a real but modest separation. Directly relevant to exhale twice over: it is the best evidence that a longer exhale is the right emphasis, and it is the reason the README should stop presenting box breathing as equivalent.
+
+#### `bernardi2001-slow-breathing-chemoreflex`
+
+Bernardi, Luciano; Gabutti, Alessandra; Porta, Cesare; Spicuzza, Lucia. (2001). *Slow breathing reduces chemoreflex response to hypoxia and hypercapnia, and increases baroreflex sensitivity*. Journal of Hypertension 19(12): 2221-2229
+
+- DOI: [10.1097/00004872-200112000-00016](https://doi.org/10.1097/00004872-200112000-00016)
+- Verification: crossref-verified | Access: paywalled | evidence tier **C**
+- Backs:
+  - breathing at 6 per minute depressed both hypoxic and hypercapnic chemoreflex responses compared with spontaneous or 15 per minute breathing
+  - baroreflex sensitivity was greater during slow breathing
+- Caveat: n = 15 healthy individuals. Carried mainly to mark where the studied territory ENDS: this literature is conducted at roughly 3 to 6 breaths per minute, and 6 is the rate tested here. Below about 3 per minute there is essentially nothing to appeal to, which is what bounds exhale's `drift` ceiling. See also bilo2012-slow-breathing-altitude.
+
+#### `bilo2012-slow-breathing-altitude`
+
+Bilo, Grzegorz; Revera, Miriam; Bussotti, Maurizio; Bonacina, Daniele; Styczkiewicz, Katarzyna; Caldara, Gianluca; Giglio, Alessia; Faini, Andrea; Giuliano, Andrea; Lombardi, Carolina; Kawecka-Jaszcz, Kalina; Mancia, Giuseppe; Agostoni, Piergiuseppe; Parati, Gianfranco. (2012). *Effects of Slow Deep Breathing at High Altitude on Oxygen Saturation, Pulmonary and Systemic Hemodynamics*. PLoS ONE 7(11): e49074
+
+- DOI: [10.1371/journal.pone.0049074](https://doi.org/10.1371/journal.pone.0049074)
+- Verification: crossref-verified | Access: open-access | evidence tier **C**
+- Backs:
+  - fifteen minutes of paced breathing at 6 per minute raised arterial oxygen saturation and lowered systemic and pulmonary arterial pressure at high altitude
+  - the proposed mechanism is a larger tidal volume reducing the proportion of each breath spent on anatomical dead space
+- Caveat: Conducted at high altitude in a hypoxic state, so it does not transfer to a desk at sea level and must not be cited as if it did. It is carried for two narrow purposes: it is the second entry fixing the studied range at roughly 3 to 6 breaths per minute, and its dead-space mechanism is the reason slow breathing is not simply less breathing.
 
 #### `laborde2021-ie-ratio-pauses`
 
@@ -336,7 +359,7 @@ Laborde, Sylvain; Allen, Mark S.; Borges, Uirassu; Iskra, Maša; Zammit, Nina; Y
 
 #### `lin2014-equal-ratio-hrv`
 
-Lin, I. M.; Tai, L. Y.; Fan, S. Y.. (2014). *Breathing at a rate of 5.5 breaths per minute with equal inhalation-to-exhalation ratio increases heart rate variability*. International Journal of Psychophysiology 91(3): 206-211
+Lin, I. M.; Tai, L. Y.; Fan, S. Y. (2014). *Breathing at a rate of 5.5 breaths per minute with equal inhalation-to-exhalation ratio increases heart rate variability*. International Journal of Psychophysiology 91(3): 206-211
 
 - DOI: [10.1016/j.ijpsycho.2013.12.006](https://doi.org/10.1016/j.ijpsycho.2013.12.006)
 - Verification: crossref-verified | Access: paywalled | evidence tier **C**
@@ -379,6 +402,29 @@ Sevoz-Couche, Caroline; Laborde, Sylvain. (2022). *Heart rate variability and sl
   - coherence and resonance are distinct phenomena that are frequently conflated in the slow-breathing literature
 - Caveat: Narrative review. Carried as a terminology guard: much of the popular writing exhale competes with uses 'coherence' loosely, and this is the paper to check before adopting that vocabulary in the app or the README.
 
+#### `shaffer2020-resonance-frequency-assessment`
+
+Shaffer, Fred; Meehan, Zachary M. (2020). *A Practical Guide to Resonance Frequency Assessment for Heart Rate Variability Biofeedback*. Frontiers in Neuroscience 14: 570400
+
+- DOI: [10.3389/fnins.2020.570400](https://doi.org/10.3389/fnins.2020.570400)
+- Verification: crossref-verified | Access: open-access | evidence tier **D**
+- Backs:
+  - the relationship between breathing rate and heart-rate-variability amplitude is an inverted U with a peak, not a slope
+  - resonance frequency ranges from 4.5 to 6.5 breaths per minute in adults, and 6.5 to 9.5 in children
+  - breathing in a narrow band around the resonance frequency stimulates the baroreflex better than breathing across a wider range
+- Caveat: Methods guide rather than an experiment, hence tier D. It is nonetheless the entry that decides exhale's `drift` question: if the curve peaks, then breathing progressively slower moves AWAY from the optimum once past it, and 'slower is always better' is false. Shaffer is also an author of meehan2024-longer-exhalations, so this corpus leans on one group twice; that is worth knowing, though the inverted-U is not a contested finding.
+
+#### `szulczewski2019-training-relaxation`
+
+Szulczewski, Mikołaj Tytus. (2019). *Training of paced breathing at 0.1 Hz improves CO2 homeostasis and relaxation during a paced breathing task*. PLOS ONE 14(6): e0218550
+
+- DOI: [10.1371/journal.pone.0218550](https://doi.org/10.1371/journal.pone.0218550)
+- Verification: crossref-verified | Access: open-access | evidence tier **C**
+- Backs:
+  - across seven consecutive days of ten-minute paced breathing, self-reported task pleasantness rose significantly and unpleasant arousal fell, with the affective gains emerging by mid-training rather than on day one
+  - the end-tidal CO2 drop caused by paced breathing shrank with practice: 37.5% of participants dropped below 30 mmHg on day one against 6.3% on day seven
+- Caveat: n = 16, single group, no control, one week. Small and uncontrolled, so treat the magnitudes as indicative. It is carried because it is the closest thing in this corpus to evidence for the pranayama proposition that the practice improves with practice: relaxation was not immediate, it accrued. Note carefully what it does NOT show. Training was at a FIXED 0.1 Hz throughout; it is evidence that repeated practice at one rate gets better, not that progressively slowing within a session helps. That second proposition remains untested. See also joshi1992-pranayam-training.
+
 #### `vandiest2014-ie-ratio-relaxation`
 
 Van Diest, Ilse; Verstappen, Karen; Aubert, André E.; Widjaja, Devy; Vansteenwegen, Debora; Vlemincx, Elke. (2014). *Inhalation/Exhalation Ratio Modulates the Effect of Slow Breathing on Heart Rate Variability and Relaxation*. Applied Psychophysiology and Biofeedback 39(3-4): 171-180
@@ -407,7 +453,18 @@ You, Min; Laborde, Sylvain; Ackermann, Stefan; Borges, Uirassu; Dosseville, Fabr
 
 ## Where the practice came from
 
-2 sources.
+3 sources.
+
+#### `joshi1992-pranayam-training`
+
+Joshi, L. N.; Joshi, V. D.; Gokhale, L. V. (1992). *Effect of short term 'Pranayam' practice on breathing rate and ventilatory functions of lung*. Indian Journal of Physiology and Pharmacology 36(2): 105-108
+
+- PMID: [1506070](https://pubmed.ncbi.nlm.nih.gov/1506070/) (no DOI exists)
+- Verification: pubmed-verified | Access: paywalled | evidence tier **C**
+- Backs:
+  - six weeks of pranayama practice in 75 young adults lowered resting respiratory rate and prolonged breath-holding time
+  - the same training raised forced vital capacity, FEV1, maximum voluntary ventilation and peak expiratory flow rate
+- Caveat: NUMBERS NOT READ 2026-08-30; no DOI exists, and the record was verified against the NCBI eutils API by PMID rather than Crossref. Uncontrolled before-and-after design in a 1992 regional journal, so treat the effect sizes as unusable. It is carried because it is the only entry in this corpus that speaks to pranayama's GRADED EXTENSION as a training progression: capacity grew over six weeks of practice. That is a claim about adaptation across sessions, and it is NOT evidence for extending the breath without limit inside a single sitting, which is a different proposition that shaffer2020-resonance-frequency-assessment argues against.
 
 #### `muktibodhananda1998-hatha-yoga-pradipika`
 
@@ -448,7 +505,7 @@ Moraveji, Neema; Olson, Ben; Nguyen, Truc; Saadat, Mahmoud; Khalighi, Yaser; Pea
 
 #### `tabor2022-guided-breathing-design`
 
-Tabor, Aaron; Bateman, Scott; Scheme, Erik J.; schraefel, m.c.. (2022). *Comparing heart rate variability biofeedback and simple paced breathing to inform the design of guided breathing technologies*. Frontiers in Computer Science 4: 926649
+Tabor, Aaron; Bateman, Scott; Scheme, Erik J.; schraefel, m.c. (2022). *Comparing heart rate variability biofeedback and simple paced breathing to inform the design of guided breathing technologies*. Frontiers in Computer Science 4: 926649
 
 - DOI: [10.3389/fcomp.2022.926649](https://doi.org/10.3389/fcomp.2022.926649)
 - Verification: crossref-verified | Access: open-access | evidence tier **C**
@@ -489,7 +546,7 @@ Lehrer, Paul M.; Gevirtz, Richard. (2014). *Heart rate variability biofeedback: 
 
 #### `li2016-sigh-circuit`
 
-Li, Peng; Janczewski, Wiktor A.; Yackle, Kevin; Kam, Kaiwen; Pagliardini, Silvia; Krasnow, Mark A.; Feldman, Jack L.. (2016). *The peptidergic control circuit for sighing*. Nature 530(7590): 293-297
+Li, Peng; Janczewski, Wiktor A.; Yackle, Kevin; Kam, Kaiwen; Pagliardini, Silvia; Krasnow, Mark A.; Feldman, Jack L. (2016). *The peptidergic control circuit for sighing*. Nature 530(7590): 293-297
 
 - DOI: [10.1038/nature16964](https://doi.org/10.1038/nature16964)
 - Verification: crossref-verified | Access: paywalled | evidence tier **D**
@@ -520,7 +577,7 @@ Vlemincx, Elke; Van Diest, Ilse; Van den Bergh, Omer. (2016). *A sigh of relief 
 
 #### `yackle2017-breathing-arousal-neurons`
 
-Yackle, Kevin; Schwarz, Lindsay A.; Kam, Kaiwen; Sorokin, Jordan M.; Huguenard, John R.; Feldman, Jack L.; Luo, Liqun; Krasnow, Mark A.. (2017). *Breathing control center neurons that promote arousal in mice*. Science 355(6332): 1411-1415
+Yackle, Kevin; Schwarz, Lindsay A.; Kam, Kaiwen; Sorokin, Jordan M.; Huguenard, John R.; Feldman, Jack L.; Luo, Liqun; Krasnow, Mark A. (2017). *Breathing control center neurons that promote arousal in mice*. Science 355(6332): 1411-1415
 
 - DOI: [10.1126/science.aai7984](https://doi.org/10.1126/science.aai7984)
 - Verification: crossref-verified | Access: paywalled | evidence tier **D**
@@ -541,7 +598,7 @@ Yasuma, Fumihiko; Hayano, Jun-ichiro. (2004). *Respiratory Sinus Arrhythmia: Why
 
 #### `zelano2016-nasal-respiration-limbic`
 
-Zelano, Christina; Jiang, Heidi; Zhou, Guangyu; Arora, Nikita; Schuele, Stephan; Rosenow, Joshua; Gottfried, Jay A.. (2016). *Nasal Respiration Entrains Human Limbic Oscillations and Modulates Cognitive Function*. The Journal of Neuroscience 36(49): 12448-12467
+Zelano, Christina; Jiang, Heidi; Zhou, Guangyu; Arora, Nikita; Schuele, Stephan; Rosenow, Joshua; Gottfried, Jay A. (2016). *Nasal Respiration Entrains Human Limbic Oscillations and Modulates Cognitive Function*. The Journal of Neuroscience 36(49): 12448-12467
 
 - DOI: [10.1523/JNEUROSCI.2586-16.2016](https://doi.org/10.1523/JNEUROSCI.2586-16.2016)
 - Verification: crossref-verified | Access: open-access | evidence tier **C**
@@ -553,7 +610,7 @@ Zelano, Christina; Jiang, Heidi; Zhou, Guangyu; Arora, Nikita; Schuele, Stephan;
 
 ## Limits, harms and adherence
 
-2 sources.
+3 sources.
 
 #### `fincham2024-high-ventilation-rct`
 
@@ -574,6 +631,18 @@ Linardon, Jake; Fuller-Tyszkiewicz, Matthew. (2020). *Attrition and adherence in
 - Backs:
   - dropout and non-adherence are the dominant practical failure mode of smartphone-delivered mental health interventions, even where efficacy trials are positive
 - Caveat: NUMBERS NOT READ 2026-08-28. Carried as the reality check on every other entry in this corpus: an effect measured in a supervised session says little about a tool someone installs and forgets. exhale has no telemetry and therefore no idea whether anyone keeps it running, which is stated plainly in the gaps ledger rather than hidden.
+
+#### `szulczewski2019-antihyperventilation-instruction`
+
+Szulczewski, Mikołaj Tytus. (2019). *An Anti-hyperventilation Instruction Decreases the Drop in End-tidal CO2 and Symptoms of Hyperventilation During Breathing at 0.1 Hz*. Applied Psychophysiology and Biofeedback 44(3): 247-256
+
+- DOI: [10.1007/s10484-019-09438-y](https://doi.org/10.1007/s10484-019-09438-y)
+- Verification: crossref-verified | Access: open-access | evidence tier **B**
+- Backs:
+  - one sentence of instruction cut the end-tidal CO2 drop during 6-per-minute paced breathing from 5.21 to 2.7 mmHg
+  - hyperventilation symptoms rose 0.63 points on a 7-point scale without the instruction and did not rise significantly with it
+  - the instruction used was to avoid excessively deep breathing and to breathe shallowly and naturally
+- Caveat: Randomised, two groups, n = 46 aged 19-26. This is the mitigation for gap 5 and it is unusually cheap: the problem with slow pacing is DEPTH, not rate, and a single sentence fixes most of it. exhale paces rate and says nothing about depth, so this is the one piece of prose in the whole corpus that would earn its place in the app on safety grounds rather than persuasion grounds.
 
 ---
 
@@ -729,12 +798,60 @@ mild and was measured in a single session. It is recorded because it is the most
 unanswered question this corpus turned up, and because an app that paces breathing should know that
 pacing rate is not the same as pacing volume.
 
-### 6. `drift` has no literature behind it at all
+### 6. `drift`: the tradition is uncontradicted, and the app should not pretend otherwise
 
-exhale defaults `drift` to `1.01`, making each cycle 1% longer than the last. Over 30 cycles that is
-a 1.35x stretch, taking a 4.0 breaths/min pace down to roughly 3.0 and further outside any tested
-range. No study in this corpus examines a progressively lengthening pace. It is an invented feature.
-It may be a pleasant one. It is not evidence-based, and the default is not zero.
+**Two corrections in this entry, 2026-08-31.** Both were caught by the maintainer pushing back, and
+both are the same mistake in different clothes: treating the edge of the research literature as if it
+were the edge of legitimate practice.
+
+**Correction 1 (the overclaim).** An earlier revision said the inverted-U relationship between
+breathing rate and HRV meant progressively slower breathing "moves away from the optimum."
+[`shaffer2020-resonance-frequency-assessment`](#shaffer2020-resonance-frequency-assessment)
+describes a peak in **HRV amplitude**, not in relaxation, comfort or benefit. Sliding from one to the
+other is exactly what this corpus's tier-D rule forbids, and it was done here to justify a code
+change that had already been decided on.
+
+**Correction 2 (the cap).** On the strength of that overclaim, a ceiling was added capping `drift` at
+three breaths a minute. It has been **removed**. The argument against it is simple and correct: a
+10-second inhale with a 20-second exhale is unremarkable in pranayama, absence of research is not
+evidence of harm, and an app has no business preventing an advanced practitioner from configuring
+what they actually practise. The ceiling was paternalism wearing a citation.
+
+**What actually counters the tradition on elongating the breath: nothing found in this review.**
+
+- No study located here tests subjective relaxation below about 5 breaths a minute. The literature
+  stops; it does not turn around.
+- The subjective evidence that exists **supports** the tradition.
+  [`vandiest2014-ie-ratio-relaxation`](#vandiest2014-ie-ratio-relaxation) found the longer exhale
+  produced more relaxation, stress reduction and positive energy;
+  [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) found every slow pattern beat baseline on
+  relaxation; [`szulczewski2019-training-relaxation`](#szulczewski2019-training-relaxation) found
+  relaxation *accrued over a week of practice* rather than arriving on day one, which is the
+  tradition's own claim about training; and
+  [`joshi1992-pranayam-training`](#joshi1992-pranayam-training) found six weeks of practice lowered
+  resting respiratory rate and lengthened breath-holding time.
+- The one real caution is about **depth, not rate**:
+  [`szulczewski2019-antihyperventilation-instruction`](#szulczewski2019-antihyperventilation-instruction)
+  shows paced breathing at 6 a minute drops end-tidal CO2 by 5.21 mmHg, and that one sentence of
+  instruction cuts that to 2.7 mmHg. See gap 5.
+
+**What shipped instead of a cap.** `drift` compounds without limit, as it always did. Two changes
+address the real problem, which was never that slow breathing is bad but that the *control was too
+coarse to ask for anything gentle*:
+
+1. **The stepper step is now 0.01 percentage points, was 1.0.** Compounding makes whole percents
+   enormous. From a 15 s cycle, 1 % doubles the breath in 70 cycles (~25 min); 0.1 % takes 693 cycles
+   (~4.2 h); 0.01 % about 41 h. The entire useful range sat below the old minimum step, so the only
+   drift a user could previously select was one that ran away inside a single sitting. Display is
+   capped at three decimals, so 0.001 % is the finest value the field round-trips.
+2. **`drift` defaults to 1.0, off.** This is a coverage-and-consent argument, not a claim that drift
+   is harmful: on by default it moved every new user out of the region anyone has measured, within
+   minutes, without asking. It is one field away for anyone who wants it.
+
+**Still unsupported, and worth stating.** No study examines a *progressively lengthening* pace at
+all. `szulczewski2019-training-relaxation` trained at a fixed rate, so it supports "keep practising,"
+not "keep slowing down within a session." The compounding ramp remains an invention of this app. That
+is a reason to describe it honestly, which is what this entry is for, and not a reason to forbid it.
 
 ### 7. Randomised timing has no literature behind it either
 

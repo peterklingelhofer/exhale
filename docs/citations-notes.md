@@ -211,12 +211,60 @@ mild and was measured in a single session. It is recorded because it is the most
 unanswered question this corpus turned up, and because an app that paces breathing should know that
 pacing rate is not the same as pacing volume.
 
-### 6. `drift` has no literature behind it at all
+### 6. `drift`: the tradition is uncontradicted, and the app should not pretend otherwise
 
-exhale defaults `drift` to `1.01`, making each cycle 1% longer than the last. Over 30 cycles that is
-a 1.35x stretch, taking a 4.0 breaths/min pace down to roughly 3.0 and further outside any tested
-range. No study in this corpus examines a progressively lengthening pace. It is an invented feature.
-It may be a pleasant one. It is not evidence-based, and the default is not zero.
+**Two corrections in this entry, 2026-08-31.** Both were caught by the maintainer pushing back, and
+both are the same mistake in different clothes: treating the edge of the research literature as if it
+were the edge of legitimate practice.
+
+**Correction 1 (the overclaim).** An earlier revision said the inverted-U relationship between
+breathing rate and HRV meant progressively slower breathing "moves away from the optimum."
+[`shaffer2020-resonance-frequency-assessment`](#shaffer2020-resonance-frequency-assessment)
+describes a peak in **HRV amplitude**, not in relaxation, comfort or benefit. Sliding from one to the
+other is exactly what this corpus's tier-D rule forbids, and it was done here to justify a code
+change that had already been decided on.
+
+**Correction 2 (the cap).** On the strength of that overclaim, a ceiling was added capping `drift` at
+three breaths a minute. It has been **removed**. The argument against it is simple and correct: a
+10-second inhale with a 20-second exhale is unremarkable in pranayama, absence of research is not
+evidence of harm, and an app has no business preventing an advanced practitioner from configuring
+what they actually practise. The ceiling was paternalism wearing a citation.
+
+**What actually counters the tradition on elongating the breath: nothing found in this review.**
+
+- No study located here tests subjective relaxation below about 5 breaths a minute. The literature
+  stops; it does not turn around.
+- The subjective evidence that exists **supports** the tradition.
+  [`vandiest2014-ie-ratio-relaxation`](#vandiest2014-ie-ratio-relaxation) found the longer exhale
+  produced more relaxation, stress reduction and positive energy;
+  [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) found every slow pattern beat baseline on
+  relaxation; [`szulczewski2019-training-relaxation`](#szulczewski2019-training-relaxation) found
+  relaxation *accrued over a week of practice* rather than arriving on day one, which is the
+  tradition's own claim about training; and
+  [`joshi1992-pranayam-training`](#joshi1992-pranayam-training) found six weeks of practice lowered
+  resting respiratory rate and lengthened breath-holding time.
+- The one real caution is about **depth, not rate**:
+  [`szulczewski2019-antihyperventilation-instruction`](#szulczewski2019-antihyperventilation-instruction)
+  shows paced breathing at 6 a minute drops end-tidal CO2 by 5.21 mmHg, and that one sentence of
+  instruction cuts that to 2.7 mmHg. See gap 5.
+
+**What shipped instead of a cap.** `drift` compounds without limit, as it always did. Two changes
+address the real problem, which was never that slow breathing is bad but that the *control was too
+coarse to ask for anything gentle*:
+
+1. **The stepper step is now 0.01 percentage points, was 1.0.** Compounding makes whole percents
+   enormous. From a 15 s cycle, 1 % doubles the breath in 70 cycles (~25 min); 0.1 % takes 693 cycles
+   (~4.2 h); 0.01 % about 41 h. The entire useful range sat below the old minimum step, so the only
+   drift a user could previously select was one that ran away inside a single sitting. Display is
+   capped at three decimals, so 0.001 % is the finest value the field round-trips.
+2. **`drift` defaults to 1.0, off.** This is a coverage-and-consent argument, not a claim that drift
+   is harmful: on by default it moved every new user out of the region anyone has measured, within
+   minutes, without asking. It is one field away for anyone who wants it.
+
+**Still unsupported, and worth stating.** No study examines a *progressively lengthening* pace at
+all. `szulczewski2019-training-relaxation` trained at a fixed rate, so it supports "keep practising,"
+not "keep slowing down within a session." The compounding ramp remains an invention of this app. That
+is a reason to describe it honestly, which is what this entry is for, and not a reason to forbid it.
 
 ### 7. Randomised timing has no literature behind it either
 
