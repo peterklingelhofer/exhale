@@ -153,6 +153,8 @@ RETRACTED_PHRASES: list[tuple[str, str]] = [
 ASSERTING_SURFACES: list[str] = [
     "snap/snapcraft.yaml",
     "rust/packaging/windows/AppxManifest.xml",
+    "rust/packaging/windows/store-listing.md",
+    # Untracked scratch file: present locally, absent in CI, skipped either way
     "MICROSOFT_STORE_HANDOFF.md",
 ]
 ASSERTING_GLOBS: list[str] = ["rust/crates/**/*.rs"]
