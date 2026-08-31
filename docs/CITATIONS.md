@@ -717,6 +717,16 @@ The shipped default has deliberately **not** been changed. Silently moving the p
 already have exhale installed is worse than documenting where the number came from. Changing it is a
 decision to make on purpose, in a release note, not as a side effect of writing this file.
 
+**What shipped instead: the app says it out loud.** The Timing card in the settings window now
+computes the current rate from the four duration fields and prints it next to the range above, so
+the default discloses its own coverage on first open rather than only here. It renders unprompted,
+not behind a hover or a disclosure triangle, for a specific reason: a disclosure reaches the people
+who go looking, and the default is imposed on everyone who never opens the panel at all. The copy
+lives in [`rust/crates/exhale-core/src/pacing.rs`](../rust/crates/exhale-core/src/pacing.rs) with a
+test per line, including one asserting that no line names an effect, a benefit or a condition. The
+binary states arithmetic and one range; everything evidentiary stays in this document, which can be
+corrected in an afternoon rather than in a store-review cycle.
+
 ### 3. Box breathing is not the beginner-friendly default it looks like
 
 A natural thought is that `4` / `4` / `4` / `4` box breathing would be a gentler default than the
@@ -839,11 +849,14 @@ what they actually practise. The ceiling was paternalism wearing a citation.
 address the real problem, which was never that slow breathing is bad but that the *control was too
 coarse to ask for anything gentle*:
 
-1. **The stepper step is now 0.01 percentage points, was 1.0.** Compounding makes whole percents
+1. **The stepper step is now 0.1 percentage points, was 1.0.** Compounding makes whole percents
    enormous. From a 15 s cycle, 1 % doubles the breath in 70 cycles (~25 min); 0.1 % takes 693 cycles
    (~4.2 h); 0.01 % about 41 h. The entire useful range sat below the old minimum step, so the only
    drift a user could previously select was one that ran away inside a single sitting. Display is
-   capped at three decimals, so 0.001 % is the finest value the field round-trips.
+   capped at three decimals, so 0.001 % is the finest value the field round-trips, and anything
+   below the step is typed rather than clicked. The settings window now reports the doubling time
+   directly whenever drift is on, because "0.1 % per cycle" tells nobody whether they have chosen
+   something gentle or something that runs away before lunch.
 2. **`drift` defaults to 1.0, off.** This is a coverage-and-consent argument, not a claim that drift
    is harmful: on by default it moved every new user out of the region anyone has measured, within
    minutes, without asking. It is one field away for anyone who wants it.

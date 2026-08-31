@@ -219,7 +219,18 @@ impl SettingsWindow {
         // without hiding the commonly-tweaked rows.  Saved height (when
         // present) wins over the default — the user's own resize is always
         // respected on relaunch.
-        const INITIAL_PREFERRED_H: u32 = 796;
+        //
+        // Was 796 before the Timing card grew its pacing readout: two
+        // `TextStyle::Small` lines at the default 9 pt, the second of
+        // which wraps to two rows in a 308 pt card, plus the 2 pt lead-in
+        // and the tightened 2 pt inter-line spacing.  ~52 pt, estimated
+        // rather than measured, which is safe in both directions: this
+        // value only picks the FIRST-RUN height, a saved height always
+        // wins, and `set_max_inner_size` clamps the window down to the
+        // content egui actually laid out on the very first frame.  The
+        // property being preserved is the one documented above, that
+        // Randomization is not cut off out of the box
+        const INITIAL_PREFERRED_H: u32 = 848;
         // Sanity ceiling on the saved height: no real monitor is taller
         // than this in logical points, so anything above is corrupt
         // (typically from older builds that mistakenly persisted
@@ -1357,6 +1368,14 @@ fn settings_ui(
                 if duration_row(ui, "Post-Inhale Hold (s)", "Hold/pause duration at the end of inhale, in seconds.", &mut settings.post_inhale_hold_duration) { dirty = true; }
                 if duration_row(ui, "Exhale Duration (s)",  "Duration of the exhale phase, in seconds.",             &mut settings.exhale_duration) { dirty = true; }
                 if duration_row(ui, "Post-Exhale Hold (s)", "Hold/pause duration at the end of exhale, in seconds.", &mut settings.post_exhale_hold_duration) { dirty = true; }
+                // Computed from the four rows above, every frame.  A
+                // rate stored anywhere else would be wrong the moment
+                // one stepper moves, and wrong from the first cycle
+                // whenever Drift is on.  Drift lives in the
+                // Randomization card below, so its projection is
+                // reported here where the cycle it lengthens is
+                // defined, rather than duplicated under the stepper
+                pacing_readout(ui, settings);
             });
 
             // ── Randomization ────────────────────────────────────────────────

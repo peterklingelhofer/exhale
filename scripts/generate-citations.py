@@ -16,6 +16,7 @@ Stdlib only, so it runs anywhere the repo is checked out
 
 from __future__ import annotations
 
+import collections
 import json
 import re
 import sys
@@ -207,6 +208,40 @@ def check_note_links(records: list[dict], text: str, where: str) -> None:
         )
 
 
+def check_readme_counts(records: list[dict], text: str) -> None:
+    """The README states the size of the corpus. Make it prove it.
+
+    These numbers were wrong for the entire life of the previous commit: the
+    README advertised 42 sources verified 40 / 2 while the corpus held 48
+    verified 45 / 2 / 1. Nothing caught it, because a number in prose looks
+    exactly like a number in prose. Undercounting is the harmless direction and
+    it is still the project's front door claiming a provenance figure it had
+    not checked, which is the specific failure this whole apparatus exists to
+    prevent
+    """
+    counts = collections.Counter(r["custom"]["verification"] for r in records)
+    # Each phrase is matched wherever it appears, so the lede and the research
+    # section cannot drift apart from each other either
+    expected = [
+        (r"(\d+)\s+sources", len(records), "total sources"),
+        (r"(\d+)\s+verified references", len(records), "verified references"),
+        (r"(\d+)\s+verified against the Crossref REST API", counts["crossref-verified"], "Crossref"),
+        (r"(\d+)\s+against Open Library", counts["openlibrary-verified"], "Open Library"),
+        (r"(\d+)\s+against PubMed", counts["pubmed-verified"], "PubMed"),
+    ]
+    problems = []
+    for pattern, want, what in expected:
+        found = re.findall(pattern, text)
+        if not found:
+            problems.append(f"README.md no longer states the {what} count")
+            continue
+        for got in found:
+            if int(got) != want:
+                problems.append(f"README.md says {got} for {what}; the corpus holds {want}")
+    if problems:
+        raise CorpusError("\n".join("  - " + p for p in problems))
+
+
 def slugify(heading: str) -> str:
     """GitHub's heading-anchor rule, reduced to what these headings use.
 
@@ -382,7 +417,9 @@ def main() -> int:
         notes = NOTES.read_text(encoding="utf-8")
         check_note_links(records, notes, NOTES.name)
         if README.exists():
-            check_note_links(records, README.read_text(encoding="utf-8"), README.name)
+            readme = README.read_text(encoding="utf-8")
+            check_note_links(records, readme, README.name)
+            check_readme_counts(records, readme)
     except CorpusError as exc:
         print(f"{CORPUS.name}: invalid corpus\n{exc}", file=sys.stderr)
         return 1
