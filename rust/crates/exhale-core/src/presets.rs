@@ -99,7 +99,7 @@ pub const PRESETS: &[Preset] = &[
     Preset {
         id: "even-5",
         label: "5/0/5/0",
-        note: None,
+        note: Some("· exhale's default."),
         inhale: 5.0,
         post_inhale_hold: 0.0,
         exhale: 5.0,
@@ -141,9 +141,13 @@ pub const PRESETS: &[Preset] = &[
         citekey: "marchant2025-square-478-six",
     },
     Preset {
-        id: "shipped-default",
+        // Kept in the list because it was the default before 5/0/5/0 and
+        // is still what every existing settings.toml holds. Removing it
+        // from the offered set would not remove it from anyone's machine,
+        // it would just make their own configuration unnameable
+        id: "long-exhale-5-10",
         label: "5/0/10/0",
-        note: Some("· exhale's shipped default."),
+        note: None,
         inhale: 5.0,
         post_inhale_hold: 0.0,
         exhale: 10.0,
@@ -169,13 +173,24 @@ mod tests {
     use crate::pacing;
 
     #[test]
-    fn the_shipped_default_is_one_of_the_offered_patterns() {
-        // If it were not, the panel would show no selection out of the
-        // box, which reads as "your configuration is unrecognised"
-        // on first ever launch
+    fn the_shipped_default_is_the_first_offered_pattern() {
+        // If the default matched no preset, the panel would show no
+        // selection out of the box, which reads as "your configuration
+        // is unrecognised" on first ever launch
         let s = Settings::default();
         let i = selected(&s).expect("default settings match no preset");
-        assert_eq!(PRESETS[i].id, "shipped-default");
+        assert_eq!(PRESETS[i].id, "even-5");
+        assert_eq!(i, 0, "the default should be the first chip, not buried mid-row");
+    }
+
+    #[test]
+    fn the_previous_default_is_still_offered() {
+        // 5/0/10/0 shipped as the default for years, so it is what every
+        // existing settings.toml holds. It has to stay nameable
+        let p = PRESETS.iter().find(|p| p.id == "long-exhale-5-10").unwrap();
+        let mut s = Settings::default();
+        p.apply(&mut s);
+        assert!((s.breaths_per_min().unwrap() - 4.0).abs() < 1e-9);
     }
 
     #[test]
@@ -293,7 +308,7 @@ mod tests {
             ("long-exhale-4-6", true),
             ("a52", true),
             ("box", false),
-            ("shipped-default", false),
+            ("long-exhale-5-10", false),
         ] {
             let p = PRESETS.iter().find(|p| p.id == id).unwrap();
             let mut s = Settings::default();

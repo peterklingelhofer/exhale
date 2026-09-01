@@ -227,14 +227,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_shipped_default_volunteers_that_it_is_untested() {
-        // The point of the readout. exhale's own default is 4.0 a
-        // minute, below the band, and the panel says so on first open
-        // without being asked. Gaps ledger item 2
+    fn the_shipped_default_reports_itself_as_inside_the_tested_band() {
+        // exhale defaults to 5 / 0 / 5 / 0, six a minute, and the panel
+        // says so on first open without being asked. The readout is not
+        // here to flatter the default: `box_breathing_is_reported_as_
+        // slower_than_it_looks` is the same code volunteering bad news
         let lines = readout_lines(&Settings::default());
         assert_eq!(lines.len(), 2, "{lines:#?}");
-        assert_eq!(lines[0], "Now: 4.0 breaths a minute, a 15 s cycle.");
-        assert!(lines[1].ends_with("This one is slower than any of them."), "{}", lines[1]);
+        assert_eq!(lines[0], "Now: 6.0 breaths a minute, a 10 s cycle.");
+        assert!(lines[1].ends_with("This one is one of them."), "{}", lines[1]);
     }
 
     #[test]
@@ -252,11 +253,11 @@ mod tests {
     }
 
     #[test]
-    fn an_in_band_pace_is_named_as_one_of_the_tested_rates() {
+    fn an_in_band_pace_that_is_not_the_default_is_also_named() {
         let mut s = Settings::default();
-        s.exhale_duration = 5.0; // 5/0/5/0 = 6 a minute
+        s.post_exhale_hold_duration = 2.0; // 5/0/5/2 = 5 a minute
         let lines = readout_lines(&s);
-        assert_eq!(lines[0], "Now: 6.0 breaths a minute, a 10 s cycle.");
+        assert_eq!(lines[0], "Now: 5.0 breaths a minute, a 12 s cycle.");
         assert!(lines[1].ends_with("This one is one of them."), "{}", lines[1]);
     }
 
@@ -314,11 +315,11 @@ mod tests {
         // arithmetic. Both were right; the unit was wrong
         let mut ten = Settings::default();
         ten.drift = 1.01;
-        ten.exhale_duration = 5.0;
         assert_eq!(ten.cycle_secs(), 10.0);
 
         let mut fifteen = Settings::default();
         fifteen.drift = 1.01;
+        fifteen.exhale_duration = 10.0;
         assert_eq!(fifteen.cycle_secs(), 15.0);
 
         assert_eq!(breaths_to_double(&ten), breaths_to_double(&fifteen));
@@ -357,6 +358,7 @@ mod tests {
         s.drift = 1.00001;
         let lines = readout_lines(&s);
         assert_eq!(lines[1], "Drift: the cycle doubles every 69,315 breaths.");
+        assert_eq!(lines.len(), 3, "{lines:#?}");
     }
 
     #[test]
