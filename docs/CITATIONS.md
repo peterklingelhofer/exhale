@@ -876,9 +876,18 @@ coarse to ask for anything gentle*:
    (~4.2 h); 0.01 % about 41 h. The entire useful range sat below the old minimum step, so the only
    drift a user could previously select was one that ran away inside a single sitting. Display is
    capped at three decimals, so 0.001 % is the finest value the field round-trips, and anything
-   below the step is typed rather than clicked. The settings window now reports the doubling time
-   directly whenever drift is on, because "0.1 % per cycle" tells nobody whether they have chosen
-   something gentle or something that runs away before lunch.
+   below the step is typed rather than clicked. The settings window reports the doubling point
+   whenever drift is on, because "0.1 % per cycle" tells nobody whether they have chosen something
+   gentle or something that runs away before lunch.
+
+   **Counted in breaths, not minutes.** The doubling *time* depends on the cycle you start from, so
+   the same 1 % reads as 17 minutes from a 10 s cycle and 25 minutes from a 15 s one; the first
+   version of the readout said exactly that and looked like it could not do arithmetic. The doubling
+   *count* has no such dependence: cycle `k` lasts `c · dᵏ`, so `dᵏ = 2` at `k = ln2 / ln d` and the
+   starting length cancels. One per cent is 70 breaths from anywhere, 0.1 % is 693, 0.001 % is
+   69,315. It is also a true repeat interval rather than a first milestone, since the same count
+   takes the cycle from double to quadruple. The figures quoted in this entry are in minutes because
+   they are anchored to the 15 s shipped default; the app cannot assume that.
 2. **`drift` defaults to 1.0, off.** This is a coverage-and-consent argument, not a claim that drift
    is harmful: on by default it moved every new user out of the region anyone has measured, within
    minutes, without asking. It is one field away for anyone who wants it.

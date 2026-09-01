@@ -24,9 +24,13 @@ pub const RESEARCH_URL: &str =
     "https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md#gaps-and-unsupported-choices";
 
 /// Named next to the URL because the wording and the anchor are one
-/// decision.  "Citations" would promise a bibliography; this promises
-/// the limits, which is what the destination actually leads with
-const RESEARCH_LABEL: &str = "Research, and what it doesn't support";
+/// decision.  The label is plain, so the anchor carries the whole
+/// intent: "Research" pointing at the gaps ledger lands the reader on
+/// the fourteen things the literature does not support, where the same
+/// word pointing at the top of `CITATIONS.md` would land them in a wall
+/// of 48 references.  Shared with the macOS app menu, which shows the
+/// same item, so the two can never disagree
+pub const RESEARCH_LABEL: &str = "Research";
 
 // ─── Menu item IDs ────────────────────────────────────────────────────────────
 

@@ -78,39 +78,44 @@ fn round_bpm(bpm: f64) -> f64 {
     (bpm * 10.0).round() / 10.0
 }
 
-/// Render a count of minutes at the coarsest unit that still says
-/// something. The drift stepper spans four orders of magnitude, so a
-/// single unit is either meaningless at one end or unreadable at the
-/// other
-fn humanize_minutes(minutes: f64) -> String {
-    const HOUR: f64 = 60.0;
-    const DAY:  f64 = 24.0 * HOUR;
-    if minutes < 1.0 {
-        "under a minute".to_string()
-    } else if minutes < 90.0 {
-        format!("{:.0} minutes", minutes)
-    } else if minutes < 2.0 * DAY {
-        format!("{:.1} hours", minutes / HOUR)
-    } else {
-        format!("{:.0} days", minutes / DAY)
+/// Group a count with thousands separators. Drift spans four orders of
+/// magnitude, so this routinely renders numbers like 69,315 where an
+/// ungrouped 69315 is a smear
+fn grouped(n: u64) -> String {
+    let digits = n.to_string();
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
     }
+    out
 }
 
-/// Minutes of continuous running before the cycle takes twice as long
+/// Breaths of continuous running before one cycle takes twice as long
 /// as it does now, or `None` when drift is off or shortening.
 ///
-/// Doubling is the honest unit for a compounding setting. "0.1 % per
-/// cycle" tells nobody anything; "the breath is twice as long after
-/// four hours" tells them whether the number they just typed is gentle
-/// or runaway, which is the only question the stepper actually raises
-pub fn minutes_to_double(settings: &Settings) -> Option<f64> {
-    let cycle = settings.cycle_secs();
-    if cycle <= 0.0 || settings.drift <= 1.0 {
+/// **Counted in breaths, not minutes, and that is the whole point.**
+/// Cycle `k` lasts `c · dᵏ`, so `dᵏ = 2` at `k = ln2 / ln d`: the
+/// starting cycle length cancels out entirely. One per cent doubles the
+/// breath in 70 breaths whether the user started at 10 s or at 15 s.
+///
+/// Quoting a doubling *time* instead made the panel look broken. The
+/// same 1 % setting reads as 17 minutes from a 10 s cycle and 25
+/// minutes from a 15 s one, which invites the reader to conclude the
+/// arithmetic is unreliable when in fact both are correct and the
+/// question was ambiguous. A count of breaths is a property of the
+/// drift value alone, so it is stable, and it is also the thing the
+/// user is about to sit through.
+///
+/// It is a true repeat rate, not just a first milestone: the same `k`
+/// takes the cycle from `2c` to `4c`
+pub fn breaths_to_double(settings: &Settings) -> Option<f64> {
+    if settings.cycle_secs() <= 0.0 || settings.drift <= 1.0 {
         return None;
     }
-    // From `Settings::breaths_per_min_after`: the projected cycle is
-    // `c + 60·T·(d − 1)`, so it reaches `2c` at `T = c / (60·(d − 1))`
-    Some(cycle / (60.0 * (settings.drift - 1.0)))
+    Some(std::f64::consts::LN_2 / settings.drift.ln())
 }
 
 /// The horizon the drift line projects to. An hour is long enough that
@@ -138,15 +143,37 @@ pub fn readout_lines(settings: &Settings) -> Vec<String> {
         .flatten()
         .map(round_bpm);
 
-    if let Some(later) = projected {
-        let mut drift_line = format!("Drift: about {later:.1} a minute after an hour");
-        if let Some(double_at) = minutes_to_double(settings) {
+    if projected.is_some() {
+        // Seconds, not breaths per minute. "About 1.3 a minute after an
+        // hour" is arithmetically correct and unreadable: nobody holds a
+        // mental picture of 1.3 breaths a minute, whereas everybody can
+        // picture a breath that has gone from 10 seconds to 46. Seconds
+        // are also the unit the four steppers directly above are set in,
+        // so the sentence lands in the units the user just typed
+        let mut drift_line = String::from("Drift: ");
+        match breaths_to_double(settings) {
+            Some(n) => drift_line.push_str(&format!(
+                "the cycle doubles every {} breaths.",
+                grouped(n.round().max(1.0) as u64),
+            )),
+            // Reachable only from a hand-edited settings file, where
+            // drift below 1.0 shortens the breath instead
+            None => drift_line.push_str("the cycle shortens every breath."),
+        }
+
+        let now  = settings.cycle_secs();
+        let then = 60.0 / settings.breaths_per_min_after(PROJECTION_MINUTES).unwrap_or(f64::MAX);
+        // Suppress the second clause when an hour does not move the
+        // number a person could read off the screen. At 0.001 % a 15 s
+        // cycle reaches 15.04 s, and "after an hour it is 15 s, not
+        // 15 s" reads as a bug rather than as a very gentle setting
+        if (then - now).abs() >= 0.5 {
             drift_line.push_str(&format!(
-                ", and twice this cycle length after {}",
-                humanize_minutes(double_at),
+                " After an hour it is {}, not {}.",
+                format_secs(then),
+                format_secs(now),
             ));
         }
-        drift_line.push('.');
         lines.push(drift_line);
     }
 
@@ -243,7 +270,10 @@ mod tests {
         s.drift           = 1.01;
         let lines = readout_lines(&s);
         assert_eq!(lines.len(), 3, "{lines:#?}");
-        assert!(lines[1].starts_with("Drift: about "), "{}", lines[1]);
+        assert_eq!(
+            lines[1],
+            "Drift: the cycle doubles every 70 breaths. After an hour it is 46 s, not 10 s."
+        );
         assert!(
             lines[2].ends_with("This one starts inside it and is slower than all of them within an hour."),
             "{}", lines[2]
@@ -257,23 +287,76 @@ mod tests {
     }
 
     #[test]
-    fn the_doubling_time_separates_gentle_drift_from_runaway_drift() {
+    fn the_doubling_count_separates_gentle_drift_from_runaway_drift() {
         // The contrast gaps ledger item 6 turns on, and the reason the
         // stepper moves in tenths of a percentage point rather than
         // whole ones
         let mut gentle = Settings::default();
         gentle.drift = 1.001;
-        assert_eq!(humanize_minutes(minutes_to_double(&gentle).unwrap()), "4.2 hours");
+        assert_eq!(breaths_to_double(&gentle).unwrap().round(), 693.0);
 
         let mut steep = Settings::default();
         steep.drift = 1.01;
-        assert_eq!(humanize_minutes(minutes_to_double(&steep).unwrap()), "25 minutes");
+        assert_eq!(breaths_to_double(&steep).unwrap().round(), 70.0);
 
         let mut barely = Settings::default();
         barely.drift = 1.00001;
-        assert_eq!(humanize_minutes(minutes_to_double(&barely).unwrap()), "17 days");
+        assert_eq!(breaths_to_double(&barely).unwrap().round(), 69_315.0);
 
-        assert_eq!(minutes_to_double(&Settings::default()), None);
+        assert_eq!(breaths_to_double(&Settings::default()), None);
+    }
+
+    #[test]
+    fn the_doubling_count_does_not_depend_on_the_starting_cycle() {
+        // The bug this replaced. Quoted as a doubling *time*, one per
+        // cent read as 17 minutes from a 10 s cycle and 25 minutes from
+        // a 15 s one, and the panel looked like it could not do
+        // arithmetic. Both were right; the unit was wrong
+        let mut ten = Settings::default();
+        ten.drift = 1.01;
+        ten.exhale_duration = 5.0;
+        assert_eq!(ten.cycle_secs(), 10.0);
+
+        let mut fifteen = Settings::default();
+        fifteen.drift = 1.01;
+        assert_eq!(fifteen.cycle_secs(), 15.0);
+
+        assert_eq!(breaths_to_double(&ten), breaths_to_double(&fifteen));
+    }
+
+    #[test]
+    fn doubling_is_a_repeat_rate_not_a_one_off_milestone() {
+        // "Every N breaths" claims the interval repeats. It does: the
+        // same count takes the cycle from 2c to 4c, because `dᵏ = 2`
+        // has no `c` in it
+        let mut s = Settings::default();
+        s.drift = 1.01;
+        let k = breaths_to_double(&s).unwrap();
+        let c = s.cycle_secs();
+        for doublings in 1..=4 {
+            let cycle = c * s.drift.powf(k * doublings as f64);
+            let want  = c * 2f64.powi(doublings);
+            assert!((cycle - want).abs() < 1e-6, "after {doublings} doublings: {cycle} vs {want}");
+        }
+    }
+
+    #[test]
+    fn thousands_are_grouped() {
+        assert_eq!(grouped(7), "7");
+        assert_eq!(grouped(70), "70");
+        assert_eq!(grouped(693), "693");
+        assert_eq!(grouped(69_315), "69,315");
+        assert_eq!(grouped(6_931_472), "6,931,472");
+    }
+
+    #[test]
+    fn a_drift_too_slow_to_see_within_an_hour_says_only_what_it_can() {
+        // 0.001 % moves a 15 s cycle to 15.04 s in an hour. "After an
+        // hour it is 15 s, not 15 s" would read as a bug
+        let mut s = Settings::default();
+        s.drift = 1.00001;
+        let lines = readout_lines(&s);
+        assert_eq!(lines[1], "Drift: the cycle doubles every 69,315 breaths.");
     }
 
     #[test]

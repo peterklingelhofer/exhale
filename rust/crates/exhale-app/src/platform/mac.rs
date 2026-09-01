@@ -215,7 +215,7 @@ use super::*;
         INIT.call_once(|| unsafe {
             // Allocate `ExhaleMenuTracker` NSObject subclass — same
             // pattern as `ExhaleAEHandler` (dock reopen) and
-            // `ExhaleAboutHandler` (about-panel options), avoiding
+            // `ExhaleMenuHandler` (about-panel options), avoiding
             // any swizzle of system classes for MAS-review safety
             let super_cls = objc2::class!(NSObject);
             let name = c"ExhaleMenuTracker";
@@ -976,7 +976,7 @@ use super::*;
             // empty.  Passing the version from
             // `env!("CARGO_PKG_VERSION")` at compile time keeps the
             // panel populated in both bundled and unbundled builds
-            ensure_about_handler_registered();
+            ensure_menu_handler_registered();
             let about_title = NSString::from_str(&format!("About {app_name}"));
             let about = NSMenuItem::initWithTitle_action_keyEquivalent(
                 mtm.alloc::<NSMenuItem>(),
@@ -984,10 +984,28 @@ use super::*;
                 Some(sel!(exhaleShowAbout:)),
                 &NSString::from_str(""),
             );
-            if let Some(handler) = about_handler_instance() {
+            if let Some(handler) = menu_handler_instance() {
                 let _: () = msg_send![&*about, setTarget: handler];
             }
             apple_menu.addItem(&about);
+
+            // Directly under About, which is where a macOS app puts the
+            // things that describe itself rather than operate on
+            // anything.  The tray menu carries the same item; this is
+            // the one a keyboard or VoiceOver user reaches without
+            // knowing the tray exists, and NSMenu items are exposed to
+            // the accessibility tree even though nothing inside the
+            // egui settings window is
+            let research = NSMenuItem::initWithTitle_action_keyEquivalent(
+                mtm.alloc::<NSMenuItem>(),
+                &NSString::from_str(crate::tray::RESEARCH_LABEL),
+                Some(sel!(exhaleShowResearch:)),
+                &NSString::from_str(""),
+            );
+            if let Some(handler) = menu_handler_instance() {
+                let _: () = msg_send![&*research, setTarget: handler];
+            }
+            apple_menu.addItem(&research);
             apple_menu.addItem(&NSMenuItem::separatorItem(mtm));
 
             // Services submenu: AppKit wires this up automatically if we
@@ -1235,15 +1253,15 @@ use super::*;
     // `"ApplicationName"`, `"ApplicationVersion"`, …).  The version
     // string comes from `env!("CARGO_PKG_VERSION")` so it tracks
     // `Cargo.toml` at compile time without any runtime plist lookup
-    static ABOUT_HANDLER: std::sync::atomic::AtomicPtr<objc2::runtime::AnyObject> =
+    static MENU_HANDLER: std::sync::atomic::AtomicPtr<objc2::runtime::AnyObject> =
         std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
-    /// Return the leaked `ExhaleAboutHandler` instance set up by
-    /// [`ensure_about_handler_registered`].  Returns `None` only when
+    /// Return the leaked `ExhaleMenuHandler` instance set up by
+    /// [`ensure_menu_handler_registered`].  Returns `None` only when
     /// the class registration step failed (extremely unlikely; would
     /// imply objc runtime allocation failure)
-    pub(super) fn about_handler_instance() -> Option<&'static objc2::runtime::AnyObject> {
-        let p = ABOUT_HANDLER.load(std::sync::atomic::Ordering::Acquire);
+    pub(super) fn menu_handler_instance() -> Option<&'static objc2::runtime::AnyObject> {
+        let p = MENU_HANDLER.load(std::sync::atomic::Ordering::Acquire);
         if p.is_null() {
             None
         } else {
@@ -1256,11 +1274,11 @@ use super::*;
         }
     }
 
-    /// Idempotently define the `ExhaleAboutHandler` NSObject
+    /// Idempotently define the `ExhaleMenuHandler` NSObject
     /// subclass, allocate one instance, and stash it in
-    /// `ABOUT_HANDLER`.  Safe to call multiple times — the inner
+    /// `MENU_HANDLER`.  Safe to call multiple times — the inner
     /// `Once` guards against double-registration
-    pub(super) fn ensure_about_handler_registered() {
+    pub(super) fn ensure_menu_handler_registered() {
         use objc2::msg_send;
         use objc2::runtime::AnyObject;
         use objc2_foundation::NSString;
@@ -1326,20 +1344,35 @@ use super::*;
             }
         }
 
+        // The second menu-item action. Same class, because both items
+        // live in the app menu and a second leaked NSObject to hold one
+        // more selector would be ceremony for nothing.
+        //
+        // Sends the URL through `super::open_url`, so the macOS menu bar
+        // and the tray menu go through one `https://`-only allowlist
+        // rather than two
+        extern "C" fn show_research(
+            _this:   &AnyObject,
+            _cmd:    objc2::runtime::Sel,
+            _sender: *mut AnyObject,
+        ) {
+            super::open_url(crate::tray::RESEARCH_URL);
+        }
+
         static INIT: Once = Once::new();
         INIT.call_once(|| unsafe {
             // 1. Allocate a new NSObject subclass.  Naming matches
             //    the existing AppleEvent handler pattern in
             //    `register_reopen_handler` for consistency
             let super_cls = objc2::class!(NSObject);
-            let name      = c"ExhaleAboutHandler";
+            let name      = c"ExhaleMenuHandler";
             let new_cls   = objc2::ffi::objc_allocateClassPair(
                 (super_cls as *const _) as *const _,
                 name.as_ptr(),
                 0,
             );
             if new_cls.is_null() {
-                log::warn!("about handler: objc_allocateClassPair returned null");
+                log::warn!("menu handler: objc_allocateClassPair returned null");
                 return;
             }
 
@@ -1353,8 +1386,21 @@ use super::*;
                 new_cls as *mut _, sel, imp, c"v@:@".as_ptr(),
             );
             if !added.as_bool() {
-                log::warn!("about handler: class_addMethod returned NO");
+                log::warn!("menu handler: class_addMethod returned NO");
             }
+
+            // Same encoding, same target/action protocol, for the
+            // Research item alongside About
+            let research_sel = objc2::sel!(exhaleShowResearch:);
+            let research_imp: objc2::runtime::Imp =
+                std::mem::transmute(show_research as *const ());
+            let research_added = objc2::ffi::class_addMethod(
+                new_cls as *mut _, research_sel, research_imp, c"v@:@".as_ptr(),
+            );
+            if !research_added.as_bool() {
+                log::warn!("menu handler: class_addMethod returned NO for research");
+            }
+
             objc2::ffi::objc_registerClassPair(new_cls as *mut _);
 
             // 3. Allocate one instance; leak it for the app's
@@ -1365,10 +1411,10 @@ use super::*;
             let instance: *mut AnyObject = msg_send![new_cls, alloc];
             let instance: *mut AnyObject = msg_send![instance, init];
             if instance.is_null() {
-                log::warn!("about handler: failed to alloc ExhaleAboutHandler");
+                log::warn!("menu handler: failed to alloc ExhaleMenuHandler");
                 return;
             }
-            ABOUT_HANDLER.store(instance, std::sync::atomic::Ordering::Release);
+            MENU_HANDLER.store(instance, std::sync::atomic::Ordering::Release);
         });
     }
 
