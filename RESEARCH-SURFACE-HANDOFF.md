@@ -259,8 +259,16 @@ Both keys, and Tab-reachability of all five chips in display order, are covered 
 silently undone (`Placer::set_max_width` unions the result back with `min_rect`, which for a panel is
 already the full panel), so the first version of the chip test laid out at 384 pt and would have
 passed while the shipped card is 308; go through `section` instead. And the Timing card is now
-**324 pt**, measured, up from 160 before phase 3, which is why `INITIAL_PREFERRED_H` stayed at 796
-and the fold moved up rather than the window growing to 960.
+**250 pt**, measured, up from 160 before phase 3, which is why `INITIAL_PREFERRED_H` stayed at 796
+and the fold moved up rather than the window growing.
+
+**On the vertical budget.** The first working version measured 324 pt and looked it: a heading line,
+three rows of chips and a caption line, five lines of chrome above four steppers. Three changes got
+it to 250 without dropping anything. The labels became the four-number form; the caption merged into
+the heading, which also stopped the card jumping as the selection changed; and `CHIP_PAD_X` and
+`CHIP_GAP` went to 7 and 5, which is the difference between 297 pt of chips and 331 in a 308 pt card.
+A test pins the result at no more than two rows, so a sixth preset makes that a deliberate decision
+rather than a silent regression.
 
 Original design notes follow.
 
@@ -289,13 +297,19 @@ Chips live **inside the existing Timing card** (`settings_window.rs:1355`), abov
 
 Candidate set, deliberately including one that ships its own disconfirming evidence:
 
-| Chip label | Pattern | Note |
+Shipped set. Labels are the four-number form, not the spelled-out one the design proposed: at 360 pt
+the spelled-out labels took three rows, and `5/0/5/0` reads in the same order as the four steppers
+directly beneath it.
+
+| Chip | Pattern | Note shown when selected |
 |---|---|---|
-| `5 s in, 5 s out` | 5/0/5/0 | 6 a minute, inside the tested band |
-| `4 s in, 6 s out` | 4/0/6/0 | 6 a minute, keeps the longer exhale |
-| `5 s in, 5 s out, 2 s pause` | 5/0/5/2 | "Sometimes called A52" in the caption |
-| `4 / 4 / 4 / 4` | box | caption must say 3.75 a minute |
-| `5 s in, 10 s out` | 5/0/10/0 | the shipped default; caption says it is below the tested band |
+| `5/0/5/0` | 5/0/5/0 | none needed |
+| `4/0/6/0` | 4/0/6/0 | none needed |
+| `5/0/5/2` | 5/0/5/2 | `· sometimes called A52.` |
+| `4/4/4/4` | box | `· sometimes called box breathing.` |
+| `5/0/10/0` | 5/0/10/0 | `· exhale's shipped default.` |
+
+The original design's rate captions are gone; see point 1 below.
 
 ### Phase 5: still deferred, and phase 4 strengthened the case.
 
