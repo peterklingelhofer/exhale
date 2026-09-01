@@ -141,27 +141,28 @@ def check_cross_references(records: list[dict]) -> None:
         raise CorpusError("\n".join("  - " + p for p in problems))
 
 
-# Claims this project has retracted. The gaps ledger records WHY each was
-# withdrawn; this list is what stops a withdrawn claim surviving somewhere the
-# ledger has no jurisdiction.
+# Claims the corpus does not support, kept out of the surfaces that assert them.
 #
 # Scope is deliberate. Only surfaces that ASSERT are scanned: store listings and
-# anything compiled into the binary. `docs/` and `README.md` are exempt because
-# they are the retraction record itself and have to be able to quote what they
-# withdraw. snapcraft.yaml went on shipping the parasympathetic claim to the
-# Snap Store for two days after the README retracted it, which is the exact
-# failure this catches
-RETRACTED_PHRASES: list[tuple[str, str]] = [
-    ("engage the parasympathetic nervous system", "gaps ledger 4: split 2-for / 1-against / 1-null"),
-    ("engages the parasympathetic nervous system", "gaps ledger 4: split 2-for / 1-against / 1-null"),
-    ("breathe more shallowly", "gaps ledger 1: unsupported as stated; the finding is faster and chest-high"),
-    ("screen apnea", "gaps ledger 1: no peer-reviewed source"),
-    ("email apnea", "gaps ledger 1: no peer-reviewed source"),
+# anything compiled into the binary. `docs/` and `README.md` are exempt, because
+# the gaps ledger has to be able to name a claim in order to explain what the
+# evidence actually says about it.
+#
+# This is not hypothetical. `snapcraft.yaml` went on shipping the parasympathetic
+# claim to the Snap Store for two days after the README had stopped making it,
+# because a store listing is edited in a different place from a README and
+# nothing connected the two
+UNSUPPORTED_PHRASES: list[tuple[str, str]] = [
+    ("engage the parasympathetic nervous system", "gaps ledger 4: the cardiac evidence splits 2-for / 1-against / 1-null"),
+    ("engages the parasympathetic nervous system", "gaps ledger 4: the cardiac evidence splits 2-for / 1-against / 1-null"),
+    ("breathe more shallowly", "gaps ledger 1: the measured finding is faster and chest-high, not shallower"),
+    ("screen apnea", "gaps ledger 1: no peer-reviewed source; the measured effect points the other way"),
+    ("email apnea", "gaps ledger 1: no peer-reviewed source; the measured effect points the other way"),
 ]
 
 # Surfaces where one of the phrases above would be an assertion rather than a
-# citation of one. Missing files are skipped: the Microsoft handoff is untracked,
-# so it is present locally and absent in CI
+# discussion of one. Missing files are skipped: the Microsoft handoff is
+# untracked, so it is present locally and absent in CI
 ASSERTING_SURFACES: list[str] = [
     "snap/snapcraft.yaml",
     "rust/packaging/windows/AppxManifest.xml",
@@ -172,8 +173,8 @@ ASSERTING_SURFACES: list[str] = [
 ASSERTING_GLOBS: list[str] = ["rust/crates/**/*.rs"]
 
 
-def check_retracted_phrases() -> None:
-    """Fail if a withdrawn claim survives on a surface that asserts it."""
+def check_unsupported_phrases() -> None:
+    """Fail if an unsupported claim survives on a surface that asserts it."""
     targets = [ROOT / rel for rel in ASSERTING_SURFACES]
     for pattern in ASSERTING_GLOBS:
         targets.extend(sorted(ROOT.glob(pattern)))
@@ -187,11 +188,11 @@ def check_retracted_phrases() -> None:
         except (UnicodeDecodeError, OSError):
             continue
         lowered = text.lower()
-        for phrase, why in RETRACTED_PHRASES:
+        for phrase, why in UNSUPPORTED_PHRASES:
             if phrase in lowered:
                 line = lowered[: lowered.index(phrase)].count("\n") + 1
                 rel = path.relative_to(ROOT)
-                problems.append(f"{rel}:{line} still asserts \"{phrase}\" ({why})")
+                problems.append(f"{rel}:{line} asserts \"{phrase}\" ({why})")
 
     if problems:
         raise CorpusError("\n".join("  - " + p for p in problems))
@@ -454,18 +455,30 @@ def render_corpus(records: list[dict]) -> str:
     return "\n".join(out).rstrip()
 
 
+# How each verification status is named in the one-line summary. Driven off the
+# same enum the validator uses, so adding a source verified some new way is a
+# KeyError here rather than a source that silently vanishes from the count. The
+# previous hand-written version added up to 47 of 48 for exactly that reason
+VERIFICATION_LABELS = {
+    "crossref-verified":    "Crossref-verified",
+    "openlibrary-verified": "verified against Open Library",
+    "pubmed-verified":      "verified against PubMed",
+    "unverified":           "unverified",
+}
+
+
 def render_summary(records: list[dict]) -> str:
-    verified = sum(
-        1 for r in records if r["custom"]["verification"] == "crossref-verified"
-    )
-    catalogued = sum(
-        1 for r in records if r["custom"]["verification"] == "openlibrary-verified"
-    )
+    counts = collections.Counter(r["custom"]["verification"] for r in records)
+    parts = [
+        f"{counts[key]} {VERIFICATION_LABELS[key]}"
+        for key in VERIFICATION_LABELS
+        if counts[key]
+    ]
     unread = sum(1 for r in records if "NUMBERS NOT READ" in (r["custom"].get("caveat") or ""))
     tiered_out = sum(1 for r in records if r["custom"].get("evidenceTier") == "E")
     return (
-        f"{len(records)} sources: {verified} Crossref-verified, {catalogued} verified against "
-        f"Open Library. {unread} are cited from their abstract only and say so, and "
+        f"{len(records)} sources: {', '.join(parts)}. "
+        f"{unread} are cited from their abstract only and say so, and "
         f"{tiered_out} are not peer-reviewed and are tiered E so they can back lineage but "
         f"never a claim."
     )
@@ -478,7 +491,7 @@ def main() -> int:
         records = load_corpus()
         check_cross_references(records)
         check_preset_citekeys(records)
-        check_retracted_phrases()
+        check_unsupported_phrases()
         notes = NOTES.read_text(encoding="utf-8")
         check_note_links(records, notes, NOTES.name)
         if README.exists():
