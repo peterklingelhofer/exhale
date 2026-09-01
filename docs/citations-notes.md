@@ -168,6 +168,28 @@ is genuinely easier for a beginner than box breathing, because holding the breat
 not the slow part. Box breathing remains a perfectly reasonable thing to want and exhale still
 supports it. It is just not the choice the evidence points at.
 
+**What shipped.** Both patterns are offered as one-click presets in the Timing card, `5` / `0` / `5`
+/ `0` first and `4` / `4` / `4` / `4` fourth, and neither carries a badge, a rank or a caption
+claiming anything. Ordering is the only editorial signal, and it is a weak one on purpose. What does
+the work instead is that selecting box breathing makes the readout directly below say *"Now: 3.8
+breaths a minute, a 16 s cycle"* and *"This one is slower than any of them"*, computed rather than
+written. A caption asserting the same thing would have to be maintained against the corpus; the
+arithmetic maintains itself, and it appears for every pattern rather than only the ones somebody
+remembered to annotate. The presets are listed in
+[`rust/crates/exhale-core/src/presets.rs`](../rust/crates/exhale-core/src/presets.rs), where each
+carries a citekey that never reaches the screen and exists only so
+[`scripts/generate-citations.py`](../scripts/generate-citations.py) can fail the build if the record
+behind a shipped pattern is retracted, downgraded to tier E, or marked `inAppCitable: false`.
+
+Four records carry that flag today: [`chaddha2019-slow-breathing-bp`](#chaddha2019-slow-breathing-bp),
+[`fincham2023-breathwork-meta`](#fincham2023-breathwork-meta),
+[`balban2023-cyclic-sighing`](#balban2023-cyclic-sighing) and
+[`little2025-a52-breath-method`](#little2025-a52-breath-method). The flag is not a quality judgement
+and reads oddly without that said out loud: `fincham2023` is one of the strongest warrants in this
+corpus. It marks records whose claims are about blood pressure, anxiety, depression or mood, which a
+store-reviewed binary should not be leaning on whatever their quality, because a claim compiled into
+a signed app cannot be withdrawn at the speed evidence changes.
+
 ### 4. The 1:2 ratio: what it does and does not support
 
 The README used to say to make the exhale twice as long as the inhale "to engage the parasympathetic
