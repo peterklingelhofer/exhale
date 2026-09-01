@@ -1394,10 +1394,12 @@ fn settings_ui(
                 // stays at 0 % (drift = 1.0) per the `defaultMin` clamp.
                 //
                 // Step is 0.1 percentage points, not 1: compounding makes whole
-                // percents enormous. From a 15 s cycle, 1 % doubles the breath in
-                // 70 cycles (~25 min), which runs away inside one sitting; 0.1 %
-                // takes 693 cycles (~4.2 h), which is a working day. The useful
-                // range sat entirely below the old minimum step, so whole percents
+                // percents enormous. 1 % doubles the breath in 70 breaths, which
+                // runs away inside one sitting; 0.1 % takes 693, which is a
+                // working day. Counted in breaths rather than minutes because
+                // `d^k = 2` has no cycle length in it, so the figure holds
+                // whatever the four steppers above are set to. The useful range
+                // sat entirely below the old minimum step, so whole percents
                 // offered no gentle setting at all. Finer values can still be
                 // typed: `format_num` caps display at three decimals, so 0.001 %
                 // is the finest value the field round-trips.
@@ -1715,20 +1717,26 @@ mod tests {
     fn clicking_a_chip_moves_all_four_durations() {
         let ctx = Context::default();
         let mut settings = exhale_core::settings::Settings::default();
-        // The default is the last chip; pick the first, which is a
-        // different pattern in all four fields but one
+        // Deliberately NOT chip 0: that is the shipped default, so
+        // clicking it would leave every field at the value it already
+        // had and the test would pass without proving anything moved.
+        // Chip 3 is box breathing, which differs in all four
+        const TARGET: usize = 3;
         let rects = chip_rects(&ctx, &mut settings);
-        let target = rects[0].center();
+        assert_eq!(
+            exhale_core::presets::selected(&settings), Some(0),
+            "this test assumes the default is chip 0 and the target is not"
+        );
 
-        let changed = run_chips_frame(&ctx, click_input(target), &mut settings);
+        let changed = run_chips_frame(&ctx, click_input(rects[TARGET].center()), &mut settings);
 
         assert!(changed, "clicking a chip should mark settings dirty");
-        let want = exhale_core::presets::PRESETS[0];
+        let want = exhale_core::presets::PRESETS[TARGET];
         assert_eq!(settings.inhale_duration, want.inhale);
         assert_eq!(settings.post_inhale_hold_duration, want.post_inhale_hold);
         assert_eq!(settings.exhale_duration, want.exhale);
         assert_eq!(settings.post_exhale_hold_duration, want.post_exhale_hold);
-        assert_eq!(exhale_core::presets::selected(&settings), Some(0));
+        assert_eq!(exhale_core::presets::selected(&settings), Some(TARGET));
     }
 
     #[test]
