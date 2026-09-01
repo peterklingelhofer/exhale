@@ -1014,7 +1014,7 @@
         "5.5 breaths per minute with an equal 5:5 inhale-to-exhale ratio produced higher SDNN and LF power than 6 bpm or than a 4:6 ratio",
         "all four slow-breathing patterns increased self-reported relaxation relative to spontaneous breathing"
       ],
-      "caveat": "n = 47, Latin-square counterbalanced. The clearest published result AGAINST a longer exhale on HRV grounds, and it is why exhale's README no longer asserts the 1:2 mechanism. Note the second claim carefully: every pattern tested increased relaxation, so the ratio argument is about which slow pattern is best, not about whether slow breathing works."
+      "caveat": "n = 47, Latin-square counterbalanced. The clearest published result AGAINST a longer exhale on HRV grounds, and the reason exhale makes no mechanism claim for the 1:2 ratio. Note the second claim carefully: every pattern tested increased relaxation, so the ratio argument is about which slow pattern is best, not about whether slow breathing works."
     }
   },
   {
@@ -1177,7 +1177,7 @@
         "at 6 breaths per minute, a 1:2 inhale-to-exhale ratio produced no HRV advantage over 1:1 in either an original experiment or its replication",
         "the finding held across time-domain, frequency-domain and nonlinear HRV metrics"
       ],
-      "caveat": "Original n = 26, replication n = 16; both undergraduate samples, both within-subjects with manipulation checks. Small, but it is the only entry in this corpus that ran its own replication. Its scope condition matters: it holds rate fixed inside the resonance range, so it does not rule out a ratio effect at a person's spontaneous rate, which is what bae2021-exhalation-inhalation-ratio measured. One of four disagreeing studies; see also vandiest2014-ie-ratio-relaxation and lin2014-equal-ratio-hrv. Critically, all four measured HRV; none of them measured how participants felt except vandiest2014-ie-ratio-relaxation, which is why exhale's recommendation now rests on the subjective outcome rather than on this dispute."
+      "caveat": "Original n = 26, replication n = 16; both undergraduate samples, both within-subjects with manipulation checks. Small, but it is the only entry in this corpus that ran its own replication. Its scope condition matters: it holds rate fixed inside the resonance range, so it does not rule out a ratio effect at a person's spontaneous rate, which is what bae2021-exhalation-inhalation-ratio measured. One of four disagreeing studies; see also vandiest2014-ie-ratio-relaxation and lin2014-equal-ratio-hrv. Critically, all four measured HRV; none measured how participants felt except vandiest2014-ie-ratio-relaxation, which is why exhale's recommendation rests on the subjective outcome rather than on this dispute."
     }
   },
   {
@@ -1415,7 +1415,7 @@
         "during computer data-entry work, end-tidal CO2 was significantly lower and respiration frequency significantly higher than during either baseline relaxation or progressive muscle relaxation",
         "breathing changes measurably at a screen, and end-tidal CO2 discriminates the state"
       ],
-      "caveat": "n = 11 data-entry operators monitored continuously across three consecutive six-hour work days. Small sample, but this is real screen work over real working days, not a lab proxy. This entry retracts an earlier claim in this repo that no peer-reviewed study had measured respiration during ordinary screen use. It had; this is it, from 1994."
+      "caveat": "n = 11 data-entry operators monitored continuously across three consecutive six-hour work days. Small sample, but this is real screen work over real working days, not a lab proxy. Along with schleifer2008-emg-gaps-computer-work it is the direct evidence that screen work changes respiration, and it dates from 1994, well before the topic reached breathwork writing."
     }
   },
   {
