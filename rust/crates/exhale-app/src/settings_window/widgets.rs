@@ -796,14 +796,31 @@ pub(super) fn preset_chips(
     let current     = selected(settings);
     let font_id     = egui::TextStyle::Button.resolve(ui.style());
 
-    const CHIP_PAD_X:  f32 = 10.0;
-    const CHIP_GAP:    f32 = 6.0;
+    // 7 and 5, which look arbitrary and are not. Measured at the shipped
+    // 308 pt card width with the four-number labels, the five chips come
+    // to 297 pt at these values and 331 pt at a roomier 10 and 6, so the
+    // difference between them is whether the last chip sits in the row or
+    // alone underneath it. Nothing breaks if a future label pushes past
+    // the width: the wrap below is the fallback and simply gives back the
+    // second row
+    const CHIP_PAD_X:  f32 = 7.0;
+    const CHIP_GAP:    f32 = 5.0;
     const CHIP_ROW_GAP: f32 = 6.0;
     const INSET:       f32 = 2.0;
     const ROUNDING:    f32 = 5.0;
 
+    // Heading and caption share one line. Two separate lines put four
+    // rows of chrome above four steppers, and the caption's line
+    // appearing and vanishing as the selection changed made the whole
+    // card jump. Merged, the row is a fixed height and reads as one
+    // caption for the group
+    let mut heading = String::from("Presets");
+    if let Some(note) = current.and_then(|i| PRESETS[i].note) {
+        heading.push(' ');
+        heading.push_str(note);
+    }
     ui.label(
-        egui::RichText::new("Presets")
+        egui::RichText::new(heading)
             .small()
             .color(ui.visuals().weak_text_color()),
     );
@@ -934,17 +951,6 @@ pub(super) fn preset_chips(
         egui::Rect::from_min_size(origin, egui::vec2(avail, total_h)),
         egui::Sense::hover(),
     );
-
-    // A name, never a claim. What the pattern DOES is answered live by
-    // `pacing_readout` a few rows down, for whichever chip is lit, which
-    // is why no chip carries an evidentiary caption of its own
-    if let Some(note) = current.and_then(|i| PRESETS[i].note) {
-        ui.label(
-            egui::RichText::new(note)
-                .small()
-                .color(ui.visuals().weak_text_color()),
-        );
-    }
 
     #[cfg(test)]
     test_hooks::record_chip_rects(rects);

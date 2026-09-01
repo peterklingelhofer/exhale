@@ -15,8 +15,12 @@
 //!
 //! **Labels name the pattern, never the rate.** A chip reading "6 a
 //! minute" would be a claim about which rate is worth choosing; a chip
-//! reading "5 s in, 5 s out" is a description of what the four
-//! steppers below it are about to say. The rate, and how it sits
+//! reading "5/0/5/0" is a description of what the four steppers below
+//! it are about to say, in their own order: inhale, post-inhale hold,
+//! exhale, post-exhale hold. It is the notation the README already
+//! uses, and it is terse enough that all five chips fit a single row
+//! of a 308 pt card, where the spelled-out form took three. The rate,
+//! and how it sits
 //! against the range anyone has tested, is computed live by
 //! [`crate::pacing::readout_lines`] for whichever pattern is active.
 //! That is why no preset carries its own evidentiary caption: the
@@ -94,7 +98,7 @@ impl Preset {
 pub const PRESETS: &[Preset] = &[
     Preset {
         id: "even-5",
-        label: "5 s in, 5 s out",
+        label: "5/0/5/0",
         note: None,
         inhale: 5.0,
         post_inhale_hold: 0.0,
@@ -104,7 +108,7 @@ pub const PRESETS: &[Preset] = &[
     },
     Preset {
         id: "long-exhale-4-6",
-        label: "4 s in, 6 s out",
+        label: "4/0/6/0",
         note: None,
         inhale: 4.0,
         post_inhale_hold: 0.0,
@@ -114,12 +118,12 @@ pub const PRESETS: &[Preset] = &[
     },
     Preset {
         id: "a52",
-        label: "5 s in, 5 s out, 2 s pause",
+        label: "5/0/5/2",
         // The name is the reason anyone would look for this pattern,
         // and naming it costs nothing. The review that popularised the
         // name is blocklisted from the binary, so the citekey points
         // at the study that tested this rate instead
-        note: Some("Sometimes called A52."),
+        note: Some("· sometimes called A52."),
         inhale: 5.0,
         post_inhale_hold: 0.0,
         exhale: 5.0,
@@ -128,8 +132,8 @@ pub const PRESETS: &[Preset] = &[
     },
     Preset {
         id: "box",
-        label: "4 / 4 / 4 / 4",
-        note: Some("Sometimes called box breathing."),
+        label: "4/4/4/4",
+        note: Some("· sometimes called box breathing."),
         inhale: 4.0,
         post_inhale_hold: 4.0,
         exhale: 4.0,
@@ -138,8 +142,8 @@ pub const PRESETS: &[Preset] = &[
     },
     Preset {
         id: "shipped-default",
-        label: "5 s in, 10 s out",
-        note: Some("exhale's shipped default."),
+        label: "5/0/10/0",
+        note: Some("· exhale's shipped default."),
         inhale: 5.0,
         post_inhale_hold: 0.0,
         exhale: 10.0,

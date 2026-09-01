@@ -1812,6 +1812,20 @@ mod tests {
                 assert!(!a.intersects(*b), "chips {i} and {j} overlap");
             }
         }
+
+        // The five shipped labels fit one row on macOS with 11 pt to
+        // spare, but text metrics differ per platform, so the assertion
+        // is the property worth keeping rather than the exact result: a
+        // sixth preset, or a label long enough to need three rows, turns
+        // the block back into the four-line stack this was tightened to
+        // avoid. Wrapping to a second row is fine; wrapping past it is a
+        // design decision that should be made on purpose
+        let rows = rects.iter().map(|r| r.min.y as i32).collect::<std::collections::BTreeSet<_>>();
+        assert!(
+            rows.len() <= 2,
+            "preset chips need {} rows; the Timing card was tuned for one or two",
+            rows.len()
+        );
     }
 
     #[test]
@@ -1846,6 +1860,9 @@ mod tests {
         assert_eq!(settings.drift, 1.001);
         assert_eq!(settings.randomized_timing_exhale, 0.25);
     }
+
+
+
 
 
 
