@@ -2,8 +2,9 @@
 
 Brief for an agent picking this up cold. Read this before touching the settings window.
 
-**Status:** phases 0, 1, 2 and 3 are done and are on `feat/provenance-and-drift-enhancements`.
-Phase 4 is designed and not started. Phase 5 is deliberately deferred.
+**Status:** phases 0 through 4 are done and are on `feat/provenance-and-drift-enhancements`.
+Phase 5 is deliberately deferred, and phase 4 shipping the way it did makes the case for deferring it
+stronger rather than weaker: see the phase 5 note.
 
 What phases 2 and 3 actually shipped is recorded under each phase heading below. Two things were
 found while building them that are not in the design: the README's source counts had been wrong
@@ -29,6 +30,7 @@ with new evidence.
 | CI: `citations` + `core-check` | [`.github/workflows/test.yml`](.github/workflows/test.yml) |
 | Tray deep link + `platform::open_url` | [`tray.rs`](rust/crates/exhale-app/src/tray.rs), [`platform.rs`](rust/crates/exhale-app/src/platform.rs) |
 | Pacing arithmetic and the copy derived from it | [`pacing.rs`](rust/crates/exhale-core/src/pacing.rs) |
+| Preset patterns and derived selection | [`presets.rs`](rust/crates/exhale-core/src/presets.rs) |
 | Store copy under denylist | [`snap/snapcraft.yaml`](snap/snapcraft.yaml), [`rust/packaging/windows/store-listing.md`](rust/packaging/windows/store-listing.md) |
 
 ~~**The binary has no research surface at all.**~~ It has two, as of phases 2 and 3. `platform::open_url`
@@ -222,7 +224,46 @@ claim, and volunteers bad news about the app's own default.
 render **unprompted on first open**, not behind a hover or a disclosure triangle. Disclosure reaches
 users who open the panel; the default is imposed on everyone who never does.
 
-### Phase 4: preset chips. ~70 lines.
+### Phase 4: preset chips. DONE.
+
+**Shipped, with two structural changes and one thing that turned out not to be true.**
+
+1. **No per-chip evidentiary captions.** The design called for captions carrying each pattern's rate
+   ("caption must say 3.75 a minute", "caption says it is below the tested band"). Phase 3's readout
+   now sits three rows under the chips and says exactly that, computed, for whichever chip is lit.
+   Five hand-written captions would restate it worse: they would be prose in the binary rather than
+   arithmetic, they would need maintaining against the corpus, and they would only cover the
+   patterns someone remembered to annotate. The captions that survive carry names and nothing else
+   (`Sometimes called A52.`, `Sometimes called box breathing.`, `exhale's shipped default.`), and a
+   denylist test rejects any label or note that names a rate, an effect or a recommendation.
+2. **Presets set the four durations and nothing else**, not drift and not jitter. The design said
+   presets should set those "and disclose that they do", while also saying not to silently zero a
+   setting the user tuned. Not touching them satisfies both, and it is what makes derived selection
+   sound: selection compares exactly the four fields a preset writes.
+3. **The contrast worry did not hold.** Measured rather than estimated, the dark-mode selected pill
+   is **4.94:1 at its worst across every possible backdrop**, not the ~4.0:1 the design feared,
+   because alpha 230 leaves little of the card showing through. The real finding is next door:
+   *unselected* text on the translucent card is fine on any backdrop the app controls and on any
+   non-inverting vibrancy, and bottoms out near **3.0:1** against a near-white backdrop behind a
+   dark-mode window. That is a property of every `ui.label` in this window, not of the chips, and it
+   is now a pinned number in `widgets.rs` rather than an assumption.
+
+The open question the design flagged is answered: **egui 0.29 does synthesise a click from Space and
+Enter** on a focused `ui.interact` response (`Context::create_widget` sets `fake_primary_click`).
+Both keys, and Tab-reachability of all five chips in display order, are covered by tests.
+
+`selected_pill_fill`, `selected_pill_text` and `card_fill` were hoisted out of `segmented_row` and
+`section` so the pickers and the chips share one definition and one contrast test.
+
+**Two traps for whoever works on this file next.** `ui.set_width` on a `CentralPanel`'s own `Ui` is
+silently undone (`Placer::set_max_width` unions the result back with `min_rect`, which for a panel is
+already the full panel), so the first version of the chip test laid out at 384 pt and would have
+passed while the shipped card is 308; go through `section` instead. And the Timing card is now
+**324 pt**, measured, up from 160 before phase 3, which is why `INITIAL_PREFERRED_H` stayed at 796
+and the fold moved up rather than the window growing to 960.
+
+Original design notes follow.
+
 
 Chips live **inside the existing Timing card** (`settings_window.rs:1355`), above the four
 `duration_row` calls, so a click visibly moves all four steppers.
@@ -256,7 +297,16 @@ Candidate set, deliberately including one that ships its own disconfirming evide
 | `4 / 4 / 4 / 4` | box | caption must say 3.75 a minute |
 | `5 s in, 10 s out` | 5/0/10/0 | the shipped default; caption says it is below the tested band |
 
-### Phase 5: deferred, and the two engineers never agreed.
+### Phase 5: still deferred, and phase 4 strengthened the case.
+
+The instruction was to ship 2-4 and see whether anything feels missing. What phase 4 found is that
+the place prose would have gone is already occupied by something better: the live readout answers
+"what is this pattern" for every preset, and a generated `custom.uiCaption` would be a second,
+staler answer to the same question. Revisit only if a specific gap turns up that arithmetic cannot
+fill.
+
+Original notes on the disagreement follow.
+
 
 Whether to add `custom.uiCaption` to the corpus (UX: yes, generated, under `--check`, with a
 banned-vocabulary gate) or ship no prose at all (full-stack: any prose authored for the binary
@@ -283,9 +333,15 @@ strings are ruled out by both.
 
 ## 6. Open decisions and loose ends
 
-- **`feat/provenance-and-drift-enhancements` has no PR.** Four commits, from `60d567b`.
-- **Neither phase 2 nor phase 3 has been seen running.** The tray item needs a click on a signed
-  sandboxed build; the readout needs a look at the Timing card at the shipped window width.
+- **`feat/provenance-and-drift-enhancements` has no PR.** Five commits, from `60d567b`.
+- **None of phases 2, 3 or 4 has been seen running.** The tray item needs a click on a signed
+  sandboxed build; the readout and the chips need a look at the Timing card at the shipped window
+  width. Layout, wrapping, click and keyboard behaviour are covered by headless egui tests, and
+  contrast is computed from the shipped colour constants, so what is unverified is specifically the
+  visual result rather than the behaviour.
+- **Unselected text bottoms out near 3.0:1** against a near-white backdrop behind a dark-mode
+  window. Pre-existing for every label in the settings window, pinned by a test, unfixed. The same
+  accessibility debt as the missing AccessKit tree.
 - **The Snap listing is still live with the retracted claims.** `snapcraft.yaml` is fixed in the repo,
   but the store shows the old copy until someone re-uploads. Memory says Snap upload is manual via
   Docker `snapcore/snapcraft` + interactive `snapcraft login`.
