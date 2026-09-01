@@ -30,6 +30,8 @@ OUT = DOCS / "CITATIONS.md"
 README = ROOT / "README.md"
 # The one place the shipped binary names this document. See check_binary_deep_link
 TRAY = ROOT / "rust/crates/exhale-app/src/tray.rs"
+# Patterns the binary offers as one click. See check_preset_citekeys
+PRESETS = ROOT / "rust/crates/exhale-core/src/presets.rs"
 
 # Section order in the rendered document. Each group answers one question the
 # app actually raises, rather than following the shape of the literature
@@ -98,6 +100,13 @@ def load_corpus() -> list[dict]:
             problems.append(f"{rid}: accessLevel must be one of {sorted(ACCESS_LEVELS)}")
         if custom.get("evidenceTier", "missing") not in TIERS:
             problems.append(f"{rid}: evidenceTier must be A-E or null")
+        # Absent means citable; only an explicit `false` blocks a record
+        # from backing something the binary ships. Written as an opt-OUT so
+        # the corpus does not need touching for the common case, and so the
+        # blocklist is greppable as four lines rather than inferred from
+        # forty-four omissions
+        if custom.get("inAppCitable", False) not in (True, False):
+            problems.append(f"{rid}: inAppCitable must be true or false")
 
         claims = custom.get("backsClaims")
         if not isinstance(claims, list) or not claims:
@@ -206,6 +215,61 @@ def check_note_links(records: list[dict], text: str, where: str) -> None:
         raise CorpusError(
             "\n".join(f"  - {where} links to unknown entry #{d}" for d in dangling)
         )
+
+
+def check_preset_citekeys(records: list[dict]) -> None:
+    """Every pattern the app offers has to be traceable to a live record.
+
+    The preset list is the one place the binary makes a *selection* from the
+    literature rather than a statement about it, and a selection is an
+    argument whether or not it is worded as one. Offering five patterns says
+    these five are worth a click, so each carries a citekey that never reaches
+    the screen and exists only to fail this check.
+
+    Four conditions, and the third and fourth are the ones that earn their
+    keep. A record downgraded to tier E is lineage-only and cannot license a
+    default. A record marked `inAppCitable: false` is one the professor
+    blocklisted from a store-reviewed binary, which is a different judgement
+    from whether it is good evidence: `fincham2023` is the strongest warrant
+    in the corpus and is on that list
+    """
+    if not PRESETS.exists():
+        return
+
+    text = PRESETS.read_text(encoding="utf-8")
+    # `citekey: "..."` inside the const table. Comments mention citekeys in
+    # prose, so anchor on the field name rather than scanning for the shape
+    found = re.findall(r'citekey:\s*"([^"]*)"', text)
+    if not found:
+        raise CorpusError(
+            f"  - {PRESETS.relative_to(ROOT)} defines no preset citekeys; the shipped\n"
+            "    patterns have lost their link to the corpus"
+        )
+
+    by_id = {r["id"]: r for r in records}
+    problems: list[str] = []
+    for key in sorted(set(found)):
+        rec = by_id.get(key)
+        if rec is None:
+            problems.append(f"preset citekey '{key}' matches no corpus entry")
+            continue
+        custom = rec["custom"]
+        if custom["group"] not in ("timing", "slow-breathing"):
+            problems.append(
+                f"preset citekey '{key}' is group '{custom['group']}'; a preset has to be "
+                "backed by a timing or slow-breathing record"
+            )
+        if custom.get("evidenceTier") == "E":
+            problems.append(
+                f"preset citekey '{key}' is tier E, which is citable for lineage only"
+            )
+        if custom.get("inAppCitable", True) is False:
+            problems.append(
+                f"preset citekey '{key}' is marked inAppCitable: false and may not back "
+                "anything the binary ships"
+            )
+    if problems:
+        raise CorpusError("\n".join("  - " + p for p in problems))
 
 
 def check_readme_counts(records: list[dict], text: str) -> None:
@@ -413,6 +477,7 @@ def main() -> int:
     try:
         records = load_corpus()
         check_cross_references(records)
+        check_preset_citekeys(records)
         check_retracted_phrases()
         notes = NOTES.read_text(encoding="utf-8")
         check_note_links(records, notes, NOTES.name)

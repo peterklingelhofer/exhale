@@ -25,11 +25,7 @@ pub(super) fn section(ui: &mut egui::Ui, header: &str, add_contents: impl FnOnce
     // NSVisualEffectView's popover/hudWindow material, this gives
     // Swift's "dark dark gray" card in dark mode and a translucent
     // white card in light mode.
-    let fill = if dark_mode {
-        egui::Color32::from_rgba_unmultiplied(30, 30, 30, 140)
-    } else {
-        egui::Color32::from_rgba_unmultiplied(255, 255, 255, 140)
-    };
+    let fill = card_fill(dark_mode);
     // Constrain the card to exactly the scroll area's viewport width so every
     // section (Controls, Appearance, Timing, Randomization, Timers) aligns at
     // the same left and right gutters.
@@ -409,6 +405,42 @@ pub(super) const BUTTON_RADIUS:    f32 = 7.0;
 // `visuals_for_theme` and nothing else, no reason to expose it here)
 pub(super) const STEPPER_FIELD_W:  f32 = 56.0;
 
+/// macOS-native selection pill: a slightly inset rounded rect filled in
+/// gray (lighter than the container in dark mode, near-white in light
+/// mode), matching AppKit's `NSSegmentedControl`
+/// `.selectedContentBackground`.
+///
+/// Shared by the segmented pickers and the preset chips so there is one
+/// selected colour in the window rather than two that drift apart, and
+/// so the contrast test in this file covers both. It is measured rather
+/// than eyeballed: see `selected_pill_text_meets_wcag_aa`
+/// Translucent `SectionCard` fill, composited over the platform
+/// vibrancy backdrop. Hoisted out of [`section`] so the contrast test
+/// can composite against the real value rather than a guess at it
+pub(super) fn card_fill(dark_mode: bool) -> egui::Color32 {
+    if dark_mode {
+        egui::Color32::from_rgba_unmultiplied(30, 30, 30, 140)
+    } else {
+        egui::Color32::from_rgba_unmultiplied(255, 255, 255, 140)
+    }
+}
+
+pub(super) fn selected_pill_fill(dark_mode: bool) -> egui::Color32 {
+    if dark_mode {
+        // ~rgb(110,110,110) at 90% — reads as a clear lighter gray over
+        // the dark vibrancy without going washed-out.
+        egui::Color32::from_rgba_unmultiplied(110, 110, 110, 230)
+    } else {
+        // Near-white selection on a light translucent backdrop.
+        egui::Color32::from_rgba_unmultiplied(255, 255, 255, 235)
+    }
+}
+
+/// Text painted on top of [`selected_pill_fill`].
+pub(super) fn selected_pill_text(dark_mode: bool) -> egui::Color32 {
+    if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK }
+}
+
 
 /// Measure every segmented picker in a single frame and return the largest
 /// natural column width across them.  Buttons within a single picker get
@@ -593,19 +625,7 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
             }
             ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
 
-            // macOS-native segmented picker selection: a slightly inset
-            // rounded rect filled in gray (lighter than the picker container
-            // in dark mode, near-white in light mode) — matches AppKit's
-            // NSSegmentedControl `.selectedContentBackground`.
-            let selected_fill = if dark_mode {
-                // ~rgb(110,110,110) at 90% — reads as a clear lighter gray
-                // over the dark vibrancy without going washed-out.
-                egui::Color32::from_rgba_unmultiplied(110, 110, 110, 230)
-            } else {
-                // Near-white selection on a light translucent backdrop —
-                // matches the macOS native picker "selected" pill.
-                egui::Color32::from_rgba_unmultiplied(255, 255, 255, 235)
-            };
+            let selected_fill = selected_pill_fill(dark_mode);
             const SELECTED_INSET:    f32 = 2.0;
             const SELECTED_ROUNDING: f32 = 5.0;
 
@@ -691,7 +711,7 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
 
                 // Selected text flips to primary; unselected uses default text color.
                 let label_color = if is_selected {
-                    if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK }
+                    selected_pill_text(dark_mode)
                 } else {
                     ui.visuals().text_color()
                 };
@@ -743,6 +763,195 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
 
 /// Duration row (seconds). Swift's CombinedStepperTextField with `limits: (0, nil)`
 /// and step 1.0 — so the ±-button step matches the Stepper control on macOS.
+/// Preset chips: one click that moves all four Timing steppers at once.
+///
+/// Lives inside the Timing card, directly above the steppers it writes,
+/// so the effect of a click is visible in the same glance rather than
+/// having to be believed.
+///
+/// **Selection is derived, never stored.** Which chip is lit comes from
+/// comparing the four durations in `Settings` against each preset, with
+/// the epsilon `SettingsDiff::from` uses on those same fields. There is
+/// no sixth "selected preset" field, so there is nothing to migrate,
+/// nothing to desync, and nothing that can be stale after the user
+/// nudges a stepper by hand: the chip simply goes out.
+///
+/// **There is no "Custom" chip.** Custom is the absence of a lit pill.
+/// A chip that does nothing when clicked is still a Tab stop, and this
+/// file already documents that hazard twice.
+///
+/// Laid out by hand rather than with `ui.horizontal_wrapped` because
+/// the pill chrome has to be painted UNDER the label, which means every
+/// rect has to be known before anything is drawn. Same technique as
+/// `segmented_row`, which is also why the focus halo, the hover fill
+/// and the selected colour are literally the same code
+pub(super) fn preset_chips(
+    ui:       &mut egui::Ui,
+    settings: &mut exhale_core::settings::Settings,
+) -> bool {
+    use exhale_core::presets::{selected, PRESETS};
+
+    let mut changed = false;
+    let dark_mode   = ui.visuals().dark_mode;
+    let current     = selected(settings);
+    let font_id     = egui::TextStyle::Button.resolve(ui.style());
+
+    const CHIP_PAD_X:  f32 = 10.0;
+    const CHIP_GAP:    f32 = 6.0;
+    const CHIP_ROW_GAP: f32 = 6.0;
+    const INSET:       f32 = 2.0;
+    const ROUNDING:    f32 = 5.0;
+
+    ui.label(
+        egui::RichText::new("Presets")
+            .small()
+            .color(ui.visuals().weak_text_color()),
+    );
+
+    // Lay the text out once, with `PLACEHOLDER` so the same galley can be
+    // painted in either the selected or the unselected colour: egui
+    // substitutes the fallback colour passed to `Painter::galley` for
+    // every `PLACEHOLDER` glyph
+    let galleys: Vec<_> = PRESETS
+        .iter()
+        .map(|p| {
+            ui.painter().layout_no_wrap(
+                p.label.to_string(),
+                font_id.clone(),
+                egui::Color32::PLACEHOLDER,
+            )
+        })
+        .collect();
+
+    // Wrap into rows. Never truncate: a clipped pattern label is a
+    // different pattern, and `paint_label_with_width`'s single-row
+    // ellipsis is exactly the wrong tool here
+    let avail  = ui.available_width();
+    let origin = ui.cursor().min;
+    let mut rects: Vec<egui::Rect> = Vec::with_capacity(PRESETS.len());
+    let (mut x, mut y) = (origin.x, origin.y);
+    for galley in &galleys {
+        let w = galley.size().x + 2.0 * CHIP_PAD_X;
+        if x > origin.x && x + w > origin.x + avail {
+            x = origin.x;
+            y += ROW_H + CHIP_ROW_GAP;
+        }
+        rects.push(egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, ROW_H)));
+        x += w + CHIP_GAP;
+    }
+    let total_h = (y + ROW_H) - origin.y;
+
+    for (i, preset) in PRESETS.iter().enumerate() {
+        let rect = rects[i];
+        let is_selected = current == Some(i);
+
+        // Interact before painting, so hover and press states are known
+        // by the time the pill goes down under the text
+        let resp = ui.interact(
+            rect,
+            ui.id().with("preset").with(preset.id),
+            egui::Sense::click(),
+        );
+        // Tab landing on a chip scrolled out of view would otherwise
+        // look like the key did nothing. Same nudge as `segmented_row`
+        if resp.gained_focus() {
+            resp.scroll_to_me(None);
+        }
+
+        let pill_fill: Option<egui::Color32> = if is_selected {
+            Some(selected_pill_fill(dark_mode))
+        } else if resp.is_pointer_button_down_on() {
+            Some(if dark_mode {
+                egui::Color32::from_white_alpha(36)
+            } else {
+                egui::Color32::from_black_alpha(30)
+            })
+        } else if resp.hovered() {
+            Some(if dark_mode {
+                egui::Color32::from_white_alpha(22)
+            } else {
+                egui::Color32::from_black_alpha(18)
+            })
+        } else {
+            None
+        };
+        let pill = rect.shrink(INSET);
+        if let Some(fill) = pill_fill {
+            ui.painter().rect_filled(pill, ROUNDING, fill);
+        } else {
+            // Unselected chips need a visible edge. The pickers get one
+            // from the container outline around the whole control; a
+            // wrapped chip row has no container, so without this an
+            // unselected chip is bare text and does not read as
+            // clickable at all
+            ui.painter().rect_stroke(
+                pill,
+                ROUNDING,
+                egui::Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color),
+            );
+        }
+
+        if resp.has_focus() {
+            let primary = if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK };
+            let with_alpha = |a: u8| egui::Color32::from_rgba_unmultiplied(
+                primary.r(), primary.g(), primary.b(), a,
+            );
+            for (offset, alpha) in [(0.0_f32, 140_u8), (1.5_f32, 70_u8), (3.0_f32, 28_u8)] {
+                ui.painter().rect_stroke(
+                    pill.expand(offset),
+                    ROUNDING + offset,
+                    egui::Stroke::new(1.0, with_alpha(alpha)),
+                );
+            }
+        }
+
+        let label_color = if is_selected {
+            selected_pill_text(dark_mode)
+        } else {
+            ui.visuals().text_color()
+        };
+        let galley = galleys[i].clone();
+        let text_pos = egui::pos2(
+            rect.center().x - galley.size().x * 0.5,
+            rect.center().y - galley.size().y * 0.5,
+        );
+        ui.painter().galley(text_pos, galley, label_color);
+
+        // Space and Enter reach here too: egui 0.29 sets
+        // `fake_primary_click` on any focused `Sense::click` response,
+        // and `clicked()` folds that in. Covered by
+        // `space_activates_a_focused_chip`
+        if resp.clicked() {
+            preset.apply(settings);
+            changed = true;
+        }
+    }
+
+    // Reserve the space the chips occupy. `ui.painter()` draws without
+    // advancing the cursor, so without this the duration rows below
+    // would be laid out on top of them
+    let _ = ui.allocate_rect(
+        egui::Rect::from_min_size(origin, egui::vec2(avail, total_h)),
+        egui::Sense::hover(),
+    );
+
+    // A name, never a claim. What the pattern DOES is answered live by
+    // `pacing_readout` a few rows down, for whichever chip is lit, which
+    // is why no chip carries an evidentiary caption of its own
+    if let Some(note) = current.and_then(|i| PRESETS[i].note) {
+        ui.label(
+            egui::RichText::new(note)
+                .small()
+                .color(ui.visuals().weak_text_color()),
+        );
+    }
+
+    #[cfg(test)]
+    test_hooks::record_chip_rects(rects);
+
+    changed
+}
+
 /// The pacing readout: what the current timing settings actually work
 /// out to, and how that sits against the range with direct
 /// experimental support.
@@ -1354,6 +1563,25 @@ pub(super) mod test_hooks {
     pub fn take_stepper_rects() -> Option<(egui::Rect, egui::Rect)> {
         LAST.with(|c| c.borrow_mut().take())
     }
+
+    // Unlike the stepper hook above, the chip hook is `cfg(test)`: it is
+    // written on every frame the chips are laid out, and a thread-local
+    // borrow plus a Vec clone per frame is not worth paying for in a
+    // release build to support a test
+    #[cfg(test)]
+    thread_local! {
+        static CHIPS: RefCell<Option<Vec<egui::Rect>>> = const { RefCell::new(None) };
+    }
+
+    #[cfg(test)]
+    pub fn record_chip_rects(rects: Vec<egui::Rect>) {
+        CHIPS.with(|c| *c.borrow_mut() = Some(rects));
+    }
+
+    #[cfg(test)]
+    pub fn take_chip_rects() -> Option<Vec<egui::Rect>> {
+        CHIPS.with(|c| c.borrow_mut().take())
+    }
 }
 
 #[cfg(test)]
@@ -1373,6 +1601,135 @@ mod tests {
             ValueScale::Identity     => "Identity",
             ValueScale::Percent      => "Percent",
             ValueScale::DriftPercent => "DriftPercent",
+        }
+    }
+
+    /// sRGB relative luminance, WCAG 2.1 definition.
+    fn luminance(c: egui::Color32) -> f64 {
+        let f = |v: u8| {
+            let v = v as f64 / 255.0;
+            if v <= 0.040_45 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+        };
+        0.2126 * f(c.r()) + 0.7152 * f(c.g()) + 0.0722 * f(c.b())
+    }
+
+    fn contrast(a: egui::Color32, b: egui::Color32) -> f64 {
+        let (x, y) = (luminance(a), luminance(b));
+        let (hi, lo) = if x > y { (x, y) } else { (y, x) };
+        (hi + 0.05) / (lo + 0.05)
+    }
+
+    /// Source-over composite of `fg` (with alpha) onto opaque `bg`.
+    fn over(fg: egui::Color32, bg: egui::Color32) -> egui::Color32 {
+        // `Color32::from_rgba_unmultiplied` stores premultiplied bytes, so
+        // read the alpha back out and un-premultiply before compositing,
+        // or the result is wrong in exactly the direction that flatters
+        let a = fg.a() as f64 / 255.0;
+        let ch = |f: u8, b: u8| {
+            let straight = if a > 0.0 { (f as f64 / 255.0) / a } else { 0.0 };
+            ((straight * a + (b as f64 / 255.0) * (1.0 - a)) * 255.0).round() as u8
+        };
+        egui::Color32::from_rgb(ch(fg.r(), bg.r()), ch(fg.g(), bg.g()), ch(fg.b(), bg.b()))
+    }
+
+    #[test]
+    fn selected_pill_text_meets_wcag_aa_over_any_backdrop() {
+        // The handoff estimated the dark-mode selected pill at ~4.0:1,
+        // under the 4.5:1 AA threshold for body-size text, and asked for
+        // a measurement. Measured, it clears: the pill is drawn at alpha
+        // 230, so what shows through the card and the vibrancy behind it
+        // moves the result by less than a point of contrast.
+        //
+        // Swept across every possible backdrop rather than one assumed
+        // desktop grey, because the vibrancy material composites against
+        // whatever is behind the window and nobody controls that. Both
+        // segmented pickers and preset chips use these colours, so this
+        // covers both
+        for dark_mode in [true, false] {
+            let text = selected_pill_text(dark_mode);
+            let (mut worst, mut worst_bg) = (f64::INFINITY, 0u8);
+            for b in 0..=255u8 {
+                let backdrop = egui::Color32::from_gray(b);
+                let card = over(card_fill(dark_mode), backdrop);
+                let pill = over(selected_pill_fill(dark_mode), card);
+                let c = contrast(text, pill);
+                if c < worst {
+                    worst = c;
+                    worst_bg = b;
+                }
+            }
+            assert!(
+                worst >= 4.5,
+                "dark_mode={dark_mode}: selected pill text is {worst:.2}:1 over backdrop \
+                 gray {worst_bg}, below the 4.5:1 AA threshold"
+            );
+        }
+    }
+
+    #[test]
+    fn chip_text_meets_wcag_aa_on_the_backdrop_the_app_controls() {
+        // With blur unavailable (older Windows, GNOME, EXHALE_DISABLE_BLUR)
+        // the window is opaque and `clear_color_for_theme` picks the
+        // backdrop, so this is a contrast floor exhale can actually
+        // promise rather than one that depends on the wallpaper
+        for (dark_mode, clear) in [
+            (true,  egui::Color32::from_gray((0.12 * 255.0) as u8)),
+            (false, egui::Color32::from_gray((0.96 * 255.0) as u8)),
+        ] {
+            let card = over(card_fill(dark_mode), clear);
+            let body = if dark_mode {
+                egui::Color32::from_rgb(235, 235, 240)
+            } else {
+                egui::Color32::from_rgb(20, 20, 22)
+            };
+            assert!(
+                contrast(body, card) >= 4.5,
+                "dark_mode={dark_mode}: unselected chip text is {:.2}:1 on the opaque backdrop",
+                contrast(body, card)
+            );
+            let pill = over(selected_pill_fill(dark_mode), card);
+            assert!(
+                contrast(selected_pill_text(dark_mode), pill) >= 4.5,
+                "dark_mode={dark_mode}: selected chip text is {:.2}:1 on the opaque backdrop",
+                contrast(selected_pill_text(dark_mode), pill)
+            );
+        }
+    }
+
+    #[test]
+    fn unselected_chip_text_holds_up_wherever_the_vibrancy_can_land() {
+        // Unselected chips paint `visuals().text_color()` directly on the
+        // translucent card, so unlike the selected pill they inherit
+        // whatever the OS blur composites behind the window.
+        //
+        // The bound swept here is that the material does not invert: a
+        // dark material never renders lighter than mid-grey and a light
+        // one never renders darker. That is what "dark material" means,
+        // and it is the strongest honest assumption available from
+        // inside the process, since `NSVisualEffectView` gives back no
+        // sampled colour to test against.
+        //
+        // Past that bound the guarantee does lapse: near-white behind a
+        // dark-mode window measures about 3.0:1. That is a property of
+        // every `ui.label` in this window rather than anything the chips
+        // introduced, and it is the same accessibility debt as the
+        // missing AccessKit tree. Recorded here so it is a known number
+        // instead of a surprise
+        for (dark_mode, range) in [(true, 0..=128u8), (false, 128..=255u8)] {
+            let text = if dark_mode {
+                egui::Color32::from_rgb(235, 235, 240)
+            } else {
+                egui::Color32::from_rgb(20, 20, 22)
+            };
+            let mut worst = f64::INFINITY;
+            for b in range {
+                let card = over(card_fill(dark_mode), egui::Color32::from_gray(b));
+                worst = worst.min(contrast(text, card));
+            }
+            assert!(
+                worst >= 4.5,
+                "dark_mode={dark_mode}: unselected chip text bottoms out at {worst:.2}:1"
+            );
         }
     }
 

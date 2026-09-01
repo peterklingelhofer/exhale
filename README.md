@@ -109,12 +109,20 @@ this project has retracted anywhere it could still be asserted: the Rust sources
 description and the Microsoft Store listing copy.
 
 **In the app.** The menu bar carries a *Research, and what it doesn't support* item that opens the
-gaps ledger rather than the top of the reference list. The Timing panel computes the current rate
-from the four duration fields and prints it against the tested range, unprompted, so a configuration
-outside that range says so where it is being chosen. The binary states arithmetic and one range and
-nothing else: no effect, no benefit, no condition. That restraint is deliberate. Everything
-evidentiary lives in this repository, which can be corrected in an afternoon, rather than in a
-signed binary that takes a store-review cycle to withdraw.
+gaps ledger rather than the top of the reference list. The Timing panel offers five patterns as
+one-click presets, computes the current rate from the four duration fields, and prints it against
+the tested range, unprompted, so a configuration outside that range says so where it is being
+chosen. Selecting box breathing makes the panel state that it is 3.8 breaths a minute and slower
+than anything tested directly, which is the honest thing to say about a pattern people arrive
+looking for by name. No preset carries a badge, a rank or an evidentiary caption: the arithmetic
+below them is computed live for whichever is selected, so it cannot go stale and does not have to
+be maintained against the corpus.
+
+The binary states arithmetic and one range and nothing else: no effect, no benefit, no condition.
+That restraint is deliberate. Everything evidentiary lives in this repository, which can be
+corrected in an afternoon, rather than in a signed binary that takes a store-review cycle to
+withdraw. Four sources are flagged `inAppCitable: false` in the corpus for exactly that reason, and
+the build fails if a shipped preset points at one of them.
 
 Nothing in this section is medical advice; see the [disclaimer](#disclaimer) above.
 

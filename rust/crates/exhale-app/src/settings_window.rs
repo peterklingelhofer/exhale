@@ -213,24 +213,22 @@ impl SettingsWindow {
         // later (once egui has measured the natural content size) so the
         // window can never extend past the last visible setting.
         //
-        // Default height shows Controls + Appearance + Timing + Randomization
-        // comfortably; the Timers section lives just below the fold so the
-        // user has to scroll to reach it, giving a compact settings surface
-        // without hiding the commonly-tweaked rows.  Saved height (when
-        // present) wins over the default — the user's own resize is always
-        // respected on relaunch.
+        // Default height shows Controls + Appearance + Timing whole, with
+        // the top of Randomization visible so it is obvious there is more
+        // below.  Saved height (when present) wins over the default — the
+        // user's own resize is always respected on relaunch.
         //
-        // Was 796 before the Timing card grew its pacing readout: two
-        // `TextStyle::Small` lines at the default 9 pt, the second of
-        // which wraps to two rows in a 308 pt card, plus the 2 pt lead-in
-        // and the tightened 2 pt inter-line spacing.  ~52 pt, estimated
-        // rather than measured, which is safe in both directions: this
-        // value only picks the FIRST-RUN height, a saved height always
-        // wins, and `set_max_inner_size` clamps the window down to the
-        // content egui actually laid out on the very first frame.  The
-        // property being preserved is the one documented above, that
-        // Randomization is not cut off out of the box
-        const INITIAL_PREFERRED_H: u32 = 848;
+        // The number is unchanged, but what it frames is not.  Measured at
+        // the shipped 308 pt card width, the Timing card went 160 pt ->
+        // 202 pt with the pacing readout -> 324 pt with the preset chips.
+        // Preserving the old fold, which sat below Randomization, would
+        // mean 960 pt: taller than the usable height of a 13-inch display,
+        // so the window would open with its own bottom edge off-screen.
+        // Between "Randomization stays above the fold" and "the window
+        // fits on the machine it opens on", the second wins, and Timing is
+        // now the card worth keeping whole anyway — it is where the
+        // presets, the steppers and the coverage line all live.
+        const INITIAL_PREFERRED_H: u32 = 796;
         // Sanity ceiling on the saved height: no real monitor is taller
         // than this in logical points, so anything above is corrupt
         // (typically from older builds that mistakenly persisted
@@ -1364,6 +1362,11 @@ fn settings_ui(
 
             // ── Timing ───────────────────────────────────────────────────────
             section(ui, "Timing", |ui| {
+                // Above the steppers, not below: the whole point of a
+                // chip is that clicking it visibly moves all four rows
+                // under it, which is not something the user has to be
+                // told if they can watch it happen
+                if preset_chips(ui, settings) { dirty = true; }
                 if duration_row(ui, "Inhale Duration (s)",  "Duration of the inhale phase, in seconds.",             &mut settings.inhale_duration) { dirty = true; }
                 if duration_row(ui, "Post-Inhale Hold (s)", "Hold/pause duration at the end of inhale, in seconds.", &mut settings.post_inhale_hold_duration) { dirty = true; }
                 if duration_row(ui, "Exhale Duration (s)",  "Duration of the exhale phase, in seconds.",             &mut settings.exhale_duration) { dirty = true; }
@@ -1650,6 +1653,201 @@ mod tests {
         let click_pos = target.center();
         run_stepper_frame(ctx, click_input(click_pos), value, "Test")
     }
+
+    /// Content width inside a section card: `SETTINGS_WIDTH` minus the
+    /// outer gutters and the card padding. The chips have to wrap
+    /// against the real number, not a convenient one
+    const CARD_CONTENT_W: f32 = SETTINGS_WIDTH as f32 - 2.0 * OUTER_PAD - 2.0 * CARD_PAD;
+
+    /// Run one frame of `preset_chips` inside a real `section` card.
+    ///
+    /// The card, not a bare `ui.set_width`, because `set_width` on a
+    /// `CentralPanel`'s own `Ui` is silently undone: `Placer::set_max_width`
+    /// unions the result back with `min_rect`, which for a panel is already
+    /// the full panel. The first version of this harness therefore laid the
+    /// chips out at 384 pt and would have passed while the shipped card is
+    /// 308. Going through `section` measures what the app actually renders
+    fn run_chips_frame(
+        ctx:      &Context,
+        raw_in:   RawInput,
+        settings: &mut exhale_core::settings::Settings,
+    ) -> bool {
+        let mut changed = false;
+        let _ = ctx.run(raw_in, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                section(ui, "Timing", |ui| {
+                    changed = preset_chips(ui, settings);
+                });
+            });
+        });
+        changed
+    }
+
+    fn blank_input() -> RawInput {
+        RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 800.0))),
+            ..Default::default()
+        }
+    }
+
+    fn key_input(key: egui::Key) -> RawInput {
+        RawInput {
+            events: vec![egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+            ..blank_input()
+        }
+    }
+
+    /// Warm-up frame to register the chip rects, then hand them back.
+    fn chip_rects(ctx: &Context, settings: &mut exhale_core::settings::Settings) -> Vec<Rect> {
+        let mut probe = settings.clone();
+        let _ = run_chips_frame(ctx, blank_input(), &mut probe);
+        super::widgets::test_hooks::take_chip_rects()
+            .expect("preset_chips should record its rects every frame")
+    }
+
+    #[test]
+    fn clicking_a_chip_moves_all_four_durations() {
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        // The default is the last chip; pick the first, which is a
+        // different pattern in all four fields but one
+        let rects = chip_rects(&ctx, &mut settings);
+        let target = rects[0].center();
+
+        let changed = run_chips_frame(&ctx, click_input(target), &mut settings);
+
+        assert!(changed, "clicking a chip should mark settings dirty");
+        let want = exhale_core::presets::PRESETS[0];
+        assert_eq!(settings.inhale_duration, want.inhale);
+        assert_eq!(settings.post_inhale_hold_duration, want.post_inhale_hold);
+        assert_eq!(settings.exhale_duration, want.exhale);
+        assert_eq!(settings.post_exhale_hold_duration, want.post_exhale_hold);
+        assert_eq!(exhale_core::presets::selected(&settings), Some(0));
+    }
+
+    #[test]
+    fn space_activates_a_focused_chip() {
+        // The handoff flagged this as unverified: it was not known
+        // whether egui 0.29 synthesises a click from Space on a focused
+        // `ui.interact` response the way it does for `Button`. It does
+        // (`Context::create_widget` sets `fake_primary_click`), and
+        // without it the whole feature would be mouse-only, so the
+        // behaviour is pinned here rather than trusted to survive an
+        // egui upgrade
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+
+        // Frame 1 registers the widgets so Tab has somewhere to go
+        let _ = run_chips_frame(&ctx, blank_input(), &mut settings);
+        // Frame 2: Tab focuses the first chip
+        let _ = run_chips_frame(&ctx, key_input(egui::Key::Tab), &mut settings);
+        // Frame 3: Space on the focused chip
+        let changed = run_chips_frame(&ctx, key_input(egui::Key::Space), &mut settings);
+
+        assert!(changed, "Space on a focused chip should activate it");
+        assert_eq!(exhale_core::presets::selected(&settings), Some(0));
+    }
+
+    #[test]
+    fn enter_also_activates_a_focused_chip() {
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        let _ = run_chips_frame(&ctx, blank_input(), &mut settings);
+        let _ = run_chips_frame(&ctx, key_input(egui::Key::Tab), &mut settings);
+        let changed = run_chips_frame(&ctx, key_input(egui::Key::Enter), &mut settings);
+        assert!(changed);
+        assert_eq!(exhale_core::presets::selected(&settings), Some(0));
+    }
+
+    #[test]
+    fn every_chip_is_reachable_by_tab_in_display_order() {
+        // Focus order follows creation order, so tabbing N times lands
+        // on chip N. A chip that could be clicked but not reached is
+        // half a control
+        for want in 0..exhale_core::presets::PRESETS.len() {
+            let ctx = Context::default();
+            let mut settings = exhale_core::settings::Settings::default();
+            let _ = run_chips_frame(&ctx, blank_input(), &mut settings);
+            for _ in 0..=want {
+                let _ = run_chips_frame(&ctx, key_input(egui::Key::Tab), &mut settings);
+            }
+            let changed = run_chips_frame(&ctx, key_input(egui::Key::Space), &mut settings);
+            assert!(changed, "chip {want} was not reachable in {} tabs", want + 1);
+            assert_eq!(
+                exhale_core::presets::selected(&settings), Some(want),
+                "tabbing {} times activated the wrong chip", want + 1
+            );
+        }
+    }
+
+    #[test]
+    fn chips_wrap_inside_the_card_and_never_overlap() {
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        let rects = chip_rects(&ctx, &mut settings);
+        assert_eq!(rects.len(), exhale_core::presets::PRESETS.len());
+
+        let left = rects[0].min.x;
+        for (i, r) in rects.iter().enumerate() {
+            // Wrapping, not clipping. A chip wider than the card would
+            // be a label that no longer describes its own pattern
+            assert!(
+                r.width() <= CARD_CONTENT_W + 0.5,
+                "chip {i} is {} wide in a {CARD_CONTENT_W} card", r.width()
+            );
+            assert!(
+                r.max.x <= left + CARD_CONTENT_W + 0.5,
+                "chip {i} overflows the card right edge by {}",
+                r.max.x - (left + CARD_CONTENT_W)
+            );
+        }
+        for (i, a) in rects.iter().enumerate() {
+            for (j, b) in rects.iter().enumerate().skip(i + 1) {
+                assert!(!a.intersects(*b), "chips {i} and {j} overlap");
+            }
+        }
+    }
+
+    #[test]
+    fn nudging_one_stepper_unselects_every_chip() {
+        // Derived selection, stated as a behaviour. There is no
+        // "Custom" chip to light up instead: custom is the absence of
+        // a lit pill
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        assert!(exhale_core::presets::selected(&settings).is_some());
+
+        settings.exhale_duration += 1.0;
+        assert_eq!(exhale_core::presets::selected(&settings), None);
+
+        // And the frame still renders with nothing selected
+        let _ = run_chips_frame(&ctx, blank_input(), &mut settings);
+    }
+
+    #[test]
+    fn clicking_a_chip_leaves_drift_and_jitter_where_the_user_put_them() {
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings {
+            drift: 1.001,
+            randomized_timing_exhale: 0.25,
+            ..Default::default()
+        };
+
+        let rects = chip_rects(&ctx, &mut settings);
+        let _ = run_chips_frame(&ctx, click_input(rects[3].center()), &mut settings);
+
+        assert_eq!(exhale_core::presets::selected(&settings), Some(3));
+        assert_eq!(settings.drift, 1.001);
+        assert_eq!(settings.randomized_timing_exhale, 0.25);
+    }
+
+
 
     #[test]
     fn stepper_up_increments() {

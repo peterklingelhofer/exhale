@@ -165,6 +165,7 @@
       "verification": "crossref-verified",
       "accessLevel": "open-access",
       "evidenceTier": "A",
+      "inAppCitable": false,
       "backsClaims": [
         "five minutes a day of exhale-emphasising cyclic sighing improved mood and lowered respiratory rate more than an equal period of mindfulness meditation over one month",
         "box breathing, equal inhale / hold / exhale, was tested head-to-head and was not the best-performing arm"
@@ -345,6 +346,7 @@
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
       "evidenceTier": "A",
+      "inAppCitable": false,
       "backsClaims": [
         "sustained slow breathing programmes lower systolic blood pressure by about 5.6 mmHg and diastolic by about 3.0 mmHg in hypertensive and prehypertensive adults"
       ],
@@ -434,6 +436,7 @@
       "verification": "crossref-verified",
       "accessLevel": "open-access",
       "evidenceTier": "A",
+      "inAppCitable": false,
       "backsClaims": [
         "breathwork lowers self-reported stress against control conditions, g = -0.35 (95% CI -0.55 to -0.14), 12 RCTs, 785 adults",
         "comparable small-to-medium effects for anxiety (g = -0.32, k = 20) and depressive symptoms (g = -0.40, k = 18)"
@@ -1080,6 +1083,7 @@
       "verification": "crossref-verified",
       "accessLevel": "open-access",
       "evidenceTier": "D",
+      "inAppCitable": false,
       "backsClaims": [
         "a 5 s inhale, 5 s exhale, 2 s post-exhale hold at five breaths per minute is a protocol a recent review argues is representative of the effective literature",
         "23 of 30 reviewed studies reported significant HRV improvement; 10 reported anxiety reduction and 9 reported reduced perceived stress",
