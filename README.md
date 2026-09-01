@@ -108,8 +108,10 @@ renamed entry or a stale number breaks the build rather than rotting silently. I
 this project has retracted anywhere it could still be asserted: the Rust sources, the Snap
 description and the Microsoft Store listing copy.
 
-**In the app.** The menu bar carries a *Research, and what it doesn't support* item that opens the
-gaps ledger rather than the top of the reference list. The Timing panel offers five patterns as
+**In the app.** A *Research* item in the macOS app menu, directly under About, and the same item in
+the system-tray menu on every platform. Both open the gaps ledger rather than the top of the
+reference list, which is the whole point of the item: the label is plain, so the anchor carries the
+intent. The Timing panel offers five patterns as
 one-click presets, computes the current rate from the four duration fields, and prints it against
 the tested range, unprompted, so a configuration outside that range says so where it is being
 chosen. Selecting box breathing makes the panel state that it is 3.8 breaths a minute and slower
