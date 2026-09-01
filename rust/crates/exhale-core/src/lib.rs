@@ -2,6 +2,7 @@ pub mod controller;
 pub mod easing;
 pub mod pacing;
 pub mod poison;
+pub mod presets;
 pub mod settings;
 pub mod settings_manager;
 pub mod types;
