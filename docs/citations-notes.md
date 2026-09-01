@@ -108,23 +108,35 @@ on acquaintances with no protocol, no published data and no replication. Nothing
 measures breath-holding during screen use, and the over-breathing finding above points the other
 way. The two claims should not be run together.
 
-### 2. The shipped default sits below the band with direct support
+### 2. The default is inside the tested band, but the band is narrow and one person wide
 
-exhale ships 5 s inhale and 10 s exhale
+exhale ships 5 s inhale and 5 s exhale, no holds
 ([`rust/crates/exhale-core/src/settings.rs`](../rust/crates/exhale-core/src/settings.rs)): a
-15-second cycle, or **4.0 breaths per minute**.
+10-second cycle, or **6.0 breaths per minute**.
 
 [`you2023-respiratory-frequency`](#you2023-respiratory-frequency) tested 5, 5.5, 6, 6.5 and 7 cycles
-per minute and found all of them raised cardiac vagal activity above spontaneous breathing. It did
-not test 4. [`lehrer2014-hrv-biofeedback`](#lehrer2014-hrv-biofeedback) puts average resonance
-frequency at about 5.5 breaths per minute and notes it varies by individual.
-[`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) found 5.5 outperformed 6.
+per minute and found all of them raised cardiac vagal activity above spontaneous breathing.
+[`marchant2025-square-478-six`](#marchant2025-square-478-six) ran 6 a minute against square and
+4-7-8 breathing head-to-head, n = 84, and 6 won. So the default is the pace with the most direct
+support of anything exhale could have shipped.
 
-So 4.0 sits below the bottom of the directly tested range. It may be fine, or better, for a given
-person; nobody has measured it. The default is kept for continuity with existing installs, and the
-Timing panel computes the current rate and states it against that range on open, so the coverage is
-visible where the choice is made. `5` / `0` / `5` / `0`, which is 6 a minute and inside the range,
-is the first of the one-click presets.
+That is a weaker statement than it sounds, for two reasons.
+
+**The tested band is five values wide.** Nobody has compared 6 against 3, or against 8, in this
+corpus. "Inside the range that has been tested" is a statement about coverage, not about optimality.
+
+**Resonance frequency is individual.** [`lehrer2014-hrv-biofeedback`](#lehrer2014-hrv-biofeedback)
+puts the average at about 5.5 breaths per minute and is explicit that it varies from person to
+person; [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) found 5.5 outperformed 6. A single
+shipped number cannot be right for everyone, and finding a person's own resonance frequency takes an
+assessment protocol and a sensor, neither of which exhale has. The default is a reasonable starting
+point, not a personalised one.
+
+Anyone who already has exhale installed keeps whatever they had: the timing fields carry no
+`#[serde(default)]`, so an existing `settings.toml` is untouched and the change reaches only fresh
+installs and Reset to Defaults. The previous default, `5` / `0` / `10` / `0` at 4 a minute, is still
+offered as a one-click preset. Nobody has measured 4 a minute in this corpus, which is why it is no
+longer what a new user gets without asking.
 
 ### 3. Box breathing is slower than it looks
 
@@ -145,11 +157,11 @@ Box breathing has also been tested head-to-head twice and did not win either tim
 The same evidence applies to 4-7-8, sometimes attributed to Andrew Weil: it lost in Marchant, and at
 4+7+8 = 19 s it is 3.16 breaths per minute, slower still.
 
-The pattern with the best direct support for someone starting out is `5` / `0` / `5` / `0`: 6 breaths
-per minute, no holds, a 10-second cycle. It sits inside the tested band, it is the condition that won
-in Marchant, and holding the breath is the harder part for a beginner rather than the slow part. Box
-breathing remains a reasonable thing to want, and exhale offers it as a preset. It is simply not the
-pattern the evidence points at.
+The pattern with the best direct support is `5` / `0` / `5` / `0`: 6 breaths per minute, no holds, a
+10-second cycle. It sits inside the tested band, it is the condition that won in Marchant, and
+holding the breath is the harder part for a beginner rather than the slow part. It is what exhale
+defaults to. Box breathing remains a reasonable thing to want, and exhale offers it as a preset. It
+is simply not the pattern the evidence points at.
 
 ### 4. Longer exhale: supported on how people feel, contested on the heart
 
@@ -338,11 +350,10 @@ In rough order of value per unit effort:
 1. Read the `NUMBERS NOT READ` entries and either promote or downgrade the claims resting on them.
    [`laborde2021-ie-ratio-pauses`](#laborde2021-ie-ratio-pauses) is the highest value: it bears
    directly on gaps 4 and 11.
-2. Decide, deliberately, whether the shipped default should move from 4.0 breaths/min to
-   `5` / `0` / `5` / `0`, which is 6 breaths/min and is what the head-to-head evidence in gap 3
-   points at. This is a release-note decision, not a silent one, because it would change the pace
-   under everyone who has never opened the settings panel.
-3. Nobody has tested a slow visual pacer on an already-hypocapnic screen worker (gap 5). That is a
+2. Nobody has tested a slow visual pacer on an already-hypocapnic screen worker (gap 5). That is a
    real, publishable question that exhale is unusually well placed to ask.
-4. Settle whether graded extension does anything, which would put a floor under gap 6. No study in
+3. Settle whether graded extension does anything, which would put a floor under gap 6. No study in
    this corpus varies the pace *within* a session, so the question is open in both directions.
+4. Resonance frequency is individual (gap 2) and exhale ships one number for everyone. Whether a
+   sensorless app can help someone find their own, by any method better than trying a few and
+   noticing, is unresolved and would matter more than the default ever will.

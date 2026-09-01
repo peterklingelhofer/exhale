@@ -966,11 +966,14 @@ pub(super) fn preset_chips(
 /// which is where the copy is tested. This function only paints.
 ///
 /// Rendered unprompted, never behind a hover or a disclosure triangle.
-/// The reason is specific rather than stylistic: exhale's shipped
-/// default is 4.0 breaths a minute, below the tested range, and a
-/// disclosure only reaches the people who go looking. The default is
-/// imposed on everyone who never opens this panel at all, so the one
-/// place it can honestly be qualified is the first place it is shown.
+/// The reason is specific rather than stylistic. A disclosure reaches
+/// only the people who go looking, and the settings most in need of a
+/// coverage note are the ones a user picks *without* reading anything:
+/// box breathing works out to 3.8 a minute, below the tested range, and
+/// looks gentler than it is because the holds hide the arithmetic.
+/// A line that appears only when the news is bad is a line nobody
+/// trusts, so it appears always, including for the default, which it
+/// reports as inside the range.
 ///
 /// A tooltip could not carry this either. `egui`'s tooltip width
 /// clamps to `ctx.screen_rect()`, which here is a 360 pt window, so
