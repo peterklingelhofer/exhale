@@ -16,7 +16,7 @@ The overlay is a translucent always-on-top window that gently expands on inhale 
 
 Box breathing is `4` / `4` / `4` / `4` and exhale supports it, but note it is a 16-second cycle, or 3.75 breaths per minute: the holds hide the fact that it is *slower* than it looks. It lost that head-to-head ([Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six), whose authors note square and 4-7-8 breathing "have little empirical support"), and lost again on mood in a month-long randomised trial ([Balban et al. 2023](docs/CITATIONS.md#balban2023-cyclic-sighing)). The same applies to 4-7-8.
 
-**On making the exhale longer than the inhale:** worth doing, but not for the usual reason. Whether a 1:2 ratio raises heart rate variability more than 1:1 is genuinely split: two studies found an effect ([Bae et al. 2021](docs/CITATIONS.md#bae2021-exhalation-inhalation-ratio), [Van Diest et al. 2014](docs/CITATIONS.md#vandiest2014-ie-ratio-relaxation)), one found the *equal* ratio better ([Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv)), and one found no difference across an original experiment and its own replication ([Meehan & Shaffer 2024](docs/CITATIONS.md#meehan2024-longer-exhalations)). exhale therefore no longer claims a longer exhale "engages the parasympathetic nervous system."
+**On making the exhale longer than the inhale:** worth doing, but not for the usual reason. Whether a 1:2 ratio raises heart rate variability more than 1:1 is genuinely split: two studies found an effect ([Bae et al. 2021](docs/CITATIONS.md#bae2021-exhalation-inhalation-ratio), [Van Diest et al. 2014](docs/CITATIONS.md#vandiest2014-ie-ratio-relaxation)), one found the *equal* ratio better ([Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv)), and one found no difference across an original experiment and its own replication ([Meehan & Shaffer 2024](docs/CITATIONS.md#meehan2024-longer-exhalations)). No mechanism claim survives that split, so exhale does not make one.
 
 What the evidence does support is subjective. In the one study that measured how people *felt* across ratios, the longer exhale produced more reported relaxation, stress reduction, mindfulness and positive energy, while slowing the rate alone moved only one of those four ([Van Diest et al. 2014](docs/CITATIONS.md#vandiest2014-ie-ratio-relaxation)); a month-long trial points the same way on mood ([Balban et al. 2023](docs/CITATIONS.md#balban2023-cyclic-sighing)). Prefer a longer exhale because it feels better, which is the outcome that matters here anyway. Worth knowing that *every* slow pattern tested beat baseline on relaxation ([Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv)): rate does most of the work, and ratio is a preference with a modest, contested edge.
 
@@ -75,9 +75,9 @@ systolic pressure by about 5.6 mmHg ([Chaddha et al. 2019](docs/CITATIONS.md#cha
 editorial in a hypertension journal argues that case should be considered closed
 ([van Dijk et al. 2018](docs/CITATIONS.md#vandijk2018-close-the-book)). It also carries the failed replications, a null result
 against exhale's own genre ([Johnson & Rosenfield 2023](docs/CITATIONS.md#johnson2023-20-20-20), where scheduled
-on-screen breaks did nothing), a correction to this repo's own earlier claims, and a
+on-screen breaks did nothing), and a
 [ledger of fourteen places](docs/CITATIONS.md#gaps-and-unsupported-choices) where exhale ships
-something the literature does not back. Four highlights:
+something the literature does not settle. Four highlights:
 
 - exhale's **default pace is 4 breaths per minute**, below the 5 to 7 range that has been tested directly ([You et al. 2023](docs/CITATIONS.md#you2023-respiratory-frequency)). So is box breathing, at 3.75.
 - Whether a **longer exhale** beats an equal one on heart rate variability is split four ways ([Bae et al. 2021](docs/CITATIONS.md#bae2021-exhalation-inhalation-ratio), [Van Diest et al. 2014](docs/CITATIONS.md#vandiest2014-ie-ratio-relaxation), [Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv), [Meehan & Shaffer 2024](docs/CITATIONS.md#meehan2024-longer-exhalations)). It holds up on how people report *feeling*, which is why the recommendation survived and the mechanism claim did not.
@@ -104,9 +104,10 @@ uv run --no-project scripts/generate-citations.py --check   # fail if stale
 
 `--check` also validates citekey format, enum values, every anchor link the gaps ledger makes into
 the corpus, the source counts quoted in this file, and the deep link the app itself compiles in, so a
-renamed entry or a stale number breaks the build rather than rotting silently. It refuses phrasing
-this project has retracted anywhere it could still be asserted: the Rust sources, the Snap
-description and the Microsoft Store listing copy.
+renamed entry or a stale number breaks the build rather than rotting silently. It also refuses a
+short list of claims the corpus does not support, anywhere they could be asserted rather than
+discussed: the Rust sources, the Snap description and the Microsoft Store listing copy. A store
+listing is edited somewhere a README review never reaches, which is exactly how the two drift.
 
 **In the app.** A *Research* item in the macOS app menu, directly under About, and the same item in
 the system-tray menu on every platform. Both open the gaps ledger rather than the top of the
