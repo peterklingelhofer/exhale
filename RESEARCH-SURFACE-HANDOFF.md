@@ -138,11 +138,26 @@ Rules that follow:
 
 ### Phase 2: tray link. Ship-blocker. DONE, commit `cfbb180`.
 
-**Shipped as designed.** `RESEARCH_URL` and its label are pinned together in `tray.rs` because the
-wording and the anchor are one decision; the item sits directly under Preferences; the handler is
-inline in the `MenuEvent` loop rather than routed through an `AppEvent`, since opening a URL touches
-no app state and `about_to_wait` is already on the main thread, which is where `NSWorkspace` has to
-be called from.
+**Shipped, and then revised twice on the user's call.**
+
+`RESEARCH_URL` and its label are pinned together in `tray.rs` because the wording and the anchor are
+one decision; the item sits directly under Preferences; the handler is inline in the `MenuEvent` loop
+rather than routed through an `AppEvent`, since opening a URL touches no app state and
+`about_to_wait` is already on the main thread, which is where `NSWorkspace` has to be called from.
+
+**The label is now just "Research".** The design argued for wording that leaned toward the ledger
+("Research, and what it doesn't support"); the user asked for the plain word. The epistemic intent is
+intact because it never lived in the label alone: the anchor is `#gaps-and-unsupported-choices`, so
+the item still opens on the fourteen things the literature does not support rather than on 48
+references. Do not "simplify" the anchor to the top of the file.
+
+**It is also in the macOS app menu**, directly under About, sharing `RESEARCH_LABEL` and
+`platform::open_url` with the tray so the two can never disagree. Implemented as a second selector
+(`exhaleShowResearch:`) on the existing leaked handler class, renamed `ExhaleAboutHandler` ->
+`ExhaleMenuHandler` now that it serves two items. This matters more than menu parity: `NSMenu` items
+are exposed to the accessibility tree and nothing inside the egui settings window is, so between
+them the tray and the app menu are the only evidentiary strings a VoiceOver user can perceive.
+Windows and Linux have no app-menu concept; the tray item is the whole surface there.
 
 Three things worth knowing before changing it:
 
@@ -182,11 +197,19 @@ feature flags and entitlements were verified; an actual signed click was not.
    and does not compile `exhale-app`, which needs wgpu, winit and GTK. Copy that makes a coverage
    statement should not be the only text in the project with no test behind it. `pacing.rs` holds
    the range constants, the classification and the strings; the widget only paints.
-2. **The drift line reports a doubling time as well as an hour-out rate.** "0.1 % per cycle" tells
-   nobody whether they picked something gentle or something that runs away before lunch; "twice this
-   cycle length after 4.2 hours" does. `Settings::breaths_per_min_after` turned out to have an exact
-   closed form (`D = c + 60·T·(d − 1)`, derived in the doc comment), so both numbers are one line of
-   arithmetic with no loop and no `powi`. A cycle-by-cycle simulation is kept as a test oracle.
+2. **The drift line reports a doubling point and a projection, both revised after review.** The
+   first version quoted a doubling *time* and an hour-out *rate*, and both were unreadable in
+   different ways. The time depends on the starting cycle, so the same 1 % read as 17 minutes from a
+   10 s cycle and 25 minutes from a 15 s one, which made the panel look like it could not do
+   arithmetic even though both figures were right. The rate, "about 1.3 a minute after an hour", is
+   correct and impossible to picture. What ships instead is *"the cycle doubles every 70 breaths.
+   After an hour it is 46 s, not 10 s."* Breaths because `dᵏ = 2` has no `c` in it, so the count is
+   a property of the drift setting alone and is a true repeat interval rather than a first
+   milestone; seconds because that is the unit the four steppers above are set in. The second clause
+   is suppressed when an hour moves the number by less than half a second, or 0.001 % would render
+   "after an hour it is 15 s, not 15 s". `Settings::breaths_per_min_after` has an exact closed form
+   (`D = c + 60·T·(d - 1)`, derived in the doc comment), so nothing here loops or calls `powi`, and
+   a cycle-by-cycle simulation is kept as a test oracle.
 3. **A fourth coverage state was added.** A pace that starts inside the tested range and drifts out
    of it within the hour says so, rather than reporting only its starting classification, which
    would read "one of them" and be misleading.
