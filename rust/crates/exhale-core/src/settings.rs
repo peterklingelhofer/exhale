@@ -337,9 +337,20 @@ impl Default for Settings {
             // via Preferences once is easy.
             app_visibility:      AppVisibility::Both,
 
+            // 5 / 0 / 5 / 0, six breaths a minute, no holds.
+            //
+            // Inside the 5-to-7 band `you2023-respiratory-frequency` tested
+            // directly, and the condition that won the four-way head-to-head in
+            // `marchant2025-square-478-six`. The previous default was 5 / 0 / 10 / 0,
+            // four a minute, which nobody has measured; it is still one click away
+            // as a preset.
+            //
+            // These fields carry no `#[serde(default)]`, so a settings.toml that
+            // predates this change keeps every value it already has. The move
+            // reaches fresh installs and Reset to Defaults, and nobody else.
             inhale_duration:           5.0,
             post_inhale_hold_duration: 0.0,
-            exhale_duration:           10.0,
+            exhale_duration:           5.0,
             post_exhale_hold_duration: 0.0,
             drift:                     1.0,
 
@@ -642,7 +653,7 @@ mod tests {
     fn defaults_match_swift_app() {
         let s = Settings::default();
         assert_eq!(s.inhale_duration, 5.0);
-        assert_eq!(s.exhale_duration, 10.0);
+        assert_eq!(s.exhale_duration, 5.0);
         assert_eq!(s.post_inhale_hold_duration, 0.0);
         assert_eq!(s.post_exhale_hold_duration, 0.0);
         assert!((s.drift - 1.0).abs() < 1e-9);
@@ -665,13 +676,14 @@ mod tests {
     }
 
     #[test]
-    fn shipped_default_is_four_breaths_a_minute() {
+    fn shipped_default_is_six_breaths_a_minute() {
         let s = Settings::default();
-        assert_eq!(s.cycle_secs(), 15.0);
-        assert!((s.breaths_per_min().unwrap() - 4.0).abs() < 1e-9);
-        // Pinned because gaps ledger item 2 is about this exact
-        // number sitting below the 5-to-7 band anyone has tested.
-        // If the default moves, that entry has to move with it
+        assert_eq!(s.cycle_secs(), 10.0);
+        assert!((s.breaths_per_min().unwrap() - 6.0).abs() < 1e-9);
+        // Pinned deliberately. Six a minute is inside the 5-to-7 band
+        // `you2023-respiratory-frequency` tested and is the condition
+        // that won `marchant2025-square-478-six`; gaps ledger item 2
+        // rests on this number, so moving it means moving that entry
         assert!(!s.drift_is_active());
     }
 
@@ -746,19 +758,23 @@ mod tests {
         // on this contrast: at 1 % the breath doubles inside a
         // sitting, at 0.1 % it takes most of a working day. Both are
         // allowed; the app just has to be able to say which is which
+        // From the 10 s default: 0.1 % reaches 13.6 s after an hour,
+        // still a pace someone would sit through
         let mut gentle = Settings::default();
         gentle.drift = 1.001;
         let after_an_hour = gentle.breaths_per_min_after(60.0).unwrap();
         assert!(
-            (3.0..4.0).contains(&after_an_hour),
+            (4.0..5.0).contains(&after_an_hour),
             "0.1 % for an hour gave {after_an_hour} a minute"
         );
 
+        // 1 % reaches 25 s in the same hour, and has more than doubled
+        // inside 17 minutes
         let mut steep = Settings::default();
         steep.drift = 1.01;
         let after_25_min = steep.breaths_per_min_after(25.0).unwrap();
         assert!(
-            after_25_min < 2.0,
+            after_25_min < 3.0,
             "1 % for 25 minutes gave {after_25_min} a minute"
         );
     }
@@ -770,7 +786,7 @@ mod tests {
         let mut s = Settings::default();
         s.drift = 0.99;
         assert!(s.drift_is_active());
-        assert!(s.breaths_per_min_after(1.0).unwrap() > 4.0);
+        assert!(s.breaths_per_min_after(1.0).unwrap() > 6.0);
         // Far enough out, the projected cycle passes through zero
         assert_eq!(s.breaths_per_min_after(10_000.0), None);
     }
