@@ -165,11 +165,146 @@
       "verification": "crossref-verified",
       "accessLevel": "open-access",
       "evidenceTier": "A",
+      "inAppCitable": false,
       "backsClaims": [
         "five minutes a day of exhale-emphasising cyclic sighing improved mood and lowered respiratory rate more than an equal period of mindfulness meditation over one month",
         "box breathing, equal inhale / hold / exhale, was tested head-to-head and was not the best-performing arm"
       ],
       "caveat": "Remote randomised controlled study, pre-registered as NCT05304000. The primary comparator is mindfulness meditation, not a sham, so the arms differ in more than breath ratio. The mood difference reached p < 0.05 in a mixed-effects model; this is a real but modest separation. Directly relevant to exhale twice over: it is the best evidence that a longer exhale is the right emphasis, and it is the reason the README should stop presenting box breathing as equivalent."
+    }
+  },
+  {
+    "id": "bernardi2001-slow-breathing-chemoreflex",
+    "type": "article-journal",
+    "title": "Slow breathing reduces chemoreflex response to hypoxia and hypercapnia, and increases baroreflex sensitivity",
+    "author": [
+      {
+        "family": "Bernardi",
+        "given": "Luciano"
+      },
+      {
+        "family": "Gabutti",
+        "given": "Alessandra"
+      },
+      {
+        "family": "Porta",
+        "given": "Cesare"
+      },
+      {
+        "family": "Spicuzza",
+        "given": "Lucia"
+      }
+    ],
+    "container-title": "Journal of Hypertension",
+    "volume": "19",
+    "issue": "12",
+    "page": "2221-2229",
+    "issued": {
+      "date-parts": [
+        [
+          2001
+        ]
+      ]
+    },
+    "DOI": "10.1097/00004872-200112000-00016",
+    "URL": "https://doi.org/10.1097/00004872-200112000-00016",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "breathing at 6 per minute depressed both hypoxic and hypercapnic chemoreflex responses compared with spontaneous or 15 per minute breathing",
+        "baroreflex sensitivity was greater during slow breathing"
+      ],
+      "caveat": "n = 15 healthy individuals. Carried mainly to mark where the studied territory ENDS: this literature is conducted at roughly 3 to 6 breaths per minute, and 6 is the rate tested here. Below about 3 per minute there is essentially nothing to appeal to, which is what bounds exhale's `drift` ceiling. See also bilo2012-slow-breathing-altitude."
+    }
+  },
+  {
+    "id": "bilo2012-slow-breathing-altitude",
+    "type": "article-journal",
+    "title": "Effects of Slow Deep Breathing at High Altitude on Oxygen Saturation, Pulmonary and Systemic Hemodynamics",
+    "author": [
+      {
+        "family": "Bilo",
+        "given": "Grzegorz"
+      },
+      {
+        "family": "Revera",
+        "given": "Miriam"
+      },
+      {
+        "family": "Bussotti",
+        "given": "Maurizio"
+      },
+      {
+        "family": "Bonacina",
+        "given": "Daniele"
+      },
+      {
+        "family": "Styczkiewicz",
+        "given": "Katarzyna"
+      },
+      {
+        "family": "Caldara",
+        "given": "Gianluca"
+      },
+      {
+        "family": "Giglio",
+        "given": "Alessia"
+      },
+      {
+        "family": "Faini",
+        "given": "Andrea"
+      },
+      {
+        "family": "Giuliano",
+        "given": "Andrea"
+      },
+      {
+        "family": "Lombardi",
+        "given": "Carolina"
+      },
+      {
+        "family": "Kawecka-Jaszcz",
+        "given": "Kalina"
+      },
+      {
+        "family": "Mancia",
+        "given": "Giuseppe"
+      },
+      {
+        "family": "Agostoni",
+        "given": "Piergiuseppe"
+      },
+      {
+        "family": "Parati",
+        "given": "Gianfranco"
+      }
+    ],
+    "container-title": "PLoS ONE",
+    "volume": "7",
+    "issue": "11",
+    "page": "e49074",
+    "issued": {
+      "date-parts": [
+        [
+          2012
+        ]
+      ]
+    },
+    "DOI": "10.1371/journal.pone.0049074",
+    "URL": "https://doi.org/10.1371/journal.pone.0049074",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "fifteen minutes of paced breathing at 6 per minute raised arterial oxygen saturation and lowered systemic and pulmonary arterial pressure at high altitude",
+        "the proposed mechanism is a larger tidal volume reducing the proportion of each breath spent on anatomical dead space"
+      ],
+      "caveat": "Conducted at high altitude in a hypoxic state, so it does not transfer to a desk at sea level and must not be cited as if it did. It is carried for two narrow purposes: it is the second entry fixing the studied range at roughly 3 to 6 breaths per minute, and its dead-space mechanism is the reason slow breathing is not simply less breathing."
     }
   },
   {
@@ -211,6 +346,7 @@
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
       "evidenceTier": "A",
+      "inAppCitable": false,
       "backsClaims": [
         "sustained slow breathing programmes lower systolic blood pressure by about 5.6 mmHg and diastolic by about 3.0 mmHg in hypertensive and prehypertensive adults"
       ],
@@ -300,6 +436,7 @@
       "verification": "crossref-verified",
       "accessLevel": "open-access",
       "evidenceTier": "A",
+      "inAppCitable": false,
       "backsClaims": [
         "breathwork lowers self-reported stress against control conditions, g = -0.35 (95% CI -0.55 to -0.14), 12 RCTs, 785 adults",
         "comparable small-to-medium effects for anxiety (g = -0.32, k = 20) and depressive symptoms (g = -0.40, k = 18)"
@@ -445,6 +582,49 @@
         "scheduled 20-second breaks every 5, 10 or 20 minutes produced no significant effect on ocular symptoms, reading speed or task accuracy"
       ],
       "caveat": "n = 30, 40-minute tablet reading task, four break schedules. Symptoms rose significantly in all four conditions including the most frequent break schedule. Included here as a caution against exhale's own genre: a periodic on-screen nudge is not self-evidently effective just because it is popular and plausible."
+    }
+  },
+  {
+    "id": "joshi1992-pranayam-training",
+    "type": "article-journal",
+    "title": "Effect of short term 'Pranayam' practice on breathing rate and ventilatory functions of lung",
+    "author": [
+      {
+        "family": "Joshi",
+        "given": "L. N."
+      },
+      {
+        "family": "Joshi",
+        "given": "V. D."
+      },
+      {
+        "family": "Gokhale",
+        "given": "L. V."
+      }
+    ],
+    "container-title": "Indian Journal of Physiology and Pharmacology",
+    "volume": "36",
+    "issue": "2",
+    "page": "105-108",
+    "issued": {
+      "date-parts": [
+        [
+          1992
+        ]
+      ]
+    },
+    "PMID": "1506070",
+    "URL": "https://pubmed.ncbi.nlm.nih.gov/1506070/",
+    "custom": {
+      "group": "tradition",
+      "verification": "pubmed-verified",
+      "accessLevel": "paywalled",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "six weeks of pranayama practice in 75 young adults lowered resting respiratory rate and prolonged breath-holding time",
+        "the same training raised forced vital capacity, FEV1, maximum voluntary ventilation and peak expiratory flow rate"
+      ],
+      "caveat": "NUMBERS NOT READ 2026-08-30; no DOI exists, and the record was verified against the NCBI eutils API by PMID rather than Crossref. Uncontrolled before-and-after design in a 1992 regional journal, so treat the effect sizes as unusable. It is carried because it is the only entry in this corpus that speaks to pranayama's GRADED EXTENSION as a training progression: capacity grew over six weeks of practice. That is a claim about adaptation across sessions, and it is NOT evidence for extending the breath without limit inside a single sitting, which is a different proposition that shaffer2020-resonance-frequency-assessment argues against."
     }
   },
   {
@@ -834,7 +1014,7 @@
         "5.5 breaths per minute with an equal 5:5 inhale-to-exhale ratio produced higher SDNN and LF power than 6 bpm or than a 4:6 ratio",
         "all four slow-breathing patterns increased self-reported relaxation relative to spontaneous breathing"
       ],
-      "caveat": "n = 47, Latin-square counterbalanced. The clearest published result AGAINST a longer exhale on HRV grounds, and it is why exhale's README no longer asserts the 1:2 mechanism. Note the second claim carefully: every pattern tested increased relaxation, so the ratio argument is about which slow pattern is best, not about whether slow breathing works."
+      "caveat": "n = 47, Latin-square counterbalanced. The clearest published result AGAINST a longer exhale on HRV grounds, and the reason exhale makes no mechanism claim for the 1:2 ratio. Note the second claim carefully: every pattern tested increased relaxation, so the ratio argument is about which slow pattern is best, not about whether slow breathing works."
     }
   },
   {
@@ -903,6 +1083,7 @@
       "verification": "crossref-verified",
       "accessLevel": "open-access",
       "evidenceTier": "D",
+      "inAppCitable": false,
       "backsClaims": [
         "a 5 s inhale, 5 s exhale, 2 s post-exhale hold at five breaths per minute is a protocol a recent review argues is representative of the effective literature",
         "23 of 30 reviewed studies reported significant HRV improvement; 10 reported anxiety reduction and 9 reported reduced perceived stress",
@@ -996,7 +1177,7 @@
         "at 6 breaths per minute, a 1:2 inhale-to-exhale ratio produced no HRV advantage over 1:1 in either an original experiment or its replication",
         "the finding held across time-domain, frequency-domain and nonlinear HRV metrics"
       ],
-      "caveat": "Original n = 26, replication n = 16; both undergraduate samples, both within-subjects with manipulation checks. Small, but it is the only entry in this corpus that ran its own replication. Its scope condition matters: it holds rate fixed inside the resonance range, so it does not rule out a ratio effect at a person's spontaneous rate, which is what bae2021-exhalation-inhalation-ratio measured. One of four disagreeing studies; see also vandiest2014-ie-ratio-relaxation and lin2014-equal-ratio-hrv. Critically, all four measured HRV; none of them measured how participants felt except vandiest2014-ie-ratio-relaxation, which is why exhale's recommendation now rests on the subjective outcome rather than on this dispute."
+      "caveat": "Original n = 26, replication n = 16; both undergraduate samples, both within-subjects with manipulation checks. Small, but it is the only entry in this corpus that ran its own replication. Its scope condition matters: it holds rate fixed inside the resonance range, so it does not rule out a ratio effect at a person's spontaneous rate, which is what bae2021-exhalation-inhalation-ratio measured. One of four disagreeing studies; see also vandiest2014-ie-ratio-relaxation and lin2014-equal-ratio-hrv. Critically, all four measured HRV; none measured how participants felt except vandiest2014-ie-ratio-relaxation, which is why exhale's recommendation rests on the subjective outcome rather than on this dispute."
     }
   },
   {
@@ -1234,7 +1415,7 @@
         "during computer data-entry work, end-tidal CO2 was significantly lower and respiration frequency significantly higher than during either baseline relaxation or progressive muscle relaxation",
         "breathing changes measurably at a screen, and end-tidal CO2 discriminates the state"
       ],
-      "caveat": "n = 11 data-entry operators monitored continuously across three consecutive six-hour work days. Small sample, but this is real screen work over real working days, not a lab proxy. This entry retracts an earlier claim in this repo that no peer-reviewed study had measured respiration during ordinary screen use. It had; this is it, from 1994."
+      "caveat": "n = 11 data-entry operators monitored continuously across three consecutive six-hour work days. Small sample, but this is real screen work over real working days, not a lab proxy. Along with schleifer2008-emg-gaps-computer-work it is the direct evidence that screen work changes respiration, and it dates from 1994, well before the topic reached breathwork writing."
     }
   },
   {
@@ -1374,6 +1555,45 @@
     }
   },
   {
+    "id": "shaffer2020-resonance-frequency-assessment",
+    "type": "article-journal",
+    "title": "A Practical Guide to Resonance Frequency Assessment for Heart Rate Variability Biofeedback",
+    "author": [
+      {
+        "family": "Shaffer",
+        "given": "Fred"
+      },
+      {
+        "family": "Meehan",
+        "given": "Zachary M."
+      }
+    ],
+    "container-title": "Frontiers in Neuroscience",
+    "volume": "14",
+    "page": "570400",
+    "issued": {
+      "date-parts": [
+        [
+          2020
+        ]
+      ]
+    },
+    "DOI": "10.3389/fnins.2020.570400",
+    "URL": "https://doi.org/10.3389/fnins.2020.570400",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "D",
+      "backsClaims": [
+        "the relationship between breathing rate and heart-rate-variability amplitude is an inverted U with a peak, not a slope",
+        "resonance frequency ranges from 4.5 to 6.5 breaths per minute in adults, and 6.5 to 9.5 in children",
+        "breathing in a narrow band around the resonance frequency stimulates the baroreflex better than breathing across a wider range"
+      ],
+      "caveat": "Methods guide rather than an experiment, hence tier D. It is nonetheless the entry that decides exhale's `drift` question: if the curve peaks, then breathing progressively slower moves AWAY from the optimum once past it, and 'slower is always better' is false. Shaffer is also an author of meehan2024-longer-exhalations, so this corpus leans on one group twice; that is worth knowing, though the inverted-U is not a contested finding."
+    }
+  },
+  {
     "id": "sheppard2018-digital-eye-strain",
     "type": "article-journal",
     "title": "Digital eye strain: prevalence, measurement and amelioration",
@@ -1410,6 +1630,77 @@
         "reduced blink rate and incomplete blinks during screen work are among its established contributors"
       ],
       "caveat": "Crossref carries no license field for this record; access level is taken from BMJ Open Ophthalmology being a fully open-access title."
+    }
+  },
+  {
+    "id": "szulczewski2019-antihyperventilation-instruction",
+    "type": "article-journal",
+    "title": "An Anti-hyperventilation Instruction Decreases the Drop in End-tidal CO2 and Symptoms of Hyperventilation During Breathing at 0.1 Hz",
+    "author": [
+      {
+        "family": "Szulczewski",
+        "given": "Mikołaj Tytus"
+      }
+    ],
+    "container-title": "Applied Psychophysiology and Biofeedback",
+    "volume": "44",
+    "issue": "3",
+    "page": "247-256",
+    "issued": {
+      "date-parts": [
+        [
+          2019
+        ]
+      ]
+    },
+    "DOI": "10.1007/s10484-019-09438-y",
+    "URL": "https://doi.org/10.1007/s10484-019-09438-y",
+    "custom": {
+      "group": "safety",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "B",
+      "backsClaims": [
+        "one sentence of instruction cut the end-tidal CO2 drop during 6-per-minute paced breathing from 5.21 to 2.7 mmHg",
+        "hyperventilation symptoms rose 0.63 points on a 7-point scale without the instruction and did not rise significantly with it",
+        "the instruction used was to avoid excessively deep breathing and to breathe shallowly and naturally"
+      ],
+      "caveat": "Randomised, two groups, n = 46 aged 19-26. This is the mitigation for gap 5 and it is unusually cheap: the problem with slow pacing is DEPTH, not rate, and a single sentence fixes most of it. exhale paces rate and says nothing about depth, so this is the one piece of prose in the whole corpus that would earn its place in the app on safety grounds rather than persuasion grounds."
+    }
+  },
+  {
+    "id": "szulczewski2019-training-relaxation",
+    "type": "article-journal",
+    "title": "Training of paced breathing at 0.1 Hz improves CO2 homeostasis and relaxation during a paced breathing task",
+    "author": [
+      {
+        "family": "Szulczewski",
+        "given": "Mikołaj Tytus"
+      }
+    ],
+    "container-title": "PLOS ONE",
+    "volume": "14",
+    "issue": "6",
+    "page": "e0218550",
+    "issued": {
+      "date-parts": [
+        [
+          2019
+        ]
+      ]
+    },
+    "DOI": "10.1371/journal.pone.0218550",
+    "URL": "https://doi.org/10.1371/journal.pone.0218550",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "open-access",
+      "evidenceTier": "C",
+      "backsClaims": [
+        "across seven consecutive days of ten-minute paced breathing, self-reported task pleasantness rose significantly and unpleasant arousal fell, with the affective gains emerging by mid-training rather than on day one",
+        "the end-tidal CO2 drop caused by paced breathing shrank with practice: 37.5% of participants dropped below 30 mmHg on day one against 6.3% on day seven"
+      ],
+      "caveat": "n = 16, single group, no control, one week. Small and uncontrolled, so treat the magnitudes as indicative. It is carried because it is the closest thing in this corpus to evidence for the pranayama proposition that the practice improves with practice: relaxation was not immediate, it accrued. Note carefully what it does NOT show. Training was at a FIXED 0.1 Hz throughout; it is evidence that repeated practice at one rate gets better, not that progressively slowing within a session helps. That second proposition remains untested. See also joshi1992-pranayam-training."
     }
   },
   {

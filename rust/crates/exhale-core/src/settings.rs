@@ -34,6 +34,14 @@ pub struct Settings {
     pub post_exhale_hold_duration: f64,
 
     /// Per-cycle duration multiplier. 1.01 = each cycle 1 % longer (drift).
+    ///
+    /// Defaults to 1.0 (off). Pranayama's graded extension is the reason this
+    /// exists and it is a reasonable thing to turn on, but it should not be
+    /// imposed: heart-rate-variability amplitude peaks at 4.5-6.5 breaths a
+    /// minute rather than rising without limit, and exhale's default cadence
+    /// already sits below that band, so drifting slower from cycle one moves
+    /// every new user further from the studied range. When it IS on, the
+    /// compounding is bounded by [`crate::controller::DRIFT_MAX_CYCLE_SECS`].
     pub drift: f64,
 
     // ── Randomisation (±seconds of jitter per phase) ─────────────────────────
@@ -329,11 +337,22 @@ impl Default for Settings {
             // via Preferences once is easy.
             app_visibility:      AppVisibility::Both,
 
+            // 5 / 0 / 5 / 0, six breaths a minute, no holds.
+            //
+            // Inside the 5-to-7 band `you2023-respiratory-frequency` tested
+            // directly, and the condition that won the four-way head-to-head in
+            // `marchant2025-square-478-six`. The previous default was 5 / 0 / 10 / 0,
+            // four a minute, which nobody has measured; it is still one click away
+            // as a preset.
+            //
+            // These fields carry no `#[serde(default)]`, so a settings.toml that
+            // predates this change keeps every value it already has. The move
+            // reaches fresh installs and Reset to Defaults, and nobody else.
             inhale_duration:           5.0,
             post_inhale_hold_duration: 0.0,
-            exhale_duration:           10.0,
+            exhale_duration:           5.0,
             post_exhale_hold_duration: 0.0,
-            drift:                     1.01,
+            drift:                     1.0,
 
             randomized_timing_inhale:             0.0,
             randomized_timing_post_inhale_hold:   0.0,
@@ -515,6 +534,85 @@ impl Settings {
         self.settings_window_screen  = win_screen;
     }
 
+    // ── Derived pacing arithmetic ────────────────────────────────────────
+    //
+    // These exist so the settings window can state what the current
+    // configuration actually does without storing a number that can go
+    // stale. Nothing here is a claim about the literature; it is
+    // division. That distinction is the reason the app can say it at
+    // all: an arithmetic statement cannot be retracted, so it carries
+    // none of the review risk that a health claim in a store-reviewed
+    // binary would.
+    //
+    // Deliberately computed from live `Settings` rather than attached
+    // to a preset. A rate cached alongside a preset is wrong the
+    // moment the user nudges one stepper, and wrong from the first
+    // cycle whenever `drift` is on.
+
+    /// Seconds in one full breath cycle at the current settings,
+    /// before any drift is applied.
+    ///
+    /// Ignores the randomisation sliders: they perturb individual
+    /// phases around these values without changing the mean, so the
+    /// jittered long-run rate is the same number with more variance
+    pub fn cycle_secs(&self) -> f64 {
+        self.inhale_duration
+            + self.post_inhale_hold_duration
+            + self.exhale_duration
+            + self.post_exhale_hold_duration
+    }
+
+    /// Breaths per minute at the start of a session.
+    ///
+    /// `None` when all four phases are zero, which is not a rate of
+    /// anything. Callers render nothing rather than an infinity
+    pub fn breaths_per_min(&self) -> Option<f64> {
+        let cycle = self.cycle_secs();
+        (cycle > 0.0).then(|| 60.0 / cycle)
+    }
+
+    /// Breaths per minute after `minutes` of continuous running, with
+    /// `drift` compounding.
+    ///
+    /// The closed form is exact at cycle boundaries and worth the
+    /// comment, because the obvious implementation is a loop. Cycle
+    /// `k` lasts `c · dᵏ`, so the elapsed time after `k` cycles is the
+    /// geometric sum `S = c·(dᵏ − 1)/(d − 1)`. Substituting the
+    /// current cycle length `D = c·dᵏ` gives `S = (D − c)/(d − 1)`,
+    /// and solving for `D` at `S = 60·minutes` collapses the whole
+    /// thing to a line with no `powi` and no logarithm:
+    ///
+    /// ```text
+    /// D = c + 60 · minutes · (d − 1)
+    /// ```
+    ///
+    /// The compounding is real; its *effect on elapsed wall time* is
+    /// simply linear. `d == 1` falls out as `D == c` with no special
+    /// case.
+    ///
+    /// `None` when the cycle is zero-length, and also when a drift
+    /// below 1.0 has shortened the projected cycle to nothing. Drift
+    /// cannot be set below 1.0 through the UI, but a hand-edited
+    /// settings file can, and a negative rate is not a thing to show
+    /// a user
+    pub fn breaths_per_min_after(&self, minutes: f64) -> Option<f64> {
+        let cycle = self.cycle_secs();
+        if cycle <= 0.0 {
+            return None;
+        }
+        let projected = cycle + 60.0 * minutes * (self.drift - 1.0);
+        (projected > 0.0).then(|| 60.0 / projected)
+    }
+
+    /// True when `drift` is doing anything at all.
+    ///
+    /// Uses the same `1e-9` epsilon `SettingsDiff::from` uses on this
+    /// field, so "the UI shows a drift line" and "a drift change marks
+    /// settings dirty" can never disagree
+    pub fn drift_is_active(&self) -> bool {
+        (self.drift - 1.0).abs() > 1e-9
+    }
+
     /// Returns true when inhale and exhale colors are perceptually
     /// identical, used to skip unnecessary redraws in the fullscreen shape
     pub fn inhale_exhale_colors_match(&self) -> bool {
@@ -555,10 +653,10 @@ mod tests {
     fn defaults_match_swift_app() {
         let s = Settings::default();
         assert_eq!(s.inhale_duration, 5.0);
-        assert_eq!(s.exhale_duration, 10.0);
+        assert_eq!(s.exhale_duration, 5.0);
         assert_eq!(s.post_inhale_hold_duration, 0.0);
         assert_eq!(s.post_exhale_hold_duration, 0.0);
-        assert!((s.drift - 1.01).abs() < 1e-9);
+        assert!((s.drift - 1.0).abs() < 1e-9);
         assert!((s.overlay_opacity - 0.25).abs() < 1e-6);
         assert_eq!(s.shape, AnimationShape::Rectangle);
         assert_eq!(s.color_fill_gradient, ColorFillGradient::On);
@@ -575,6 +673,122 @@ mod tests {
         assert_eq!(deserialized.inhale_duration, original.inhale_duration);
         assert_eq!(deserialized.shape, original.shape);
         assert_eq!(deserialized.hold_ripple_mode, original.hold_ripple_mode);
+    }
+
+    #[test]
+    fn shipped_default_is_six_breaths_a_minute() {
+        let s = Settings::default();
+        assert_eq!(s.cycle_secs(), 10.0);
+        assert!((s.breaths_per_min().unwrap() - 6.0).abs() < 1e-9);
+        // Pinned deliberately. Six a minute is inside the 5-to-7 band
+        // `you2023-respiratory-frequency` tested and is the condition
+        // that won `marchant2025-square-478-six`; gaps ledger item 2
+        // rests on this number, so moving it means moving that entry
+        assert!(!s.drift_is_active());
+    }
+
+    #[test]
+    fn box_breathing_is_slower_than_it_looks() {
+        // 4+4+4+4 reads like a beginner pattern and is 3.75 a minute,
+        // slower than the 5-to-7 band. The holds hide it, which is
+        // the whole reason the settings window does this division
+        // for the user. See gaps ledger item 3
+        let mut s = Settings::default();
+        s.inhale_duration           = 4.0;
+        s.post_inhale_hold_duration = 4.0;
+        s.exhale_duration           = 4.0;
+        s.post_exhale_hold_duration = 4.0;
+        assert!((s.breaths_per_min().unwrap() - 3.75).abs() < 1e-9);
+    }
+
+    #[test]
+    fn zero_length_cycle_has_no_rate() {
+        let mut s = Settings::default();
+        s.inhale_duration           = 0.0;
+        s.post_inhale_hold_duration = 0.0;
+        s.exhale_duration           = 0.0;
+        s.post_exhale_hold_duration = 0.0;
+        assert_eq!(s.breaths_per_min(), None);
+        assert_eq!(s.breaths_per_min_after(10.0), None);
+    }
+
+    #[test]
+    fn drift_projection_matches_a_cycle_by_cycle_simulation() {
+        // The closed form in `breaths_per_min_after` replaces a loop
+        // with a line. This is the loop, kept as the oracle: walk
+        // real cycles, each `drift` times the last, until the clock
+        // passes the target, and compare the cycle actually in
+        // progress against what the formula predicted
+        for &drift in &[1.0, 1.0001, 1.001, 1.01] {
+            for &minutes in &[1.0, 10.0, 60.0, 300.0] {
+                let mut s = Settings::default();
+                s.drift = drift;
+
+                let mut cycle   = s.cycle_secs();
+                let mut elapsed = 0.0_f64;
+                while elapsed + cycle <= minutes * 60.0 {
+                    elapsed += cycle;
+                    cycle   *= drift;
+                }
+
+                let predicted = 60.0 / s.breaths_per_min_after(minutes).unwrap();
+                // The simulation reports the cycle in progress, so it
+                // lags the continuous formula by at most one cycle
+                assert!(
+                    predicted >= cycle - 1e-9 && predicted <= cycle * drift + 1e-9,
+                    "drift={drift} minutes={minutes}: formula {predicted} \
+                     outside simulated cycle [{cycle}, {}]",
+                    cycle * drift,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn drift_off_projects_a_flat_rate() {
+        let s = Settings::default();
+        for &minutes in &[0.0, 1.0, 1_000.0] {
+            assert_eq!(s.breaths_per_min_after(minutes), s.breaths_per_min());
+        }
+    }
+
+    #[test]
+    fn one_step_of_drift_is_gentle_and_one_percent_is_not() {
+        // The stepper's smallest increment. Gaps ledger item 6 turns
+        // on this contrast: at 1 % the breath doubles inside a
+        // sitting, at 0.1 % it takes most of a working day. Both are
+        // allowed; the app just has to be able to say which is which
+        // From the 10 s default: 0.1 % reaches 13.6 s after an hour,
+        // still a pace someone would sit through
+        let mut gentle = Settings::default();
+        gentle.drift = 1.001;
+        let after_an_hour = gentle.breaths_per_min_after(60.0).unwrap();
+        assert!(
+            (4.0..5.0).contains(&after_an_hour),
+            "0.1 % for an hour gave {after_an_hour} a minute"
+        );
+
+        // 1 % reaches 25 s in the same hour, and has more than doubled
+        // inside 17 minutes
+        let mut steep = Settings::default();
+        steep.drift = 1.01;
+        let after_25_min = steep.breaths_per_min_after(25.0).unwrap();
+        assert!(
+            after_25_min < 3.0,
+            "1 % for 25 minutes gave {after_25_min} a minute"
+        );
+    }
+
+    #[test]
+    fn a_shortening_drift_never_reports_a_negative_rate() {
+        // Not reachable through the UI, which clamps display at 0 %,
+        // but a hand-edited settings file can hold drift < 1.0
+        let mut s = Settings::default();
+        s.drift = 0.99;
+        assert!(s.drift_is_active());
+        assert!(s.breaths_per_min_after(1.0).unwrap() > 6.0);
+        // Far enough out, the projected cycle passes through zero
+        assert_eq!(s.breaths_per_min_after(10_000.0), None);
     }
 
     #[test]

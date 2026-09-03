@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>exhale citation corpus</title>
+<meta name="description" content="Every claim and default in exhale, with the published evidence behind it and a ledger of what the evidence does not support.">
+<meta name="color-scheme" content="light dark">
+<link rel="canonical" href="https://peterklingelhofer.github.io/exhale/citations.html">
+<style>
+  :root {
+    --bg: #fbfaf8;
+    --panel: #ffffff;
+    --ink: #1c1b19;
+    --ink-soft: #55524d;
+    --ink-faint: #807c75;
+    --rule: #e3e0d9;
+    --rule-soft: #efece6;
+    --accent: #0f6d68;
+    --accent-soft: #e6f1f0;
+    --warn-bg: #fdf6e7;
+    --warn-rule: #e8d7a8;
+    --code-bg: #f2efe9;
+    --measure: 68ch;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: Charter, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --panel: #1a1d22;
+      --ink: #e7e4de;
+      --ink-soft: #b3aea6;
+      --ink-faint: #8a8781;
+      --rule: #2c3038;
+      --rule-soft: #23262c;
+      --accent: #6fd3c9;
+      --accent-soft: #16302f;
+      --warn-bg: #241f14;
+      --warn-rule: #4a3f22;
+      --code-bg: #22262c;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .skip {
+    position: absolute; left: -9999px; top: 0;
+    background: var(--accent); color: #fff;
+    padding: .6rem 1rem; z-index: 20; border-radius: 0 0 6px 0;
+  }
+  .skip:focus { left: 0; }
+
+  a { color: var(--accent); text-underline-offset: .15em; }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* ── Masthead ─────────────────────────────────────────── */
+  .masthead {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; flex-wrap: wrap; gap: .75rem 1.25rem;
+    align-items: baseline;
+    padding: .7rem clamp(1rem, 4vw, 2.5rem);
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(1.4) blur(8px);
+    border-bottom: 1px solid var(--rule);
+    font-family: var(--sans);
+    font-size: .82rem;
+  }
+  .wordmark {
+    font-weight: 600; letter-spacing: .01em;
+    color: var(--ink); text-decoration: none;
+    font-size: .95rem;
+  }
+  .wordmark::before {
+    content: ""; display: inline-block;
+    width: .5rem; height: .5rem; margin-right: .5rem;
+    border: 1.5px solid var(--accent); border-radius: 50%;
+  }
+  .masthead nav { margin-left: auto; display: flex; gap: 1.1rem; flex-wrap: wrap; }
+  .masthead nav a { color: var(--ink-soft); text-decoration: none; }
+  .masthead nav a:hover { color: var(--accent); text-decoration: underline; }
+
+  /* ── Layout ───────────────────────────────────────────── */
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: clamp(1.5rem, 4vw, 3.5rem);
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 4vw, 2.5rem) 5rem;
+  }
+  @media (min-width: 62rem) {
+    .layout { grid-template-columns: 16.5rem minmax(0, 1fr); }
+    .toc { order: -1; }
+  }
+
+  /* ── Table of contents ────────────────────────────────── */
+  .toc {
+    font-family: var(--sans);
+    font-size: .84rem;
+    line-height: 1.45;
+  }
+  @media (min-width: 62rem) {
+    .toc { position: sticky; top: 4.2rem; max-height: calc(100vh - 6rem); overflow-y: auto; }
+  }
+  .toc h2 {
+    font-size: .72rem; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--ink-faint); margin: 0 0 .75rem; font-weight: 600;
+  }
+  .toc ol { list-style: none; margin: 0; padding: 0; }
+  .toc li { margin: 0; }
+  .toc a {
+    display: block; padding: .3rem .6rem;
+    color: var(--ink-soft); text-decoration: none;
+    border-left: 2px solid var(--rule-soft);
+  }
+  .toc a:hover { color: var(--accent); background: var(--rule-soft); }
+  .toc a[aria-current="true"] {
+    color: var(--accent); border-left-color: var(--accent);
+    background: var(--accent-soft); font-weight: 600;
+  }
+  .toc .toc-gaps a { font-weight: 600; }
+
+  /* ── Document ─────────────────────────────────────────── */
+  #doc { min-width: 0; max-width: var(--measure); }
+  #doc > * { max-width: 100%; }
+
+  #doc h1, #doc h2, #doc h3, #doc h4 {
+    font-family: var(--sans);
+    line-height: 1.25;
+    scroll-margin-top: 4.5rem;
+  }
+  #doc h1 {
+    font-size: clamp(1.9rem, 5vw, 2.5rem);
+    letter-spacing: -.02em; margin: 0 0 1rem; font-weight: 650;
+  }
+  #doc h2 {
+    font-size: 1.4rem; font-weight: 620; margin: 3rem 0 .9rem;
+    padding-top: 1.6rem; border-top: 1px solid var(--rule);
+  }
+  #doc h3 { font-size: 1.12rem; font-weight: 620; margin: 2.1rem 0 .7rem; }
+  #doc h4 {
+    font-size: .95rem; font-weight: 600; margin: 2rem 0 .5rem;
+    color: var(--ink);
+  }
+  #doc h4 code {
+    background: var(--accent-soft); color: var(--accent);
+    padding: .18em .5em; border-radius: 4px; font-size: .95em;
+  }
+
+  #doc p { margin: 0 0 1.1rem; }
+  #doc ul, #doc ol { margin: 0 0 1.1rem; padding-left: 1.4rem; }
+  #doc li { margin-bottom: .35rem; }
+  #doc hr { border: 0; border-top: 1px solid var(--rule); margin: 2.5rem 0; }
+
+  #doc blockquote {
+    margin: 1.4rem 0; padding: .9rem 1.2rem;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-rule);
+    border-left-width: 3px;
+    border-radius: 0 6px 6px 0;
+    font-size: .94rem;
+  }
+  #doc blockquote > :last-child { margin-bottom: 0; }
+
+  #doc code {
+    font-family: var(--mono); font-size: .86em;
+    background: var(--code-bg); padding: .15em .4em; border-radius: 4px;
+    overflow-wrap: break-word;
+  }
+  #doc pre {
+    background: var(--code-bg); padding: 1rem; border-radius: 6px;
+    overflow-x: auto; font-size: .85rem;
+  }
+  #doc pre code { background: none; padding: 0; }
+
+  .table-wrap {
+    overflow-x: auto; margin: 0 0 1.4rem;
+    border: 1px solid var(--rule); border-radius: 6px;
+    background: var(--panel);
+  }
+  #doc table {
+    border-collapse: collapse; width: 100%;
+    font-family: var(--sans); font-size: .86rem;
+  }
+  #doc th, #doc td {
+    text-align: left; padding: .6rem .85rem;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+  }
+  #doc th { font-weight: 600; background: var(--rule-soft); white-space: nowrap; }
+  #doc tr:last-child td { border-bottom: 0; }
+
+  /* ── Status / fallback ────────────────────────────────── */
+  .status {
+    font-family: var(--sans); font-size: .95rem;
+    color: var(--ink-soft);
+    border: 1px solid var(--rule); border-radius: 8px;
+    padding: 1.25rem 1.4rem; background: var(--panel);
+  }
+  .status h2 { font-size: 1.05rem; margin: 0 0 .5rem; color: var(--ink); }
+  .status p:last-child { margin-bottom: 0; }
+  .status[hidden] { display: none; }
+
+  .colophon {
+    margin-top: 3.5rem; padding-top: 1.2rem;
+    border-top: 1px solid var(--rule);
+    font-family: var(--sans); font-size: .8rem; color: var(--ink-faint);
+    max-width: var(--measure);
+  }
+  .colophon a { color: var(--ink-soft); }
+
+  @media print {
+    .masthead, .toc, .colophon { display: none; }
+    body { background: #fff; color: #000; font-size: 11pt; }
+    .layout { display: block; padding: 0; }
+    #doc { max-width: none; }
+  }
+</style>
+</head>
+<body>
+
+<a class="skip" href="#doc">Skip to the corpus</a>
+
+<header class="masthead">
+  <a class="wordmark" href="https://github.com/peterklingelhofer/exhale">exhale</a>
+  <nav aria-label="Related documents">
+    <a href="#gaps-and-unsupported-choices">Gaps ledger</a>
+    <a href="https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.csl.json">CSL-JSON</a>
+    <a href="https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md">View on GitHub</a>
+  </nav>
+</header>
+
+<div class="layout">
+  <aside class="toc" id="toc" hidden>
+    <h2>Contents</h2>
+    <ol id="toc-list"></ol>
+  </aside>
+
+  <div>
+    <div class="status" id="status" role="status" aria-live="polite">
+      <p>Loading the citation corpus from the repository&hellip;</p>
+    </div>
+
+    <main id="doc"></main>
+
+    <noscript>
+      <div class="status">
+        <h2>This page needs JavaScript</h2>
+        <p>It reads the corpus straight from the repository so it is never out of date with the
+        published evidence. Without scripting, read it on
+        <a href="https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md">GitHub</a>
+        instead.</p>
+      </div>
+    </noscript>
+
+    <p class="colophon">
+      Rendered live from
+      <a href="https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md"><code>docs/CITATIONS.md</code></a>
+      on the <code>main</code> branch, so a correction or a retraction reaches this page without a
+      release. exhale is a breathing overlay, not a medical device, and nothing here is medical advice.
+    </p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/15.0.7/marked.min.js"
+        integrity="sha384-H+hy9ULve6xfxRkWIh/YOtvDdpXgV2fmAGQkIDTxIgZwNoaoBal14Di2YTMR6MzR"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.4/purify.min.js"
+        integrity="sha384-eEu5CTj3qGvu9PdJuS+YlkNi7d2XxQROAFYOr59zgObtlcux1ae1Il3u7jvdCSWu"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+(function () {
+  "use strict";
+
+  var REPO = "https://github.com/peterklingelhofer/exhale";
+  var RAW = "https://raw.githubusercontent.com/peterklingelhofer/exhale/main/docs/CITATIONS.md";
+  var BLOB = REPO + "/blob/main/docs/CITATIONS.md";
+  // Relative links in the markdown are written against docs/, so resolve them
+  // against the blob view of that directory rather than against this page
+  var LINK_BASE = REPO + "/blob/main/docs/";
+
+  var doc = document.getElementById("doc");
+  var status = document.getElementById("status");
+
+  /**
+   * GitHub's heading-anchor rule, kept byte-for-byte in step with
+   * `slugify()` in scripts/generate-citations.py. The tray menu's deep
+   * link into the gaps ledger is validated against that function, so a
+   * divergence here silently strands every shipped binary.
+   */
+  function slugify(text) {
+    return text.trim().toLowerCase().replace(/[^\p{L}\p{N} _-]/gu, "").replace(/ /g, "-");
+  }
+
+  function fail(message) {
+    status.hidden = false;
+    status.innerHTML = "";
+    var h = document.createElement("h2");
+    h.textContent = "The corpus could not be loaded";
+    var p1 = document.createElement("p");
+    p1.textContent = message;
+    var p2 = document.createElement("p");
+    var a = document.createElement("a");
+    a.href = BLOB;
+    a.textContent = "Read it on GitHub instead";
+    p2.appendChild(a);
+    status.append(h, p1, p2);
+  }
+
+  function addAnchors() {
+    var seen = Object.create(null);
+    doc.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach(function (h) {
+      var base = slugify(h.textContent);
+      if (!base) return;
+      var slug = base;
+      if (seen[base] !== undefined) { seen[base] += 1; slug = base + "-" + seen[base]; }
+      else { seen[base] = 0; }
+      h.id = slug;
+    });
+  }
+
+  function fixLinks() {
+    doc.querySelectorAll("a[href]").forEach(function (a) {
+      var href = a.getAttribute("href");
+      if (!href || href.charAt(0) === "#") return;
+      if (!/^[a-z][a-z0-9+.-]*:/i.test(href)) {
+        try { a.href = new URL(href, LINK_BASE).href; } catch (e) { return; }
+      }
+      if (a.hostname !== window.location.hostname) {
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+      }
+    });
+  }
+
+  function wrapTables() {
+    doc.querySelectorAll("table").forEach(function (table) {
+      var wrap = document.createElement("div");
+      wrap.className = "table-wrap";
+      table.parentNode.insertBefore(wrap, table);
+      wrap.appendChild(table);
+    });
+  }
+
+  function buildToc() {
+    var headings = Array.prototype.slice.call(doc.querySelectorAll("h2"));
+    if (!headings.length) return;
+
+    var list = document.getElementById("toc-list");
+    headings.forEach(function (h) {
+      var li = document.createElement("li");
+      if (h.id === "gaps-and-unsupported-choices") li.className = "toc-gaps";
+      var a = document.createElement("a");
+      a.href = "#" + h.id;
+      a.textContent = h.textContent;
+      li.appendChild(a);
+      list.appendChild(li);
+    });
+    document.getElementById("toc").hidden = false;
+
+    if (!("IntersectionObserver" in window)) return;
+    var links = {};
+    list.querySelectorAll("a").forEach(function (a) { links[a.hash.slice(1)] = a; });
+    var current = null;
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        if (current) current.removeAttribute("aria-current");
+        current = links[entry.target.id];
+        if (current) current.setAttribute("aria-current", "true");
+      });
+    }, { rootMargin: "-4.5rem 0px -75% 0px" });
+    headings.forEach(function (h) { observer.observe(h); });
+  }
+
+  // The browser resolved the hash before the document existed, so redo it
+  function jumpToHash() {
+    if (!window.location.hash) return;
+    var id = decodeURIComponent(window.location.hash.slice(1));
+    var target = document.getElementById(id);
+    if (!target) return;
+    target.scrollIntoView();
+    target.setAttribute("tabindex", "-1");
+    target.focus({ preventScroll: true });
+  }
+
+  if (!window.marked || !window.DOMPurify) {
+    fail("The rendering libraries did not load. A network filter or an offline connection will do this.");
+    return;
+  }
+
+  fetch(RAW, { cache: "no-cache" })
+    .then(function (res) {
+      if (!res.ok) throw new Error("GitHub returned " + res.status + " " + res.statusText);
+      return res.text();
+    })
+    .then(function (markdown) {
+      var html = window.marked.parse(markdown, { gfm: true, breaks: false });
+      doc.innerHTML = window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+      status.hidden = true;
+      addAnchors();
+      fixLinks();
+      wrapTables();
+      buildToc();
+      jumpToHash();
+      window.addEventListener("hashchange", jumpToHash);
+      var h1 = doc.querySelector("h1");
+      if (h1) document.title = h1.textContent + " · exhale";
+    })
+    .catch(function (err) {
+      fail("The request to GitHub failed: " + err.message);
+    });
+})();
+</script>
+</body>
+</html>
