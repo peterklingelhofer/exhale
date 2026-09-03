@@ -110,7 +110,13 @@
   }
   @media (min-width: 62rem) {
     .layout { grid-template-columns: 16.5rem minmax(0, 1fr); }
-    .toc { order: -1; }
+    /* Placed explicitly rather than by source order.  The contents
+       aside starts `hidden`, and under auto-placement that dropped the
+       article into the 16.5rem rail: it laid out several screens
+       taller, so the load-time jump to an anchor clamped to the bottom
+       of the document and unhiding the aside then reflowed it away */
+    .toc     { grid-column: 1; grid-row: 1; }
+    .content { grid-column: 2; grid-row: 1; }
   }
 
   /* ── Table of contents ────────────────────────────────── */
@@ -256,7 +262,7 @@
     <ol id="toc-list"></ol>
   </aside>
 
-  <div>
+  <div class="content">
     <div class="status" id="status" role="status" aria-live="polite">
       <p>Loading the citation corpus from the repository&hellip;</p>
     </div>
@@ -396,13 +402,17 @@
     headings.forEach(function (h) { observer.observe(h); });
   }
 
-  // The browser resolved the hash before the document existed, so redo it
-  function jumpToHash() {
+  // The browser resolved the hash before the document existed, so the
+  // load-time jump is ours to make, and it jumps rather than animating
+  // across thirty thousand pixels.  On a later hashchange the browser
+  // has already scrolled, and repeating it here would cancel the smooth
+  // scroll the reader asked for by clicking a contents link
+  function focusHashTarget(scroll) {
     if (!window.location.hash) return;
     var id = decodeURIComponent(window.location.hash.slice(1));
     var target = document.getElementById(id);
     if (!target) return;
-    target.scrollIntoView();
+    if (scroll) target.scrollIntoView({ block: "start", behavior: "instant" });
     target.setAttribute("tabindex", "-1");
     target.focus({ preventScroll: true });
   }
@@ -424,8 +434,8 @@
       addAnchors();
       fixLinks();
       wrapTables();
-      jumpToHash();
-      window.addEventListener("hashchange", jumpToHash);
+      focusHashTarget(true);
+      window.addEventListener("hashchange", function () { focusHashTarget(false); });
       var h1 = doc.querySelector("h1");
       if (h1) document.title = h1.textContent + " · exhale";
 
