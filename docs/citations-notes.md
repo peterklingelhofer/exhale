@@ -3,7 +3,8 @@
 <!-- SUMMARY -->
 
 Machine-readable companion: [`CITATIONS.csl.json`](./CITATIONS.csl.json) (CSL-JSON).
-Verification pass completed 2026-08-28 against the Crossref REST API.
+Bibliographic records were verified on 2026-08-28 (Crossref, Open Library) and 2026-08-30 (PubMed).
+Every claim was re-checked against the abstracts and open full texts on 2026-09-02.
 
 > **This file is generated.** Edit [`CITATIONS.csl.json`](./CITATIONS.csl.json) for records and
 > [`citations-notes.md`](./citations-notes.md) for the prose, then run
@@ -25,19 +26,24 @@ true, and nothing about whether the full text was read.
 | Status | Meaning |
 |---|---|
 | `crossref-verified` | The DOI resolves in Crossref, and the title, authors, year, journal, volume and pages printed here are the ones Crossref returned, not the ones a search result claimed. |
-| `openlibrary-verified` | No DOI exists because the source is a book. The title, author, publisher and page count printed here were checked against the Open Library record for the stated ISBN. Edition ambiguities are written into the caveat. |
+| `openlibrary-verified` | No DOI exists because the source is a book. The title, author, publisher, edition and page count printed here were checked against the Open Library record for the stated ISBN. |
+| `pubmed-verified` | No DOI exists, but the article is indexed in PubMed. The title, authors, journal, year, volume and pages were checked against the NCBI E-utilities record for the stated PMID. |
 | `unverified` | No resolvable DOI and no catalogue record. Bibliographic details are inherited from secondary citation and may be wrong. |
 
-A `crossref-verified` record can still carry a loud caveat. Several entries here are Crossref-verified
-but were paywalled to full-text fetch, meaning we confirmed the paper exists and is what we say it is
-but never read its numbers. Those carry `NUMBERS NOT READ` in the caveat. Verification confirms the
-*citation*, not the *claim*.
+Author names are printed as the registry holds them, which is why a few records carry initials
+where others carry full given names.
+
+A verified record can still carry a loud caveat. Verification confirms the *citation*, not the
+*claim*, so each entry also states how deeply the source was read before its claims were written
+down: in full, from the abstract only, or as a catalogue record only.
 
 ### Access level
 
 `open-access` (a CC licence is registered with Crossref, or the title is fully open access) |
 `paywalled`. Where a Crossref `license` field was present, the access level is taken from it rather
-than guessed; where it was absent the basis is stated in the entry's caveat.
+than guessed; where it was absent the basis is stated in the entry's caveat. `paywalled` describes
+the version of record. Where a legal open copy exists in a repository or free at the publisher, the
+entry links it as an open copy.
 
 ### Evidence tier
 
@@ -47,10 +53,10 @@ establish that it does.
 
 | Tier | Definition | How exhale is allowed to use it |
 |---|---|---|
-| A | Systematic review or meta-analysis of controlled trials, or a large pre-registered RCT | May be cited for an outcome claim |
-| B | Controlled experiment with an internal replication, or a systematic review of controlled experiments | May be cited for an outcome claim, with its scope conditions stated |
-| C | Single controlled experiment, small n, or lab-only | Cite as suggestive; never as "research shows" |
-| D | Narrative review, mechanism, or animal work | Cite for *why*, never for *whether* |
+| A | Systematic review or meta-analysis of controlled trials, or a pre-registered RCT with 200 or more participants | May be cited for an outcome claim |
+| B | Pre-registered or internally replicated controlled experiment, or a systematic review of experiments without meta-analysis | May be cited for an outcome claim, with its scope conditions stated |
+| C | Single controlled experiment, small n, lab-only, or observational work, including systematic reviews of observational studies | Cite as suggestive; never as "research shows" |
+| D | Narrative review, theory, mechanism, or animal work | Cite for *why*, never for *whether* |
 | E | Not peer reviewed, or contradicted by better evidence | May be cited for provenance, meaning where a practice came from. Never for whether it works |
 
 <!-- COUNTS -->
@@ -83,7 +89,14 @@ The relevant literature is old, small, and filed under ergonomics rather than br
   scalene and trapezius.
 
 That diaphragmatic-to-thoracic shift is what people mean by "shallow": chest breathing instead of
-belly breathing.
+belly breathing. It is a theory of mechanism. No study in this corpus measures chest against
+diaphragm breathing in screen users.
+
+Two things limit how much the keyboard can be blamed. Both Schleifer studies compare work with
+relaxation, and [`grassmann2016-cognitive-load-respiration`](#grassmann2016-cognitive-load-respiration)
+finds the same faster, over-ventilated pattern under any demanding task, so the keyboard is where
+the effect was measured rather than shown to be its cause. And the two samples total 34 people
+from one research group.
 
 A second, independent line runs through posture.
 [`jung2016-smartphone-posture-respiration`](#jung2016-smartphone-posture-respiration) found that
@@ -95,12 +108,13 @@ posture associated with FVC reductions of 0.25 to 0.81 L across 115 participants
 **What the evidence does not support** is "shallow" meaning a reduced *volume of air moved*.
 [`grassmann2016-cognitive-load-respiration`](#grassmann2016-cognitive-load-respiration), 54
 experiments, finds respiratory amplitude roughly stable and minute ventilation **up** under
-cognitive load. Both things hold at once: more air per minute, moved by the wrong muscles, from a
-slumped posture with less capacity available.
+cognitive load. Both things can hold at once: more air per minute, on the theory above moved by
+the wrong muscles, from a slumped posture associated with less capacity.
 
-The defensible statement is therefore that at a screen people breathe **faster, higher in the chest,
-and slightly over-ventilated**, from a posture that reduces how much the diaphragm can do. That is
-the claim the README makes.
+The defensible statement is therefore that during demanding work at a keyboard people breathe
+**faster and slightly over-ventilated**, from a posture associated with reduced lung volumes; the
+shift to chest breathing is the theory of why, not a measurement. That is the claim the README
+makes.
 
 It is not the same claim as "screen apnea" or "email apnea," meaning outright breath-*holding* at a
 screen. That framing traces to unpublished observations by Linda Stone from 2007, tested informally
@@ -108,7 +122,7 @@ on acquaintances with no protocol, no published data and no replication. Nothing
 measures breath-holding during screen use, and the over-breathing finding above points the other
 way. The two claims should not be run together.
 
-### 2. The default is inside the tested band, but the band is narrow and one person wide
+### 2. The default is inside the tested band, but the band is narrow and resonance frequency is individual
 
 exhale ships 5 s inhale and 5 s exhale, no holds
 ([`rust/crates/exhale-core/src/settings.rs`](../rust/crates/exhale-core/src/settings.rs)): a
@@ -151,8 +165,11 @@ Box breathing has also been tested head-to-head twice and did not win either tim
   either square or 4-7-8**, with small to medium effects. The paper opens by stating that square and
   4-7-8 "are popularly promoted by psychotherapists but have little empirical support."
 - [`balban2023-cyclic-sighing`](#balban2023-cyclic-sighing), a pre-registered RCT, tested box
-  breathing against cyclic sighing and cyclic hyperventilation over a month. Box breathing was not
-  the best-performing arm; the exhale-emphasising one was.
+  breathing, cyclic sighing and cyclic hyperventilation over a month against a
+  mindfulness-meditation control. Cyclic sighing, the exhale-emphasising arm, separated from the
+  control on positive affect; box breathing did not. The box arm had 21 people, the arms were not
+  tested against each other, and their daily gains were 1.84 and 1.89 points, so this is a
+  difference in reaching significance rather than a demonstrated gap.
 
 The same evidence applies to 4-7-8, sometimes attributed to Andrew Weil: it lost in Marchant, and at
 4+7+8 = 19 s it is 3.16 breaths per minute, slower still.
@@ -163,32 +180,37 @@ holding the breath is the harder part for a beginner rather than the slow part. 
 defaults to. Box breathing remains a reasonable thing to want, and exhale offers it as a preset. It
 is simply not the pattern the evidence points at.
 
-### 4. Longer exhale: supported on how people feel, contested on the heart
+### 4. Longer exhale: contested on the heart, thin on how people feel
 
-On HRV, four results, and they do not line up:
+On HRV, five results, and they do not line up:
 
 | Source | n | Design | Result on ratio |
 |---|---|---|---|
 | [`bae2021-exhalation-inhalation-ratio`](#bae2021-exhalation-inhalation-ratio) | 28 | 2:1 vs 1:1 cue at spontaneous rate | Longer exhale raised RMSSD and HF-HRV |
 | [`vandiest2014-ie-ratio-relaxation`](#vandiest2014-ie-ratio-relaxation) | 30 | i/e 0.42 vs 2.33, at 6 and 12 bpm | Longer exhale raised HF-HRV, but only at the slow rate |
 | [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) | 47 | 5:5 vs 4:6 at 5.5 and 6 bpm | **Equal** ratio won on SDNN and LF |
+| [`laborde2021-ie-ratio-pauses`](#laborde2021-ie-ratio-pauses) | 64 | i/e 0.8, 1.0, 1.2 at 6 bpm, with and without 0.4 s pauses | Longer exhale raised RMSSD; pauses changed nothing |
 | [`meehan2024-longer-exhalations`](#meehan2024-longer-exhalations) | 26 + 16 replication | 1:1 vs 1:2 at 6 bpm | No difference, in the original *and* the replication |
 
-Two for, one against, one null. No mechanism claim survives that split, which is why exhale does not
-make one.
+Three for, one against, one null inside this corpus.
+[`meehan2024-longer-exhalations`](#meehan2024-longer-exhalations)'s introduction tallies the older
+literature as three further nulls and one result favouring the longer inhale. No mechanism claim
+survives that split, which is why exhale does not make one.
 
-On how people reported feeling, the picture is cleaner.
-[`vandiest2014-ie-ratio-relaxation`](#vandiest2014-ie-ratio-relaxation) is the only study here that
-measured subjective state across ratios, and participants reported more relaxation, more stress
-reduction, more mindfulness and more positive energy with the longer exhale. Slowing the rate alone
-moved only one of those four. [`balban2023-cyclic-sighing`](#balban2023-cyclic-sighing) points the
-same way over a month, on mood.
+On how people reported feeling, the picture is not cleaner. Three studies here measured subjective
+state across ratios. [`vandiest2014-ie-ratio-relaxation`](#vandiest2014-ie-ratio-relaxation), n = 30,
+found more relaxation, stress reduction, mindfulness and positive energy with the longer exhale, and
+slowing the rate alone moved only one of those four.
+[`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv), n = 47, found every slow pattern raised
+relaxation over baseline, with no ratio-specific advantage.
+[`marchant2025-square-478-six`](#marchant2025-square-478-six), n = 84 and the largest of the three,
+found no meaningful mood change in any condition, including its two 6-per-minute ratios.
+[`balban2023-cyclic-sighing`](#balban2023-cyclic-sighing) points toward exhale emphasis over a
+month, but its cyclic-sighing arm also adds a double inhale, so the ratio cannot be isolated.
 
-So a longer exhale is worth preferring because people report feeling better doing it, which is the
-outcome anyone installing exhale actually cares about. Note also
-[`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv)'s second finding: *every* slow pattern it
-tested increased relaxation over baseline. Rate does most of the work; ratio is a preference with a
-modest, contested edge.
+So a longer exhale is offered as a preference. One study of thirty people found it felt better, a
+larger one found no difference, and rate does most of the work either way: every slow pattern in
+[`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) beat baseline on relaxation.
 
 ### 5. Pacing someone slowly at a screen may push them further into over-breathing
 
@@ -216,7 +238,7 @@ shows one sentence of anti-hyperventilation guidance cuts the end-tidal CO2 drop
 
 `drift` lengthens every cycle by a fixed percentage, compounding, so the breath extends gradually
 across a session. Graded extension of the breath is a long-standing pranayama practice
-([`satyananda2008-apmb`](#satyananda2008-apmb)), but **no study in this corpus examines a
+([`satyananda1999-apmb`](#satyananda1999-apmb)), but **no study in this corpus examines a
 progressively lengthening pace at all.** [`szulczewski2019-training-relaxation`](#szulczewski2019-training-relaxation)
 trained at a fixed rate and found relaxation accrued over a week of practice, which supports "keep
 practising" rather than "keep slowing down within a session."
@@ -293,15 +315,15 @@ Also relevant to exhale's whole genre: [`johnson2023-20-20-20`](#johnson2023-20-
 scheduled 20-second breaks at any of three intervals produced no significant effect on symptoms,
 reading speed or accuracy. A periodic on-screen nudge is not effective merely because it is popular.
 
-### 11. Both hold sliders default to 0, with no cited basis either way
+### 11. Both hold sliders default to 0; brief pauses are neutral and longer holds are untested
 
 `post_inhale_hold_duration` and `post_exhale_hold_duration` both default to 0.
 [`laborde2021-ie-ratio-pauses`](#laborde2021-ie-ratio-pauses) is the study that manipulates
-respiratory pauses directly, and it was paywalled to full-text fetch in this pass, so its numbers
-have not been read. [`little2025-a52-breath-method`](#little2025-a52-breath-method) argues for a 2 s
-post-exhale hold, while [`marchant2025-square-478-six`](#marchant2025-square-478-six) found the two
-hold-heavy patterns it tested underperformed a no-hold 6 bpm pace. On current evidence, 0 is a
-defensible default.
+respiratory pauses directly: at 6 cycles per minute, adding 0.4 s pauses after inhalation and after
+exhalation did not change RMSSD. [`little2025-a52-breath-method`](#little2025-a52-breath-method)
+argues for a 2 s post-exhale hold, and [`marchant2025-square-478-six`](#marchant2025-square-478-six)
+found the two hold-heavy patterns it tested underperformed a no-hold 6 bpm pace. Brief pauses are
+neutral and longer holds are untested at exhale's rates, so 0 is a defensible default.
 
 ### 12. Nobody knows whether anyone keeps using it
 
@@ -315,8 +337,9 @@ participant. That is not the same population as someone who installed a menu-bar
 
 ### 13. Adverse-event reporting in this field is thin
 
-Reviews of breathwork note that only a minority of trials report on adverse events at all.
-[`laborde2022-vsb-meta`](#laborde2022-vsb-meta) concludes that few adverse effects are expected from
+[`fincham2023-breathwork-meta`](#fincham2023-breathwork-meta) found that only four of its twelve
+primary-outcome trials reported on adverse events at all, none attributing lasting harm to
+breathwork. [`laborde2022-vsb-meta`](#laborde2022-vsb-meta) concludes that few adverse effects are expected from
 *slow* breathing specifically, which is the mode exhale is built around. exhale's sliders can also
 be set to fast, hold-heavy patterns that leave that evidence base entirely; those belong to the
 high-ventilation literature ([`fincham2024-high-ventilation-rct`](#fincham2024-high-ventilation-rct)),
@@ -326,7 +349,7 @@ README's advice to take breaks if intense feelings arise.
 ### 14. The tradition sources are lineage, not evidence, and are tiered accordingly
 
 exhale's four-phase structure, inhale / retention / exhale / retention, is pranayama. It did not come
-from psychophysiology, and the corpus says so: [`satyananda2008-apmb`](#satyananda2008-apmb) and
+from psychophysiology, and the corpus says so: [`satyananda1999-apmb`](#satyananda1999-apmb) and
 [`muktibodhananda1998-hatha-yoga-pradipika`](#muktibodhananda1998-hatha-yoga-pradipika) are carried
 at tier **E**, meaning they may be cited for where a practice came from and never for whether it
 works.
@@ -337,19 +360,17 @@ design history. And the "longer exhale" idea specifically entered modern breathi
 tradition, not through a laboratory, which is worth knowing when weighing how much of the supporting
 literature was designed to test a pre-existing belief rather than to discover something.
 
-Both entries are marked `NOT READ`. Their bibliographic records were checked against Open Library;
-their contents were not consulted, and no claim in this repo rests on them. The Satyananda edition
-history is genuinely tangled: Open Library returns the Yoga Publications Trust 553-page edition under
-the cited ISBN but dates its record 1999, while the printing generally referred to is the 2008 Fourth
-Revised Edition. That is not resolved here.
+Both entries are catalogue records only: checked against Open Library, contents not consulted, and
+no claim in this repository rests on them. The Satyananda entry cites the 1999 third revised edition
+its ISBN resolves to; a 2008 fourth revised edition exists under the same imprint.
 
 ## What would close the biggest gaps
 
 In rough order of value per unit effort:
 
-1. Read the `NUMBERS NOT READ` entries and either promote or downgrade the claims resting on them.
-   [`laborde2021-ie-ratio-pauses`](#laborde2021-ie-ratio-pauses) is the highest value: it bears
-   directly on gaps 4 and 11.
+1. Read the four entries cited from their abstract only, and the full text of
+   [`laborde2021-ie-ratio-pauses`](#laborde2021-ie-ratio-pauses), whose effect sizes would sharpen
+   gaps 4 and 11.
 2. Nobody has tested a slow visual pacer on an already-hypocapnic screen worker (gap 5). That is a
    real, publishable question that exhale is unusually well placed to ask.
 3. Settle whether graded extension does anything, which would put a floor under gap 6. No study in
