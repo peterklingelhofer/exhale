@@ -8,19 +8,19 @@ Slow paced breathing is the countermeasure with the most evidence behind it ([La
 
 Blink rate also falls sharply at a display ([Tsubota & Nakamori 1993](docs/CITATIONS.md#tsubota1993-vdt-blink), [Rosenfield 2011](docs/CITATIONS.md#rosenfield2011-computer-vision-syndrome), [Sheppard & Wolffsohn 2018](docs/CITATIONS.md#sheppard2018-digital-eye-strain)). exhale does nothing about that; it paces breathing only.
 
-Every claim above and below is sourced in **[docs/CITATIONS.md](docs/CITATIONS.md)**, 42 verified references. Each link lands on that source's corpus entry, which carries its DOI, its access level, its evidence tier and its caveats, rather than on the paper directly, because several of these findings are weaker than a bare citation would suggest. The [gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices) collects fourteen places where exhale ships something the literature does not back.
+Every claim above and below is sourced in **[docs/CITATIONS.md](docs/CITATIONS.md)**, 48 verified references. Each link lands on that source's corpus entry, which carries its DOI, its access level, its evidence tier and its caveats, rather than on the paper directly, because several of these findings are weaker than a bare citation would suggest. The [gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices) collects fourteen places where exhale ships something the literature does not back.
 
 The overlay is a translucent always-on-top window that gently expands on inhale and contracts on exhale. Inhale, post-inhale hold, exhale, and post-exhale hold durations are all configurable.
 
-**Where to start: `5` / `0` / `5` / `0`.** Five seconds in, five out, no holds. That is 6 breaths per minute, which is the rate with the best direct evidence. The band tested head-on runs 5 to 7 breaths per minute, and every rate in it beat spontaneous breathing ([You et al. 2023](docs/CITATIONS.md#you2023-respiratory-frequency)); average individual resonance frequency sits near 5.5 ([Lehrer & Gevirtz 2014](docs/CITATIONS.md#lehrer2014-hrv-biofeedback), [Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv)). In a four-way head-to-head (n = 84), 6 breaths per minute raised heart rate variability more than either box breathing or 4-7-8 ([Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six)). Holding the breath is the hard part for a beginner, not the slow part, so this is also the gentlest place to start.
+**The default is `5` / `0` / `5` / `0`.** Five seconds in, five out, no holds. That is 6 breaths per minute, which is the rate with the best direct evidence. The band tested head-on runs 5 to 7 breaths per minute, and every rate in it beat spontaneous breathing ([You et al. 2023](docs/CITATIONS.md#you2023-respiratory-frequency)); average individual resonance frequency sits near 5.5 ([Lehrer & Gevirtz 2014](docs/CITATIONS.md#lehrer2014-hrv-biofeedback), [Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv)). In a four-way head-to-head (n = 84), 6 breaths per minute raised heart rate variability more than either box breathing or 4-7-8 ([Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six)). Holding the breath is the hard part for a beginner, not the slow part, so this is also the gentlest place to start.
 
 Box breathing is `4` / `4` / `4` / `4` and exhale supports it, but note it is a 16-second cycle, or 3.75 breaths per minute: the holds hide the fact that it is *slower* than it looks. It lost that head-to-head ([Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six), whose authors note square and 4-7-8 breathing "have little empirical support"), and lost again on mood in a month-long randomised trial ([Balban et al. 2023](docs/CITATIONS.md#balban2023-cyclic-sighing)). The same applies to 4-7-8.
 
-**On making the exhale longer than the inhale:** worth doing, but not for the usual reason. Whether a 1:2 ratio raises heart rate variability more than 1:1 is genuinely split: two studies found an effect ([Bae et al. 2021](docs/CITATIONS.md#bae2021-exhalation-inhalation-ratio), [Van Diest et al. 2014](docs/CITATIONS.md#vandiest2014-ie-ratio-relaxation)), one found the *equal* ratio better ([Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv)), and one found no difference across an original experiment and its own replication ([Meehan & Shaffer 2024](docs/CITATIONS.md#meehan2024-longer-exhalations)). exhale therefore no longer claims a longer exhale "engages the parasympathetic nervous system."
+**On making the exhale longer than the inhale:** worth doing, but not for the usual reason. Whether a 1:2 ratio raises heart rate variability more than 1:1 is genuinely split: two studies found an effect ([Bae et al. 2021](docs/CITATIONS.md#bae2021-exhalation-inhalation-ratio), [Van Diest et al. 2014](docs/CITATIONS.md#vandiest2014-ie-ratio-relaxation)), one found the *equal* ratio better ([Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv)), and one found no difference across an original experiment and its own replication ([Meehan & Shaffer 2024](docs/CITATIONS.md#meehan2024-longer-exhalations)). No mechanism claim survives that split, so exhale does not make one.
 
 What the evidence does support is subjective. In the one study that measured how people *felt* across ratios, the longer exhale produced more reported relaxation, stress reduction, mindfulness and positive energy, while slowing the rate alone moved only one of those four ([Van Diest et al. 2014](docs/CITATIONS.md#vandiest2014-ie-ratio-relaxation)); a month-long trial points the same way on mood ([Balban et al. 2023](docs/CITATIONS.md#balban2023-cyclic-sighing)). Prefer a longer exhale because it feels better, which is the outcome that matters here anyway. Worth knowing that *every* slow pattern tested beat baseline on relaxation ([Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv)): rate does most of the work, and ratio is a preference with a modest, contested edge.
 
-exhale's shipped default is `5` in / `10` out, or 4 breaths per minute, below the band anyone has tested ([You et al. 2023](docs/CITATIONS.md#you2023-respiratory-frequency)). It is kept for continuity with existing installs rather than because it is known to be better. All of this, including the arithmetic, is laid out in [the gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices).
+Being inside the tested band is a claim about coverage, not about optimality: that band is five values wide, and resonance frequency varies from person to person ([Lehrer & Gevirtz 2014](docs/CITATIONS.md#lehrer2014-hrv-biofeedback)), which no single shipped number can accommodate. Treat 6 a minute as a good starting point rather than as your number. exhale's earlier default, `5` in / `10` out at 4 breaths per minute, is still one click away as a preset; nobody has measured 4 a minute. All of this, including the arithmetic, is laid out in [the gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices).
 
 Take breaks if intense feelings arise; it's important not to overdo it. Few adverse effects are expected from *slow* breathing specifically ([Laborde et al. 2022](docs/CITATIONS.md#laborde2022-vsb-meta)), but exhale's sliders can also be set to fast, hold-heavy patterns that leave that evidence base for the high-ventilation literature, where transient tetany and light-headedness are documented ([Fincham et al. 2024](docs/CITATIONS.md#fincham2024-high-ventilation-rct)).
 
@@ -65,9 +65,9 @@ breathing pattern to arousal state. It is mice, and it is a reason rather than a
 ## Research and evidence
 
 exhale's premise, its defaults and its interface choices are traced to the literature in
-**[docs/CITATIONS.md](docs/CITATIONS.md)**: 42 sources, 40 verified against the Crossref REST API and
-2 against Open Library, each carrying an access level, an evidence tier and the specific claims it is
-allowed to back.
+**[docs/CITATIONS.md](docs/CITATIONS.md)**: 48 sources, 45 verified against the Crossref REST API,
+2 against Open Library and 1 against PubMed, each carrying an access level, an evidence tier and the
+specific claims it is allowed to back.
 
 The corpus is deliberately not a sales pitch. Alongside the meta-analyses that support slow paced
 breathing it carries the published dissent: a meta-analysis finds sustained slow breathing lowers
@@ -75,11 +75,11 @@ systolic pressure by about 5.6 mmHg ([Chaddha et al. 2019](docs/CITATIONS.md#cha
 editorial in a hypertension journal argues that case should be considered closed
 ([van Dijk et al. 2018](docs/CITATIONS.md#vandijk2018-close-the-book)). It also carries the failed replications, a null result
 against exhale's own genre ([Johnson & Rosenfield 2023](docs/CITATIONS.md#johnson2023-20-20-20), where scheduled
-on-screen breaks did nothing), a correction to this repo's own earlier claims, and a
+on-screen breaks did nothing), and a
 [ledger of fourteen places](docs/CITATIONS.md#gaps-and-unsupported-choices) where exhale ships
-something the literature does not back. Four highlights:
+something the literature does not settle. Four highlights:
 
-- exhale's **default pace is 4 breaths per minute**, below the 5 to 7 range that has been tested directly ([You et al. 2023](docs/CITATIONS.md#you2023-respiratory-frequency)). So is box breathing, at 3.75.
+- The **tested range is only 5 to 7 breaths per minute wide** ([You et al. 2023](docs/CITATIONS.md#you2023-respiratory-frequency)), and individual resonance frequency varies within and beyond it ([Lehrer & Gevirtz 2014](docs/CITATIONS.md#lehrer2014-hrv-biofeedback)). exhale's default of 6 sits inside it; box breathing, at 3.75, does not.
 - Whether a **longer exhale** beats an equal one on heart rate variability is split four ways ([Bae et al. 2021](docs/CITATIONS.md#bae2021-exhalation-inhalation-ratio), [Van Diest et al. 2014](docs/CITATIONS.md#vandiest2014-ie-ratio-relaxation), [Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv), [Meehan & Shaffer 2024](docs/CITATIONS.md#meehan2024-longer-exhalations)). It holds up on how people report *feeling*, which is why the recommendation survived and the mechanism claim did not.
 - The closest published analogue to exhale, an ambient on-screen pacer running during real information work, lowered breathing rate **only while it was running** ([Moraveji et al. 2011](docs/CITATIONS.md#moraveji2011-peripheral-paced-respiration)). Treat an always-on overlay as an effect that lasts as long as it is on. Visual pacing also changes breathing more than audio while feeling *less* calming ([Wongsuphasawat et al. 2012](docs/CITATIONS.md#wongsuphasawat2012-cant-force-calm)), which is a trade exhale makes deliberately.
 - Slow pacing itself mildly increases over-breathing ([Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six)), and screen workers are already mildly hypocapnic ([Schleifer & Ley 1994](docs/CITATIONS.md#schleifer1994-vdt-petco2), [Schleifer et al. 2008](docs/CITATIONS.md#schleifer2008-emg-gaps-computer-work)). Nobody has tested a slow pacer on that population, which is exactly exhale's user.
@@ -102,8 +102,29 @@ uv run --no-project scripts/generate-citations.py           # regenerate
 uv run --no-project scripts/generate-citations.py --check   # fail if stale
 ```
 
-`--check` also validates citekey format, enum values and every anchor link the gaps ledger makes into
-the corpus, so a renamed entry breaks the build rather than rotting silently.
+`--check` also validates citekey format, enum values, every anchor link the gaps ledger makes into
+the corpus, the source counts quoted in this file, and the deep link the app itself compiles in, so a
+renamed entry or a stale number breaks the build rather than rotting silently. It also refuses a
+short list of claims the corpus does not support, anywhere they could be asserted rather than
+discussed: the Rust sources, the Snap description and the Microsoft Store listing copy. A store
+listing is edited somewhere a README review never reaches, which is exactly how the two drift.
+
+**In the app.** A *Research* item in the macOS app menu, directly under About, and the same item in
+the system-tray menu on every platform. Both open the gaps ledger rather than the top of the
+reference list, which is the whole point of the item: the label is plain, so the anchor carries the
+intent. The Timing panel offers five patterns as one-click presets, computes the current rate from
+the four duration fields, and prints it against the tested range, unprompted, so a configuration
+outside that range says so where it is being chosen. Selecting box breathing makes the panel state
+that it is 3.8 breaths a minute and slower than anything tested directly, which is the honest thing
+to say about a pattern people arrive looking for by name. No preset carries a badge, a rank or an evidentiary caption: the arithmetic
+below them is computed live for whichever is selected, so it cannot go stale and does not have to
+be maintained against the corpus.
+
+The binary states arithmetic and one range and nothing else: no effect, no benefit, no condition.
+That restraint is deliberate. Everything evidentiary lives in this repository, which can be
+corrected in an afternoon, rather than in a signed binary that takes a store-review cycle to
+withdraw. Four sources are flagged `inAppCitable: false` in the corpus for exactly that reason, and
+the build fails if a shipped preset points at one of them.
 
 Nothing in this section is medical advice; see the [disclaimer](#disclaimer) above.
 
