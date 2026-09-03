@@ -179,3 +179,32 @@ use super::*;
         x.set_wm_state(b"_NET_WM_STATE_SKIP_TASKBAR", hide);
         x.set_wm_state(b"_NET_WM_STATE_SKIP_PAGER",   hide);
     }
+
+    /// Linux half of [`super::open_url`].  Scheme validation happens
+    /// in the caller.
+    ///
+    /// `xdg-open` is the desktop-agnostic handler every target
+    /// desktop ships, and `snapcraft.yaml` already plugs `desktop`,
+    /// which is what makes it reachable from inside the snap
+    /// confinement.  The URL goes through `Command::arg`, not a
+    /// shell, so it is never word-split or expanded.
+    ///
+    /// We `spawn` rather than `status` so a browser cold-start can't
+    /// stall the event loop.  That leaves the child unreaped until
+    /// exhale exits; `xdg-open` returns almost immediately after
+    /// handing off, and this only runs on an explicit menu click, so
+    /// the zombie count is bounded by how many times the user clicks
+    pub(super) fn open_url_impl(url: &str) {
+        use std::process::{Command, Stdio};
+
+        match Command::new("xdg-open")
+            .arg(url)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            Ok(_)  => {}
+            Err(e) => log::warn!("open_url: xdg-open failed for {url:?}: {e}"),
+        }
+    }

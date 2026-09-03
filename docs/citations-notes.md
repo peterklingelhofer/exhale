@@ -62,16 +62,13 @@ establish that it does.
 ## Gaps and unsupported choices
 
 Written by hand. This section is the point of the exercise: everything below is a place where exhale
-either claims more than the literature supports, or ships a default that the literature does not
-back. Nothing here is a reason not to use the app. It is a list of things that are currently
-believed rather than known.
+ships something the literature does not settle, or where the evidence is thinner or more divided
+than a bare citation would suggest. Nothing here is a reason not to use the app. It is a list of
+things that are currently believed rather than known.
 
-### 1. Shallow breathing at screens: a retraction, and what the evidence actually supports
+### 1. What is actually measured about breathing at a screen
 
-**An earlier revision of this file said no peer-reviewed study had measured respiration during
-ordinary screen use. That was wrong, and it was wrong because the first search was not deep enough.**
-The literature exists, it is just old and small and filed under ergonomics rather than under
-breathwork.
+The relevant literature is old, small, and filed under ergonomics rather than breathwork.
 
 - [`schleifer1994-vdt-petco2`](#schleifer1994-vdt-petco2): eleven data-entry operators, monitored
   continuously across three consecutive six-hour work days. During computer work, end-tidal CO2 was
@@ -79,91 +76,94 @@ breathwork.
   baseline relaxation or progressive muscle relaxation.
 - [`schleifer2008-emg-gaps-computer-work`](#schleifer2008-emg-gaps-computer-work): the same group,
   fourteen years later, n = 23. Lower end-tidal CO2 under high mental workload during computer data
-  entry, and it tracked reduced trapezius EMG gaps.
+  entry, tracking reduced trapezius EMG gaps.
 - [`schleifer2002-hyperventilation-job-stress`](#schleifer2002-hyperventilation-job-stress): the
   theory paper tying it together, which states that hyperventilation "is often characterised by a
   shift from a **diaphragmatic to a thoracic** breathing pattern," recruiting sternocleidomastoid,
   scalene and trapezius.
 
-That diaphragmatic-to-thoracic shift is what people mean by "shallow." It is chest breathing instead
-of belly breathing. So the folk claim has a real mechanism in the peer-reviewed record.
+That diaphragmatic-to-thoracic shift is what people mean by "shallow": chest breathing instead of
+belly breathing.
 
-There is a second, independent line of support through posture.
+A second, independent line runs through posture.
 [`jung2016-smartphone-posture-respiration`](#jung2016-smartphone-posture-respiration) found that
 people using smartphones more than four hours a day had significantly worse craniovertebral angle
 and lower peak expiratory flow than lighter users, and
 [`deniz2024-forward-head-lung-volumes`](#deniz2024-forward-head-lung-volumes) found forward head
 posture associated with FVC reductions of 0.25 to 0.81 L across 115 participants.
 
-**What is still not supported** is "shallow" meaning reduced *volume of air moved*.
+**What the evidence does not support** is "shallow" meaning a reduced *volume of air moved*.
 [`grassmann2016-cognitive-load-respiration`](#grassmann2016-cognitive-load-respiration), 54
 experiments, finds respiratory amplitude roughly stable and minute ventilation **up** under
-cognitive load. Both things are true at once: more air per minute, moved by the wrong muscles, from
-a slumped posture with less capacity available.
+cognitive load. Both things hold at once: more air per minute, moved by the wrong muscles, from a
+slumped posture with less capacity available.
 
-So the precise, defensible statement is: at a screen people breathe **faster, higher in the chest,
+The defensible statement is therefore that at a screen people breathe **faster, higher in the chest,
 and slightly over-ventilated**, from a posture that reduces how much the diaphragm can do. That is
-the claim the README now makes.
+the claim the README makes.
 
-Separately, and still true: the specific popular framing of "screen apnea" or "email apnea," meaning
-outright breath-*holding* at a screen, traces to unpublished observations by Linda Stone from 2007,
-tested informally on acquaintances with no protocol, no published data and no replication. Nothing
-found in this pass measures breath-holding during screen use. The over-breathing finding above is
-close to the opposite of breath-holding, and the two claims should not be run together.
+It is not the same claim as "screen apnea" or "email apnea," meaning outright breath-*holding* at a
+screen. That framing traces to unpublished observations by Linda Stone from 2007, tested informally
+on acquaintances with no protocol, no published data and no replication. Nothing found in this pass
+measures breath-holding during screen use, and the over-breathing finding above points the other
+way. The two claims should not be run together.
 
-### 2. exhale's default breathing rate is below the band anyone has tested
+### 2. The default is inside the tested band, but the band is narrow and one person wide
 
-exhale ships 5 s inhale and 10 s exhale
-([`rust/crates/exhale-core/src/settings.rs`](../rust/crates/exhale-core/src/settings.rs)). That is a
-15-second cycle, or **4.0 breaths per minute**.
+exhale ships 5 s inhale and 5 s exhale, no holds
+([`rust/crates/exhale-core/src/settings.rs`](../rust/crates/exhale-core/src/settings.rs)): a
+10-second cycle, or **6.0 breaths per minute**.
 
 [`you2023-respiratory-frequency`](#you2023-respiratory-frequency) tested 5, 5.5, 6, 6.5 and 7 cycles
-per minute and found all of them raised cardiac vagal activity above spontaneous breathing. It did
-not test 4. [`lehrer2014-hrv-biofeedback`](#lehrer2014-hrv-biofeedback) puts the average resonance
-frequency at about 5.5 breaths per minute and notes it varies by individual.
-[`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) found 5.5 bpm outperformed 6.
+per minute and found all of them raised cardiac vagal activity above spontaneous breathing.
+[`marchant2025-square-478-six`](#marchant2025-square-478-six) ran 6 a minute against square and
+4-7-8 breathing head-to-head, n = 84, and 6 won. So the default is the pace with the most direct
+support of anything exhale could have shipped.
 
-So exhale's out-of-the-box default sits below the bottom of the range with direct support. It may be
-fine, or better, for a given person; nobody has measured it.
+That is a weaker statement than it sounds, for two reasons.
 
-The shipped default has deliberately **not** been changed. Silently moving the pace under people who
-already have exhale installed is worse than documenting where the number came from. Changing it is a
-decision to make on purpose, in a release note, not as a side effect of writing this file.
+**The tested band is five values wide.** Nobody has compared 6 against 3, or against 8, in this
+corpus. "Inside the range that has been tested" is a statement about coverage, not about optimality.
 
-### 3. Box breathing is not the beginner-friendly default it looks like
+**Resonance frequency is individual.** [`lehrer2014-hrv-biofeedback`](#lehrer2014-hrv-biofeedback)
+puts the average at about 5.5 breaths per minute and is explicit that it varies from person to
+person; [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) found 5.5 outperformed 6. A single
+shipped number cannot be right for everyone, and finding a person's own resonance frequency takes an
+assessment protocol and a sensor, neither of which exhale has. The default is a reasonable starting
+point, not a personalised one.
 
-A natural thought is that `4` / `4` / `4` / `4` box breathing would be a gentler default than the
-current 5 / 10. Two problems.
+Anyone who already has exhale installed keeps whatever they had: the timing fields carry no
+`#[serde(default)]`, so an existing `settings.toml` is untouched and the change reaches only fresh
+installs and Reset to Defaults. The previous default, `5` / `0` / `10` / `0` at 4 a minute, is still
+offered as a one-click preset. Nobody has measured 4 a minute in this corpus, which is why it is no
+longer what a new user gets without asking.
 
-First, arithmetic: 4+4+4+4 is a 16-second cycle, or **3.75 breaths per minute**. That is *slower*
-than the current default and further below the tested band, not closer to it. The holds hide the
-rate.
+### 3. Box breathing is slower than it looks
 
-Second, and more decisively, box breathing has been tested head-to-head and lost twice:
+`4` / `4` / `4` / `4` is a 16-second cycle, or **3.75 breaths per minute**: *slower* than exhale's
+default and further below the tested band, not closer to it. The holds hide the rate, which is why
+the settings panel computes it.
+
+Box breathing has also been tested head-to-head twice and did not win either time:
 
 - [`marchant2025-square-478-six`](#marchant2025-square-478-six), n = 84, compared square breathing,
-  4-7-8 breathing, and 6 breaths per minute at two ratios. Breathing at 6 bpm raised HRV **more than
-  either square or 4-7-8**, with small to medium effects. The paper opens by stating flatly that
-  square and 4-7-8 "are popularly promoted by psychotherapists but have little empirical support."
+  4-7-8 breathing, and 6 breaths per minute at two ratios. Breathing at 6 raised HRV **more than
+  either square or 4-7-8**, with small to medium effects. The paper opens by stating that square and
+  4-7-8 "are popularly promoted by psychotherapists but have little empirical support."
 - [`balban2023-cyclic-sighing`](#balban2023-cyclic-sighing), a pre-registered RCT, tested box
   breathing against cyclic sighing and cyclic hyperventilation over a month. Box breathing was not
   the best-performing arm; the exhale-emphasising one was.
 
-The same evidence rules out 4-7-8, sometimes attributed to Andrew Weil, for the same reason: it lost
-in Marchant, and at 4+7+8 = 19 s it is 3.16 breaths per minute, slower still.
+The same evidence applies to 4-7-8, sometimes attributed to Andrew Weil: it lost in Marchant, and at
+4+7+8 = 19 s it is 3.16 breaths per minute, slower still.
 
-**The evidence-based beginner default is `5` / `0` / `5` / `0`**: 6 breaths per minute, no holds,
-a 10-second cycle. It sits inside the tested band, it is the condition that won in Marchant, and it
-is genuinely easier for a beginner than box breathing, because holding the breath is the hard part,
-not the slow part. Box breathing remains a perfectly reasonable thing to want and exhale still
-supports it. It is just not the choice the evidence points at.
+The pattern with the best direct support is `5` / `0` / `5` / `0`: 6 breaths per minute, no holds, a
+10-second cycle. It sits inside the tested band, it is the condition that won in Marchant, and
+holding the breath is the harder part for a beginner rather than the slow part. It is what exhale
+defaults to. Box breathing remains a reasonable thing to want, and exhale offers it as a preset. It
+is simply not the pattern the evidence points at.
 
-### 4. The 1:2 ratio: what it does and does not support
-
-The README used to say to make the exhale twice as long as the inhale "to engage the parasympathetic
-nervous system." That mechanism claim is not supportable as stated. But the practice is *not*
-unsupported, and the reason is a distinction worth getting right: **the HRV studies and the
-how-do-you-feel studies disagree with each other, and they disagree in a consistent direction.**
+### 4. Longer exhale: supported on how people feel, contested on the heart
 
 On HRV, four results, and they do not line up:
 
@@ -174,49 +174,80 @@ On HRV, four results, and they do not line up:
 | [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) | 47 | 5:5 vs 4:6 at 5.5 and 6 bpm | **Equal** ratio won on SDNN and LF |
 | [`meehan2024-longer-exhalations`](#meehan2024-longer-exhalations) | 26 + 16 replication | 1:1 vs 1:2 at 6 bpm | No difference, in the original *and* the replication |
 
-Two for, one against, one null. Nobody should be asserting a mechanism from that.
+Two for, one against, one null. No mechanism claim survives that split, which is why exhale does not
+make one.
 
-On how people actually felt, the picture is cleaner.
+On how people reported feeling, the picture is cleaner.
 [`vandiest2014-ie-ratio-relaxation`](#vandiest2014-ie-ratio-relaxation) is the only study here that
 measured subjective state across ratios, and participants reported more relaxation, more stress
 reduction, more mindfulness and more positive energy with the longer exhale. Slowing the rate alone
 moved only one of those four. [`balban2023-cyclic-sighing`](#balban2023-cyclic-sighing) points the
 same way over a month, on mood.
 
-So: **keep the recommendation, drop the mechanism.** A longer exhale is worth preferring because
-people report feeling better doing it, which is the outcome anyone installing exhale actually cares
-about. It should not be sold as a way to "engage the parasympathetic nervous system," because the
-cardiac measures that would show that are split. Note also
+So a longer exhale is worth preferring because people report feeling better doing it, which is the
+outcome anyone installing exhale actually cares about. Note also
 [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv)'s second finding: *every* slow pattern it
-tested increased relaxation over baseline. Rate is doing most of the work. Ratio is a preference
-with a modest, contested edge.
+tested increased relaxation over baseline. Rate does most of the work; ratio is a preference with a
+modest, contested edge.
 
 ### 5. Pacing someone slowly at a screen may push them further into over-breathing
 
-This one is a genuine tension between two entries and nobody has looked at it.
+A genuine tension between two entries that nobody has looked at.
 
 [`marchant2025-square-478-six`](#marchant2025-square-478-six) reports, as an unexpected finding, that
 breathing at 6 breaths per minute produced **mild over-breathing**: HRV went up and end-tidal CO2
 went down. Meanwhile [`schleifer1994-vdt-petco2`](#schleifer1994-vdt-petco2) and
-[`schleifer2008-emg-gaps-computer-work`](#schleifer2008-emg-gaps-computer-work) show that a person
-at a keyboard is *already* mildly hypocapnic.
+[`schleifer2008-emg-gaps-computer-work`](#schleifer2008-emg-gaps-computer-work) show that a person at
+a keyboard is *already* mildly hypocapnic.
 
-exhale paces rate and says nothing about depth. A user who slows to 6 breaths per minute while
-taking large breaths moves more air per minute, not less. The whole benefit of slow breathing is
-usually framed as calming, and the CO2 direction here runs the other way. No study in this corpus
-tests a slow pacer on an already-hypocapnic screen worker, which is exactly exhale's user.
+exhale paces rate and says nothing about depth. A user who slows to 6 breaths per minute while taking
+large breaths moves more air per minute, not less. No study in this corpus tests a slow pacer on an
+already-hypocapnic screen worker, which is exactly exhale's user.
 
-Nothing actionable follows yet, and this is not a safety warning: the effect Marchant reports is
-mild and was measured in a single session. It is recorded because it is the most interesting
-unanswered question this corpus turned up, and because an app that paces breathing should know that
-pacing rate is not the same as pacing volume.
+This is not a safety warning: the effect Marchant reports is mild and was measured in a single
+session. It is recorded because it is the most interesting unanswered question this corpus turned up,
+and because an app that paces breathing should know that pacing rate is not the same as pacing
+volume. The one mitigation with evidence behind it is an instruction rather than a setting:
+[`szulczewski2019-antihyperventilation-instruction`](#szulczewski2019-antihyperventilation-instruction)
+shows one sentence of anti-hyperventilation guidance cuts the end-tidal CO2 drop from 5.21 mmHg to
+2.7.
 
-### 6. `drift` has no literature behind it at all
+### 6. `drift` is an invention of this app
 
-exhale defaults `drift` to `1.01`, making each cycle 1% longer than the last. Over 30 cycles that is
-a 1.35x stretch, taking a 4.0 breaths/min pace down to roughly 3.0 and further outside any tested
-range. No study in this corpus examines a progressively lengthening pace. It is an invented feature.
-It may be a pleasant one. It is not evidence-based, and the default is not zero.
+`drift` lengthens every cycle by a fixed percentage, compounding, so the breath extends gradually
+across a session. Graded extension of the breath is a long-standing pranayama practice
+([`satyananda2008-apmb`](#satyananda2008-apmb)), but **no study in this corpus examines a
+progressively lengthening pace at all.** [`szulczewski2019-training-relaxation`](#szulczewski2019-training-relaxation)
+trained at a fixed rate and found relaxation accrued over a week of practice, which supports "keep
+practising" rather than "keep slowing down within a session."
+
+Nothing in this review contradicts the tradition either. The literature simply stops below about 5
+breaths a minute; it does not turn around and report worse outcomes there. What subjective evidence
+exists points the tradition's way:
+[`vandiest2014-ie-ratio-relaxation`](#vandiest2014-ie-ratio-relaxation) found the longer exhale
+produced more relaxation, stress reduction and positive energy;
+[`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) found every slow pattern beat baseline on
+relaxation; and [`joshi1992-pranayam-training`](#joshi1992-pranayam-training) found six weeks of
+practice lowered resting respiratory rate and lengthened breath-holding time. The inverted-U in
+[`shaffer2020-resonance-frequency-assessment`](#shaffer2020-resonance-frequency-assessment) is worth
+reading alongside these, but it describes a peak in **HRV amplitude**, not in relaxation or comfort,
+and does not transfer to one.
+
+The one documented caution is about **depth, not rate**. See gap 5.
+
+`drift` is therefore unbounded and **defaults to 0, off**. Off by default is a coverage argument
+rather than a claim of harm: on by default it would move every new user out of the region anyone has
+measured, within minutes, without asking. Unbounded because a 10-second inhale with a 20-second
+exhale is unremarkable in pranayama, and absence of research is not evidence of harm.
+
+The stepper moves in 0.1 percentage points, and values below that can be typed; display is capped at
+three decimals, so 0.001 % is the finest value the field round-trips. Compounding is steep enough
+that whole percents are unusable: from a 15 s cycle, 1 % doubles the breath in about 25 minutes,
+0.1 % in about 4.2 hours, 0.01 % in about 41. The settings panel reports the doubling point in
+**breaths** rather than minutes, because cycle `k` lasts `c · dᵏ` and so `dᵏ = 2` at
+`k = ln2 / ln d`, with the starting cycle length cancelling out: 1 % is 70 breaths from any starting
+pace, 0.1 % is 693, 0.001 % is 69,315. A doubling time would depend on where the user started and
+would disagree with the minute figures quoted above, which are anchored to the 15 s default.
 
 ### 7. Randomised timing has no literature behind it either
 
@@ -289,8 +320,8 @@ Reviews of breathwork note that only a minority of trials report on adverse even
 *slow* breathing specifically, which is the mode exhale is built around. exhale's sliders can also
 be set to fast, hold-heavy patterns that leave that evidence base entirely; those belong to the
 high-ventilation literature ([`fincham2024-high-ventilation-rct`](#fincham2024-high-ventilation-rct)),
-where transient tetany, light-headedness and distress are documented. This is the honest basis for
-the README's existing advice to take breaks if intense feelings arise, and for it staying there.
+where transient tetany, light-headedness and distress are documented. This is the basis for the
+README's advice to take breaks if intense feelings arise.
 
 ### 14. The tradition sources are lineage, not evidence, and are tiered accordingly
 
@@ -319,21 +350,10 @@ In rough order of value per unit effort:
 1. Read the `NUMBERS NOT READ` entries and either promote or downgrade the claims resting on them.
    [`laborde2021-ie-ratio-pauses`](#laborde2021-ie-ratio-pauses) is the highest value: it bears
    directly on gaps 4 and 11.
-2. Decide, deliberately, whether the shipped default should move from 4.0 breaths/min to
-   `5` / `0` / `5` / `0`, which is 6 breaths/min and is what the head-to-head evidence in gap 3
-   points at. This is a release-note decision, not a silent one.
-3. Ship named presets with the citation attached to each, instead of asking users to invent numbers:
-   6 breaths/min (`5` / `0` / `5` / `0`), A52 (`5` / `0` / `5` / `2`), box (`4` / `4` / `4` / `4`),
-   and the current default as "extended exhale." A preset carrying its own evidence tier is more
-   honest than a slider that implies every value is equally supported.
-4. **Queued for the next release, no release needed of its own:** a "Research & Citations" item in
-   the tray menu that opens this file in the browser. Roughly ten lines: one `MenuItem` built and
-   appended in [`tray.rs`](../rust/crates/exhale-app/src/tray.rs) alongside `preferences_item`, and one
-   arm in the `MenuEvent` loop at [`main.rs:1066`](../rust/crates/exhale-app/src/main.rs). It rides
-   along with whatever is tagged next rather than justifying a build, re-sign and three store
-   resubmissions on its own. A link out is deliberately preferred over rendering this corpus inside
-   the settings window: exhale ships through Apple, Microsoft and Snap review, and putting prose about
-   parasympathetic activation inside a health-adjacent binary invites scrutiny that a repo link does
-   not.
-5. Nobody has tested a slow visual pacer on an already-hypocapnic screen worker (gap 5). That is a
+2. Nobody has tested a slow visual pacer on an already-hypocapnic screen worker (gap 5). That is a
    real, publishable question that exhale is unusually well placed to ask.
+3. Settle whether graded extension does anything, which would put a floor under gap 6. No study in
+   this corpus varies the pace *within* a session, so the question is open in both directions.
+4. Resonance frequency is individual (gap 2) and exhale ships one number for everyone. Whether a
+   sensorless app can help someone find their own, by any method better than trying a few and
+   noticing, is unresolved and would matter more than the default ever will.
