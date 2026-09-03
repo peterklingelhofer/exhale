@@ -7,6 +7,8 @@
 <meta name="description" content="Every claim and default in exhale, with the published evidence behind it and a ledger of what the evidence does not support.">
 <meta name="color-scheme" content="light dark">
 <link rel="canonical" href="https://peterklingelhofer.github.io/exhale/citations.html">
+<!-- Inline so the page stays one file and the browser stops asking for /favicon.ico -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Ccircle%20cx='16'%20cy='16'%20r='11'%20fill='none'%20stroke='%230f6d68'%20stroke-width='3'/%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #fbfaf8;
@@ -387,7 +389,10 @@
         current = links[entry.target.id];
         if (current) current.setAttribute("aria-current", "true");
       });
-    }, { rootMargin: "-4.5rem 0px -75% 0px" });
+    // Pixels or percent only: `rootMargin` rejects rem, and the
+    // constructor throws rather than ignoring the unit.  72px is the
+    // 4.5rem the masthead occupies at the default root font size
+    }, { rootMargin: "-72px 0px -75% 0px" });
     headings.forEach(function (h) { observer.observe(h); });
   }
 
@@ -419,11 +424,16 @@
       addAnchors();
       fixLinks();
       wrapTables();
-      buildToc();
       jumpToHash();
       window.addEventListener("hashchange", jumpToHash);
       var h1 = doc.querySelector("h1");
       if (h1) document.title = h1.textContent + " · exhale";
+
+      // The contents rail is an enhancement, and the deep link into
+      // the gaps ledger is not.  Building the rail last, in its own
+      // guard, keeps a failure here from reporting a corpus that is
+      // sitting right there rendered as one that could not be loaded
+      try { buildToc(); } catch (err) { console.error("contents rail: " + err.message); }
     })
     .catch(function (err) {
       fail("The request to GitHub failed: " + err.message);
