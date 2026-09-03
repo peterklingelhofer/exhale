@@ -1780,14 +1780,19 @@ use super::*;
             assert_eq!(read_activation_policy(), 0,
                 "Both should map to NSApplicationActivationPolicyRegular (0)");
 
-            // Restore.
-            use objc2::{class, msg_send};
-            use objc2::runtime::AnyObject;
-            unsafe {
-                let app: *mut AnyObject =
-                    msg_send![class!(NSApplication), sharedApplication];
-                let _: () = msg_send![app, setActivationPolicy: original];
-            }
+            // Restore through the same typed binding the production
+            // path uses.  `setActivationPolicy:` returns `BOOL`, so a
+            // hand-written `msg_send!` declaring `()` trips objc2's
+            // runtime encoding check and panics the test
+            use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+            use objc2_foundation::MainThreadMarker;
+
+            // SAFETY: same looser guarantee `apply_app_visibility`
+            // documents, which this test has already exercised three
+            // times above
+            let mtm = unsafe { MainThreadMarker::new_unchecked() };
+            let _ = NSApplication::sharedApplication(mtm)
+                .setActivationPolicy(NSApplicationActivationPolicy(original as isize));
         }
 
         #[test]
