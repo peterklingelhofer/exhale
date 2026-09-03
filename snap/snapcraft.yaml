@@ -5,12 +5,12 @@ version: '2.0.22'
 summary: A full-screen breathing overlay for mindful breathing.
 description: |
   A minimal cross-platform breathing overlay, a friendly indicator and
-  reminder to take full, deep breaths while looking at screens. Screen work
-  measurably changes how you breathe: at a keyboard, people breathe faster
-  and higher in the chest, and slumped screen posture reduces how much the
-  diaphragm can do. Slow paced breathing is the countermeasure with the most
-  evidence behind it, and exhale is a way to run one with no sensor, no
-  account and no telemetry.
+  reminder to take full, deep breaths while looking at screens. Demanding
+  work at a keyboard measurably changes how you breathe: people breathe
+  faster and mildly over-breathe, and slumped, forward-head posture is
+  associated with reduced lung volumes. Slow paced breathing is the
+  breathing practice with the most published evidence behind it, and exhale
+  is a way to run one with no sensor, no account and no telemetry.
 
   The overlay is a translucent, always-on-top, click-through window that
   gently expands on inhale and contracts on exhale, so it never interrupts

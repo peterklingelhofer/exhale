@@ -9,6 +9,10 @@ xcuserdata/
 *.xcuserstate
 DerivedData/
 *.xcworkspace/xcuserdata/
+build/
+*.dSYM/
+*.swiftpm/xcode/
+*.profraw
 
 # Rust
 target/
@@ -22,28 +26,16 @@ target/
 *.swp
 *.swo
 
-# Claude Code
-.claude/
-
-# Local backups / generated archives
+# Local backups / generated archives / working notes
 *.zip
 *.diff
+scratch/
 
 # Mac App Store signing — never commit provisioning profiles or keys
 rust/signing/
 *.provisionprofile
 *.p12
 *.cer
-
- # Xcode
- xcuserdata/
- *.xcuserstate
- DerivedData/
- *.xcworkspace/xcuserdata/
-+build/
-+*.dSYM/
-+*.swiftpm/xcode/
-+*.profraw
 
 
 # Local secrets — release credentials (base64 of p12s, passwords, etc.)
