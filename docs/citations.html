@@ -66,6 +66,13 @@
   }
   .skip:focus { left: 0; }
 
+  /* The deep-linked heading is focused to move the reading position,
+     not because it is a control.  A full-width ring across a section
+     title reads as an error state to a reader who did not put it
+     there, and the heading is not reachable by Tab, so the scroll
+     itself is the indication */
+  #doc [tabindex="-1"]:focus { outline: none; }
+
   a { color: var(--accent); text-underline-offset: .15em; }
   a:focus-visible, button:focus-visible {
     outline: 2px solid var(--accent);
@@ -384,22 +391,36 @@
     });
     document.getElementById("toc").hidden = false;
 
-    if (!("IntersectionObserver" in window)) return;
+    // Reading the last heading above the masthead rather than watching
+    // an intersection band.  A band leaves whatever it saw last marked
+    // current once nothing is inside it, which is every position where
+    // one section fills more than the band: the top of the document
+    // included
     var links = {};
     list.querySelectorAll("a").forEach(function (a) { links[a.hash.slice(1)] = a; });
     var current = null;
-    var observer = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (!entry.isIntersecting) return;
-        if (current) current.removeAttribute("aria-current");
-        current = links[entry.target.id];
-        if (current) current.setAttribute("aria-current", "true");
-      });
-    // Pixels or percent only: `rootMargin` rejects rem, and the
-    // constructor throws rather than ignoring the unit.  72px is the
-    // 4.5rem the masthead occupies at the default root font size
-    }, { rootMargin: "-72px 0px -75% 0px" });
-    headings.forEach(function (h) { observer.observe(h); });
+    var queued = false;
+
+    function markCurrent() {
+      queued = false;
+      var active = headings[0];
+      for (var i = 0; i < headings.length; i++) {
+        if (headings[i].getBoundingClientRect().top > 96) break;
+        active = headings[i];
+      }
+      var link = links[active.id] || null;
+      if (link === current) return;
+      if (current) current.removeAttribute("aria-current");
+      current = link;
+      if (current) current.setAttribute("aria-current", "true");
+    }
+
+    window.addEventListener("scroll", function () {
+      if (queued) return;
+      queued = true;
+      window.requestAnimationFrame(markCurrent);
+    }, { passive: true });
+    markCurrent();
   }
 
   // The browser resolved the hash before the document existed, so the
