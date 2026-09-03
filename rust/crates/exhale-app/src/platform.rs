@@ -104,3 +104,90 @@ pub fn render_sf_symbol(_name: &str, _point_size: f64, _dark_mode: bool) -> Opti
 #[cfg(not(target_os = "windows"))]
 #[allow(dead_code)]
 pub fn reassert_overlay_topmost(_window: &winit::window::Window) {}
+
+// ─── Opening a URL in the user's browser ─────────────────────────────────────
+
+/// Hand `url` to the user's default browser.
+///
+/// This is the only outbound-link path in the app, so the scheme
+/// check lives here rather than at each call site: anything that
+/// isn't a plain `https://` URL is dropped with a log line and never
+/// reaches the platform API.  `ShellExecuteW` in particular will
+/// happily launch a local executable for a `file:` URL, and
+/// `xdg-open` will hand an arbitrary scheme to whatever handler
+/// claims it, so the allowlist is load-bearing rather than
+/// decorative — even though every current caller passes a
+/// compile-time constant.
+///
+/// Best-effort by design.  A machine with no browser, no
+/// `xdg-open`, or a refused `NSWorkspace` open is a fully working
+/// exhale; the documentation is on the web either way.  Failures
+/// log and return
+pub fn open_url(url: &str) {
+    if !is_openable(url) {
+        log::warn!("open_url: refusing non-https or malformed URL: {url:?}");
+        return;
+    }
+
+    #[cfg(target_os = "macos")]
+    mac::open_url_impl(url);
+    #[cfg(target_os = "windows")]
+    win::open_url_impl(url);
+    #[cfg(all(unix, not(target_os = "macos")))]
+    linux::open_url_impl(url);
+}
+
+/// The allowlist [`open_url`] enforces, split out so it can be tested
+/// without launching a browser.
+///
+/// Rejecting on the whole `https://` prefix (rather than "starts with
+/// http") also rules out `https:/evil` and scheme-relative junk, and
+/// the control-character check keeps anything unprintable out of a
+/// command argument on the Linux path.  There is deliberately no
+/// `http://` escape hatch: every destination this app links to is a
+/// GitHub URL that redirects to TLS anyway
+fn is_openable(url: &str) -> bool {
+    url.starts_with("https://")
+        && url.len() > "https://".len()
+        && !url.chars().any(char::is_control)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_plain_https_urls_are_openable() {
+        assert!(is_openable("https://github.com/peterklingelhofer/exhale#a"));
+
+        // `ShellExecuteW` would resolve this through the shell
+        // association table and launch a local program
+        assert!(!is_openable("file:///etc/passwd"));
+        assert!(!is_openable("http://example.com"));
+        // Substring-of-scheme and scheme-relative near-misses
+        assert!(!is_openable("https:/example.com"));
+        assert!(!is_openable("//example.com"));
+        assert!(!is_openable(" https://example.com"));
+        // A bare scheme resolves to nothing; reject rather than
+        // hand an empty host to three different platform APIs
+        assert!(!is_openable("https://"));
+        assert!(!is_openable(""));
+        // Newline injection into the argument of a spawned process
+        assert!(!is_openable("https://example.com\nrm -rf /"));
+        assert!(!is_openable("https://example.com\u{0}"));
+    }
+
+    /// The tray constant is the only URL that actually ships, so the
+    /// allowlist it has to pass is asserted here rather than left to
+    /// the code review that introduced it
+    #[test]
+    fn shipped_research_url_passes_the_allowlist() {
+        assert!(is_openable(crate::tray::RESEARCH_URL));
+        assert!(
+            crate::tray::RESEARCH_URL.ends_with("#gaps-and-unsupported-choices"),
+            "the anchor is the feature: pointing at the top of CITATIONS.md \
+             lands the reader in 48 references instead of the fourteen \
+             things they do not support"
+        );
+    }
+}
