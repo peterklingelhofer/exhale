@@ -327,6 +327,11 @@ def check_binary_deep_link(rendered: str) -> None:
     so a renamed heading strands a user on the top of a 48-entry list at the
     exact moment they went looking for the limits. Renaming the heading is
     allowed; renaming it silently is not
+
+    The menu may point either at the file on GitHub or at docs/citations.html,
+    which fetches that same file from `main` and renders it. Both are the
+    corpus and both break identically when an anchor moves, so both are
+    accepted and the anchor is checked the same way either way
     """
     if not TRAY.exists():
         return
@@ -340,7 +345,7 @@ def check_binary_deep_link(rendered: str) -> None:
 
     url = m.group(1)
     path, _, fragment = url.partition("#")
-    if not path.endswith("/docs/CITATIONS.md"):
+    if not path.endswith(("/docs/CITATIONS.md", "/exhale/citations.html")):
         raise CorpusError(f"  - RESEARCH_URL points outside the corpus: {url}")
 
     anchors = {slugify(h) for h in re.findall(r"^#{1,6} +(.+)$", rendered, re.M)}

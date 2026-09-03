@@ -20,8 +20,14 @@ use tray_icon::{
 /// stays installed long after its tag stops being the current state
 /// of the evidence, and a retraction has to reach the people running
 /// old builds.  A moved anchor is a CI failure; a stale claim is not
+///
+/// Points at `docs/citations.html` rather than the file itself.  That
+/// page fetches `docs/CITATIONS.md` from `main` at load, so it stays
+/// as current as the blob view did, but a reader who followed a menu
+/// item called "Research" arrives at a document instead of at a code
+/// host's file browser
 pub const RESEARCH_URL: &str =
-    "https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md#gaps-and-unsupported-choices";
+    "https://peterklingelhofer.github.io/exhale/citations.html#gaps-and-unsupported-choices";
 
 /// Named next to the URL because the wording and the anchor are one
 /// decision.  The label is plain, so the anchor carries the whole
