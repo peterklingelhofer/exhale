@@ -48,6 +48,9 @@ GROUP_IDS = {g for g, _ in GROUPS}
 
 VERIFICATIONS = {"crossref-verified", "openlibrary-verified", "pubmed-verified", "unverified"}
 ACCESS_LEVELS = {"open-access", "paywalled"}
+# How much of the source was actually read before its claims were written down.
+# Verification confirms the citation; this field says what stands behind the claim
+READ_DEPTHS = {"full-text", "abstract", "record"}
 TIERS = {"A", "B", "C", "D", "E", None}
 
 ID_RE = re.compile(r"^[a-z][a-z0-9]+[0-9]{4}-[a-z0-9-]+$")
@@ -100,6 +103,14 @@ def load_corpus() -> list[dict]:
             problems.append(f"{rid}: accessLevel must be one of {sorted(ACCESS_LEVELS)}")
         if custom.get("evidenceTier", "missing") not in TIERS:
             problems.append(f"{rid}: evidenceTier must be A-E or null")
+        if custom.get("readDepth") not in READ_DEPTHS:
+            problems.append(f"{rid}: readDepth must be one of {sorted(READ_DEPTHS)}")
+        # A legal open copy of a paywalled version of record, from a repository
+        # or free at the publisher. Only ever an https URL; never a DOI, which
+        # would just point back at the paywall
+        open_copy = custom.get("openCopy")
+        if open_copy is not None and not str(open_copy).startswith("https://"):
+            problems.append(f"{rid}: openCopy must be an https URL")
         # Absent means citable; only an explicit `false` blocks a record
         # from backing something the binary ships. Written as an opt-OUT so
         # the corpus does not need touching for the common case, and so the
@@ -158,17 +169,17 @@ UNSUPPORTED_PHRASES: list[tuple[str, str]] = [
     ("breathe more shallowly", "gaps ledger 1: the measured finding is faster and chest-high, not shallower"),
     ("screen apnea", "gaps ledger 1: no peer-reviewed source; the measured effect points the other way"),
     ("email apnea", "gaps ledger 1: no peer-reviewed source; the measured effect points the other way"),
+    ("higher in the chest", "gaps ledger 1: the diaphragmatic-to-thoracic shift is theorised, not measured in screen users"),
+    ("countermeasure with the most evidence", "no source compares countermeasures, and gaps ledger 5 says slow pacing can add to over-breathing"),
+    ("hardware buys nothing", "laborde2021-spb-6cpm-biofeedback reports a valence advantage for biofeedback"),
 ]
 
 # Surfaces where one of the phrases above would be an assertion rather than a
-# discussion of one. Missing files are skipped: the Microsoft handoff is
-# untracked, so it is present locally and absent in CI
+# discussion of one. Missing files are skipped
 ASSERTING_SURFACES: list[str] = [
     "snap/snapcraft.yaml",
     "rust/packaging/windows/AppxManifest.xml",
     "rust/packaging/windows/store-listing.md",
-    # Untracked scratch file: present locally, absent in CI, skipped either way
-    "MICROSOFT_STORE_HANDOFF.md",
 ]
 ASSERTING_GLOBS: list[str] = ["rust/crates/**/*.rs"]
 
@@ -229,7 +240,7 @@ def check_preset_citekeys(records: list[dict]) -> None:
 
     Four conditions, and the third and fourth are the ones that earn their
     keep. A record downgraded to tier E is lineage-only and cannot license a
-    default. A record marked `inAppCitable: false` is one the professor
+    default. A record marked `inAppCitable: false` is one the design review
     blocklisted from a store-reviewed binary, which is a different judgement
     from whether it is good evidence: `fincham2023` is the strongest warrant
     in the corpus and is on that list
@@ -289,7 +300,6 @@ def check_readme_counts(records: list[dict], text: str) -> None:
     # section cannot drift apart from each other either
     expected = [
         (r"(\d+)\s+sources", len(records), "total sources"),
-        (r"(\d+)\s+verified references", len(records), "verified references"),
         (r"(\d+)\s+verified against the Crossref REST API", counts["crossref-verified"], "Crossref"),
         (r"(\d+)\s+against Open Library", counts["openlibrary-verified"], "Open Library"),
         (r"(\d+)\s+against PubMed", counts["pubmed-verified"], "PubMed"),
@@ -388,6 +398,10 @@ def render_entry(rec: dict) -> list[str]:
 
     # Titles that already end in their own punctuation should not collect a second period
     tail = "" if rec["title"].rstrip().endswith(("?", "!", ".")) else "."
+    # Books name the edition the ISBN resolves to, so the reader can find the same one
+    if rec.get("edition"):
+        edition = rec["edition"]
+        tail = f", {edition}" + ("" if edition.endswith(".") else tail)
     # Journal articles carry a container title; books carry a publisher and place
     source = rec.get("container-title") or ": ".join(
         p for p in (rec.get("publisher-place"), rec.get("publisher")) if p
@@ -408,11 +422,14 @@ def render_entry(rec: dict) -> list[str]:
         lines.append(f'- ISBN: {rec["ISBN"]} | [Open Library record]({rec["URL"]})')
     elif rec.get("URL"):
         lines.append(f'- URL: <{rec["URL"]}>')
+    if c.get("openCopy"):
+        lines.append(f'- Open copy: <{c["openCopy"]}>')
 
     tier = c.get("evidenceTier")
     tier_text = f"evidence tier **{tier}**" if tier else "no evidence tier (not a study)"
     lines.append(
-        f'- Verification: {c["verification"]} | Access: {c["accessLevel"]} | {tier_text}'
+        f'- Verification: {c["verification"]} | Access: {c["accessLevel"]} | '
+        f'Read: {READ_DEPTH_LABELS[c["readDepth"]]} | {tier_text}'
     )
 
     lines.append("- Backs:")
@@ -441,6 +458,7 @@ def render_counts(records: list[dict]) -> str:
     for key, heading in (
         ("verification", "Verification"),
         ("accessLevel", "Access level"),
+        ("readDepth", "Read depth"),
         ("evidenceTier", "Evidence tier"),
     ):
         out += [f"| {heading} | n |", "|---|---|", *tally(records, key), ""]
@@ -471,6 +489,12 @@ VERIFICATION_LABELS = {
     "unverified":           "unverified",
 }
 
+READ_DEPTH_LABELS = {
+    "full-text": "full text",
+    "abstract":  "abstract only",
+    "record":    "catalogue record only",
+}
+
 
 def render_summary(records: list[dict]) -> str:
     counts = collections.Counter(r["custom"]["verification"] for r in records)
@@ -479,11 +503,12 @@ def render_summary(records: list[dict]) -> str:
         for key in VERIFICATION_LABELS
         if counts[key]
     ]
-    unread = sum(1 for r in records if "NUMBERS NOT READ" in (r["custom"].get("caveat") or ""))
+    depth = collections.Counter(r["custom"]["readDepth"] for r in records)
     tiered_out = sum(1 for r in records if r["custom"].get("evidenceTier") == "E")
     return (
         f"{len(records)} sources: {', '.join(parts)}. "
-        f"{unread} are cited from their abstract only and say so, and "
+        f"{depth['full-text']} were read in full, {depth['abstract']} from the abstract only, "
+        f"and {depth['record']} are catalogue records only; each entry says which. "
         f"{tiered_out} are not peer-reviewed and are tiered E so they can back lineage but "
         f"never a claim."
     )
