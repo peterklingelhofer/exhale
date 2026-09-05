@@ -6,14 +6,14 @@ use exhale_core::{controller::BreathingState, settings::Settings};
 
 use crate::{gpu_context::GpuContext, renderer::build_pipeline, uniforms::OverlayUniforms};
 
-/// wgpu renderer that draws into an offscreen texture (no `wgpu::Surface`).
+/// wgpu renderer that draws into an offscreen texture (no `wgpu::Surface`)
 ///
 /// Used by the CPU benchmark to measure render cost without the presentation
 /// path (swapchain acquire + present + compositor work).  The pipeline mirrors
-/// [`crate::OverlayRenderer`] exactly so the work-per-frame is comparable.
+/// [`crate::OverlayRenderer`] exactly so the work-per-frame is comparable
 pub struct HeadlessRenderer {
     gpu:            Arc<GpuContext>,
-    /// Owned to keep the render target alive — `view` borrows it internally.
+    /// Owned to keep the render target alive: `view` borrows it internally
     #[allow(dead_code)]
     texture:        wgpu::Texture,
     view:           wgpu::TextureView,
@@ -27,7 +27,7 @@ pub struct HeadlessRenderer {
 
 impl HeadlessRenderer {
     pub fn new(gpu: Arc<GpuContext>, width: u32, height: u32) -> Result<Self> {
-        // Match the format used by the real overlay on macOS/Windows.
+        // Match the format used by the real overlay on macOS/Windows
         let format = wgpu::TextureFormat::Bgra8Unorm;
 
         let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
@@ -80,7 +80,7 @@ impl HeadlessRenderer {
             pass.draw(0..3, 0..1);
         }
         self.gpu.queue.submit(std::iter::once(enc.finish()));
-        // No present — the texture is the render target.
+        // No present: the texture is the render target
         Ok(())
     }
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # Bump exhale's version string across every place it's pinned, and
-# optionally commit, tag, and push the release.
+# optionally commit, tag, and push the release
 #
-# Files touched:
+# Files touched
 #   rust/crates/exhale-app/Cargo.toml          version = "X.Y.Z"
 #   snap/snapcraft.yaml                        version: 'X.Y.Z'
 #   rust/packaging/windows/AppxManifest.xml    Version="X.Y.Z.0"
@@ -13,14 +13,14 @@
 #   .github/workflows/release.yml              V="X.Y.Z" fallback
 #   rust/Cargo.lock                            via `cargo update -p exhale-app`
 #
-# Usage:
+# Usage
 #   rust/scripts/release.sh 2.0.16              # bump files only
 #   rust/scripts/release.sh 2.0.16 --dry-run    # show diffs, no writes
 #   rust/scripts/release.sh 2.0.16 --tag        # bump + commit + tag + push tag
 #
 # --tag mode: stages only the files above (so unrelated dirty files are safe),
 # commits as "release: vX.Y.Z", pushes the current branch, creates tag
-# vX.Y.Z, and pushes the tag (which triggers the release workflow).
+# vX.Y.Z, and pushes the tag (which triggers the release workflow)
 #
 
 set -euo pipefail
@@ -46,8 +46,8 @@ case "$MODE" in ""|--dry-run|--tag) ;; *)
 # 2021 as v2.0.20 resubmissions, then v2.0.21's default 2021 collided
 # with App Store Connect rejection ID 8a9458f3-...). Using commit count
 # instead gives a monotonic value that doesn't depend on VERSION, plus a
-# 10000 offset to clear the historical 2020–2022 range we already burned.
-# Matches the computation in release.yml + bundle-mas.sh
+# 10000 offset to clear the historical 2020–2022 range we already burned. Matches
+# the computation in release.yml + bundle-mas.sh
 BUILD="$(( $(git rev-list --count HEAD) + 10000 ))"
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -71,8 +71,8 @@ sed_inplace() {
     esac
 }
 
-printf 'bumping exhale → %s (build %s)\n' "$VERSION" "$BUILD"
-[[ "$MODE" == "--dry-run" ]] && echo "(dry run — no files will be modified)"
+printf 'bumping exhale -> %s (build %s)\n' "$VERSION" "$BUILD"
+[[ "$MODE" == "--dry-run" ]] && echo "(dry run, no files will be modified)"
 
 sed_inplace 's/(^version[[:space:]]+=[[:space:]]+")[^"]+(")/\1'"$VERSION"'\2/' \
     rust/crates/exhale-app/Cargo.toml
@@ -80,8 +80,9 @@ sed_inplace 's/(^version[[:space:]]+=[[:space:]]+")[^"]+(")/\1'"$VERSION"'\2/' \
 sed_inplace "s/(^version: ')[^']+(')/\\1${VERSION}\\2/" \
     snap/snapcraft.yaml
 
-# Anchor to line-start whitespace so we only match the <Identity Version="…">
-# attribute, not the <TargetDeviceFamily Min/MaxVersion="…"> siblings.
+# Anchor to line-start whitespace so only the <Identity Version="…">
+# attribute is touched, leaving the <TargetDeviceFamily Min/MaxVersion="…">
+# siblings alone
 sed_inplace 's/(^[[:space:]]+Version=")[0-9]+\.[0-9]+\.[0-9]+\.0(")/\1'"${VERSION}"'.0\2/' \
     rust/packaging/windows/AppxManifest.xml
 
@@ -130,7 +131,7 @@ if [[ "$MODE" != "--tag" ]]; then
 fi
 
 if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-    echo "error: tag v$VERSION already exists — pick a new version" >&2
+    echo "error: tag v$VERSION already exists; pick a new version" >&2
     exit 1
 fi
 

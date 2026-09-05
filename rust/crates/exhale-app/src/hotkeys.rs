@@ -8,7 +8,7 @@ use global_hotkey::{
 /// Per-action ids returned by [`register_hotkeys`].  The dispatcher in
 /// `main.rs` matches incoming `GlobalHotKeyEvent`s by `id`, so
 /// missing actions (registration failed, or no key code matched) stay
-/// `None` and silently no-op rather than dispatching the wrong event.
+/// `None` and silently no-op rather than dispatching the wrong event
 ///
 /// `registered` keeps the original `HotKey` objects so the caller can
 /// call [`GlobalHotKeyManager::unregister`] when the user reassigns a
@@ -23,16 +23,16 @@ pub struct HotkeyIds {
 }
 
 /// Register every action in `shortcuts` as a global hotkey via the
-/// `global-hotkey` crate.
+/// `global-hotkey` crate
 ///
-/// Each hotkey is registered individually with its own error handling
-/// — if one fails (typically because the combination conflicts with a
+/// Each hotkey is registered individually with its own error handling: if
+/// one fails (typically because the combination conflicts with a
 /// system or other-app global hotkey), the remaining hotkeys are
 /// still registered.  An earlier version used `?` propagation which
 /// meant a single failed registration silently disabled every later
 /// one in the sequence; the user would see only "Reset works" with no
 /// log entry pointing at the root cause (e.g. another app holding
-/// Ctrl+Shift+A).
+/// Ctrl+Shift+A)
 ///
 /// Returns the ids regardless of partial failure so the dispatcher
 /// can match any that did register; failures are logged with enough
@@ -77,8 +77,8 @@ pub fn register_hotkeys(
             }
             Err(e) => {
                 log::warn!(
-                    "global hotkey {label} (id={id}) failed to register: {e} \
-                     — likely conflicts with a system or other-app shortcut; \
+                    "global hotkey {label} (id={id}) failed to register: {e}; \
+                     likely conflicts with a system or other-app shortcut; \
                      the rest of exhale's hotkeys will still work.  Right-click the \
                      matching button in the settings window to assign a different key"
                 );

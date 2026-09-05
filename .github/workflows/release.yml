@@ -1,15 +1,15 @@
 #
-# Cross-platform release pipeline for the Rust exhale binary.
+# Cross-platform release pipeline for the Rust exhale binary
 #
 # Fires on any `v*` tag push (e.g. `git tag v2.0.8 && git push --tags`) and
 # on manual `workflow_dispatch`.  Each platform job builds, packages, and
 # uploads its artefact; the `release` job gathers them and attaches them to
-# a GitHub Release.
+# a GitHub Release
 #
 # Store submission (Mac App Store / Microsoft Store / Snap Store) is NOT
-# automated here — those require interactive secret setup (Apple App-Store-
+# automated here: those require interactive secret setup (Apple App-Store-
 # Connect API key, Partner Center MSIX submission).  Snap Store upload is
-# manual: see the linux-snap job below for the one-line multipass command.
+# manual: see the linux-snap job below for the one-line multipass command
 #
 # Secrets referenced (all optional; jobs gracefully degrade if missing):
 #   MACOS_APP_IDENT_P12       base64 of the Mac App Distribution .p12
@@ -17,7 +17,7 @@
 #   MACOS_INSTALLER_P12       base64 of the Mac Installer Distribution .p12
 #   MACOS_INSTALLER_PASSWORD  password
 #   MACOS_PROVISION_PROFILE   base64 of exhale.provisionprofile
-#   MACOS_KEYCHAIN_PASSWORD   any string — used for the temporary CI keychain
+#   MACOS_KEYCHAIN_PASSWORD   any string, used for the temporary CI keychain
 #   WINDOWS_CERT_PFX          base64 of a Windows code-signing PFX
 #   WINDOWS_CERT_PASSWORD     password for the PFX
 #
@@ -38,9 +38,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Do NOT set `RUSTFLAGS: -D warnings` here — third-party macro crates
+  # Do NOT set `RUSTFLAGS: -D warnings` here: third-party macro crates
   # (e.g. `objc`) emit check-cfg warnings that we can't suppress from our
-  # side, and escalating those to errors breaks the macOS / Linux builds.
+  # side, and escalating those to errors breaks the macOS / Linux builds
 
 jobs:
   # ─── Derive one consistent version string for all downstream jobs ──────────
@@ -73,9 +73,9 @@ jobs:
   macos:
     needs: prepare
     runs-on: macos-latest
-    # `secrets` context is not allowed in step-level `if:` expressions, so
+    # `secrets` context isn't allowed in step-level `if:` expressions, so
     # hoist the availability check into job-level `env` (which *can* read
-    # secrets) and gate individual steps on `env.HAS_MAC_CERTS`.
+    # secrets) and gate individual steps on `env.HAS_MAC_CERTS`
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
       BUILD:   ${{ needs.prepare.outputs.build }}
@@ -96,7 +96,7 @@ jobs:
         # bundle-mas.sh wraps codesign + productbuild in `gtimeout` so a
         # hang in Apple's TSA or installer-cert chain validation fails the
         # job in minutes instead of eating an hour-plus of runner time.
-        # gtimeout ships with GNU coreutils, not macOS by default
+        # gtimeout ships with GNU coreutils; macOS doesn't include it by default
         run: brew install coreutils
 
       - name: Import signing identities
@@ -127,7 +127,7 @@ jobs:
           # walks the chain more strictly; on a fresh CI keychain (no Xcode-
           # installed intermediates) it blocks indefinitely. Apple distribution
           # certs issued in different eras chain via different WWDR generations
-          # (G3 → ~2024, G6 current as of 2026); import all generations so the
+          # (G3 -> ~2024, G6 current as of 2026); import all generations so the
           # cert's actual issuer is present regardless of when it was issued
           for cer in \
               AppleWWDRCAG3.cer AppleWWDRCAG4.cer AppleWWDRCAG6.cer \
@@ -152,7 +152,7 @@ jobs:
           # Distribution-signed .app produces a binary that launchd refuses
           # to spawn outside the App Store (the embedded provisioning
           # profile + sandbox entitlements only validate via MAS delivery).
-          # Net: there is no shippable macOS artifact from CI today. The
+          # Net: there's no shippable macOS artifact from CI today. The
           # actual MAS submission is built locally and uploaded via
           # Transporter; this job's only purpose is verifying the macOS
           # build still compiles + signs cleanly on tag push
@@ -218,9 +218,9 @@ jobs:
   # Neither ubuntu-22.04 nor ubuntu-24.04 exposes it.  Workaround: run
   # `snapcraft pack --destructive-mode` directly on the runner (no LXD,
   # no Multipass) and pre-install the base/runtime build-snaps that the
-  # `gnome` extension pulls in, so snapcraft doesn't have to.
+  # `gnome` extension pulls in, so snapcraft doesn't have to
   #
-  # Upload is MANUAL — every snapcraft path we tried (snap @ latest/7.x/8.x,
+  # Upload is MANUAL: every snapcraft path we tried (snap @ latest/7.x/8.x,
   # snapcore/action-publish, `pip install snapcraft`, direct curl REST API)
   # crashed with the same `018h` byte in the discharge macaroon. CI builds
   # the .snap as an artifact; download it and run on a local Multipass VM:
@@ -244,13 +244,13 @@ jobs:
           # Pre-install what the `gnome` extension would otherwise fetch
           # mid-build.  Previous destructive-mode attempts died with a
           # bare "Error installing snap" when snapcraft tried to install
-          # these itself; pre-staging sidesteps that.
+          # these itself; pre-staging sidesteps that
           sudo snap install core22
           sudo snap install gnome-42-2204
           sudo snap install gtk-common-themes
           # Build deps for the cargo compilation inside destructive-mode
           # (the snap will package its own lib runtimes via stage-packages,
-          # but the cargo build itself needs headers on the host).
+          # but the cargo build itself needs headers on the host)
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             pkg-config build-essential \
@@ -273,9 +273,9 @@ jobs:
   windows:
     needs: prepare
     runs-on: windows-2025
-    # `secrets` context is not allowed in step-level `if:` expressions, so
+    # `secrets` context isn't allowed in step-level `if:` expressions, so
     # expose HAS_WIN_CERT via job-level env (which can read secrets) and
-    # gate the Decode step on `env.HAS_WIN_CERT`.
+    # gate the Decode step on `env.HAS_WIN_CERT`
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
       BUILD:   ${{ needs.prepare.outputs.build }}

@@ -7,19 +7,20 @@ use tray_icon::{
 
 // ─── Research link ────────────────────────────────────────────────────────────
 
-/// Deep link into the gaps ledger, not the top of the citation list.
+/// Deep link into the gaps ledger; the top of the citation list would
+/// read as authority instead of naming what the research doesn't support
 ///
 /// Landing the reader on 48 references reads as a wall of authority;
-/// landing them on the fourteen things the literature does *not*
+/// landing them on the fourteen things the literature *doesn't*
 /// support is the same click with the opposite effect.  The anchor is
 /// as much the feature as the menu item is, so both are pinned here
 /// together and `scripts/generate-citations.py` validates that this
-/// heading still exists.
+/// heading still exists
 ///
 /// Pinned to `main` rather than a release tag on purpose.  A binary
 /// stays installed long after its tag stops being the current state
 /// of the evidence, and a retraction has to reach the people running
-/// old builds.  A moved anchor is a CI failure; a stale claim is not
+/// old builds.  A moved anchor is a CI failure; a stale claim isn't
 ///
 /// Points at `docs/citations.html` rather than the file itself.  That
 /// page fetches `docs/CITATIONS.md` from `main` at load, so it stays
@@ -32,7 +33,7 @@ pub const RESEARCH_URL: &str =
 /// Named next to the URL because the wording and the anchor are one
 /// decision.  The label is plain, so the anchor carries the whole
 /// intent: "Research" pointing at the gaps ledger lands the reader on
-/// the fourteen things the literature does not support, where the same
+/// the fourteen things the literature doesn't support, where the same
 /// word pointing at the top of `CITATIONS.md` would land them in a wall
 /// of 48 references.  Shared with the macOS app menu, which shows the
 /// same item, so the two can never disagree
@@ -47,11 +48,11 @@ pub struct TrayMenuIds {
     pub stop:        tray_icon::menu::MenuId,
     pub reset:       tray_icon::menu::MenuId,
     pub quit:        tray_icon::menu::MenuId,
-    // Handles for dynamic enable/disable.
+    // Handles for dynamic enable/disable
     pub start_item:  MenuItem,
     pub stop_item:   MenuItem,
     // Top-level item handles whose labels include the current
-    // keybinding — kept here so the rebind path can `set_text` them
+    // keybinding: kept here so the rebind path can `set_text` them
     // when the user changes a shortcut, instead of rebuilding the
     // whole tray
     pub preferences_item: MenuItem,
@@ -65,8 +66,8 @@ pub struct TrayMenuIds {
     //
     // Each entry both displays the action's current binding (label
     // text via `set_text` on rebind) and acts as a click target that
-    // opens the settings window in capture mode for that action.
-    // Storing the handles here lets us update labels in place without
+    // opens the settings window in capture mode for that action;
+    // storing the handles here lets us update labels in place without
     // a tray rebuild. The handles themselves are only `set_text`'d by
     // `refresh_labels`, which only runs from the hotkey-rebind path
     // (feature-gated). MAS build keeps the fields populated so the
@@ -90,8 +91,8 @@ pub struct TrayMenuIds {
 
 impl TrayMenuIds {
     /// Match a clicked tray-menu item id back to the
-    /// [`ShortcutAction`] whose binding the user wants to change.
-    /// Returns `None` for items that aren't part of the
+    /// [`ShortcutAction`] whose binding the user wants to change;
+    /// returns `None` for items that aren't part of the
     /// "Keyboard Shortcuts ▶" submenu
     pub fn kb_action_for(&self, id: &tray_icon::menu::MenuId) -> Option<ShortcutAction> {
         if id == &self.kb_start       { Some(ShortcutAction::Start) }
@@ -143,9 +144,9 @@ fn submenu_label(action: ShortcutAction, shortcuts: &KeyboardShortcuts) -> Strin
     format!("{}: {binding}", action.label())
 }
 
-/// Build the system-tray icon + menu.
-/// Returns the `TrayIcon` handle (must stay alive) and the menu item IDs
-/// so the caller can match incoming `MenuEvent`s.
+/// Build the system-tray icon + menu, returning the `TrayIcon` handle
+/// (must stay alive) and the menu item IDs so the caller can match
+/// incoming `MenuEvent`s
 ///
 /// `shortcuts` is the current snapshot of user keybindings; labels
 /// embed each action's binding so the user can see at a glance what's
@@ -154,24 +155,24 @@ fn submenu_label(action: ShortcutAction, shortcuts: &KeyboardShortcuts) -> Strin
 /// the menu in sync
 pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuIds)> {
     // Propagate icon-construction failures via `?` rather than
-    // panicking — callers (`App::sync_tray_to_visibility`) already
+    // panicking: callers (`App::sync_tray_to_visibility`) already
     // log + continue when `build_tray` returns `Err`, so a bad
     // RGBA buffer or platform limitation degrades gracefully to
     // "no tray icon" instead of aborting the whole process at
     // launch.  In practice the buffer is hardcoded RGBA we
     // generate ourselves, so this branch is never expected to
-    // fire — but a `.expect()` here was the difference between
+    // fire, but a `.expect()` here was the difference between
     // "app didn't open" and "log line + app keeps running"
     let icon = make_icon()?;
 
     // No `Accelerator::new(...)` on any item.  Reasons:
     //   1. Bindings are user-customisable now; a static accelerator
-    //      label would lie when the user reassigns a shortcut.
+    //      label would lie when the user reassigns a shortcut
     //   2. On macOS, an `Accelerator` becomes the NSMenuItem's
     //      `keyEquivalent`, which fires WHILE the menu is open.  The
     //      same key press also queues in the global-hotkey channel,
-    //      so closing the menu plays the action a second time —
-    //      double-trigger bug.
+    //      so closing the menu plays the action a second time: a
+    //      double-trigger bug
     // Embed the binding in the label text instead so it stays correct
     // and avoids the dual-dispatch hazard
     let prefs_item = MenuItem::new(top_level_label("Preferences",       shortcuts.get(ShortcutAction::Preferences)), true, None);
@@ -238,7 +239,7 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
         // Treat the ring glyph as a template image on macOS: AppKit re-tints
         // template NSImages (white + alpha) based on menu-bar appearance, so
         // the icon reads correctly in both light and dark mode. No-op on
-        // Windows/Linux.
+        // Windows/Linux
         .with_icon_as_template(true)
         .with_menu(Box::new(menu))
         .with_tooltip("exhale")
@@ -249,8 +250,8 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
 
 /// Outlined-ring tray icon generated at runtime, matching the Swift
 /// `StatusBarIcon` asset (15×17 ring shape).  Drawn with anti-aliased edges
-/// in near-black so it reads well on both light and dark menu bars.
-/// Returns `Result` so a failed `Icon::from_rgba` (corrupt buffer,
+/// in near-black so it reads well on both light and dark menu bars,
+/// returning `Result` so a failed `Icon::from_rgba` (corrupt buffer,
 /// platform limitation) bubbles up through `build_tray` and the
 /// caller can log + run without a tray instead of panicking at
 /// startup
@@ -267,12 +268,12 @@ fn make_icon() -> Result<tray_icon::Icon> {
             let dy = y as f32 + 0.5 - cy;
             let d  = (dx * dx + dy * dy).sqrt();
             // Smooth 1-pixel antialiasing at both the outer and inner edges
-            // of the ring.  Alpha peaks at the band between `inner` and `outer`.
+            // of the ring.  Alpha peaks at the band between `inner` and `outer`
             let aa_outer = (outer - d).clamp(0.0, 1.0);
             let aa_inner = (d - inner).clamp(0.0, 1.0);
             let alpha = (aa_outer.min(aa_inner) * 255.0) as u8;
             // White RGB so template-image tinting on macOS and plain display
-            // on Windows/Linux both come out legible; alpha carries the shape.
+            // on Windows/Linux both come out legible; alpha carries the shape
             [0xFF, 0xFF, 0xFF, alpha]
         }))
         .collect();

@@ -1,4 +1,4 @@
-// egui → internal key/modifier translators used by the shortcut-capture
+// egui -> internal key/modifier translators used by the shortcut-capture
 // overlay in `settings_window.rs`. Pulled out of `hotkeys.rs` so the MAS
 // build (`--no-default-features`, no global-hotkey crate) can still let
 // the user capture and persist a binding even when no system-level
@@ -67,8 +67,8 @@ pub fn egui_modifiers_to_mask(m: egui::Modifiers) -> u8 {
     if m.shift { mask |= KBD_MOD_SHIFT; }
     if m.alt   { mask |= KBD_MOD_ALT; }
     // On macOS, egui's `mac_cmd` is Command and `command` is also Command;
-    // on other OSes `command` aliases to Ctrl which we've already captured.
-    // Only count Meta explicitly via mac_cmd so non-macOS double-counts don't happen.
+    // on other OSes `command` aliases to Ctrl which we've already captured
+    // Only count Meta explicitly via mac_cmd so non-macOS double-counts don't happen
     #[cfg(target_os = "macos")]
     if m.mac_cmd { mask |= KBD_MOD_META; }
     mask

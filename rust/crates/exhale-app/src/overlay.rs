@@ -20,12 +20,12 @@ use winit::{
 /// set of currently-connected monitors against the set we already have
 /// overlays for, so hot-plug events (connect / disconnect) can be
 /// detected by polling `available_monitors()` without relying on the
-/// `MonitorHandle`'s own identity (which is not guaranteed stable
-/// across calls on every platform).
+/// `MonitorHandle`'s own identity (which isn't guaranteed stable
+/// across calls on every platform)
 pub type MonitorKey = (i32, i32, u32, u32);
 
-/// Derive a stable key from a monitor's physical position + size.
-/// Two monitors can't share the same rectangle, so the tuple is unique
+/// Derive a stable key from a monitor's physical position + size;
+/// two monitors can't share the same rectangle, so the tuple is unique
 /// per session and survives DPI changes (it's all physical pixels)
 pub fn monitor_key(m: &MonitorHandle) -> MonitorKey {
     let p = m.position();
@@ -40,13 +40,13 @@ use crate::platform;
 /// Messages the main thread (or controller thread) sends to a per-overlay
 /// render thread.  The render thread owns the wgpu surface + renderer and
 /// processes one message at a time, coalescing duplicate `Frame` requests
-/// so it never falls behind under controller bursts.
+/// so it never falls behind under controller bursts
 pub enum RenderMsg {
     /// Wake up and render the latest controller state.  The controller
     /// writes its state slot BEFORE sending this, so a `Frame` always
     /// observes the most recent breathing snapshot via the Mutex barrier
     Frame,
-    /// Window resized — re-configure the swap chain.  Coalesced: if
+    /// Window resized: re-configure the swap chain.  Coalesced: if
     /// multiple resizes are pending, only the latest dimensions take
     /// effect
     Resize(PhysicalSize<u32>),
@@ -58,17 +58,17 @@ pub enum RenderMsg {
 
 /// Wake handle for an overlay.  Clone-friendly so the controller can
 /// hold one per overlay and fan out frame signals without owning the
-/// [`OverlayHandle`].
+/// [`OverlayHandle`]
 ///
 /// Has two variants because overlays use two different rendering
 /// architectures depending on the platform:
 ///
-///   - [`FrameSender::Channel`] — fires a `Frame` message into the
+///   - [`FrameSender::Channel`]: fires a `Frame` message into the
 ///     per-window render thread's mpsc channel, bypassing the main
 ///     event loop's message queue entirely.  Used on macOS / Windows
 ///     / Linux X11 where wgpu can acquire a swap-chain texture from
-///     any thread.
-///   - [`FrameSender::Redraw`] — calls `window.request_redraw()`
+///     any thread
+///   - [`FrameSender::Redraw`]: calls `window.request_redraw()`
 ///     which causes winit to emit a `RedrawRequested` event on the
 ///     main thread.  Used on Wayland where the compositor's
 ///     frame-callback protocol requires `surface.get_current_texture()`
@@ -85,7 +85,7 @@ impl FrameSender {
     /// state.  Coalesced on the receiving side (channel: thread loop;
     /// redraw: winit's per-frame `request_redraw` dedup), so calling
     /// this faster than the renderer can keep up just folds into a
-    /// single render pass against the latest controller state.
+    /// single render pass against the latest controller state
     pub fn send_frame(&self) {
         match self {
             Self::Channel(tx) => { let _ = tx.send(RenderMsg::Frame); }
@@ -96,7 +96,7 @@ impl FrameSender {
 
 // ─── Public handle (main-thread side) ─────────────────────────────────────────
 
-/// One transparent overlay covering a single monitor.
+/// One transparent overlay covering a single monitor
 ///
 /// The main thread keeps only the [`Arc<Window>`] and a channel to the
 /// per-overlay render thread.  The render thread owns the
@@ -106,8 +106,8 @@ impl FrameSender {
 /// main-thread message pump, WM_PAINT being the lowest-priority message
 /// in the queue, so when WM_MOUSEMOVE floods the queue (hover storm over
 /// the settings window), a main-thread render loop would have its
-/// WM_PAINT slots starved and the breath animation would stutter.
-/// With render threads, the controller signals the thread via an mpsc
+/// WM_PAINT slots starved and the breath animation would stutter;
+/// with render threads, the controller signals the thread via an mpsc
 /// channel that bypasses the Windows message queue entirely
 pub struct OverlayHandle {
     pub window: Arc<Window>,
@@ -117,7 +117,7 @@ pub struct OverlayHandle {
     /// `true` when the swap chain supports per-pixel alpha and the
     /// window is acting as a true click-through overlay.  `false`
     /// when the compositor / GPU only exposed Opaque alpha and we
-    /// reconfigured the window as a regular windowed app — used by
+    /// reconfigured the window as a regular windowed app: used by
     /// `create_all` to avoid spawning duplicate fallback windows on
     /// every monitor
     pub alpha_capable: bool,
@@ -126,12 +126,12 @@ pub struct OverlayHandle {
     mode:        HandleMode,
 }
 
-/// How this overlay's renderer is driven.
+/// How this overlay's renderer is driven
 ///
 /// `Threaded` keeps a per-window background thread that owns the
 /// renderer outright and renders in response to `Frame` channel
-/// messages — the original architecture, used everywhere wgpu can
-/// safely acquire swap-chain textures from a non-main thread.
+/// messages, the original architecture, used everywhere wgpu can
+/// safely acquire swap-chain textures from a non-main thread
 ///
 /// `MainThread` keeps the renderer in a [`Mutex`] on the handle so
 /// it can be locked and called from `main.rs`'s `RedrawRequested`
@@ -140,18 +140,18 @@ pub struct OverlayHandle {
 /// protocol, which winit only delivers via `RedrawRequested` on the
 /// main thread.  A background-thread render on Wayland returns
 /// `Outdated` indefinitely and never commits a buffer, leaving the
-/// xdg_toplevel in a "configured but unmapped" state — visible in
+/// xdg_toplevel in a "configured but unmapped" state, visible in
 /// the dock but with nothing to display
 enum HandleMode {
     Threaded {
         /// Sender to the render thread.  Cloned for the controller's
         /// `request_draw` callback so frame signals go straight to
         /// the renderer without touching the main thread's message
-        /// queue.
+        /// queue
         msg_tx: Sender<RenderMsg>,
         /// Join handle for the render thread.  Taken on shutdown so
         /// we can wait for the thread to drop the renderer / wgpu
-        /// resources before the app exits.
+        /// resources before the app exits
         thread: Option<JoinHandle<()>>,
     },
     /// Boxed because the `Mutex<OverlayRenderer>` payload is much
@@ -175,7 +175,7 @@ impl OverlayHandle {
         self.monitor_key
     }
 
-    /// Create one overlay per connected monitor, all sharing `gpu`.
+    /// Create one overlay per connected monitor, all sharing `gpu`
     pub fn create_all(
         event_loop: &ActiveEventLoop,
         gpu:        Arc<GpuContext>,
@@ -198,8 +198,8 @@ impl OverlayHandle {
                     // `create_one`).  Spawning more "overlays" on
                     // additional monitors in this mode would just
                     // produce duplicate windowed copies of the
-                    // animation, none of which act as overlays.
-                    // Bail out after the first
+                    // animation, none of which act as overlays;
+                    // bail out after the first
                     let opaque_only = !h.alpha_capable;
                     handles.push(h);
                     if opaque_only { break; }
@@ -208,7 +208,7 @@ impl OverlayHandle {
             }
         }
 
-        // Fallback: at least one window on the primary monitor.
+        // Fallback: at least one window on the primary monitor
         if handles.is_empty() {
             match Self::create_one(
                 event_loop, Arc::clone(&gpu), None,
@@ -237,15 +237,15 @@ impl OverlayHandle {
         // Wayland's security model doesn't expose a portable
         // always-on-top or click-through protocol to winit, so the
         // fullscreen-overlay model fundamentally doesn't work the
-        // way it does on macOS / Windows / X11.  Additionally,
-        // Mutter / GNOME (Ubuntu's default compositor) only exposes
-        // Opaque alpha to wgpu, so even an AlwaysOnBottom overlay
-        // would render as a solid-black rectangle covering the
-        // whole screen.  The right answer here is a regular
-        // windowed app the user can move / resize like anything
-        // else, rendered on the main thread so wgpu's surface
-        // acquisition stays synchronized with the compositor's
-        // frame-callback protocol (see `HandleMode` doc).
+        // way it does on macOS / Windows / X11.  Mutter / GNOME
+        // (Ubuntu's default compositor) also only exposes Opaque
+        // alpha to wgpu, so even an AlwaysOnBottom overlay would
+        // render as a solid-black rectangle covering the whole
+        // screen.  The right answer here is a regular windowed app
+        // the user can move / resize like anything else, rendered
+        // on the main thread so wgpu's surface acquisition stays
+        // synchronized with the compositor's frame-callback
+        // protocol (see `HandleMode` doc)
         #[cfg(all(unix, not(target_os = "macos")))]
         let is_wayland = std::env::var("XDG_SESSION_TYPE")
             .map(|s| s.eq_ignore_ascii_case("wayland"))
@@ -259,14 +259,14 @@ impl OverlayHandle {
                  app (no fullscreen overlay).  Rendering on the main \
                  thread via RedrawRequested so wgpu surface acquisition \
                  stays in sync with the compositor's frame_callback \
-                 protocol — move / resize / Alt-Tab the window like \
+                 protocol; move / resize / Alt-Tab the window like \
                  any other app; the breath animation renders as its \
                  content."
             );
             let (window, renderer, alpha_capable) =
                 create_windowed_app(event_loop, &gpu, monitor.as_ref(), &settings)?;
             // Kick off the first frame.  Wayland needs an initial
-            // RedrawRequested → render → buffer commit cycle for the
+            // RedrawRequested -> render -> buffer commit cycle for the
             // xdg_toplevel to actually map; without this the window
             // sits in the dock but never appears on screen.  This
             // request lands on the main thread's event queue and
@@ -300,7 +300,7 @@ impl OverlayHandle {
             })
             .map_err(|e| anyhow::anyhow!(
                 "spawn overlay render thread for {:?}: {} \
-                 (system thread limit hit — skipping this monitor's overlay)",
+                 (system thread limit hit; skipping this monitor's overlay)",
                 window.id(), e,
             ))?;
 
@@ -312,9 +312,9 @@ impl OverlayHandle {
         })
     }
 
-    /// Build a [`FrameSender`] tuned to this overlay's render mode —
+    /// Build a [`FrameSender`] tuned to this overlay's render mode:
     /// channel send for threaded overlays, `request_redraw` for
-    /// main-thread (Wayland) overlays.  See [`FrameSender`] doc.
+    /// main-thread (Wayland) overlays.  See [`FrameSender`] doc
     pub fn frame_sender(&self) -> FrameSender {
         match &self.mode {
             HandleMode::Threaded { msg_tx, .. } =>
@@ -339,19 +339,19 @@ impl OverlayHandle {
     /// controller state.  Used by main-thread code paths that mutate
     /// settings outside of a controller tick (Start/Stop, theme
     /// change, etc.) and want the overlay to reflect the change
-    /// immediately.
+    /// immediately
     pub fn wake_render(&self) {
         self.frame_sender().send_frame();
     }
 
     /// Show or hide the underlying window.  Only meaningful for
     /// windowed-mode (MainThread) overlays: when the user hits Stop
-    /// the window should close, and Start should bring it back.
-    /// On threaded fullscreen-overlay windows (macOS / Windows /
+    /// the window should close, and Start should bring it back;
+    /// on threaded fullscreen-overlay windows (macOS / Windows /
     /// Linux X11) hiding would just remove the always-on-top
-    /// breath animation while the app keeps running — not what
-    /// Stop means on those platforms, where the render thread
-    /// instead paints a "stopped" clear frame.  So we gate this on
+    /// breath animation while the app keeps running.  On those
+    /// platforms Stop instead means the render thread paints a
+    /// "stopped" clear frame.  So we gate this on
     /// `alpha_capable`: threaded overlays ignore the toggle, the
     /// windowed-app shows / hides
     pub fn set_animation_visible(&self, visible: bool) {
@@ -361,20 +361,20 @@ impl OverlayHandle {
         self.window.set_visible(visible);
         if visible {
             // Wayland needs an explicit redraw request after a
-            // hide → show cycle to re-commit a buffer; without it
+            // hide -> show cycle to re-commit a buffer; without it
             // the xdg_toplevel comes back to the dock but the
-            // surface stays unattached.
+            // surface stays unattached
             self.window.request_redraw();
         }
     }
 
     /// Render synchronously on the calling thread.  No-op for
-    /// threaded overlays (their render thread owns the renderer).
-    /// Called from `main.rs`'s `RedrawRequested` handler for
-    /// `MainThread` overlays — the only path that drives Wayland
+    /// threaded overlays (their render thread owns the renderer);
+    /// called from `main.rs`'s `RedrawRequested` handler for
+    /// `MainThread` overlays: the only path that drives Wayland
     /// rendering, since the compositor's frame_callback arrives
     /// through the event loop and not via the controller's
-    /// background-thread `Frame` channel.
+    /// background-thread `Frame` channel
     pub fn render_on_main(&self) {
         if let HandleMode::MainThread(mt) = &self.mode {
             let mut r = mt.renderer.lock_or_recover();
@@ -428,7 +428,7 @@ fn create_windowed_app(
     if placement.x.is_none() {
         // First launch / no saved position: centre on the assigned
         // monitor explicitly so X11 / Windows / macOS don't fall back
-        // to (0, 0).  Wayland still ignores this.
+        // to (0, 0).  Wayland still ignores this
         if let Some(m) = monitor {
             let mp = m.position();
             let ms = m.size();
@@ -462,10 +462,10 @@ fn create_overlay_or_fallback(
     monitor:    Option<&MonitorHandle>,
     settings:   &Arc<RwLock<Settings>>,
 ) -> Result<(Arc<Window>, OverlayRenderer, bool)> {
-    // Borderless, transparent, fullscreen on the target monitor.
-    // The `with_visible(false)` keeps the probe window off-screen
+    // Borderless, transparent, fullscreen on the target monitor;
+    // the `with_visible(false)` keeps the probe window off-screen
     // until we've decided which path to take, so the user never sees
-    // a brief flash of a fullscreen transparent shell.
+    // a brief flash of a fullscreen transparent shell
     let mut attrs = Window::default_attributes()
         .with_title("exhale-overlay")
         .with_transparent(true)
@@ -479,7 +479,7 @@ fn create_overlay_or_fallback(
         // On Windows, shrink the overlay by 1 px on the bottom edge
         // so Windows doesn't classify the topmost window as an
         // "exclusive fullscreen application" and suspend the
-        // auto-hide taskbar reveal logic.
+        // auto-hide taskbar reveal logic
         let win_h = if cfg!(target_os = "windows") {
             size.height.saturating_sub(1).max(1)
         } else {
@@ -506,12 +506,12 @@ fn create_overlay_or_fallback(
         // (it only sets it when `IGNORE_CURSOR_EVENT` is on, which
         // we don't toggle via winit's API), so any
         // `WS_EX_TRANSPARENT` we OR-in BEFORE the visibility toggle
-        // gets silently stripped on the way to the screen — visible
+        // gets silently stripped on the way to the screen, visible
         // overlay, no click-through (the originally-reported
         // regression).  Calling `setup_overlay_window` AFTER
         // `set_visible` makes our raw `SetWindowLongPtrW` the LAST
         // write to the EX-style word, so the flag survives.  No-op
-        // on non-Windows platforms — both calls are pure on macOS
+        // on non-Windows platforms: both calls are pure on macOS
         // and Linux
         probe_window.set_visible(true);
         platform::setup_overlay_window(&probe_window);
@@ -541,7 +541,7 @@ fn create_overlay_or_fallback(
         let _ = probe_window.request_inner_size(PhysicalSize::new(1, 1));
         probe_window.set_outer_position(PhysicalPosition::new(-32000, -32000));
         // Order matters: drop renderer (releases the surface) before
-        // the window so the surface releases its reference cleanly.
+        // the window so the surface releases its reference cleanly
         drop(probe_renderer);
         drop(probe_window);
         create_windowed_app(event_loop, gpu, monitor, settings)
@@ -552,8 +552,8 @@ impl Drop for OverlayHandle {
     fn drop(&mut self) {
         // Threaded mode: tell the render thread to exit and wait for
         // it so the wgpu device + queue + surface release cleanly
-        // before the app exits.  MainThread mode has no thread —
-        // the renderer drops with the handle automatically.
+        // before the app exits.  MainThread mode has no thread: the
+        // renderer drops with the handle automatically
         if let HandleMode::Threaded { msg_tx, thread } = &mut self.mode {
             let _ = msg_tx.send(RenderMsg::Shutdown);
             if let Some(h) = thread.take() {
@@ -596,7 +596,7 @@ fn render_thread_loop(
     loop {
         // Block until at least one message arrives.  `recv` returns
         // `Err` only when every sender has been dropped (overlay handle
-        // gone), which means the app is shutting down regardless.
+        // gone), which means the app is shutting down regardless
         let first = match msg_rx.recv() {
             Ok(m)  => m,
             Err(_) => break,
@@ -613,7 +613,7 @@ fn render_thread_loop(
             renderer.resize(s.width, s.height);
         }
 
-        // Render on every Frame message regardless of `alpha_capable`.
+        // Render on every Frame message regardless of `alpha_capable`
         //
         // Earlier this branch skipped rendering when
         // `alpha_capable == false` under the (now-stale) assumption
@@ -624,16 +624,16 @@ fn render_thread_loop(
         // app".  Skipping the render in that case left the fallback
         // window painted with whatever the GPU cleared at startup
         // (typically white) and pressing Start did nothing user-
-        // visible — exactly the symptom reported on Windows 10
-        // systems where Vulkan reports only the `Opaque` alpha mode.
-        // Rendering is cheap (we already coalesce Frame bursts in
+        // visible: exactly the symptom reported on Windows 10
+        // systems where Vulkan reports only the `Opaque` alpha mode;
+        // rendering is cheap (we already coalesce Frame bursts in
         // `coalesce_messages`) and the Opaque-only swap chain accepts
         // whatever colour we present, so just paint unconditionally
         if should_render {
             // Read the latest snapshot and settings.  The controller
             // writes its state BEFORE sending us the Frame, and the
             // Mutex acquire here provides the matching release/acquire
-            // barrier so we observe the most recent values.
+            // barrier so we observe the most recent values
             let state_snap = state.lock_or_recover().unwrap_or_else(|| {
                 BreathingState {
                     phase:     exhale_core::types::BreathingPhase::Inhale,
@@ -656,7 +656,7 @@ fn render_thread_loop(
 /// Output of `coalesce_messages`: a flattened view of what the render
 /// thread should do for this iteration of the loop.  Extracted so the
 /// coalescing logic can be unit-tested without a real `OverlayRenderer`
-/// (which needs a GPU surface).
+/// (which needs a GPU surface)
 #[derive(Debug, Default, PartialEq, Eq)]
 struct CoalescedBatch {
     should_render: bool,

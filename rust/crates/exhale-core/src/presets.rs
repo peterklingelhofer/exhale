@@ -1,42 +1,42 @@
-//! The breathing patterns the settings window offers as one click.
+//! The breathing patterns the settings window offers as one click
 //!
 //! Five entries, hand-written, in `exhale-core` rather than in the UI
 //! crate for the same reason [`crate::pacing`] is: CI compiles and
-//! tests this crate and does not compile `exhale-app`.
+//! tests this crate and doesn't compile `exhale-app`
 //!
-//! **A preset sets the four durations and nothing else.** Not drift,
-//! not the randomisation sliders. Clicking one can therefore never
-//! discard a value the user tuned by hand, which is the property that
-//! lets selection be *derived* by comparing four numbers instead of
-//! stored in a sixth settings field that could fall out of sync with
-//! the five it summarises. Drift and jitter keep whatever the user set,
-//! and the pacing readout underneath already reports what drift does
-//! to the rate, so nothing about the resulting pace goes unsaid.
+//! **A preset sets the four durations and nothing else,** leaving drift
+//! and the randomisation sliders untouched. Clicking one can therefore
+//! never discard a value the user tuned by hand, which is the property
+//! that lets selection be *derived* by comparing four numbers instead
+//! of stored in a sixth settings field that could fall out of sync
+//! with the five it summarises. Drift and jitter keep whatever the
+//! user set, and the pacing readout underneath already reports what
+//! drift does to the rate, so nothing about the resulting pace goes
+//! unsaid
 //!
 //! **Labels name the pattern, never the rate.** A chip reading "6 a
 //! minute" would be a claim about which rate is worth choosing; a chip
 //! reading "5/0/5/0" is a description of what the four steppers below
 //! it are about to say, in their own order: inhale, post-inhale hold,
-//! exhale, post-exhale hold. It is the notation the README already
-//! uses, and it is terse enough that all five chips fit a single row
+//! exhale, post-exhale hold. It's the notation the README already
+//! uses, and it's terse enough that all five chips fit a single row
 //! of a 308 pt card, where the spelled-out form took three. The rate,
-//! and how it sits
-//! against the range anyone has tested, is computed live by
-//! [`crate::pacing::readout_lines`] for whichever pattern is active.
-//! That is why no preset carries its own evidentiary caption: the
+//! and how it sits against the range anyone has tested, is computed
+//! live by [`crate::pacing::readout_lines`] for whichever pattern is
+//! active. That's why no preset carries its own evidentiary caption: the
 //! panel already volunteers "slower than any of them" the instant box
 //! breathing is selected, for every pattern rather than only the ones
-//! someone remembered to annotate.
+//! someone remembered to annotate
 //!
-//! `citekey` is provenance, not display. It never reaches the screen.
-//! It exists so `scripts/generate-citations.py` can refuse to build
-//! when a shipped preset points at a record that has been retracted,
-//! downgraded to tier E, or marked as one the binary may not lean on.
+//! `citekey` is provenance. It never reaches the screen. It exists so
+//! `scripts/generate-citations.py` can refuse to build when a shipped
+//! preset points at a record that has been retracted, downgraded to
+//! tier E, or marked as one the binary may not lean on
 
 use crate::settings::Settings;
 
 /// One offered pattern. Four durations, a label describing them, and a
-/// corpus record that has to still hold up for the preset to ship.
+/// corpus record that has to still hold up for the preset to ship
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Preset {
     /// Stable identifier. Not shown; used by tests and by any future
@@ -46,23 +46,24 @@ pub struct Preset {
     /// What the chip says. Describes the pattern, never the rate
     pub label: &'static str,
     /// A name or a fact about identity, never about effect. `None`
-    /// when the pattern has nothing to add that the readout below does
-    /// not already say better
+    /// when the pattern has nothing to add that the readout below
+    /// doesn't already say better
     pub note: Option<&'static str>,
     pub inhale: f64,
     pub post_inhale_hold: f64,
     pub exhale: f64,
     pub post_exhale_hold: f64,
     /// Corpus entry backing this pattern's presence in the list. See
-    /// the module comment: provenance, not display
+    /// the module comment on why the build needs it and the panel
+    /// never shows it
     pub citekey: &'static str,
 }
 
 impl Preset {
-    /// True when `settings` currently holds exactly this pattern.
+    /// True when `settings` currently holds exactly this pattern
     ///
     /// The epsilon is the one `SettingsDiff::from` uses on these same
-    /// four fields. Sharing it is deliberate: "this chip looks
+    /// four fields. Sharing it's deliberate: "this chip looks
     /// selected" and "changing this field marks settings dirty" must
     /// agree, or a chip can appear selected while a save is pending
     /// that will unselect it
@@ -85,13 +86,13 @@ impl Preset {
     }
 }
 
-/// The offered set, in display order.
+/// The offered set, in display order
 ///
 /// Ordered gentlest-first by the standard the corpus actually
 /// supports, which is the tested range rather than apparent
 /// simplicity. The two patterns that fall outside it come last and are
 /// still offered: `4 / 4 / 4 / 4` because people arrive looking for it
-/// by name, and `5 s in, 10 s out` because it is what exhale has
+/// by name, and `5 s in, 10 s out` because it's what exhale has
 /// shipped for years and removing it from the list would not remove it
 /// from anybody's installed configuration. A list that quietly omitted
 /// its own default would be the least honest version of this feature
@@ -156,12 +157,12 @@ pub const PRESETS: &[Preset] = &[
     },
 ];
 
-/// Index of the preset the current settings match, if any.
+/// Index of the preset the current settings match, if any
 ///
-/// `None` is a first-class answer and renders as no chip selected.
-/// There is deliberately no "Custom" chip to fall back on: a chip that
-/// cannot be clicked to any effect is still a Tab stop, and this
-/// window already documents that hazard twice
+/// `None` is a first-class answer and renders as no chip selected. There's
+/// deliberately no "Custom" chip to fall back on: a chip that can't be
+/// clicked to any effect is still a Tab stop, and this window already
+/// documents that hazard twice
 pub fn selected(settings: &Settings) -> Option<usize> {
     PRESETS.iter().position(|p| p.matches(settings))
 }
@@ -180,12 +181,12 @@ mod tests {
         let s = Settings::default();
         let i = selected(&s).expect("default settings match no preset");
         assert_eq!(PRESETS[i].id, "even-5");
-        assert_eq!(i, 0, "the default should be the first chip, not buried mid-row");
+        assert_eq!(i, 0, "the default should be the first chip");
     }
 
     #[test]
     fn the_previous_default_is_still_offered() {
-        // 5/0/10/0 shipped as the default for years, so it is what every
+        // 5/0/10/0 shipped as the default for years, so it's what every
         // existing settings.toml holds. It has to stay nameable
         let p = PRESETS.iter().find(|p| p.id == "long-exhale-5-10").unwrap();
         let mut s = Settings::default();
@@ -198,7 +199,7 @@ mod tests {
         for p in PRESETS {
             let mut s = Settings::default();
             p.apply(&mut s);
-            assert!(p.matches(&s), "{} does not match itself after apply", p.id);
+            assert!(p.matches(&s), "{} doesn't match itself after apply", p.id);
             assert_eq!(selected(&s), Some(PRESETS.iter().position(|q| q.id == p.id).unwrap()));
         }
     }
@@ -251,11 +252,11 @@ mod tests {
 
     #[test]
     fn no_label_or_note_states_a_rate_an_effect_or_a_recommendation() {
-        // Same denylist discipline as `pacing`, for the same reason.
-        // "a minute", "bpm" and "breaths per" are here because a rate
-        // baked into a label is a claim about which rate to choose,
-        // and because it would go stale against the live readout the
-        // moment either changed
+        // Same denylist discipline as `pacing`, for the same reason. "a
+        // minute", "bpm" and "breaths per" are here because a rate baked
+        // into a label is a claim about which rate to choose, and because
+        // it would go stale against the live readout the moment either
+        // changed
         const BANNED: &[&str] = &[
             "a minute", "per minute", "bpm", "breaths per",
             "anxiety", "stress", "calm", "relax", "vagal", "parasympathetic",
@@ -290,7 +291,7 @@ mod tests {
             assert!(!p.citekey.is_empty(), "{} has no citekey", p.id);
             assert!(
                 p.citekey.contains('-') && p.citekey.chars().any(|c| c.is_ascii_digit()),
-                "{}: {:?} is not shaped like a citekey", p.id, p.citekey
+                "{}: {:?} isn't shaped like a citekey", p.id, p.citekey
             );
         }
     }
@@ -323,7 +324,7 @@ mod tests {
             if !in_band {
                 assert!(
                     lines.last().unwrap().contains("slower than any of them"),
-                    "{id}: readout does not disclose it is outside the range: {lines:#?}"
+                    "{id}: readout doesn't disclose that it's outside the range: {lines:#?}"
                 );
             }
         }

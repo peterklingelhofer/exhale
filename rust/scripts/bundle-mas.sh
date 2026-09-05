@@ -1,38 +1,38 @@
 #!/usr/bin/env bash
 #
 # Build + sign + package the Rust exhale binary into a Mac App Store
-# submission (.pkg), ready for Transporter upload.
+# submission (.pkg), ready for Transporter upload
 #
-# Produces (under `rust/target/mas/`):
-#   exhale.app          — signed .app bundle (for local TestFlight/install QA)
-#   exhale.pkg          — signed installer package (upload via Transporter)
+# Produces (under `rust/target/mas/`)
+#   exhale.app          : signed .app bundle (for local TestFlight/install QA)
+#   exhale.pkg          : signed installer package (upload via Transporter)
 #
-# Requirements:
+# Requirements
 #   - macOS with Xcode command-line tools (codesign, productbuild, iconutil,
-#     sips, lipo, plutil).
-#   - rustup targets: aarch64-apple-darwin, x86_64-apple-darwin.
-#     Installed automatically on first run.
+#     sips, lipo, plutil)
+#   - rustup targets: aarch64-apple-darwin, x86_64-apple-darwin. Installed
+#     automatically on first run
 #   - Two signing identities in the login keychain (from Apple Developer
-#     → "Certificates, IDs & Profiles"):
-#         "Apple Distribution: …"                    — signs the .app
-#         "3rd Party Mac Developer Installer: …"     — signs the .pkg
-#     Check with: `security find-identity -v -p basic`.
+# -> "Certificates, IDs & Profiles")
+#         "Apple Distribution: …"                    : signs the .app
+#         "3rd Party Mac Developer Installer: …"     : signs the .pkg
+#     Check with: `security find-identity -v -p basic`
 #     ("Apple Distribution" is the modern unified iOS+macOS App Store cert;
 #      the legacy "3rd Party Mac Developer Application" still works but
-#      Apple no longer issues it — select "Apple Distribution" in the
+#      Apple no longer issues it, select "Apple Distribution" in the
 #      portal when creating new certs.)
 #   - A Mac App Store provisioning profile for bundle ID
 #     `peterklingelhofer.exhale`, download from developer.apple.com and
 #     save as `rust/signing/exhale.provisionprofile`  (or point
-#     `PROVISION_PROFILE` env var at any path).
+#     `PROVISION_PROFILE` env var at any path)
 #
-# Usage:
+# Usage
 #   rust/scripts/bundle-mas.sh                           # default version
 #   VERSION=2.0.8 BUILD=208 rust/scripts/bundle-mas.sh   # override version
 #   PROVISION_PROFILE=/path/to/exhale.provisionprofile \
 #       rust/scripts/bundle-mas.sh                       # override profile
 #
-# Environment overrides:
+# Environment overrides
 #   APP_IDENT       default: "Apple Distribution: …VZCHHV7VNW…"
 #   INSTALLER_IDENT default: "3rd Party Mac Developer Installer: …VZCHHV7VNW…"
 #   VERSION         default: cargo version from Cargo.toml (bumped manually)
@@ -40,8 +40,8 @@
 #                            uploads to MAS; survives resubmissions)
 #   PROVISION_PROFILE default: rust/signing/exhale.provisionprofile
 #   DRY_RUN=1       skip identity checks, profile requirement, and signing;
-#                   emit an unsigned exhale.app for local validation.  Useful
-#                   before the MAS distribution certs are installed.
+#                   emit an unsigned exhale.app for local validation. Useful
+#                   before the MAS distribution certs are installed
 
 set -euo pipefail
 
@@ -70,13 +70,13 @@ INSTALLER_IDENT="${INSTALLER_IDENT:-3rd Party Mac Developer Installer: Peter Kli
 PROVISION_PROFILE="${PROVISION_PROFILE:-$RUST_ROOT/signing/exhale.provisionprofile}"
 
 # Read version from crate Cargo.toml unless overridden.  The crate currently
-# reads 0.1.0, so users will almost always want to override — but we match the
-# Swift 2.0.7 → 2.0.8 expectation by default so a fresh run produces a
-# submission one higher than the current MAS listing.
+# reads 0.1.0, so users will almost always want to override, but we match the
+# Swift 2.0.7 -> 2.0.8 expectation by default so a fresh run produces a
+# submission one higher than the current MAS listing
 VERSION="${VERSION:-2.0.22}"
 # CFBundleVersion. Apple requires this to be monotonically increasing
 # across all uploads (rejected ones count too), so derive from git commit
-# count rather than VERSION — see release.sh for the full story
+# count rather than VERSION, see release.sh for the full story
 BUILD="${BUILD:-$(( $(git -C "$REPO_ROOT" rev-list --count HEAD 2>/dev/null || echo 0) + 10000 ))}"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ for t in cargo codesign productbuild iconutil sips lipo plutil rustup; do need "
 
 DRY_RUN="${DRY_RUN:-0}"
 
-# SKIP_PKG=1 — skip productbuild, emit a signed `.app.zip` instead. Set in CI
+# SKIP_PKG=1: skip productbuild, emit a signed `.app.zip` instead. Set in CI
 # because productbuild deterministically hangs on macos-latest runners (likely
 # OCSP / CRL revocation check on an unreachable endpoint that the codesign
 # code path doesn't trigger). Local devs leave it off so they keep getting a
@@ -100,8 +100,8 @@ SKIP_PKG="${SKIP_PKG:-0}"
 
 if [[ "$DRY_RUN" != "1" ]]; then
     [[ -f "$PROVISION_PROFILE" ]] || die "provisioning profile missing: $PROVISION_PROFILE
-  → download from developer.apple.com → Certificates → Profiles, save as that path
-  → or export PROVISION_PROFILE=/path/to/file.provisionprofile before re-running"
+ -> download from developer.apple.com -> Certificates -> Profiles, save as that path
+ -> or export PROVISION_PROFILE=/path/to/file.provisionprofile before re-running"
 
     security find-identity -v -p basic | grep -q "$APP_IDENT"       || die "signing identity not found: $APP_IDENT"
     security find-identity -v -p basic | grep -q "$INSTALLER_IDENT" || die "installer identity not found: $INSTALLER_IDENT"
@@ -133,7 +133,7 @@ mkdir -p "$BUILD_DIR"
 
 ICONSET="$BUILD_DIR/AppIcon.iconset"
 mkdir -p "$ICONSET"
-# iconutil expects these exact names; each pair is (N×N, N×N@2x = 2N).
+# iconutil expects these exact names; each pair is (N×N, N×N@2x = 2N)
 for pair in "16:32" "32:64" "128:256" "256:512" "512:1024"; do
     one="${pair%:*}"; two="${pair#*:}"
     sips -z "$one" "$one" "$MASTER_ICON" --out "$ICONSET/icon_${one}x${one}.png"     >/dev/null
@@ -147,15 +147,15 @@ rm -rf "$APP_BUNDLE"
 CONTENTS="$APP_BUNDLE/Contents"
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
 
-# Universal binary.
+# Universal binary
 lipo -create "$BIN_ARM" "$BIN_X86" -output "$CONTENTS/MacOS/$EXECUTABLE"
 chmod +x "$CONTENTS/MacOS/$EXECUTABLE"
 
-# Icon.
+# Icon
 cp "$BUILD_DIR/AppIcon.icns" "$CONTENTS/Resources/AppIcon.icns"
 
 # Info.plist.  Use plutil to emit a canonical binary plist; Apple accepts both
-# XML and binary, but binary avoids whitespace diffs between runs.
+# XML and binary, but binary avoids whitespace diffs between runs
 cat > "$CONTENTS/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -184,18 +184,18 @@ cat > "$CONTENTS/Info.plist" <<PLIST
 PLIST
 plutil -lint "$CONTENTS/Info.plist" >/dev/null || die "Info.plist failed plutil lint"
 
-# Entitlements — mirror the Swift app exactly (sandbox + user-selected
+# Entitlements: mirror the Swift app exactly (sandbox + user-selected
 # read-only).  No network, no camera, no hotkey entitlement (we ship the
-# MAS build with `--no-default-features`, which drops the hotkey crate).
+# MAS build with `--no-default-features`, which drops the hotkey crate)
 #
 # `application-identifier` + `team-identifier` MUST be present in the
 # binary's code signature and must match the embedded provisioning profile
 # exactly, or App Store Connect rejects with error 90886.  Derive both
-# from the profile itself so renames/team-changes propagate automatically.
-# Use PlistBuddy instead of `plutil -extract`: plutil's key-path syntax
+# from the profile itself so renames/team-changes propagate automatically. Use
+# PlistBuddy instead of `plutil -extract`: plutil's key-path syntax
 # uses `.` as the separator, which collides with the dotted key names
 # (`com.apple.application-identifier` etc.) that the entitlements plist
-# actually uses.  PlistBuddy uses `:` and handles the real key names.
+# actually uses.  PlistBuddy uses `:` and handles the real key names
 PROF_PLIST=$(mktemp)
 trap 'rm -f "$PROF_PLIST"' EXIT
 security cms -D -i "$PROVISION_PROFILE" > "$PROF_PLIST" \
@@ -219,14 +219,14 @@ cat > "$BUILD_DIR/exhale.entitlements" <<ENT
 ENT
 
 # Embedded provisioning profile.  Apple's installer checks that the embedded
-# profile's entitlements are a superset of the binary's entitlements.
+# profile's entitlements are a superset of the binary's entitlements
 if [[ "$DRY_RUN" != "1" ]]; then
     cp "$PROVISION_PROFILE" "$CONTENTS/embedded.provisionprofile"
     # App Store Connect rejects bundles containing `com.apple.quarantine`
     # (set automatically by browsers on downloaded files like the
     # provisioning profile) with error 91109.  Wipe every xattr from the
-    # whole bundle before signing — any attribute Apple doesn't explicitly
-    # strip is treated as a package-contents violation.
+    # whole bundle before signing: any attribute Apple doesn't explicitly
+    # strip is treated as a package-contents violation
     xattr -cr "$APP_BUNDLE"
 fi
 
@@ -282,7 +282,7 @@ retry_signing() {
 }
 
 if [[ "$DRY_RUN" != "1" ]]; then
-    # Single-binary bundle: no nested executables to sign individually.
+    # Single-binary bundle: no nested executables to sign individually
     retry_signing "codesign --sign" 300 \
         codesign --force --timestamp \
             --entitlements "$BUILD_DIR/exhale.entitlements" \
@@ -294,14 +294,14 @@ if [[ "$DRY_RUN" != "1" ]]; then
 
     if [[ "$SKIP_PKG" != "1" ]]; then
         # ── 6. Signed .pkg for Transporter / App Store Connect ───────────────
-        retry_signing "productbuild → $OUT_PKG" 300 \
+        retry_signing "productbuild -> $OUT_PKG" 300 \
             productbuild --component "$APP_BUNDLE" /Applications \
                 --sign "$INSTALLER_IDENT" \
                 "$OUT_PKG"
     else
-        # SKIP_PKG=1 (CI only): stop after codesign. No .pkg, no .zip.
-        # An Apple-Distribution-signed .app zipped and downloaded directly
-        # cannot launch on a user's Mac — the embedded provisioning profile
+        # SKIP_PKG=1 (CI only): stop after codesign. No .pkg, no .zip. An
+        # Apple-Distribution-signed .app zipped and downloaded directly
+        # can't launch on a user's Mac; the embedded provisioning profile
         # + sandbox entitlements only validate when the package is delivered
         # via the App Store. So shipping a CI-produced .zip just creates a
         # broken download. Mac users go through the App Store badge in the
@@ -313,10 +313,10 @@ fi
 
 # ── 7. Done ──────────────────────────────────────────────────────────────────
 if [[ "$DRY_RUN" == "1" ]]; then
-    log "DRY_RUN complete — unsigned bundle ready for local validation"
+    log "DRY_RUN complete: unsigned bundle ready for local validation"
     printf '\n  %s\n\n' "$APP_BUNDLE"
     echo "to test the unsigned bundle:  open \"$APP_BUNDLE\""
-    echo "(Gatekeeper will warn on first launch — right-click → Open to bypass)"
+    echo "(Gatekeeper will warn on first launch; right-click -> Open to bypass)"
 else
     log "success"
     if [[ "$SKIP_PKG" != "1" ]]; then
@@ -327,14 +327,14 @@ else
         echo "     (xcrun altool was removed in Xcode 15; use Transporter,"
         echo "      xcrun iTMSTransporter, or the App Store Connect REST API.)"
         echo "  2. After processing, test in real sandbox via TestFlight."
-        echo "     (Do not 'sudo installer -pkg …' an MAS-signed .pkg locally —"
+        echo "     (Do not 'sudo installer -pkg …' an MAS-signed .pkg locally:"
         echo "      macOS silently refuses to write the .app since the embedded"
         echo "      provisioning profile is only valid via the App Store /"
         echo "      TestFlight delivery path. Receipt registers anyway, making"
         echo "      it look broken when nothing is wrong.)"
     else
         printf '\n  %s\n\n' "$APP_BUNDLE"
-        echo "SKIP_PKG=1 mode — build smoke test only, no .pkg or .zip."
+        echo "SKIP_PKG=1 mode: build smoke test only, no .pkg or .zip."
         echo "For a real MAS submission, unset SKIP_PKG and re-run locally."
     fi
 fi
