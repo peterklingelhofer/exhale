@@ -47,7 +47,7 @@ pub struct SettingsWindow {
     /// minted from `GpuContext::new_render_device` so settings
     /// rendering doesn't serialize behind the overlay's GPU work
     /// on a single shared queue.  This is what removes the
-    /// hover-storm-induces-overlay-lag bottleneck on Windows.
+    /// hover-storm-induces-overlay-lag bottleneck on Windows
     device:                Arc<wgpu::Device>,
     queue:                 Arc<wgpu::Queue>,
     pending_reset:         bool,
@@ -63,41 +63,41 @@ pub struct SettingsWindow {
     /// can dispatch directly without `main.rs` having to poll a
     /// flag after every render.  The closure is `Send + Sync` so
     /// the settings window could be moved off the main thread
-    /// later — though right now it stays on main for egui_winit.
+    /// later, though right now it stays on main for egui_winit
     on_quit:               Box<dyn Fn() + Send + Sync + 'static>,
     /// Fired right after the user captures a new keyboard shortcut
-    /// (or resets one to its default) — the main loop receives an
+    /// (or resets one to its default); the main loop receives an
     /// `AppEvent::RebindHotkeys` and reconciles the global-hotkey
     /// registrations with the updated `settings.keyboard_shortcuts`
     on_rebind_hotkeys:     Box<dyn Fn() + Send + Sync + 'static>,
     /// Tracks the OS appearance so egui visuals + the wgpu clear color stay
     /// in sync with Light/Dark mode.  `None` means the platform doesn't
-    /// report a theme (some Linux desktops); we default to Dark there.
+    /// report a theme (some Linux desktops); we default to Dark there
     theme: Theme,
     /// Raw pointer to the NSVisualEffectView installed on macOS.  0 when
     /// not applicable (non-macOS, or EXHALE_DISABLE_VIBRANCY set).  When
     /// the theme changes we call `platform::update_settings_vibrancy`
     /// with this pointer so the blur material/appearance follows the
-    /// system's Light/Dark toggle.
+    /// system's Light/Dark toggle
     vev_ptr: usize,
     /// Lazy-loaded SF Symbol textures for the Start / Stop / Reset
     /// buttons in dark and light themes.  None on non-macOS or when the
-    /// rasteriser fails — callers fall back to Unicode glyphs.
+    /// rasteriser fails: callers fall back to Unicode glyphs
     icon_cache: IconCache,
     /// Last value passed to `set_max_inner_size` so we can no-op when
     /// the natural content height hasn't changed.  Calling
     /// `set_max_inner_size` every frame translates on macOS to
     /// `NSWindow.setContentMaxSize:`, and AppKit re-enforces the
-    /// constraint on every call — at egui's natural ~500 Hz event-
+    /// constraint on every call; at egui's natural ~500 Hz event-
     /// driven repaint rate during a live bottom-edge drag, this
     /// fights the user's pointer and the window feels stuck.
     /// Caching the last value reduces the call count to "once per
-    /// content-tree change" (≈ when settings actually change).
+    /// content-tree change" (≈ when settings actually change)
     last_max_height: Option<u32>,
 }
 
 /// Which control-button icon a lookup is for.  `usize` index into
-/// [`IconCache::handles`] — keep the variants in the same order as
+/// [`IconCache::handles`]: keep the variants in the same order as
 /// the array, accessors index by `kind as usize`
 #[derive(Clone, Copy)]
 enum IconKind {
@@ -111,16 +111,16 @@ const ICON_KIND_COUNT: usize = 4;
 
 /// Holds the texture handles for each control-button icon × theme.
 /// Loads both themes up-front (cheap: 8 × ~32×32 RGBA = ~32 KB) so
-/// the theme toggle doesn't have to re-rasterise on first paint.
+/// the theme toggle doesn't have to re-rasterise on first paint
 ///
 /// Storage is a flat 2-D array `[IconKind; 2]` (dark first, then
 /// light) with a single indexed lookup.  The SF Symbol name table
 /// lives in [`IconCache::load`] so adding a new icon is a one-line
 /// enum variant plus one row in the table
 struct IconCache {
-    /// `handles[kind as usize][dark as usize]` — `dark=true` is
+    /// `handles[kind as usize][dark as usize]`: `dark=true` is
     /// index 1.  `None` slot for either non-macOS (where
-    /// `render_sf_symbol` returns `None`) or rasterisation failure.
+    /// `render_sf_symbol` returns `None`) or rasterisation failure
     handles: [[Option<egui::TextureHandle>; 2]; ICON_KIND_COUNT],
 }
 
@@ -130,11 +130,11 @@ impl IconCache {
         // the `.circle.fill` variants (whole-icon designs with the
         // ring AND inner glyph baked in by Apple) so the macOS
         // rendering matches Swift's `Image(systemName:)` output
-        // pixel-for-pixel — Apple has already done the optical
+        // pixel-for-pixel: Apple has already done the optical
         // centring of the inner glyph against the surrounding ring,
         // so we don't have to fiddle with sub-pixel offsets.
         // Non-mac platforms paint their own ring + Unicode glyph
-        // (U+25B6, U+25A0, U+21BA, U+00D7) at the call site.
+        // (U+25B6, U+25A0, U+21BA, U+00D7) at the call site
         const NAMES: [&str; ICON_KIND_COUNT] = [
             "play.circle.fill",
             "stop.circle.fill",
@@ -161,16 +161,16 @@ impl IconCache {
 }
 
 // Window-placement helpers (clamp, apply, capture) live in
-// `crate::placement` — shared between the settings window here and
+// `crate::placement`: shared between the settings window here and
 // the windowed-mode animation window (`overlay::create_windowed_app`)
 // so both use the exact same persisted-position logic and survive
-// the same monitor-rearrangement edge cases.
+// the same monitor-rearrangement edge cases
 
 /// Rasterise an SF Symbol via AppKit, upload as an egui texture.
 /// 16 pt matches Swift's `Image(systemName:).imageScale(.medium)`
 /// next to a 12 pt label, the slot size [`widgets::control_button`]
 /// allocates for the whole `.circle.fill` icon.  Returns `None`
-/// off-macOS or if the symbol isn't found.
+/// off-macOS or if the symbol isn't found
 fn load_sf_icon(ctx: &egui::Context, name: &str, dark_mode: bool) -> Option<egui::TextureHandle> {
     // Rasterise at 13 pt to match the reduced ring diameter set in
     // `widgets::control_button` (`icon_w = 13.0`).  Pre-fix this
@@ -191,14 +191,14 @@ fn load_sf_icon(ctx: &egui::Context, name: &str, dark_mode: bool) -> Option<egui
 // reference so the segmented-picker column (right-aligned, uniform width
 // across every row) has room for "Rectangle" / "Sinusoidal" without
 // truncation while still leaving a visible gap between the left-aligned
-// label column and the right-aligned picker column.
+// label column and the right-aligned picker column
 pub(super) const SETTINGS_WIDTH: u32 = 360;
 /// Lower bound when dragging the bottom edge.  100 pt lets the user
 /// collapse the settings window down to just the titlebar + a sliver
 /// of the Controls row (Start / Stop / Reset / Quit buttons) for a
-/// "compact" mode — the ScrollArea handles everything below the
+/// "compact" mode: the ScrollArea handles everything below the
 /// drag.  Matches Swift's "resize this far if you want" behaviour
-/// while leaving a tighter floor than the previous 428 pt cap.
+/// while leaving a tighter floor than the previous 428 pt cap
 const SETTINGS_MIN_HEIGHT: u32 = 100;
 
 impl SettingsWindow {
@@ -211,14 +211,14 @@ impl SettingsWindow {
     ) -> Result<Self> {
         // Width is fixed; only height is user-resizable.  Max height is set
         // later (once egui has measured the natural content size) so the
-        // window can never extend past the last visible setting.
+        // window can never extend past the last visible setting
         //
         // Default height shows Controls + Appearance + Timing whole, with
-        // the top of Randomization visible so it is obvious there is more
-        // below.  Saved height (when present) wins over the default — the
-        // user's own resize is always respected on relaunch.
+        // the top of Randomization visible so it's obvious there's more
+        // below.  Saved height (when present) wins over the default; the
+        // user's own resize is always respected on relaunch
         //
-        // The number is unchanged, but what it frames is not.  Measured at
+        // The number is unchanged, but what it frames isn't.  Measured at
         // the shipped 308 pt card width, the Timing card went 160 pt ->
         // 202 pt with the pacing readout -> 324 pt with the preset chips.
         // Preserving the old fold, which sat below Randomization, would
@@ -226,15 +226,15 @@ impl SettingsWindow {
         // so the window would open with its own bottom edge off-screen.
         // Between "Randomization stays above the fold" and "the window
         // fits on the machine it opens on", the second wins, and Timing is
-        // now the card worth keeping whole anyway — it is where the
-        // presets, the steppers and the coverage line all live.
+        // now the card worth keeping whole anyway; it's where the
+        // presets, the steppers and the coverage line all live
         const INITIAL_PREFERRED_H: u32 = 796;
         // Sanity ceiling on the saved height: no real monitor is taller
         // than this in logical points, so anything above is corrupt
         // (typically from older builds that mistakenly persisted
         // PHYSICAL pixels and then re-multiplied them by the scale
         // factor every launch).  Falling back to the default lets a
-        // corrupted settings file self-heal on the next save.
+        // corrupted settings file self-heal on the next save
         const SETTINGS_MAX_LOGICAL_H: u32 = 4096;
         let saved_h = settings.settings_window_height
             .filter(|&h| h <= SETTINGS_MAX_LOGICAL_H);
@@ -243,7 +243,7 @@ impl SettingsWindow {
             .unwrap_or(false)
         {
             log::warn!(
-                "settings_window_height = {:?} pt is larger than {} — \
+                "settings_window_height = {:?} pt is larger than {}; \
                  ignoring (likely corrupted by physical-vs-logical bug \
                  in older builds); using default",
                 settings.settings_window_height,
@@ -253,12 +253,12 @@ impl SettingsWindow {
         let initial_h = saved_h
             .unwrap_or(INITIAL_PREFERRED_H)
             .max(SETTINGS_MIN_HEIGHT);
-        // Transparent settings window is macOS-only.
+        // Transparent settings window is macOS-only
         //
         // On macOS we install an NSVisualEffectView child window behind
         // the settings NSWindow to get the AppKit vibrancy / blur
         // backdrop; the wgpu surface clears at alpha 0 and the egui
-        // panel fill is `TRANSPARENT`, so the VEV shows through.
+        // panel fill is `TRANSPARENT`, so the VEV shows through
         //
         // On Windows + Linux we deliberately render the settings
         // window OPAQUE.  Previous attempts to wire up DWM acrylic on
@@ -268,17 +268,17 @@ impl SettingsWindow {
         //      window's translucent client area in the z-stack,
         //      making the breath animation render in FRONT of the
         //      settings window (so opacity=1.0 trivially hid the
-        //      controls — no way to edit them back).
+        //      controls: no way to edit them back).
         //   2. Mouse hover over the (DWM-composed alpha) settings
         //      window forced DWM to recomposite the whole acrylic
         //      stack per cursor move, producing very visible animation
         //      lag on Windows.
         // Both go away when the settings window is a plain opaque
-        // surface — `clear_color_for_theme` paints the themed panel
+        // surface: `clear_color_for_theme` paints the themed panel
         // colour directly and `panel_fill` is opaque too, so the
         // window is just a normal Windows / Linux app window.
         // macOS retains its vibrancy because Cocoa composes the VEV
-        // child window outside the wgpu pipeline entirely.
+        // child window outside the wgpu pipeline entirely
         let want_transparent = cfg!(target_os = "macos");
         let attrs = Window::default_attributes()
             .with_title("exhale")
@@ -296,7 +296,7 @@ impl SettingsWindow {
         // `with_inner_size(LogicalSize::new(SETTINGS_WIDTH, initial_h))`
         // using the persisted logical-points value, so this only
         // needs to deal with the cross-platform position restore
-        // (monitor-name lookup + clamp).
+        // (monitor-name lookup + clamp)
         crate::placement::apply_placement(
             event_loop,
             &window,
@@ -323,8 +323,8 @@ impl SettingsWindow {
         // output (mid-tone blends render brighter than intended under
         // sRGB).  Driver-bug guard: wgpu specifies `formats` as
         // non-empty, but a misbehaving driver could return an empty
-        // list — fall back to a hard-coded `Bgra8Unorm` rather than
-        // panic on `formats[0]`.
+        // list: fall back to a hard-coded `Bgra8Unorm` rather than
+        // panic on `formats[0]`
         let format = caps.formats.iter()
             .copied()
             .find(|f| !f.is_srgb())
@@ -337,8 +337,8 @@ impl SettingsWindow {
         // `PreMultiplied` is the next-best alpha-respecting mode (some
         // Linux/Wayland adapters expose it instead of PostMultiplied).
         // Fall back to `Auto` (typically Opaque) if neither is available
-        // — `clear_color_for_theme` handles that case by rendering the
-        // window opaquely.
+        // ; `clear_color_for_theme` handles that case by rendering the
+        // window opaquely
         let alpha_mode =
             if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::PostMultiplied) {
                 wgpu::CompositeAlphaMode::PostMultiplied
@@ -363,7 +363,7 @@ impl SettingsWindow {
         // Install the NSVisualEffectView with a theme-appropriate material
         // so the Dark-mode vibrancy uses a neutral blend (underWindowBackground)
         // that doesn't lighten dark backdrops, while Light mode uses hudWindow
-        // for a visibly translucent blur over bright desktops.
+        // for a visibly translucent blur over bright desktops
         let initial_theme = window.theme().unwrap_or(Theme::Dark);
         // RAII guard so the backdrop NSWindow is released even if some
         // future code between here and `Self { … }` adds a fallible
@@ -372,7 +372,7 @@ impl SettingsWindow {
         // `Self.vev_ptr`, the guard's `Drop` calls `uninstall_…` and
         // balances the retain.  Without this guard, a future `?` after
         // the vibrancy install would silently leak one NSWindow per
-        // SettingsWindow creation failure.
+        // SettingsWindow creation failure
         let vev_guard = BackdropGuard(platform::install_settings_vibrancy(
             &window, matches!(initial_theme, Theme::Dark),
         ));
@@ -383,22 +383,22 @@ impl SettingsWindow {
         // Ubuntu/Cantarell/Noto on Linux) so text in our settings window
         // matches the rest of the OS's system preferences.  Silently falls
         // back to egui's default Ubuntu font if the platform's system font
-        // isn't locatable — nothing critical breaks.
+        // isn't locatable: nothing critical breaks
         install_system_ui_font(&egui_ctx);
 
         // Pre-populate both style buckets with our custom visuals.  egui owns
         // separate dark_style / light_style slots and picks one per-frame
         // based on `ThemePreference` + `system_theme`.  Populating both up
         // front means whichever bucket egui selects already contains the
-        // correct visuals — no rewrite-on-switch, no risk of writing to the
-        // wrong bucket under a rapid toggle race.
+        // correct visuals: no rewrite-on-switch, no risk of writing to the
+        // wrong bucket under a rapid toggle race
         egui_ctx.set_visuals_of(egui::Theme::Dark,  visuals_for_theme(Theme::Dark));
         egui_ctx.set_visuals_of(egui::Theme::Light, visuals_for_theme(Theme::Light));
 
         // Pin the theme preference explicitly (not `System`) so egui never
-        // flips styles on our behalf based on a stale egui_winit `system_theme`
-        // — we remain the single authoritative source, driven by the
-        // render-time `window.theme()` poll below.
+        // flips styles on our behalf based on a stale egui_winit `system_theme`;
+        // we remain the single authoritative source, driven by the
+        // render-time `window.theme()` poll below
         let theme = initial_theme;
         egui_ctx.set_theme(theme_preference(theme));
 
@@ -413,15 +413,15 @@ impl SettingsWindow {
 
         let egui_renderer = egui_wgpu::Renderer::new(&device, format, None, 1, false);
 
-        // Pre-rasterise SF Symbol icons for both themes — cheap one-shot
+        // Pre-rasterise SF Symbol icons for both themes: cheap one-shot
         // cost (~6 small RGBA blobs uploaded as textures) so the theme
-        // toggle doesn't have to lock-focus into AppKit on the hot path.
+        // toggle doesn't have to lock-focus into AppKit on the hot path
         let icon_cache = IconCache::load(&egui_ctx);
 
         // Take ownership of the backdrop pointer from the RAII guard.
         // If we reach this line, `Self` is being constructed and the
-        // guard's drop will be skipped — `vev_ptr` lives on with the
-        // window and is balanced by `Drop for SettingsWindow`.
+        // guard's drop will be skipped; `vev_ptr` lives on with the
+        // window and is balanced by `Drop for SettingsWindow`
         let vev_ptr = vev_guard.take();
 
         Ok(Self {
@@ -439,8 +439,8 @@ impl SettingsWindow {
     }
 
     /// Forward a window event to egui.
-    /// Returns (consumed, wants_repaint) — the caller uses `wants_repaint`
-    /// to drive redraws instead of polling every idle tick.
+    /// Returns (consumed, wants_repaint): the caller uses `wants_repaint`
+    /// to drive redraws instead of polling every idle tick
     pub fn on_window_event(&mut self, event: &WindowEvent) -> (bool, bool) {
         let response = self.egui_state.on_window_event(&self.window, event);
         match event {
@@ -449,8 +449,8 @@ impl SettingsWindow {
             // rapid System Settings toggles the queue can hold an in-flight
             // event whose value is already stale by the time we dequeue it,
             // leaving the window inverted for one frame.  Instead, just
-            // schedule a redraw — the render-time poll of `window.theme()`
-            // is the single authoritative source.
+            // schedule a redraw: the render-time poll of `window.theme()`
+            // is the single authoritative source
             WindowEvent::ThemeChanged(_) => self.window.request_redraw(),
             _ => {}
         }
@@ -463,9 +463,9 @@ impl SettingsWindow {
         self.config.height = size.height;
         self.surface.configure(&self.device, &self.config);
         // Keep the vibrancy backdrop NSWindow the same size as the
-        // settings window — AppKit auto-tracks child-window position but
+        // settings window: AppKit auto-tracks child-window position but
         // NOT size, so we copy the parent's frame onto the backdrop here.
-        // No-op on non-macOS or when `EXHALE_DISABLE_BLUR` is set.
+        // No-op on non-macOS or when `EXHALE_DISABLE_BLUR` is set
         platform::sync_settings_backdrop_frame(self.vev_ptr);
     }
 
@@ -473,7 +473,7 @@ impl SettingsWindow {
         self.window.request_redraw();
     }
 
-    /// Whether the right-click → Change Shortcut overlay is currently
+    /// Whether the right-click -> Change Shortcut overlay is currently
     /// open and waiting for the user's next key combination.  The
     /// main-loop dispatcher checks this before forwarding any
     /// `GlobalHotKeyEvent`s so a previously-bound hotkey doesn't
@@ -488,8 +488,8 @@ impl SettingsWindow {
 
     /// Externally arm shortcut-capture mode for `action`.  Used by
     /// the tray menu's "Keyboard Shortcuts ▶" submenu so the
-    /// capture overlay shows the next time we render — same flow as
-    /// the right-click → Change Shortcut path inside the settings
+    /// capture overlay shows the next time we render; same flow as
+    /// the right-click -> Change Shortcut path inside the settings
     /// window, just initiated from outside
     pub fn begin_capturing(&mut self, action: ShortcutAction) {
         self.capturing_shortcut_for = Some(action);
@@ -497,7 +497,7 @@ impl SettingsWindow {
 
     /// Raise the in-window Reset confirmation card on the next frame.
     /// Used by the Reset global hotkey (default Ctrl+Shift+D) on
-    /// every OS — macOS originally routed this through a native
+    /// every OS: macOS originally routed this through a native
     /// `NSAlert.runModal()` for the system look, but consolidated to
     /// the inline egui card so the confirmation chrome matches the
     /// button-click path the user already sees in the settings panel
@@ -507,9 +507,9 @@ impl SettingsWindow {
     }
 
     /// Render one egui frame onto the settings surface.
-    /// Returns the `repaint_delay` egui requests for its next frame — used by
+    /// Returns the `repaint_delay` egui requests for its next frame, used by
     /// the caller to schedule the next repaint via a deadline instead of
-    /// polling every idle tick.  `Duration::MAX` means no scheduled repaint.
+    /// polling every idle tick.  `Duration::MAX` means no scheduled repaint
     pub fn render(
         &mut self,
         settings:         &mut Settings,
@@ -520,14 +520,14 @@ impl SettingsWindow {
         // System Settings toggles on macOS/Windows, which leaves the egui
         // visuals inverted from the real appearance.  Re-querying here
         // guarantees the window can never stay out of sync for more than
-        // one frame regardless of how events were delivered.
+        // one frame regardless of how events were delivered
         //
         // We flip egui's `ThemePreference` (not `set_visuals`) because both
         // style buckets were pre-populated in `new()`.  `set_visuals` would
-        // write into whichever bucket `ctx.theme()` currently resolves to —
+        // write into whichever bucket `ctx.theme()` currently resolves to;
         // and under a rapid toggle that can be the wrong bucket (egui_winit
         // may not have fed the latest `system_theme` yet), leaving the
-        // wrong-colour visuals stuck in the bucket egui later selects.
+        // wrong-colour visuals stuck in the bucket egui later selects
         if let Some(current) = self.window.theme() {
             if current != self.theme {
                 self.theme = current;
@@ -536,8 +536,8 @@ impl SettingsWindow {
                 // the vibrancy blur tint follows the Light/Dark toggle.
                 // We do this ourselves because `install_settings_vibrancy`
                 // pinned the VEV's appearance explicitly (to avoid the
-                // AppKit auto-propagation crash) — without this call the
-                // blur would stay frozen at its install-time theme.
+                // AppKit auto-propagation crash): without this call the
+                // blur would stay frozen at its install-time theme
                 platform::update_settings_vibrancy(
                     self.vev_ptr,
                     matches!(current, Theme::Dark),
@@ -560,7 +560,7 @@ impl SettingsWindow {
         let mut content_height: f32 = 0.0;
         // `full_output.platform_output.copied_text` is taken on
         // macOS only (clipboard hand-off); on other platforms the
-        // binding is read-only, hence the cross-cfg `unused_mut`.
+        // binding is read-only, hence the cross-cfg `unused_mut`
         #[allow(unused_mut)]
         let mut full_output = self.egui_ctx.run(raw_input, |ctx| {
             content_height = settings_ui(
@@ -573,11 +573,11 @@ impl SettingsWindow {
             );
         });
 
-        // egui populates a repaint_delay per viewport — respect it so we can
+        // egui populates a repaint_delay per viewport; respect it so we can
         // stop blindly repainting every idle tick.  Short delays keep tooltip
         // fade-ins and button-press animations working; `Duration::MAX` means
         // nothing is animating and the window can sit idle until the next
-        // user/external event.
+        // user/external event
         let repaint_delay = full_output
             .viewport_output
             .get(&ViewportId::ROOT)
@@ -593,17 +593,17 @@ impl SettingsWindow {
         // Anything less than `2 * OUTER_PAD = 28.0` total leaves the
         // ScrollArea thinking it's under-tall and showing a scrollbar
         // even when every control fits, AND clamps the bottom-edge
-        // resize handle short of fitting the content.
+        // resize handle short of fitting the content
         //
         // Only forward the value to `set_max_inner_size` when the
-        // computed max differs from what we last sent — calling
+        // computed max differs from what we last sent, calling
         // `setContentMaxSize:` on macOS is NOT a no-op on equal
         // input; AppKit re-enforces the constraint on every call,
         // and at egui's event-driven ~500 Hz repaint rate during a
         // bottom-edge live drag, the constant re-enforcement fights
         // the user's pointer and the window feels stuck.  Caching
         // reduces the call rate to "once per layout change" (≈ when
-        // a setting changes or a section folds open/closed).
+        // a setting changes or a section folds open/closed)
         if content_height > 0.0 {
             let natural_h = (content_height + 2.0 * OUTER_PAD)
                 .ceil()
@@ -628,19 +628,19 @@ impl SettingsWindow {
         // `objc_retain` segfaults mid-session when the ivar backing the
         // NSCursor reference becomes stale (likely a consequence of our
         // vibrancy install reparenting winit's NSView under a sibling
-        // container, which winit's cursor tracking doesn't expect).
+        // container, which winit's cursor tracking doesn't expect)
         //
         // Neither hazard is reachable if we never let egui_winit hand the
         // platform output back to winit.  We do still need clipboard copy
         // (egui TextEdits write `copied_text` when the user presses ⌘C),
         // and `set_clipboard_text` is a pure arboard call that never
-        // touches winit state — safe to invoke from here.
+        // touches winit state: safe to invoke from here
         //
         // Cost on macOS: no cursor-icon changes (buttons / TextEdits keep
         // the default arrow), no IME cursor positioning (acceptable for a
         // Latin-text settings window), and no open_url handling (we don't
         // generate URL output anywhere).  All other platforms follow the
-        // normal path.
+        // normal path
         #[cfg(target_os = "macos")]
         {
             let copied = std::mem::take(&mut full_output.platform_output.copied_text);
@@ -707,10 +707,10 @@ impl Drop for SettingsWindow {
     /// Release the macOS NSVisualEffectView backdrop NSWindow we
     /// installed via `platform::install_settings_vibrancy`.  Without
     /// this we leaked one retained NSWindow per settings-window
-    /// lifecycle — visible in `leaks` reports and accumulating over
+    /// lifecycle: visible in `leaks` reports and accumulating over
     /// open/close cycles.  No-op on Windows / Linux (those platforms'
     /// `install_settings_vibrancy` returns 0 and the `uninstall`
-    /// matches with an early return).
+    /// matches with an early return)
     fn drop(&mut self) {
         platform::uninstall_settings_vibrancy(self.vev_ptr);
     }
@@ -720,14 +720,14 @@ impl Drop for SettingsWindow {
 /// [`platform::install_settings_vibrancy`].  Releases the +1 retain
 /// count via `uninstall_settings_vibrancy` if dropped without being
 /// `take()`-en.  Used inside [`SettingsWindow::new`] to make
-/// construction failure exception-safe — once `Self` is assembled,
+/// construction failure exception-safe: once `Self` is assembled,
 /// the long-lived `Drop for SettingsWindow` impl takes over and this
-/// guard is consumed.
+/// guard is consumed
 struct BackdropGuard(usize);
 
 impl BackdropGuard {
     /// Surrender ownership.  Caller is responsible for the eventual
-    /// `uninstall_settings_vibrancy` call.
+    /// `uninstall_settings_vibrancy` call
     fn take(mut self) -> usize {
         let ptr = self.0;
         self.0 = 0;       // Defuse so `Drop` no-ops.
@@ -747,18 +747,18 @@ impl Drop for BackdropGuard {
 // ─── Settings UI ─────────────────────────────────────────────────────────────
 //
 // Layout mirrors the Swift SettingsView exactly:
-//   • Controls  — Start / Stop / Reset
-//   • Appearance — colors, opacity, shape, gradient, animation, ripple, visibility
-//   • Timing    — 4 phase durations
-//   • Randomization — 4 jitter sliders + drift
-//   • Timers    — reminder + auto-stop
+//   • Controls: Start / Stop / Reset
+//   • Appearance: colors, opacity, shape, gradient, animation, ripple, visibility
+//   • Timing: 4 phase durations
+//   • Randomization: 4 jitter sliders + drift
+//   • Timers: reminder + auto-stop
 
 /// Returns the natural (fully-expanded) content height in logical points so
 /// the caller can clamp the window's max size.
 /// Attach the right-click "Change Shortcut…" / "Reset to Default"
 /// menu to a control-button `Response`.  Lives next to the buttons
 /// rather than inside [`control_button`] because tooltip help text is
-/// already passed in — the context-menu hook is independent of the
+/// already passed in: the context-menu hook is independent of the
 /// glyph rendering and easier to reason about as a separate concern
 fn shortcut_context_menu(
     resp:                   &egui::Response,
@@ -795,7 +795,7 @@ fn shortcut_context_menu(
     });
 }
 
-/// Shared one-line helper for the button tooltip text — embeds the
+/// Shared one-line helper for the button tooltip text, embeds the
 /// current binding when present, or "Right-click to set." when the
 /// slot is unbound (the default for Start / Stop / Reset / Quit
 /// after the "no opt-in defaults" simplification)
@@ -822,7 +822,7 @@ fn settings_ui(
 ) -> f32 {
     let mut dirty = false;
     let mut content_height = 0.0f32;
-    // Set on any action that updates `settings.keyboard_shortcuts` — both
+    // Set on any action that updates `settings.keyboard_shortcuts`, both
     // direct rebinds via the capture overlay and the per-action "Reset to
     // Default" context-menu entry need to fire `on_rebind_hotkeys` so
     // `main.rs` re-registers with the global-hotkey manager.  Set inside
@@ -847,13 +847,13 @@ fn settings_ui(
     //     overlay would composite right back into "solid white" and
     //     hide the vibrancy entirely, so we leave the panel fully
     //     transparent and let vibrancy be the sole gutter material.
-    // Fully-transparent panel fill matches Swift's look exactly.
+    // Fully-transparent panel fill matches Swift's look exactly
     //
     // The NSVisualEffectView's `.hudWindow` blur masks backdrop content
     // (terminal text, etc.) enough that nothing legible leaks through
-    // the 14-px gutters.
+    // the 14-px gutters
     //
-    // Other platforms: opaque fallback (they have no vibrancy backend).
+    // Other platforms: opaque fallback (they have no vibrancy backend)
     let panel_fill = if platform::is_blur_active() {
         egui::Color32::TRANSPARENT
     } else if ctx.style().visuals.dark_mode {
@@ -870,25 +870,25 @@ fn settings_ui(
         // sections it contains can never be wider than the window's 14-px
         // horizontal gutters.  Using `max_width` here (rather than
         // `ui.set_width` on each card) propagates down through the nested
-        // `available_width` chain — so rows inside the cards also know the
+        // `available_width` chain: so rows inside the cards also know the
         // true right edge and right-aligned widgets (color swatches,
         // stepper fields, segmented pickers) end up flush with the card
-        // boundary instead of extending past it.
+        // boundary instead of extending past it
         let scroll_max_w = SETTINGS_WIDTH as f32 - 2.0 * OUTER_PAD;
         let scroll_out = egui::ScrollArea::vertical()
             .auto_shrink([false; 2])
             .max_width(scroll_max_w)
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
             .show(ui, |ui| {
-            // `sectionSpacing: 10` — vertical gap between SectionCard instances.
+            // `sectionSpacing: 10`: vertical gap between SectionCard instances
             ui.spacing_mut().item_spacing.y = SECTION_GAP;
 
             // Measure every segmented picker in the Appearance section once,
             // pick the widest natural width, and use it as the uniform column
             // width for all of them.  This guarantees the leftmost option of
             // every picker lands on the same X, regardless of option count
-            // or text length — and the column only extends as far left as
-            // the widest picker requires.
+            // or text length, and the column only extends as far left as
+            // the widest picker requires
             let picker_column_w = uniform_picker_column_width(ui, &[
                 &["Rectangle", "Circle", "Full"],
                 &["Inner", "Off", "On"],
@@ -897,13 +897,13 @@ fn settings_ui(
                 &["Top Bar", "Dock", "Both"],
             ]);
 
-            // ── Controls (no header — matches Swift's top SectionCard) ───────
+            // ── Controls (no header; matches Swift's top SectionCard) ───────
             // Swift has only THREE buttons: Start, Stop, Reset.  Pause is
             // implemented in `SettingsModel` but isn't exposed in the
             // SwiftUI `SettingsView`, so we omit it here too for 1:1
             // parity.  `Ctrl+Shift+S` (stop) handles "I want it to halt"
             // and the breathing controller treats `is_animating=false`
-            // the same as paused for the purposes of stopping renders.
+            // the same as paused for the purposes of stopping renders
             section(ui, "", |ui| {
                 ui.horizontal(|ui| {
                     const BUTTON_SPACING: f32 = 8.0;
@@ -921,7 +921,7 @@ fn settings_ui(
                     // (possibly user-customised) shortcut binding.  Re-read
                     // from `settings.keyboard_shortcuts` every frame so the
                     // tooltip stays in sync with whatever the user just
-                    // captured in the right-click → Change Shortcut overlay.
+                    // captured in the right-click -> Change Shortcut overlay
                     let start_help = format!(
                         "Start the app and re-initialize animation.\n{}",
                         shortcut_tooltip_line(settings, ShortcutAction::Start),
@@ -949,7 +949,7 @@ fn settings_ui(
                         // Segoe UI's low-left U+25B6 placement.
                         // macOS keeps using Apple's `play.circle.fill`
                         // because the triangle flag yields to the
-                        // texture path when one is available.
+                        // texture path when one is available
                         "\u{25B6}", icons.play(dark),
                         None, 0.0, false, true,
                         "Start",
@@ -968,9 +968,9 @@ fn settings_ui(
                     let stop_resp = control_button(
                         ui, btn_w,
                         // `icon` and `icon_texture` are both ignored
-                        // when `draw_inner_square: true` — we paint a
+                        // when `draw_inner_square: true`: we paint a
                         // primitive square instead.  Pass placeholders
-                        // for documentation continuity.
+                        // for documentation continuity
                         "\u{25A0}", icons.stop(dark),
                         None, 0.0, true, false,
                         "Stop",
@@ -992,7 +992,7 @@ fn settings_ui(
                         // U+21BA ANTICLOCKWISE OPEN CIRCLE ARROW lives
                         // in the Arrows block, and Segoe UI draws it
                         // taller than the Geometric Shapes glyphs
-                        // (`▶ ■`) — arrows traditionally reach into
+                        // (`▶ ■`): arrows traditionally reach into
                         // the ascender region.  At the 8 pt default
                         // the arrow is already pixel-tight; nudge to
                         // 9 pt for visual parity with the other
@@ -1001,7 +1001,7 @@ fn settings_ui(
                         // uses the SF Symbol texture which is sized
                         // uniformly.
                         // Scaled with the 13 pt ring (was 9.0 alongside
-                        // the 16 pt ring; 7.3 ≈ 9.0 × 13 / 16 → 7.5
+                        // the 16 pt ring; 7.3 ≈ 9.0 × 13 / 16 -> 7.5
                         // rounded keeps the arrow visually centred
                         // without poking past the ring's rim on the
                         // Unicode-fallback path)
@@ -1015,7 +1015,7 @@ fn settings_ui(
                     );
                     if reset_resp.clicked() {
                         // Defer the actual reset to an inline
-                        // confirmation card below the button row —
+                        // confirmation card below the button row;
                         // an unconfirmed Reset wipes every setting
                         // including custom keyboard shortcuts, and
                         // a single misclick (or focused-Reset + Space
@@ -1023,32 +1023,32 @@ fn settings_ui(
                         // be unrecoverable.  Setting `pending_reset`
                         // makes the confirmation card render this
                         // frame; the user picks Cancel or Reset to
-                        // resolve it.  Idempotent — clicking Reset
+                        // resolve it.  Idempotent: clicking Reset
                         // again while already pending is a no-op
                         *pending_reset = true;
                     }
-                    // Quit — full shutdown.  Dispatches directly via the
+                    // Quit: full shutdown.  Dispatches directly via the
                     // injected `on_quit` callback (set up at
                     // `SettingsWindow::new`) so we don't need `main.rs`
                     // to poll a `pending_quit` flag after every render.
                     // Matches the tray-menu Quit path so all teardown
                     // (settings flush, controller stop, tray destroy)
-                    // runs in the canonical order.
+                    // runs in the canonical order
                     let quit_resp = control_button(
                         ui, btn_w,
-                        // U+00D7 MULTIPLICATION SIGN — Latin-1 Supplement
+                        // U+00D7 MULTIPLICATION SIGN: Latin-1 Supplement
                         // block, part of basic Western font coverage so
                         // every TTF / OTF system UI font carries it by
                         // default.  Previous attempts (U+23FB POWER
                         // SYMBOL, U+2715 HEAVY MULTIPLICATION X) lived
                         // in Misc Technical / Dingbats blocks, and
                         // Segoe UI's regular face on Windows skips
-                        // those — egui's font-fallback chain then
+                        // those: egui's font-fallback chain then
                         // rendered the tofu / missing-glyph box.
                         // `×` reads unambiguously as "close / quit" at
                         // glyph-icon scale and stays monochrome so it
                         // pairs with the other Geometric-Shapes icons
-                        // (▶ / ■ / ↺) in the row.
+                        // (▶ / ■ / ↺) in the row
                         //
                         // `×` is intrinsically sized to lowercase
                         // x-height (Latin-1 lives alongside `é` `ñ`
@@ -1056,7 +1056,7 @@ fn settings_ui(
                         // visibly shorter than the full-em-box
                         // Geometric Shapes glyphs.  Bump it ~50% so
                         // `×` lands at the same visible height as the
-                        // other three icons inside the 16 pt circle.
+                        // other three icons inside the 16 pt circle
                         "\u{00D7}", icons.quit(dark),
                         // `×` lives at the math-axis (below the
                         // em-centre) instead of the em-centre where
@@ -1071,7 +1071,7 @@ fn settings_ui(
                         // offset is small enough at 1 px that the
                         // texture path is still acceptably aligned
                         // Scaled with the 13 pt ring (was 12.0 alongside
-                        // the 16 pt ring; 9.75 ≈ 12.0 × 13 / 16 → 10.0
+                        // the 16 pt ring; 9.75 ≈ 12.0 × 13 / 16 -> 10.0
                         // rounded so the `×` keeps its visible weight
                         // against the smaller ring on the Unicode-
                         // fallback path)
@@ -1095,7 +1095,7 @@ fn settings_ui(
                 // Ctrl+Shift+D global hotkey on non-macOS).  Lives
                 // inside the same `section` as the buttons so the
                 // prompt sits in the document flow rather than as a
-                // floating `egui::Window` popup — the user asked
+                // floating `egui::Window` popup: the user asked
                 // for it integrated into the settings UI directly.
                 // Reset is destructive (wipes every setting AND the
                 // user's custom keyboard shortcuts), so the
@@ -1109,7 +1109,7 @@ fn settings_ui(
                     ui.add_space(ROW_GAP);
                     let dark_mode = ui.visuals().dark_mode;
                     let warning_color = if dark_mode {
-                        // Pastel red on dark — enough contrast to
+                        // Pastel red on dark: enough contrast to
                         // read as "warning" without screaming
                         egui::Color32::from_rgb(255, 130, 130)
                     } else {
@@ -1129,7 +1129,7 @@ fn settings_ui(
                     );
                     ui.add_space(4.0);
                     // Cancel + Reset are paired, equal-weight
-                    // actions — easier to read when they share the
+                    // actions: easier to read when they share the
                     // exact same footprint and sit symmetrically
                     // under the warning text rather than left-
                     // aligned and unevenly sized (Cancel's longer
@@ -1156,7 +1156,7 @@ fn settings_ui(
                         if left_pad > 0.0 {
                             ui.add_space(left_pad);
                         }
-                        // Cancel — muted default styling.  Esc also
+                        // Cancel: muted default styling.  Esc also
                         // dismisses via the input handling below so
                         // a user who hit Reset by accident can fall
                         // back to the keyboard
@@ -1166,7 +1166,7 @@ fn settings_ui(
                         ).clicked() {
                             *pending_reset = false;
                         }
-                        // Reset — destructive, red label.  Same
+                        // Reset: destructive, red label.  Same
                         // dimensions as Cancel so the visual weight
                         // of the choice is equal; the colour is the
                         // only thing that flags it as the dangerous
@@ -1195,7 +1195,7 @@ fn settings_ui(
                         }
                     });
                     // Esc dismisses the confirmation without
-                    // resetting — matches the platform convention
+                    // resetting: matches the platform convention
                     // for any prompt with a Cancel button.  Only
                     // consume the key while the prompt is open so
                     // it stays available to text fields / other
@@ -1210,14 +1210,14 @@ fn settings_ui(
 
             // ── Appearance ───────────────────────────────────────────────────
             section(ui, "Appearance", |ui| {
-                // Inhale color — no alpha (Swift: supportsOpacity: false)
+                // Inhale color: no alpha (Swift: supportsOpacity: false)
                 labeled_row(ui, "Inhale Color", |ui| {
                     let mut c = to_color32(settings.inhale_color);
                     let resp = egui::color_picker::color_edit_button_srgba(
                         ui, &mut c, egui::color_picker::Alpha::Opaque,
                     );
                     // Scroll the picker into view when Tab moves
-                    // focus to it from above/below the viewport —
+                    // focus to it from above/below the viewport;
                     // egui's stock color button doesn't auto-scroll
                     // on its own, so an off-screen color row would
                     // silently swallow a Tab press otherwise
@@ -1230,7 +1230,7 @@ fn settings_ui(
                     }
                 }).on_hover_text("Choose the color for the inhale phase.");
 
-                // Exhale color — no alpha (Swift: supportsOpacity: false)
+                // Exhale color: no alpha (Swift: supportsOpacity: false)
                 labeled_row(ui, "Exhale Color", |ui| {
                     let mut c = to_color32(settings.exhale_color);
                     let resp = egui::color_picker::color_edit_button_srgba(
@@ -1245,14 +1245,14 @@ fn settings_ui(
                     }
                 }).on_hover_text("Choose the color for the exhale phase.");
 
-                // Background color (with alpha) — disabled for Fullscreen (matches Swift)
+                // Background color (with alpha); disabled for Fullscreen (matches Swift)
                 labeled_row(ui, "Background Color", |ui| {
                     // Background color is only visually meaningful when
                     // `shape != Fullscreen`, but we deliberately render
                     // the picker enabled regardless.  Wrapping it in
                     // `add_enabled_ui(false, ...)` made egui call
                     // `surrender_focus` on the disabled widget every
-                    // time Tab landed there — focus was lost mid-cycle
+                    // time Tab landed there; focus was lost mid-cycle
                     // and the next Tab wrapped back to the first
                     // focusable widget (Start button), so users with
                     // `shape = Fullscreen` saw Tab go button-button-
@@ -1273,9 +1273,9 @@ fn settings_ui(
                     }
                 }).on_hover_text("Choose the background color. No effect when Shape is Fullscreen.");
 
-                // Overlay opacity — Swift stores 0.0..1.0, displays 0..100 %.
+                // Overlay opacity: Swift stores 0.0..1.0, displays 0..100 %.
                 // Wrap with an f64 shim because ValueScale::Percent operates
-                // on `*value / 100.0` and settings.overlay_opacity is f32.
+                // on `*value / 100.0` and settings.overlay_opacity is f32
                 let mut opacity_pct = settings.overlay_opacity as f64;
                 if stepper_row(
                     ui, "Overlay Opacity (%)",
@@ -1300,9 +1300,9 @@ fn settings_ui(
                     ],
                 ) { dirty = true; }
 
-                // Gradient — order matches Swift's enum declaration (Inner, Off, On)
+                // Gradient: order matches Swift's enum declaration (Inner, Off, On)
                 // so segmented-picker placement is identical to the macOS app.
-                // Gradient picker stays focusable regardless of shape —
+                // Gradient picker stays focusable regardless of shape;
                 // passing `enabled = false` to `segmented_row` triggers
                 // egui's disabled-widget `surrender_focus` path, which
                 // broke Tab navigation downstream (see Background Color
@@ -1320,7 +1320,7 @@ fn settings_ui(
                     ],
                 ) { dirty = true; }
 
-                // Animation mode — labels use Swift's enum raw values.
+                // Animation mode: labels use Swift's enum raw values
                 if segmented_row(
                     ui, "Animation",
                     "Sinusoidal eases in/out naturally. Linear is constant speed.",
@@ -1332,8 +1332,8 @@ fn settings_ui(
                     ],
                 ) { dirty = true; }
 
-                // Hold ripple — order matches Swift's enum declaration
-                // (Gradient, Stark, Off) so the default (Gradient) sits first.
+                // Hold ripple: order matches Swift's enum declaration
+                // (Gradient, Stark, Off) so the default (Gradient) sits first
                 if segmented_row(
                     ui, "Hold Ripple",
                     "Hold phase ripple: Gradient (smooth glow), Stark (solid edge), or Off.",
@@ -1362,9 +1362,9 @@ fn settings_ui(
 
             // ── Timing ───────────────────────────────────────────────────────
             section(ui, "Timing", |ui| {
-                // Above the steppers, not below: the whole point of a
+                // Above the steppers: the whole point of a
                 // chip is that clicking it visibly moves all four rows
-                // under it, which is not something the user has to be
+                // under it, which isn't something the user has to be
                 // told if they can watch it happen
                 if preset_chips(ui, settings) { dirty = true; }
                 if duration_row(ui, "Inhale Duration (s)",  "Duration of the inhale phase, in seconds.",             &mut settings.inhale_duration) { dirty = true; }
@@ -1388,12 +1388,12 @@ fn settings_ui(
                 if pct_row(ui, "Exhale (%)",           "Randomize exhale duration by this percentage.",            &mut settings.randomized_timing_exhale) { dirty = true; }
                 if pct_row(ui, "Post-Exhale Hold (%)", "Randomize post-exhale hold duration by this percentage.",  &mut settings.randomized_timing_post_exhale_hold) { dirty = true; }
 
-                // Drift — stored as a per-cycle multiplier (1.01 = +1 %), displayed
+                // Drift: stored as a per-cycle multiplier (1.01 = +1 %), displayed
                 // as a percentage above 1.0 so "1" reads as "+1 % per cycle".
                 // Swift's stepper has no upper limit (`max: nil`).  Minimum
-                // stays at 0 % (drift = 1.0) per the `defaultMin` clamp.
+                // stays at 0 % (drift = 1.0) per the `defaultMin` clamp
                 //
-                // Step is 0.1 percentage points, not 1: compounding makes whole
+                // Step is 0.1 percentage points: compounding makes whole
                 // percents enormous. 1 % doubles the breath in 70 breaths, which
                 // runs away inside one sitting; 0.1 % takes 693, which is a
                 // working day. Counted in breaths rather than minutes because
@@ -1402,11 +1402,11 @@ fn settings_ui(
                 // sat entirely below the old minimum step, so whole percents
                 // offered no gentle setting at all. Finer values can still be
                 // typed: `format_num` caps display at three decimals, so 0.001 %
-                // is the finest value the field round-trips.
+                // is the finest value the field round-trips
                 //
                 // Display is `(stored - 1) * 100`, so the user reads 0 for "off"
                 // and never sees the multiplier. One step up from off is 0.1 %,
-                // stored as 1.001. See `ValueScale::DriftPercent`.
+                // stored as 1.001. See `ValueScale::DriftPercent`
                 if stepper_row(
                     ui, "Drift (%)",
                     "Lengthens every cycle by this much, compounding, for pranayama-style graded extension. Off by default. Type a value for finer control than the arrows give.",
@@ -1447,7 +1447,7 @@ fn settings_ui(
     // widget that registers interest on the NEXT frame (via
     // `give_to_next`).  Tab itself is a keyboard event that
     // egui-winit reports with `repaint: true`, so a follow-up frame
-    // normally runs and the wrap completes — but if anything in the
+    // normally runs and the wrap completes; but if anything in the
     // caller skips that second frame, the user sees focus
     // disappear instead of wrapping to the top.  Explicit
     // `request_repaint` guarantees the second frame runs no matter
@@ -1497,12 +1497,12 @@ fn settings_ui(
 
         // egui::Window's `.open()` flips `still_capturing` to false when
         // the user clicks the title-bar close button.  Either signal
-        // cancels capture and leaves the binding unchanged.
+        // cancels capture and leaves the binding unchanged
         if !still_capturing || closed_via_button {
             *capturing_shortcut_for = None;
         } else {
             // Inspect this frame's input events for a key press matching
-            // the "valid combo" criteria (at least one modifier).
+            // the "valid combo" criteria (at least one modifier)
             let captured = ctx.input(|i| {
                 for event in &i.events {
                     if let egui::Event::Key { key, modifiers, pressed: true, repeat: false, .. } = event {
@@ -1511,7 +1511,7 @@ fn settings_ui(
                         }
                         // Reject plain printable keys with no modifier so
                         // the user doesn't accidentally bind `A` to Start
-                        // and then lose access to every text field.
+                        // and then lose access to every text field
                         let has_modifier = modifiers.ctrl
                             || modifiers.shift
                             || modifiers.alt
@@ -1547,7 +1547,7 @@ fn settings_ui(
 
     // Reset confirmation is now rendered inline inside the
     // Controls section above (see the `if *pending_reset` block)
-    // rather than as a floating `egui::Window` popup — matches
+    // rather than as a floating `egui::Window` popup, matches
     // the user request to integrate the confirmation into the
     // settings UI rather than spawn a separate window
 
@@ -1558,7 +1558,7 @@ fn settings_ui(
 
 // Swift's SectionCard: 10 px rounded rect, 1 px stroke at `Color.primary.opacity(0.06)`,
 // fill at `Color(NSColor.controlBackgroundColor).opacity(0.55)`, 12 px internal padding.
-// Header (when present) is 10 pt uppercase `.secondary` with 0.8 pt letter-spacing.
+// Header (when present) is 10 pt uppercase `.secondary` with 0.8 pt letter-spacing
 
 // ─── Tests ───────────────────────────────────────────────────────────────
 //
@@ -1566,7 +1566,7 @@ fn settings_ui(
 // feeding synthetic pointer events to verify the stepper_row widgets
 // respond to clicks without panicking.  That exercises the exact code
 // path the user complained about: "click the up and down stepper buttons
-// they do nothing".
+// they do nothing"
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1574,11 +1574,11 @@ mod tests {
 
     // Clamp-helper tests for the position-restore path live in
     // `crate::placement::tests` now that the helpers are shared
-    // between this window and the windowed-mode animation window.
+    // between this window and the windowed-mode animation window
 
     /// Build a single RawInput frame with a pointer move to `pos` followed
     /// by a down+up primary click at that position.  egui requires BOTH
-    /// the down and up within the same frame to register as a `clicked()`.
+    /// the down and up within the same frame to register as a `clicked()`
     fn click_input(pos: Pos2) -> RawInput {
         RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 800.0))),
@@ -1593,7 +1593,7 @@ mod tests {
 
     /// Run a single frame of the stepper_row helper, returning the
     /// TextEdit's rect so tests can target the stepper rect relative to
-    /// it.  `click` is fed as the RawInput for this frame.
+    /// it.  `click` is fed as the RawInput for this frame
     fn run_stepper_frame(
         ctx:     &Context,
         raw_in:  RawInput,
@@ -1603,11 +1603,11 @@ mod tests {
         let mut changed = false;
         // egui::Context::run returns `FullOutput`; we don't need it
         // here because the test only inspects the side effect on
-        // `changed`.
+        // `changed`
         let _ = ctx.run(raw_in, |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 // Force the ui wide enough that stepper_row's layout is
-                // the same as in the real app.
+                // the same as in the real app
                 ui.set_width(332.0);
                 changed = stepper_row(
                     ui,
@@ -1628,10 +1628,10 @@ mod tests {
     /// Warm-up frame registers the stepper's interact rects in egui's
     /// memory AND records the exact top/bot rects via the `test_hooks`
     /// side channel.  Then the click frame targets the center of the
-    /// recorded up/down half.
+    /// recorded up/down half
     fn simulate_click_on_stepper(ctx: &Context, value: &mut f64, click_up: bool) -> bool {
         // Frame A (warmup): no input, just run stepper_row to register
-        // widgets and capture sub-rects.
+        // widgets and capture sub-rects
         let mut value_probe = *value;
         let _ = ctx.run(RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 800.0))),
@@ -1650,7 +1650,7 @@ mod tests {
         let (top_rect, bot_rect) = super::widgets::test_hooks::take_stepper_rects()
             .expect("stepper_buttons should have recorded its rects during warmup frame");
 
-        // Frame B: click the center of the desired half.
+        // Frame B: click the center of the desired half
         let target = if click_up { top_rect } else { bot_rect };
         let click_pos = target.center();
         run_stepper_frame(ctx, click_input(click_pos), value, "Test")
@@ -1658,12 +1658,12 @@ mod tests {
 
     /// Content width inside a section card: `SETTINGS_WIDTH` minus the
     /// outer gutters and the card padding. The chips have to wrap
-    /// against the real number, not a convenient one
+    /// against the real number rather than a convenient one
     const CARD_CONTENT_W: f32 = SETTINGS_WIDTH as f32 - 2.0 * OUTER_PAD - 2.0 * CARD_PAD;
 
-    /// Run one frame of `preset_chips` inside a real `section` card.
+    /// Run one frame of `preset_chips` inside a real `section` card
     ///
-    /// The card, not a bare `ui.set_width`, because `set_width` on a
+    /// The card rather than a bare `ui.set_width`, because `set_width` on a
     /// `CentralPanel`'s own `Ui` is silently undone: `Placer::set_max_width`
     /// unions the result back with `min_rect`, which for a panel is already
     /// the full panel. The first version of this harness therefore laid the
@@ -1705,7 +1705,7 @@ mod tests {
         }
     }
 
-    /// Warm-up frame to register the chip rects, then hand them back.
+    /// Warm-up frame to register the chip rects, then hand them back
     fn chip_rects(ctx: &Context, settings: &mut exhale_core::settings::Settings) -> Vec<Rect> {
         let mut probe = settings.clone();
         let _ = run_chips_frame(ctx, blank_input(), &mut probe);
@@ -1717,7 +1717,7 @@ mod tests {
     fn clicking_a_chip_moves_all_four_durations() {
         let ctx = Context::default();
         let mut settings = exhale_core::settings::Settings::default();
-        // Deliberately NOT chip 0: that is the shipped default, so
+        // Deliberately NOT chip 0: that's the shipped default, so
         // clicking it would leave every field at the value it already
         // had and the test would pass without proving anything moved.
         // Chip 3 is box breathing, which differs in all four
@@ -1741,7 +1741,7 @@ mod tests {
 
     #[test]
     fn space_activates_a_focused_chip() {
-        // The handoff flagged this as unverified: it was not known
+        // The handoff flagged this as unverified: it wasn't known
         // whether egui 0.29 synthesises a click from Space on a focused
         // `ui.interact` response the way it does for `Button`. It does
         // (`Context::create_widget` sets `fake_primary_click`), and
@@ -1803,7 +1803,7 @@ mod tests {
 
         let left = rects[0].min.x;
         for (i, r) in rects.iter().enumerate() {
-            // Wrapping, not clipping. A chip wider than the card would
+            // Wrapping rather than clipping. A chip wider than the card would
             // be a label that no longer describes its own pattern
             assert!(
                 r.width() <= CARD_CONTENT_W + 0.5,
@@ -1826,7 +1826,7 @@ mod tests {
         // is the property worth keeping rather than the exact result: a
         // sixth preset, or a label long enough to need three rows, turns
         // the block back into the four-line stack this was tightened to
-        // avoid. Wrapping to a second row is fine; wrapping past it is a
+        // avoid. Wrapping to a second row is fine; wrapping past it's a
         // design decision that should be made on purpose
         let rows = rects.iter().map(|r| r.min.y as i32).collect::<std::collections::BTreeSet<_>>();
         assert!(
@@ -1838,7 +1838,7 @@ mod tests {
 
     #[test]
     fn nudging_one_stepper_unselects_every_chip() {
-        // Derived selection, stated as a behaviour. There is no
+        // Derived selection, stated as a behaviour. There's no
         // "Custom" chip to light up instead: custom is the absence of
         // a lit pill
         let ctx = Context::default();
@@ -1880,10 +1880,10 @@ mod tests {
         let mut value = 5.0_f64;
         // simulate_click_on_stepper runs a warmup frame (registers the
         // stepper's interact rects in egui memory) followed by a click
-        // frame.  Exactly one click per invocation.
+        // frame.  Exactly one click per invocation
         let changed = simulate_click_on_stepper(&ctx, &mut value, true);
         assert!(changed, "UP click should change the value");
-        assert_eq!(value, 6.0, "UP click should increment by step=1.0 (5 → 6)");
+        assert_eq!(value, 6.0, "UP click should increment by step=1.0 (5 -> 6)");
     }
 
     #[test]
@@ -1892,7 +1892,7 @@ mod tests {
         let mut value = 5.0_f64;
         let changed = simulate_click_on_stepper(&ctx, &mut value, false);
         assert!(changed, "DOWN click should change the value");
-        assert_eq!(value, 4.0, "DOWN click should decrement by step=1.0 (5 → 4)");
+        assert_eq!(value, 4.0, "DOWN click should decrement by step=1.0 (5 -> 4)");
     }
 
     #[test]
@@ -1907,7 +1907,7 @@ mod tests {
     fn stepper_many_clicks_no_crash() {
         // Regression test for the user-reported "after a few clicks it
         // crashes": drive ~50 alternating UP/DOWN clicks and make sure
-        // nothing panics and the value stays finite.
+        // nothing panics and the value stays finite
         let ctx = Context::default();
         let mut value = 10.0_f64;
         for i in 0..50 {
@@ -1919,7 +1919,7 @@ mod tests {
     #[test]
     fn stepper_repeated_ups_accumulate() {
         // Each call to simulate_click_on_stepper performs ONE click,
-        // so N invocations should give N increments (5 + 3 = 8).
+        // so N invocations should give N increments (5 + 3 = 8)
         let ctx = Context::default();
         let mut value = 5.0_f64;
         for _ in 0..3 {

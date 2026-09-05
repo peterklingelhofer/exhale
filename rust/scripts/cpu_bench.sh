@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 #
-# Live-process CPU bench — samples the real Rust app while it runs.
+# Live-process CPU bench: samples the real Rust app while it runs
 #
-# Methodology mirrors the Swift `measureCPU` helper:
-#   - Phase 1 (baseline):  launch with `is_animating = false` in settings.toml.
-#                          Sample process CPU% 5 × 1 s. Kill.
-#   - Phase 2 (animating): launch with `is_animating = true`.  Sample 5 × 1 s.
-#   - Report delta = max(0, animating − baseline_avg).
+# Methodology mirrors the Swift `measureCPU` helper
+#   - Phase 1 (baseline):  launch with `is_animating = false` in
+#                          settings.toml.  Sample process CPU% 5 × 1 s. Kill
+#   - Phase 2 (animating): launch with `is_animating = true`.  Sample 5 × 1 s
+#   - Report delta = max(0, animating − baseline_avg)
 #
-# Runs all six variants that the Swift PerformanceTests suite covers.
+# Runs all six variants that the Swift PerformanceTests suite covers
 #
 # The script backs up your existing settings.toml, writes a stripped one for
-# each phase, and restores the original on exit (even on ^C).
+# each phase, and restores the original on exit (even on ^C)
 #
-# Usage:
+# Usage
 #   rust/scripts/cpu_bench.sh             # run all 6 variants
 #   rust/scripts/cpu_bench.sh rect_ripple # just one variant (tag match)
 #
-# Requires: macOS, cargo, bash ≥ 4, python3.
+# Requires: macOS, cargo, bash ≥ 4, python3
 
 set -euo pipefail
 
@@ -48,7 +48,7 @@ VARIANTS=(
 # ── Helpers ───────────────────────────────────────────────────────────────────
 log() { printf '\033[2m[bench]\033[0m %s\n' "$*" >&2; }
 
-# Convert ps's MM:SS.ss or HH:MM:SS.ss cpu time string → seconds.
+# Convert ps's MM:SS.ss or HH:MM:SS.ss cpu time string -> seconds
 parse_cputime() {
     python3 - <<PY
 t = "$1".strip()
@@ -132,7 +132,7 @@ run_phase() {
 
     write_settings "$animating" "$shape" "$gradient" "$hold" "$ripple"
 
-    # `RUST_LOG=warn` keeps wgpu from firehosing INFO-level messages.
+    # `RUST_LOG=warn` keeps wgpu from firehosing INFO-level messages
     RUST_LOG=warn "$BIN" >/dev/null 2>&1 &
     APP_PID=$!
     sleep "$WARMUP_SECONDS"
@@ -164,7 +164,7 @@ BIN="$RUST_ROOT/target/release/exhale"
 mkdir -p "$CONFIG_DIR"
 if [[ -f "$CONFIG_FILE" ]]; then
     cp "$CONFIG_FILE" "$BACKUP_FILE"
-    log "backed up settings.toml → $BACKUP_FILE"
+    log "backed up settings.toml -> $BACKUP_FILE"
 fi
 
 # ── Header ────────────────────────────────────────────────────────────────────
@@ -179,9 +179,9 @@ for entry in "${VARIANTS[@]}"; do
         continue
     fi
 
-    log "→ [$tag] baseline"
+    log " -> [$tag] baseline"
     BASELINE=$(run_phase false "$shape" "$gradient" "$hold" "$ripple")
-    log "→ [$tag] animating"
+    log " -> [$tag] animating"
     ANIMATING=$(run_phase true "$shape" "$gradient" "$hold" "$ripple")
 
     python3 - "$tag" "$label" "$BASELINE" "$ANIMATING" <<'PY'
@@ -205,6 +205,6 @@ print()
 PY
 done
 
-echo "Done.  Baseline includes full idle app (tray + event loop + static"
-echo "overlay repainting at compositor cadence).  Delta isolates the"
-echo "controller + state-update cost above that floor."
+echo "Baseline includes full idle app (tray + event loop + static overlay"
+echo "repainting at compositor cadence); delta isolates the controller +"
+echo "state-update cost above that floor."

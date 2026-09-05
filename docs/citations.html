@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>exhale citation corpus</title>
-<meta name="description" content="Every claim and default in exhale, with the published evidence behind it and a ledger of what the evidence does not support.">
+<meta name="description" content="Every claim and default in exhale, with the published evidence behind it and a ledger of what the evidence doesn't support.">
 <meta name="color-scheme" content="light dark">
 <link rel="canonical" href="https://peterklingelhofer.github.io/exhale/citations.html">
 <!-- Inline so the page stays one file and the browser stops asking for /favicon.ico -->
@@ -67,9 +67,9 @@
   .skip:focus { left: 0; }
 
   /* The deep-linked heading is focused to move the reading position,
-     not because it is a control.  A full-width ring across a section
-     title reads as an error state to a reader who did not put it
-     there, and the heading is not reachable by Tab, so the scroll
+     not because it's a control.  A full-width ring across a section
+     title reads as an error state to a reader who didn't put it
+     there, and the heading isn't reachable by Tab, so the scroll
      itself is the indication */
   #doc [tabindex="-1"]:focus { outline: none; }
 
@@ -279,7 +279,7 @@
     <noscript>
       <div class="status">
         <h2>This page needs JavaScript</h2>
-        <p>It reads the corpus straight from the repository so it is never out of date with the
+        <p>It reads the corpus straight from the repository so it's never out of date with the
         published evidence. Without scripting, read it on
         <a href="https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md">GitHub</a>
         instead.</p>
@@ -290,7 +290,7 @@
       Rendered live from
       <a href="https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md"><code>docs/CITATIONS.md</code></a>
       on the <code>main</code> branch, so a correction or a retraction reaches this page without a
-      release. exhale is a breathing overlay, not a medical device, and nothing here is medical advice.
+      release. exhale is a breathing overlay; it isn't a medical device, and nothing here is medical advice.
     </p>
   </div>
 </div>
@@ -329,7 +329,7 @@
     status.hidden = false;
     status.innerHTML = "";
     var h = document.createElement("h2");
-    h.textContent = "The corpus could not be loaded";
+    h.textContent = "The corpus couldn't be loaded";
     var p1 = document.createElement("p");
     p1.textContent = message;
     var p2 = document.createElement("p");
@@ -439,7 +439,7 @@
   }
 
   if (!window.marked || !window.DOMPurify) {
-    fail("The rendering libraries did not load. A network filter or an offline connection will do this.");
+    fail("The rendering libraries didn't load. A network filter or an offline connection will do this.");
     return;
   }
 
@@ -461,9 +461,9 @@
       if (h1) document.title = h1.textContent + " · exhale";
 
       // The contents rail is an enhancement, and the deep link into
-      // the gaps ledger is not.  Building the rail last, in its own
-      // guard, keeps a failure here from reporting a corpus that is
-      // sitting right there rendered as one that could not be loaded
+      // the gaps ledger isn't.  Building the rail last, in its own
+      // guard, keeps a failure here from reporting a corpus that's
+      // sitting right there rendered as one that couldn't be loaded
       try { buildToc(); } catch (err) { console.error("contents rail: " + err.message); }
     })
     .catch(function (err) {

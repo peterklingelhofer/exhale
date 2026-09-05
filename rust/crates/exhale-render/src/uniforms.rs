@@ -5,9 +5,9 @@ use exhale_core::{
     types::HoldRippleMode,
 };
 
-/// GPU-side uniform buffer matching the WGSL `OverlayUniforms` struct.
+/// GPU-side uniform buffer matching the WGSL `OverlayUniforms` struct
 ///
-/// Memory layout (112 bytes, repr(C)):
+/// Memory layout (112 bytes, repr(C))
 ///
 /// | offset | size | field                |
 /// |--------|------|----------------------|
@@ -29,9 +29,9 @@ use exhale_core::{
 /// |     80 |   16 | inhale_color         |
 /// |     96 |   16 | exhale_color         |
 ///
-/// WGSL naturally pads from offset 52→64 (`vec4<f32>` alignment = 16).
-/// Rust's repr(C) does not, so two explicit `u32` padding fields are needed
-/// after display_mode.
+/// WGSL naturally pads from offset 52 -> 64 (`vec4<f32>` alignment = 16). Rust's
+/// repr(C) doesn't, so two explicit `u32` padding fields are needed after
+/// display_mode
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct OverlayUniforms {
@@ -56,7 +56,7 @@ pub struct OverlayUniforms {
 }
 // Total: 112 bytes
 
-/// `display_mode` values for the shader.
+/// `display_mode` values for the shader
 pub mod display_mode {
     pub const NORMAL:  u32 = 0;
     pub const PAUSED:  u32 = 1;
@@ -64,11 +64,11 @@ pub mod display_mode {
 }
 
 impl OverlayUniforms {
-    /// Build a uniform buffer from the current breathing state and user settings.
+    /// Build a uniform buffer from the current breathing state and user settings
     ///
     /// `max_circle_scale` is passed in (rather than derived from the viewport)
     /// so all monitors can share the primary-monitor scale, matching Swift's
-    /// `getMaxCircleScale()` which snapshots `NSScreen.main` once at onAppear.
+    /// `getMaxCircleScale()` which snapshots `NSScreen.main` once at onAppear
     pub fn from_state(
         state: &BreathingState,
         settings: &Settings,
@@ -81,13 +81,13 @@ impl OverlayUniforms {
 
         // Match Swift: ripple is active during a hold phase with duration > 0,
         // and also stays active during the first 10% of the following inhale/
-        // exhale so the shader can fade rippleOpacity 1 → 0 the way Swift does
-        // (`withAnimation(.linear(duration: duration * 0.1)) { rippleOpacity = 0 }`).
+        // exhale so the shader can fade rippleOpacity 1 -> 0 the way Swift does
+        // (`withAnimation(.linear(duration: duration * 0.1)) { rippleOpacity = 0 }`)
         use exhale_core::types::BreathingPhase;
         let ripple_active = match state.phase {
             BreathingPhase::HoldAfterInhale => settings.post_inhale_hold_duration > 0.0,
             BreathingPhase::HoldAfterExhale => settings.post_exhale_hold_duration > 0.0,
-            // Cross-phase fade windows (preceding hold must have had duration > 0).
+            // Cross-phase fade windows (preceding hold must have had duration > 0)
             BreathingPhase::Exhale => settings.post_inhale_hold_duration > 0.0,
             BreathingPhase::Inhale => settings.post_exhale_hold_duration > 0.0,
         };
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn background_color_at_offset_64() {
-        // This is the critical alignment check: vec4<f32> must be at offset 64.
+        // This is the critical alignment check: vec4<f32> must be at offset 64
         assert_eq!(offset_of!(OverlayUniforms, background_color), 64);
     }
 
@@ -241,14 +241,14 @@ mod tests {
         assert_eq!(u.viewport_size, [1920.0, 1080.0]);
         assert_eq!(u.phase, BreathingPhase::Inhale.shader_value());
         assert!((u.progress - 0.5).abs() < 1e-6);
-        // Default shape is Rectangle → shader value 1
+        // Default shape is Rectangle -> shader value 1
         assert_eq!(u.shape, 1);
-        // Default hold durations are 0 → ripple disabled regardless of phase
+        // Default hold durations are 0 -> ripple disabled regardless of phase
         assert_eq!(u.ripple_enabled, 0);
         // Padding must be zero
         assert_eq!(u._pad1, 0);
         assert_eq!(u._pad2, 0);
-        // max_circle_scale is whatever the caller provided.
+        // max_circle_scale is whatever the caller provided
         assert!((u.max_circle_scale - expected_scale).abs() < 1e-4,
             "max_circle_scale={} expected {expected_scale}", u.max_circle_scale);
     }
@@ -257,7 +257,7 @@ mod tests {
     fn max_circle_scale_passthrough() {
         use exhale_core::types::BreathingPhase;
         let state = BreathingState { phase: BreathingPhase::Inhale, progress: 0.0, hold_time: 0.0 };
-        // Caller supplies the scale — verify it rides through to the uniform.
+        // Caller supplies the scale: verify it rides through to the uniform
         let u = OverlayUniforms::from_state(&state, &Settings::default(), 1000, 1000, 2.5);
         assert!((u.max_circle_scale - 2.5).abs() < 1e-6);
     }
@@ -290,7 +290,7 @@ mod tests {
         let settings = Settings::default();
         let original = OverlayUniforms::from_state(&state, &settings, 800, 600, 4.0 / 3.0);
 
-        // Cast to bytes and back — bytemuck roundtrip.
+        // Cast to bytes and back: bytemuck roundtrip
         let bytes: &[u8] = bytemuck::bytes_of(&original);
         assert_eq!(bytes.len(), 112);
         let restored: OverlayUniforms = *bytemuck::from_bytes(bytes);

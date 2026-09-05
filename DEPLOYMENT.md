@@ -6,8 +6,8 @@ How to ship a new exhale release to the three stores plus the GitHub Releases pa
 
 | Target | Status | One-time | Per-release |
 |---|---|---|---|
-| Mac App Store | live (Swift listing id6447758995, being migrated to Rust) | Apple Developer membership (have), bundle ID + certs + profile | `bundle-mas.sh` → Transporter (must run locally, see "CI caveat" below) |
-| Windows Microsoft Store | listing live (Store ID `9P79Z1NJMZB3`) | Partner Center listing | `bundle-msix.ps1` → Partner Center |
+| Mac App Store | live (Swift listing id6447758995, being migrated to Rust) | Apple Developer membership (have), bundle ID + certs + profile | `bundle-mas.sh` -> Transporter (must run locally, see "CI caveat" below) |
+| Windows Microsoft Store | listing live (Store ID `9P79Z1NJMZB3`) | Partner Center listing | `bundle-msix.ps1` -> Partner Center |
 | Snap Store | published, manual upload | Snapcraft developer account, `snap-creds` Multipass VM | CI builds `.snap`, `multipass exec snap-creds -- snapcraft upload` |
 | Windows standalone `.exe` | direct ship | none | GitHub Release artifact from `release.yml` |
 | Linux `.deb` / AppImage | direct ship | none | GitHub Release artifact from `release.yml` |
@@ -31,19 +31,19 @@ For a store-only deploy (e.g. shipping MAS first and tagging later), use the no-
 
 ---
 
-## macOS — Mac App Store
+## macOS: Mac App Store
 
 You already have a paid Apple Developer Program membership and the App Store Connect record (id6447758995, originally created for the Swift build). The Rust port reuses the same listing, so most of the "one-time setup" was done years ago. The checklist below is the bits you'll touch when the certs roll over or when bringing up a fresh machine.
 
 ### One-time setup (per dev machine)
 
-1. **Bundle ID** at https://developer.apple.com → Certificates, Identifiers & Profiles → Identifiers. The ID `peterklingelhofer.exhale` already exists from the Swift app and is what [rust/scripts/bundle-mas.sh](rust/scripts/bundle-mas.sh#L51) embeds. Capabilities: only **App Sandbox**.
+1. **Bundle ID** at https://developer.apple.com -> Certificates, Identifiers & Profiles -> Identifiers. The ID `peterklingelhofer.exhale` already exists from the Swift app and is what [rust/scripts/bundle-mas.sh](rust/scripts/bundle-mas.sh#L51) embeds. Capabilities: only **App Sandbox**.
 2. **Certificates** in the same portal:
    - **Apple Distribution** (single cert covers iOS + macOS, replaces the legacy "3rd Party Mac Developer Application")
    - **Mac Installer Distribution** (a.k.a. "3rd Party Mac Developer Installer")
 
    Download each `.cer`, double-click to install into the login keychain.
-3. **Provisioning profile** → Profiles → "Mac App Store" → pick `peterklingelhofer.exhale` + the Apple Distribution cert. Save as [rust/signing/exhale.provisionprofile](rust/signing/exhale.provisionprofile) (already in place on this machine).
+3. **Provisioning profile** -> Profiles -> "Mac App Store" -> pick `peterklingelhofer.exhale` + the Apple Distribution cert. Save as [rust/signing/exhale.provisionprofile](rust/signing/exhale.provisionprofile) (already in place on this machine).
 4. **Verify**:
 
    ```sh
@@ -85,10 +85,10 @@ rust/target/mas/exhale.pkg
 ### Pre-flight checks (local)
 
 ```sh
-# Signature attached cleanly?
+# Confirm the signature attached cleanly
 codesign --verify --deep --strict --verbose=2 rust/target/mas/exhale.app
 
-# Entitlements embedded?
+# Confirm the entitlements are embedded
 codesign -d --entitlements - rust/target/mas/exhale.app
 ```
 
@@ -106,25 +106,25 @@ open -a Transporter rust/target/mas/exhale.pkg
 
 Sign in with the Apple ID on the developer account, click **Deliver**. Apple validates the signature, sandbox, icon set, and entitlements server-side; you get an email within ~15 minutes with either "Processed by App Store Connect" or a list of validation failures.
 
-**Scripted alternative:** `xcrun iTMSTransporter`. The older `xcrun altool --upload-app` was removed in Xcode 15, so it is no longer an option. `xcrun notarytool` is for non-Store notarization and is not used for MAS submissions. If you want CI to upload automatically, plumb iTMSTransporter (or the App Store Connect REST API with a JWT) in a new step on the `macos` job in [release.yml](.github/workflows/release.yml).
+**Scripted alternative:** `xcrun iTMSTransporter`. The older `xcrun altool --upload-app` was removed in Xcode 15, so it's no longer an option. `xcrun notarytool` is for non-Store notarization and isn't used for MAS submissions. If you want CI to upload automatically, plumb iTMSTransporter (or the App Store Connect REST API with a JWT) in a new step on the `macos` job in [release.yml](.github/workflows/release.yml).
 
 ### TestFlight (optional, recommended)
 
-Once the processed build appears in App Store Connect → Builds:
+Once the processed build appears in App Store Connect -> Builds:
 
-1. App Store Connect → exhale → TestFlight → enable for **Internal Testing** (your team)
+1. App Store Connect -> exhale -> TestFlight -> enable for **Internal Testing** (your team)
 2. Install via the TestFlight app on macOS for a sandboxed real-install QA pass
 
 External testing requires Beta App Review (~1 day) the first time. For a low-risk utility like exhale, internal-only is usually enough.
 
 ### Submit for review
 
-App Store Connect → exhale → macOS App → Prepare for Submission:
+App Store Connect -> exhale -> macOS App -> Prepare for Submission:
 
 1. Pick the uploaded build
 2. Fill in **What's New in This Version**
 3. Confirm pricing (free), age rating, availability
-4. Add for Review → Submit to App Review
+4. Add for Review -> Submit to App Review
 
 Typical SLA is 24–48 hours. First-time submissions can take 1–3 days.
 
@@ -140,7 +140,7 @@ For every subsequent release:
 1. Bump `version` in `rust/crates/exhale-app/Cargo.toml` (or run `rust/scripts/release.sh X.Y.Z`)
 2. `VERSION=… rust/scripts/bundle-mas.sh` **locally** (see CI caveat)
 3. Upload via Transporter
-4. App Store Connect → new version → pick the build → release notes → submit
+4. App Store Connect -> new version -> pick the build -> release notes -> submit
 
 No new certs / profile unless entitlements change.
 
@@ -171,7 +171,7 @@ Two compounding problems make CI unable to produce a usable macOS download:
 
 1. **`productbuild --sign` deterministically hangs on `macos-latest` runners** even with every Apple WWDR intermediate (G3, G4, G6) imported into the temp keychain. Suspected root cause is an unreachable OCSP / CRL endpoint during installer-cert chain validation, but `gtimeout` confirmed each attempt times out at 300s consistently. Root-causing further hasn't been worth the time given there's a clean workaround at the release level (manual Transporter upload).
 
-2. **A zipped Apple-Distribution-signed `.app` cannot launch outside the App Store.** The embedded provisioning profile + `app-sandbox` entitlements only validate when delivered via MAS. Downloading and unzipping such a build produces a `.app` that `launchd` refuses to spawn with `Launchd job spawn failed` (POSIX 153). So even if we sidestep productbuild by zipping the signed `.app`, the artifact is dead-on-arrival for sideload.
+2. **A zipped Apple-Distribution-signed `.app` can't launch outside the App Store.** The embedded provisioning profile + `app-sandbox` entitlements only validate when delivered via MAS. Downloading and unzipping such a build produces a `.app` that `launchd` refuses to spawn with `Launchd job spawn failed` (POSIX 153). So even if we sidestep productbuild by zipping the signed `.app`, the artifact is dead-on-arrival for sideload.
 
 Current setup: CI sets `SKIP_PKG=1` in [release.yml](.github/workflows/release.yml) so the macOS job runs codesign + verify as a build smoke-test, then stops. No `.pkg`, no `.zip`, no upload. Mac users install via the App Store badge in the README / GitHub Release notes.
 
@@ -181,7 +181,7 @@ If you want a sideload-friendly macOS download some day, the path is "Developer 
 
 ---
 
-## Windows — Microsoft Store
+## Windows: Microsoft Store
 
 The Partner Center listing already exists (Store ID `9P79Z1NJMZB3`, Package Family `PeterKlingelhofer.exhale_rrj7wxvvetjy2`). The identity values are baked into [rust/packaging/windows/AppxManifest.xml](rust/packaging/windows/AppxManifest.xml#L25-L28). You don't need to reserve a new identity for updates.
 
@@ -216,7 +216,7 @@ rust\scripts\bundle-msix.ps1 `
 
 ### Upload to Partner Center
 
-1. https://partner.microsoft.com/dashboard/windows/overview → exhale → Packages
+1. https://partner.microsoft.com/dashboard/windows/overview -> exhale -> Packages
 2. Drag `exhale.msix` into the package upload zone
 3. Validate (Partner Center checks signature, manifest, asset sizes server-side)
 4. Submit for certification
@@ -225,11 +225,11 @@ Microsoft cert review is usually faster than Apple: most updates clear in 6–12
 
 ### Standalone `.exe`
 
-`cargo build --release -p exhale-app` from the `rust/` dir produces a fully self-contained `target/release/exhale.exe`. This is what the GitHub Release attaches (no MSIX wrapping). Users get a "publisher unknown" SmartScreen warning since the standalone exe isn't code-signed; the warning is bypassable via "More info → Run anyway" but is the cost of not buying a Windows code-signing cert (~$200–400/year). The Store MSIX is the no-warning install path.
+`cargo build --release -p exhale-app` from the `rust/` dir produces a fully self-contained `target/release/exhale.exe`. This is what the GitHub Release attaches (no MSIX wrapping). Users get a "publisher unknown" SmartScreen warning since the standalone exe isn't code-signed; the warning is bypassable via "More info -> Run anyway" but is the cost of not buying a Windows code-signing cert (~$200–400/year). The Store MSIX is the no-warning install path.
 
 ---
 
-## Linux — Snap Store
+## Linux: Snap Store
 
 The snap is published as `exhale-app` on https://snapcraft.io.
 
@@ -268,7 +268,7 @@ multipass exec snap-creds -- snapcraft upload \
     --release=edge /tmp/exhale-app_2.0.20_amd64.snap
 ```
 
-Then promote `edge → stable` from https://snapcraft.io/exhale-app/releases once you've smoke-tested edge on a Linux box.
+Then promote `edge -> stable` from https://snapcraft.io/exhale-app/releases once you've smoke-tested edge on a Linux box.
 
 ### Local snap build (no CI)
 
@@ -284,7 +284,7 @@ sudo snapcraft pack --destructive-mode --verbose
 
 ---
 
-## Linux — `.deb` and AppImage
+## Linux: `.deb` and AppImage
 
 These ship directly on the GitHub Releases page (no store flow). CI builds them automatically via the `linux-direct` job. To produce them locally:
 
@@ -294,11 +294,11 @@ cd rust
 cargo install cargo-deb --locked
 cargo build --release --no-default-features -p exhale-app
 cargo deb --no-build -p exhale-app
-# → rust/target/debian/exhale-app_<VERSION>_amd64.deb
+# -> rust/target/debian/exhale-app_<VERSION>_amd64.deb
 
 # AppImage (Linux only, appimagetool is x86_64-Linux)
 rust/scripts/bundle-appimage.sh
-# → rust/target/appimage/exhale-<VERSION>-x86_64.AppImage
+# -> rust/target/appimage/exhale-<VERSION>-x86_64.AppImage
 ```
 
 On macOS, the AppImage step has to run via CI or a Linux VM. The `linux-direct` CI job handles both artifacts on every `v*` tag.
@@ -307,7 +307,7 @@ On macOS, the AppImage step has to run via CI or a Linux VM. The `linux-direct` 
 
 ## CI secrets
 
-[release.yml](.github/workflows/release.yml) gracefully degrades when secrets are missing (each platform job falls back to an unsigned dry-run build), but for a signed release configure these in repo Settings → Secrets:
+[release.yml](.github/workflows/release.yml) gracefully degrades when secrets are missing (each platform job falls back to an unsigned dry-run build), but for a signed release configure these in repo Settings -> Secrets:
 
 | Secret | Used by | What it is |
 |---|---|---|
@@ -324,7 +324,7 @@ Export a local `.p12` to base64 with `base64 -i cert.p12 -o cert.p12.b64` then p
 
 ---
 
-## What is not automated
+## What isn't automated
 
 Per release, after CI is green:
 

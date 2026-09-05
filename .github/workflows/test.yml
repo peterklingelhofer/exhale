@@ -13,7 +13,7 @@ jobs:
     # to keep the Swift test suite green.  The Swift PerformanceTests
     # are also CPU-noise-sensitive enough that gating the Rust PR on
     # them produces false negatives.  Re-enabled automatically once
-    # the branch is merged (no PR-source matches this name anymore).
+    # the branch is merged (no PR-source matches this name anymore)
     if: github.head_ref != 'rust-multiplatform' && github.ref != 'refs/heads/rust-multiplatform'
     runs-on: macos-15
     defaults:
@@ -38,9 +38,9 @@ jobs:
       - name: Run tests
         # `CI=true` is set on the runner shell by GitHub Actions, but
         # `xcodebuild test` does NOT propagate the shell environment
-        # to the xctest target's subprocess — the step's `env:` block
-        # reaches `xcodebuild` itself but not the test runner that it
-        # spawns.  Xcode's documented escape hatch: any env var prefixed
+        # to the xctest target's subprocess; the step's `env:` block
+        # reaches `xcodebuild` itself. The test runner it spawns never
+        # sees it.  Xcode's documented escape hatch: any env var prefixed
         # with `TEST_RUNNER_` is forwarded to the test runner with the
         # prefix stripped.  So `TEST_RUNNER_CI=true` lands in the
         # xctest process as `CI=true`, which `PerformanceTests`'s
@@ -48,8 +48,8 @@ jobs:
         # to pick the looser CPU thresholds calibrated for runner
         # noise instead of the tighter local thresholds.  Confirmed by
         # a prior failure measuring 8.18% avg under the 8.0% local
-        # threshold despite the runner setting `CI=true` in the shell
-        # — the test target wasn't seeing the env var
+        # threshold despite the runner setting `CI=true` in the shell;
+        # the test target wasn't seeing the env var
         env:
           CI: "true"
         run: >
@@ -87,9 +87,9 @@ jobs:
 
   # 8,400 lines of Rust currently have no compile gate anywhere in CI: the
   # release and dev-build workflows only ever run `cargo build --release`, and
-  # there is no `cargo test` / `check` / `clippy` job. `exhale-core` is the
+  # there's no `cargo test` / `check` / `clippy` job. `exhale-core` is the
   # cheap half to cover, since it has no wgpu, winit or GTK dependency and so
-  # needs no system packages. It is also where a generated presets table would
+  # needs no system packages. It's also where a generated presets table would
   # land if the research-panel work proceeds, and a checked-in generated .rs
   # that nothing compiles is a silent time bomb
   core-check:

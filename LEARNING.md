@@ -4,9 +4,9 @@ This is a beginner's guide to the Rust port of exhale. It assumes **zero Rust kn
 
 If you've never read Rust before, the syntax looks intimidating. Mostly it's not. Rust is just a language that's a little more honest than most about who owns which piece of memory and what's allowed to share it. Once you internalize that one rule, 80% of what looks weird stops looking weird.
 
-## What is Rust?
+## What Rust is
 
-A compiled language (like C++, Go, or Swift, not like Python or JavaScript). Source code goes through a compiler and produces a native binary that runs directly on the CPU. Rust's pitch is: "all the speed of C++, without the crashes from forgetting how memory works."
+A compiled language (like C++, Go, or Swift, rather than an interpreted one like Python or JavaScript). Source code goes through a compiler and produces a native binary that runs directly on the CPU. Rust's pitch is: "all the speed of C++, without the crashes from forgetting how memory works."
 
 The way Rust achieves that is a strict set of rules about who is allowed to read or modify a piece of data, enforced by the compiler. You'll bump into those rules constantly while learning. Don't fight them. The compiler errors are weirdly helpful (we'll get to those).
 
@@ -27,7 +27,7 @@ A **crate** is Rust's word for a package. Think of it like one `.jar` in Java or
 The three crates have a layered relationship:
 
 ```
-exhale-app  ─uses→  exhale-render  ─uses→  exhale-core
+exhale-app  ─uses-> exhale-render  ─uses-> exhale-core
 ```
 
 `exhale-core` knows nothing about windows or pixels. `exhale-render` knows how to draw, but nothing about windows. `exhale-app` glues them to a real OS window and tray icon. Each layer is independently testable.
@@ -45,7 +45,7 @@ cargo doc --no-deps --workspace --open
 - `--workspace` includes all three of our crates
 - `--open` pops the result in your browser
 
-You'll land on a page showing the three crates. Click `exhale_core` first — it has the least going on, and the breathing-animation math is genuinely interesting.
+You'll land on a page showing the three crates. Click `exhale_core` first; it has the least going on, and the breathing-animation math is interesting.
 
 The docs are most useful for the **type-level view**. For each struct (data shape) you'll see its fields and methods. Clicking a method jumps to its source code on the right side. Treat it like an interactive table of contents for the codebase.
 
@@ -59,7 +59,7 @@ let mut y = 5;          // can change y
 y = 10;                 // fine
 ```
 
-By default everything is **immutable**. If you want to be able to change a variable, you say `let mut` explicitly. This is the opposite of most languages and is annoying for the first day. It's a feature, not a bug — it means you can scan a file and instantly see which variables get mutated.
+By default everything is **immutable**. If you want to be able to change a variable, you say `let mut` explicitly. This is the opposite of most languages and is annoying for the first day. It's a feature: it means you can scan a file and instantly see which variables get mutated.
 
 You'll see types annotated sometimes, often not:
 
@@ -107,12 +107,12 @@ println!("{} is {} chars", s, length);   // s is still ours
 ```
 
 Two flavors of borrows:
-- `&T` — shared borrow. Many readers allowed, no writers.
-- `&mut T` — exclusive borrow. One writer allowed, no other readers or writers.
+- `&T`: shared borrow. Many readers allowed, no writers.
+- `&mut T`: exclusive borrow. One writer allowed, no other readers or writers.
 
 That rule (one OR the other, never both) is what prevents data races at compile time. You'll see it everywhere. When the compiler refuses to compile something, it's usually because you tried to break this rule.
 
-Look at `crates/exhale-core/src/controller.rs` and you'll see `&mut Settings` pop up — that's a function signature saying "give me exclusive write access to a Settings, just for this call."
+Look at `crates/exhale-core/src/controller.rs` and you'll see `&mut Settings` pop up: that's a function signature saying "give me exclusive write access to a Settings, just for this call."
 
 ### 4. `Option<T>` instead of `null`
 
@@ -185,9 +185,9 @@ let mut writable = settings.write().unwrap();     // exclusive write
 writable.is_paused = true;
 ```
 
-The `.unwrap()` is "this returns a Result, give me the inner value or panic" — used here because we trust the lock won't be poisoned (a thread holding the lock didn't crash mid-write).
+The `.unwrap()` is "this returns a Result, give me the inner value or panic": used here because we trust the lock won't be poisoned (a thread holding the lock didn't crash mid-write).
 
-This pattern is everywhere in `crates/exhale-app/src/main.rs` — the settings, controller state, and tray menu all use it because the GUI thread and the controller thread both need access.
+This pattern is everywhere in `crates/exhale-app/src/main.rs`: the settings, controller state, and tray menu all use it because the GUI thread and the controller thread both need access.
 
 ### 7. `match`: pattern matching that's worth knowing
 
@@ -200,7 +200,7 @@ match phase {
 }
 ```
 
-`match` is like a `switch` but the compiler checks that you handled every possible case. If `BreathingPhase` gains a fifth variant tomorrow, every `match` on it stops compiling until you add the new arm. That's a feature.
+`match` is like a `switch` but the compiler checks that you handled every possible case. If `BreathingPhase` gains a fifth variant tomorrow, every `match` on it stops compiling until you add the new arm, which is a feature.
 
 You can also destructure structs and tuples:
 
@@ -227,7 +227,7 @@ impl Drawable for Rectangle {
 }
 ```
 
-In exhale you'll see traits used heavily by external libraries. For example `winit::application::ApplicationHandler` is a trait — `crates/exhale-app/src/main.rs` implements it for the `App` struct, which tells winit "here's how to forward window events to me."
+In exhale you'll see traits used heavily by external libraries. For example `winit::application::ApplicationHandler` is a trait; `crates/exhale-app/src/main.rs` implements it for the `App` struct, which tells winit "here's how to forward window events to me."
 
 Some traits are special. `Send` means "safe to move between threads." `Sync` means "safe to share between threads." You'll see them as bounds: `T: Send + Sync` means "T must be both."
 
@@ -251,7 +251,7 @@ fn print_all<T: std::fmt::Display>(items: &[T]) {
 }
 ```
 
-That `T: std::fmt::Display` means "T must implement the Display trait" — only types that know how to print themselves are accepted. wgpu types use bounds heavily (`T: bytemuck::Pod` etc.).
+That `T: std::fmt::Display` means "T must implement the Display trait": only types that know how to print themselves are accepted. wgpu types use bounds heavily (`T: bytemuck::Pod` etc.).
 
 ### 10. `unsafe` blocks
 
@@ -263,7 +263,7 @@ unsafe {
 
 `unsafe` is a promise from you (the programmer) to the compiler: "I know this could break the borrow checker's rules, and I've thought about it." Inside `unsafe { }`, you can dereference raw pointers and call C functions.
 
-We use it only where we have to: talking to Apple's Objective-C APIs (`crates/exhale-app/src/platform/mac.rs`), calling Win32 APIs, or loading X11 functions on Linux. About 1% of the codebase. Everything else is "safe Rust" — the compiler proves it can't crash on memory safety issues.
+We use it only where we have to: talking to Apple's Objective-C APIs (`crates/exhale-app/src/platform/mac.rs`), calling Win32 APIs, or loading X11 functions on Linux. About 1% of the codebase. Everything else is "safe Rust": the compiler proves it can't crash on memory safety issues.
 
 ### Bonus: `#[cfg(...)]` for conditional compilation
 
@@ -275,7 +275,7 @@ fn dock_only_visibility() { /* macOS implementation */ }
 fn dock_only_visibility() { /* Windows implementation */ }
 ```
 
-`#[cfg(...)]` lines compile their item only when the condition matches. This is how we ship one source tree that produces three different platform binaries. You'll see `#[cfg(feature = "global-hotkeys")]` too — that gates code on a Cargo feature flag (the Mac App Store build disables it because Apple's sandbox blocks global hotkeys).
+`#[cfg(...)]` lines compile their item only when the condition matches. This is how we ship one source tree that produces three different platform binaries. You'll see `#[cfg(feature = "global-hotkeys")]` too: that gates code on a Cargo feature flag (the Mac App Store build disables it because Apple's sandbox blocks global hotkeys).
 
 ### Bonus: modules and `use`
 
@@ -294,12 +294,12 @@ use crate::overlay::OverlayManager;      // `crate::` means "starting from this 
 
 Pick one user action and trace what happens. Best one for this repo: clicking the "Start Animation" button.
 
-1. `crates/exhale-app/src/settings_window.rs` — the button is drawn here, and clicking it sends an `AppEvent::StartAnimation` via `proxy.send_event(...)`. Search for `StartAnimation` to find the click handler.
-2. `crates/exhale-app/src/main.rs` — `App::user_event(...)` matches `AppEvent::StartAnimation` and calls `self.do_start()`. Search for `fn do_start`.
+1. `crates/exhale-app/src/settings_window.rs`: the button is drawn here, and clicking it sends an `AppEvent::StartAnimation` via `proxy.send_event(...)`. Search for `StartAnimation` to find the click handler.
+2. `crates/exhale-app/src/main.rs`: `App::user_event(...)` matches `AppEvent::StartAnimation` and calls `self.do_start()`. Search for `fn do_start`.
 3. `do_start` flips `settings.is_animating = true` and calls `controller.restart()`.
-4. `crates/exhale-core/src/controller.rs` — `restart()` flips a flag and unparks the controller thread. That thread is running `tick()` in a loop. Search for `fn tick`.
+4. `crates/exhale-core/src/controller.rs`: `restart()` flips a flag and unparks the controller thread. That thread is running `tick()` in a loop. Search for `fn tick`.
 5. `tick()` computes the current frame's `BreathingState` and tells the renderer to draw it.
-6. `crates/exhale-render/src/renderer.rs` — the renderer's `render()` method uploads uniforms to the GPU and submits a draw call. That's what you see on screen.
+6. `crates/exhale-render/src/renderer.rs`: the renderer's `render()` method uploads uniforms to the GPU and submits a draw call, which is what you see on screen.
 
 Open all four files side by side and walk through it. That's enough to understand the architecture without reading 50 other things first.
 
@@ -329,7 +329,7 @@ Three parts:
 
 Read every error from top to bottom and look for the `help:` block. About 80% of the time, the suggested fix is correct. The remaining 20% the suggestion is a hint that you've designed something wrong at a higher level.
 
-`rustc --explain E0382` will give you the full essay version of any error code. Try it on a few — it's a free crash course in why Rust's rules exist.
+`rustc --explain E0382` will give you the full essay version of any error code. Try it on a few; it's a free crash course in why Rust's rules exist.
 
 ## What to skip on first read
 
@@ -362,4 +362,4 @@ If you see any of those in the wild, just trust they do what they look like they
 
 Open `crates/exhale-core/src/controller.rs` in your editor. Skim from the top. When you hit something that looks weird, check this guide. When you don't see it in this guide, run `cargo doc --no-deps --workspace --open` and look up the type.
 
-After 30 minutes you'll have read most of the controller. After an hour you'll have a real intuition for what the whole repo is doing. That's faster than reading any Rust book front-to-back.
+After 30 minutes you'll have read most of the controller. After an hour you'll have a real intuition for what the whole repo is doing, faster than reading any Rust book front-to-back.
