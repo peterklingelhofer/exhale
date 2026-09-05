@@ -1,56 +1,56 @@
 use serde::{Deserialize, Serialize};
 
-/// Breathing animation shape shown on the overlay.
+/// Breathing animation shape shown on the overlay
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AnimationShape {
-    /// Solid fill covering the entire screen.
+    /// Solid fill covering the entire screen
     Fullscreen,
-    /// Rectangle that scales up from the bottom of the screen.
+    /// Rectangle that scales up from the bottom of the screen
     Rectangle,
-    /// Circle that scales from the center outward.
+    /// Circle that scales from the center outward
     Circle,
 }
 
-/// Color fill / gradient style applied to the animated shape.
+/// Color fill / gradient style applied to the animated shape
 ///
 /// Shader encoding: Off=0, Inner=1, On=2
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ColorFillGradient {
-    /// Solid color, no gradient.
+    /// Solid color, no gradient
     Off,
-    /// Gradient from background at the base to shape color at the top/edge.
+    /// Gradient from background at the base to shape color at the top/edge
     Inner,
-    /// Gradient that peaks at the midpoint and fades back to background (full cycle).
+    /// Gradient that peaks at the midpoint and fades back to background (full cycle)
     On,
 }
 
-/// Style of the perimeter glow shown during hold phases.
+/// Style of the perimeter glow shown during hold phases
 ///
 /// Shader encoding: Off=0, Stark=1, Gradient=2
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HoldRippleMode {
-    /// No ripple effect during holds.
+    /// No ripple effect during holds
     Off,
-    /// Hard-edged band sweeping the screen perimeter.
+    /// Hard-edged band sweeping the screen perimeter
     Stark,
-    /// Soft Gaussian glow sweeping the screen perimeter.
+    /// Soft Gaussian glow sweeping the screen perimeter
     Gradient,
 }
 
-/// Easing curve applied to each inhale/exhale transition.
+/// Easing curve applied to each inhale/exhale transition
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AnimationMode {
-    /// No easing — progress advances at a constant rate.
+    /// No easing: progress advances at a constant rate
     Linear,
-    /// CSS cubic-bezier(0.42, 0, 0.58, 1) — ease-in-out.
+    /// CSS cubic-bezier(0.42, 0, 0.58, 1): ease-in-out
     Sinusoidal,
 }
 
-/// Controls how the app appears in the macOS UI chrome.
+/// Controls how the app appears in the macOS UI chrome
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AppVisibility {
@@ -60,7 +60,7 @@ pub enum AppVisibility {
 }
 
 
-/// The four phases of a single breath cycle.
+/// The four phases of a single breath cycle
 ///
 /// Shader phase encoding: Inhale=0, HoldAfterInhale=1, Exhale=2, HoldAfterExhale=3
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,7 +72,7 @@ pub enum BreathingPhase {
 }
 
 impl BreathingPhase {
-    /// Integer encoding sent to the fragment shader.
+    /// Integer encoding sent to the fragment shader
     pub fn shader_value(self) -> u32 {
         match self {
             Self::Inhale         => 0,
@@ -82,7 +82,7 @@ impl BreathingPhase {
         }
     }
 
-    /// Returns true for the two hold phases.
+    /// Returns true for the two hold phases
     pub fn is_hold(self) -> bool {
         matches!(self, Self::HoldAfterInhale | Self::HoldAfterExhale)
     }
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn serde_round_trip() {
-        // TOML requires a table at the top level, so wrap in a struct.
+        // TOML requires a table at the top level, so wrap in a struct
         #[derive(serde::Serialize, serde::Deserialize)]
         struct W { shape: AnimationShape, ripple: HoldRippleMode }
         let w = W { shape: AnimationShape::Circle, ripple: HoldRippleMode::Gradient };

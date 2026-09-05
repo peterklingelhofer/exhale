@@ -430,7 +430,7 @@ class MetalBreathingControllerTests: XCTestCase {
         let controller = MetalBreathingController(settingsModel: model)
         controller.startIfNeeded()
 
-        // Should be running (not stopped) — verify by getting state
+        // Should be running; verify by getting state
         let state = controller.getCurrentState()
         XCTAssertNotNil(state)
 
@@ -444,7 +444,7 @@ class MetalBreathingControllerTests: XCTestCase {
         let controller = MetalBreathingController(settingsModel: model)
         controller.startIfNeeded()
 
-        // Controller should be stopped — no crash getting state though
+        // Controller should be stopped, and getting state shouldn't crash
         // (getCurrentState accesses internal queue synchronously)
         let state = controller.getCurrentState()
         XCTAssertNotNil(state)
@@ -557,7 +557,7 @@ class GradientBackgroundOpacityTests: XCTestCase {
         let model = SettingsModel()
         model.backgroundColor = Color.clear
 
-        // cachedBackgroundColorWithoutAlpha strips alpha → alpha=1
+        // cachedBackgroundColorWithoutAlpha strips alpha -> alpha=1
         // This is the value that was incorrectly used in the gradient, causing the dark outline
         XCTAssertEqual(model.cachedBackgroundColorWithoutAlpha.alphaComponent(), 1.0, accuracy: 0.001)
 
@@ -584,17 +584,17 @@ class GradientBackgroundOpacityTests: XCTestCase {
         let model = SettingsModel()
         model.overlayOpacity = 0.25
 
-        // Case 1: transparent background → backgroundOpacity should be 0
+        // Case 1: transparent background -> backgroundOpacity should be 0
         model.backgroundColor = Color.clear
         let bgOpacity1 = min(model.cachedBackgroundAlphaComponent, model.overlayOpacity)
         XCTAssertEqual(bgOpacity1, 0.0, accuracy: 0.001)
 
-        // Case 2: opaque background → backgroundOpacity capped at overlayOpacity
+        // Case 2: opaque background -> backgroundOpacity capped at overlayOpacity
         model.backgroundColor = Color.red
         let bgOpacity2 = min(model.cachedBackgroundAlphaComponent, model.overlayOpacity)
         XCTAssertEqual(bgOpacity2, 0.25, accuracy: 0.001)
 
-        // Case 3: semi-transparent background below overlay → uses bg alpha
+        // Case 3: semi-transparent background below overlay -> uses bg alpha
         model.backgroundColor = Color(red: 1, green: 0, blue: 0, opacity: 0.1)
         let bgOpacity3 = min(model.cachedBackgroundAlphaComponent, model.overlayOpacity)
         XCTAssertEqual(bgOpacity3, 0.1, accuracy: 0.01)
@@ -631,7 +631,7 @@ class SameColorFullscreenTests: XCTestCase {
         model.inhaleColor = color
         model.exhaleColor = color
 
-        // Colors match, but shape is not fullscreen — the optimization only applies to fullscreen
+        // Colors match but the shape isn't fullscreen, so the optimization doesn't apply
         XCTAssertTrue(model.inhaleAndExhaleColorsMatch)
         XCTAssertNotEqual(model.shape, .fullscreen)
     }
@@ -651,7 +651,7 @@ class OverlayUniformsLayoutTests: XCTestCase {
         //   float4 (16) + float4 (16) + float4 (16) = 48
         //   Total = 112
         XCTAssertEqual(MemoryLayout<OverlayUniforms>.stride, 112,
-                        "OverlayUniforms stride changed — update both Swift and Metal struct definitions")
+                        "OverlayUniforms stride changed; update both Swift and Metal struct definitions")
     }
 
     func testStructAlignment() {
@@ -769,7 +769,7 @@ class EasingTableTests: XCTestCase {
     }
 
     func testEasingTableSize() {
-        // Controller uses 1024 samples — verify table generation doesn't crash or truncate
+        // Controller uses 1024 samples; verify table generation doesn't crash or truncate
         let table = (0..<1024).map { i -> Float in
             let t = Double(i) / 1023.0
             return Float(CubicBezierEaseInOut.getValue(t: t, x1: 0.42, y1: 0.0, x2: 0.58, y2: 1.0))
@@ -1515,7 +1515,7 @@ class PerformanceTests: XCTestCase {
         window.contentView = hostingView
         window.orderFront(nil)
 
-        // Warm up — let SwiftUI set up its render pipeline
+        // Warm up: let SwiftUI set up its render pipeline
         RunLoop.main.run(until: Date().addingTimeInterval(0.5))
 
         let sampleCount = 5
@@ -1578,7 +1578,7 @@ class PerformanceTests: XCTestCase {
         //
         // Detect CI via multiple env vars.  Plain `xcodebuild test`
         // does NOT propagate the shell's `CI=true` to the spawned
-        // xctest process — the workflow forwards it via Xcode's
+        // xctest process; the workflow forwards it via Xcode's
         // documented `TEST_RUNNER_<NAME>` build-setting pass-through
         // (see `.github/workflows/test.yml`).  Reading both the
         // forwarded names and the runner-set ones gives multiple
@@ -1592,7 +1592,7 @@ class PerformanceTests: XCTestCase {
         let hasRipple = holdRipple != .off
         // CI thresholds: 15% peak / 10% avg for ripple, 12% / 8% no-ripple.
         // Local thresholds widened from previous (10/8 ripple, 8/6 no-ripple)
-        // to (12/10 ripple, 10/8 no-ripple) — leaves headroom for
+        // to (12/10 ripple, 10/8 no-ripple), which leaves headroom for
         // thermal throttling and other-app interference on dev
         // machines without losing regression sensitivity.  Real
         // regressions land >2x over these numbers anyway.
@@ -1607,11 +1607,11 @@ class PerformanceTests: XCTestCase {
         // Circle gradient is inherently noisier than rectangle because its RadialGradient
         // endRadius changes every frame, making it more sensitive to system load variance.
         XCTAssertLessThan(peakDelta, peakThreshold,
-            "\(label) peak animation CPU \(String(format: "%.1f", peakDelta))% exceeded \(String(format: "%.0f", peakThreshold))% — delta: [\(deltaStr)]",
+            "\(label) peak animation CPU \(String(format: "%.1f", peakDelta))% exceeded \(String(format: "%.0f", peakThreshold))%; delta: [\(deltaStr)]",
             file: file, line: line
         )
         XCTAssertLessThan(avgDelta, avgThreshold,
-            "\(label) average animation CPU \(String(format: "%.1f", avgDelta))% exceeded \(String(format: "%.0f", avgThreshold))% — delta: [\(deltaStr)]",
+            "\(label) average animation CPU \(String(format: "%.1f", avgDelta))% exceeded \(String(format: "%.0f", avgThreshold))%; delta: [\(deltaStr)]",
             file: file, line: line
         )
     }

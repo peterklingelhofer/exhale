@@ -1,36 +1,36 @@
-//! The sentences the settings window is allowed to say about pacing.
+//! The sentences the settings window is allowed to say about pacing
 //!
 //! This module exists so that every user-visible statement about the
 //! research is derived, testable, and covered by CI. It lives in
 //! `exhale-core` rather than next to the widget that paints it for one
-//! blunt reason: CI runs `cargo test -p exhale-core` and does not
+//! blunt reason: CI runs `cargo test -p exhale-core` and doesn't
 //! compile `exhale-app`, which needs wgpu, winit and GTK. Copy that
 //! makes a coverage statement should not be the only text in the
-//! project with no test behind it.
+//! project with no test behind it
 //!
 //! **What the binary is permitted to assert.** Numbers it computed
 //! itself, one range, and nothing else. No effect, no benefit, no
 //! condition, no outcome measure. The corpus contains far stronger
 //! warrants than anything here, and they stay out of the binary on
 //! purpose: a store-reviewed app carries a retraction latency measured
-//! in weeks, so a claim compiled into it cannot be withdrawn at the
+//! in weeks, so a claim compiled into it can't be withdrawn at the
 //! speed the evidence can change. Arithmetic has no such problem,
-//! because arithmetic cannot be retracted. See `docs/CITATIONS.md`.
+//! because arithmetic can't be retracted. See `docs/CITATIONS.md`
 
 use crate::settings::Settings;
 
-/// Slowest rate with direct experimental support, in breaths per minute.
+/// Slowest rate with direct experimental support, in breaths per minute
 ///
 /// From `you2023-respiratory-frequency`, which tested 5, 5.5, 6, 6.5
-/// and 7 cycles per minute. The endpoints are the endpoints of what was
-/// actually run, not a recommendation and not a safe range: outside it
-/// means untested here, which is different from tested and found
-/// wanting. Gaps ledger item 2
+/// and 7 cycles per minute. The endpoints are the edges of what was
+/// actually run: a fact about the experiment, separate from a
+/// recommendation or a safe range. Outside it means untested here,
+/// which is different from tested and found wanting. Gaps ledger item 2
 pub const TESTED_MIN_BPM: f64 = 5.0;
 /// Fastest rate with direct experimental support. See [`TESTED_MIN_BPM`]
 pub const TESTED_MAX_BPM: f64 = 7.0;
 
-/// Where a rate sits relative to the directly tested range.
+/// Where a rate sits relative to the directly tested range
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Coverage {
     Slower,
@@ -39,7 +39,7 @@ pub enum Coverage {
 }
 
 impl Coverage {
-    /// Classify a rate that has ALREADY been rounded for display.
+    /// Classify a rate that has ALREADY been rounded for display
     ///
     /// Rounding first is deliberate. Classifying the raw value lets the
     /// panel print "5.0 breaths a minute" directly above "slower than
@@ -94,23 +94,24 @@ fn grouped(n: u64) -> String {
 }
 
 /// Breaths of continuous running before one cycle takes twice as long
-/// as it does now, or `None` when drift is off or shortening.
+/// as it does now, or `None` when drift is off or shortening
 ///
-/// **Counted in breaths, not minutes, and that is the whole point.**
-/// Cycle `k` lasts `c · dᵏ`, so `dᵏ = 2` at `k = ln2 / ln d`: the
-/// starting cycle length cancels out entirely. One per cent doubles the
-/// breath in 70 breaths whether the user started at 10 s or at 15 s.
+/// **Counted in breaths, because that unit stays constant across
+/// cycle lengths.** Cycle `k` lasts `c · dᵏ`, so `dᵏ = 2` at
+/// `k = ln2 / ln d`: the starting cycle length cancels out
+/// entirely. One per cent doubles the breath in 70 breaths
+/// whether the user started at 10 s or at 15 s
 ///
 /// Quoting a doubling *time* instead made the panel look broken. The
 /// same 1 % setting reads as 17 minutes from a 10 s cycle and 25
 /// minutes from a 15 s one, which invites the reader to conclude the
 /// arithmetic is unreliable when in fact both are correct and the
 /// question was ambiguous. A count of breaths is a property of the
-/// drift value alone, so it is stable, and it is also the thing the
-/// user is about to sit through.
+/// drift value alone, so it's stable, and it's also the thing the
+/// user is about to sit through
 ///
-/// It is a true repeat rate, not just a first milestone: the same `k`
-/// takes the cycle from `2c` to `4c`
+/// It's a repeat rate: the same `k` also takes the cycle from `2c`
+/// to `4c`
 pub fn breaths_to_double(settings: &Settings) -> Option<f64> {
     if settings.cycle_secs() <= 0.0 || settings.drift <= 1.0 {
         return None;
@@ -123,9 +124,9 @@ pub fn breaths_to_double(settings: &Settings) -> Option<f64> {
 /// somebody might actually sit through
 const PROJECTION_MINUTES: f64 = 60.0;
 
-/// Build the readout, one string per line, in display order.
+/// Build the readout, one string per line, in display order
 ///
-/// Returns empty when no phase has a duration, which is not a rate of
+/// Returns empty when no phase has a duration, which isn't a rate of
 /// anything and not a state worth narrating
 pub fn readout_lines(settings: &Settings) -> Vec<String> {
     let Some(bpm) = settings.breaths_per_min() else {
@@ -144,7 +145,7 @@ pub fn readout_lines(settings: &Settings) -> Vec<String> {
         .map(round_bpm);
 
     if projected.is_some() {
-        // Seconds, not breaths per minute. "About 1.3 a minute after an
+        // Seconds, rather than breaths per minute. "About 1.3 a minute after an
         // hour" is arithmetically correct and unreadable: nobody holds a
         // mental picture of 1.3 breaths a minute, whereas everybody can
         // picture a breath that has gone from 10 seconds to 46. Seconds
@@ -163,13 +164,13 @@ pub fn readout_lines(settings: &Settings) -> Vec<String> {
 
         let now  = settings.cycle_secs();
         let then = 60.0 / settings.breaths_per_min_after(PROJECTION_MINUTES).unwrap_or(f64::MAX);
-        // Suppress the second clause when an hour does not move the
+        // Suppress the second clause when an hour doesn't move the
         // number a person could read off the screen. At 0.001 % a 15 s
-        // cycle reaches 15.04 s, and "after an hour it is 15 s, not
-        // 15 s" reads as a bug rather than as a very gentle setting
+        // cycle reaches 15.04 s, and "after an hour the cycle is 15 s,
+        // up from 15 s" reads as a bug rather than as a gentle setting
         if (then - now).abs() >= 0.5 {
             drift_line.push_str(&format!(
-                " After an hour it is {}, not {}.",
+                " After an hour the cycle is {}, up from {}.",
                 format_secs(then),
                 format_secs(now),
             ));
@@ -182,11 +183,11 @@ pub fn readout_lines(settings: &Settings) -> Vec<String> {
 }
 
 /// The one range the binary is allowed to name, and where the current
-/// setting falls against it.
+/// setting falls against it
 ///
 /// Phrased about the literature throughout. It reports what was
-/// measured and whether this number was among it; it does not tell the
-/// user their breathing is wrong, because the corpus does not support
+/// measured and whether this number was among it; it doesn't tell the
+/// user their breathing is wrong, because the corpus doesn't support
 /// that and the app is in no position to say so
 fn coverage_line(now: f64, projected: Option<f64>) -> String {
     let base = format!(
@@ -210,9 +211,9 @@ fn coverage_line(now: f64, projected: Option<f64>) -> String {
     }
 }
 
-/// Whole seconds when the cycle is whole, one decimal when it is not.
-/// Timing steppers move in whole seconds, so "15 s" is the normal case
-/// and "15.5 s" only shows up for a typed value
+/// Whole seconds when the cycle is whole, one decimal when it isn't. Timing
+/// steppers move in whole seconds, so "15 s" is the normal case and "15.5 s"
+/// only shows up for a typed value
 fn format_secs(secs: f64) -> String {
     if (secs - secs.round()).abs() < 1e-9 {
         format!("{secs:.0} s")
@@ -229,7 +230,7 @@ mod tests {
     #[test]
     fn the_shipped_default_reports_itself_as_inside_the_tested_band() {
         // exhale defaults to 5 / 0 / 5 / 0, six a minute, and the panel
-        // says so on first open without being asked. The readout is not
+        // says so on first open without being asked. The readout isn't
         // here to flatter the default: `box_breathing_is_reported_as_
         // slower_than_it_looks` is the same code volunteering bad news
         let lines = readout_lines(&Settings::default());
@@ -273,7 +274,7 @@ mod tests {
         assert_eq!(lines.len(), 3, "{lines:#?}");
         assert_eq!(
             lines[1],
-            "Drift: the cycle doubles every 70 breaths. After an hour it is 46 s, not 10 s."
+            "Drift: the cycle doubles every 70 breaths. After an hour the cycle is 46 s, up from 10 s."
         );
         assert!(
             lines[2].ends_with("This one starts inside it and is slower than all of them within an hour."),
@@ -309,10 +310,10 @@ mod tests {
 
     #[test]
     fn the_doubling_count_does_not_depend_on_the_starting_cycle() {
-        // The bug this replaced. Quoted as a doubling *time*, one per
-        // cent read as 17 minutes from a 10 s cycle and 25 minutes from
-        // a 15 s one, and the panel looked like it could not do
-        // arithmetic. Both were right; the unit was wrong
+        // Guards against the bug where quoting a doubling *time* read as
+        // 17 minutes from a 10 s cycle and 25 minutes from a 15 s one,
+        // and the panel looked like it could not do arithmetic. Both
+        // were right; the unit was wrong
         let mut ten = Settings::default();
         ten.drift = 1.01;
         assert_eq!(ten.cycle_secs(), 10.0);
@@ -353,7 +354,7 @@ mod tests {
     #[test]
     fn a_drift_too_slow_to_see_within_an_hour_says_only_what_it_can() {
         // 0.001 % moves a 15 s cycle to 15.04 s in an hour. "After an
-        // hour it is 15 s, not 15 s" would read as a bug
+        // hour the cycle is 15 s, up from 15 s" would read as a bug
         let mut s = Settings::default();
         s.drift = 1.00001;
         let lines = readout_lines(&s);
@@ -386,12 +387,12 @@ mod tests {
 
     #[test]
     fn no_line_names_an_effect_a_benefit_or_a_condition() {
-        // A denylist, not a style rule. `scripts/generate-citations.py`
+        // A denylist, enforced rather than suggested. `scripts/generate-citations.py`
         // keeps retracted phrasing out of the store listings; this
         // keeps outcome vocabulary out of the binary, which is the
         // constraint that rules out quoting `custom.backsClaims`
-        // verbatim however well-sourced those strings are.
-        // `docs/CITATIONS.md` may say all of this; the app may not
+        // verbatim however well-sourced those strings are. `docs/CITATIONS.md`
+        // may say all of this; the app may not
         const BANNED: &[&str] = &[
             "anxiety", "depress", "stress", "calm", "relax", "vagal", "parasympathetic",
             "blood pressure", "heart rate variability", "hrv", "mood", "sleep",

@@ -15,14 +15,14 @@ use crate::{
 
 // ─── Public state snapshot ────────────────────────────────────────────────────
 
-/// Snapshot of the breathing animation at a point in time.
-/// Read by the renderer every time it draws a frame.
+/// Snapshot of the breathing animation at a point in time. Read by
+/// the renderer every time it draws a frame
 #[derive(Clone, Copy, Debug)]
 pub struct BreathingState {
     pub phase:     BreathingPhase,
-    /// 0.0 = fully collapsed, 1.0 = fully expanded.
+    /// 0.0 = fully collapsed, 1.0 = fully expanded
     pub progress:  f32,
-    /// 0.0–1.0 elapsed fraction within the current hold phase (for ripple).
+    /// 0.0–1.0 elapsed fraction within the current hold phase (for ripple)
     pub hold_time: f32,
 }
 
@@ -33,7 +33,7 @@ pub struct BreathingState {
 // cadence anymore: bench measurements showed the slow-cadence path
 // fired for <10 % of clock time and saved well under 0.1 % CPU, which
 // is below the noise floor of any user-facing measurement and not
-// worth the extra hysteresis state.
+// worth the extra hysteresis state
 const INTERVAL_FAST: Duration = Duration::from_nanos(41_666_667);  // 1/24 s
 
 const MIN_PROGRESS_DELTA: f32 = 0.003;
@@ -46,7 +46,7 @@ struct Inner {
     phase_duration: Duration,
 
     cycle_count:    u64,
-    /// Running drift multiplier: starts at 1.0, multiplied by `drift` each cycle.
+    /// Running drift multiplier: starts at 1.0, multiplied by `drift` each cycle
     current_drift:  f64,
 
     did_render_hold:    bool,
@@ -57,28 +57,28 @@ struct Inner {
 
 // ─── Controller ──────────────────────────────────────────────────────────────
 
-/// Drives the breathing animation timing on a dedicated background thread.
+/// Drives the breathing animation timing on a dedicated background thread
 ///
-/// Direct port of `MetalBreathingController.swift`.  The thread sleeps between
-/// ticks — it never spins — so CPU overhead between frames is near zero.
+/// Direct port of `MetalBreathingController.swift`.  The thread sleeps
+/// between ticks, never spins, so CPU overhead between frames is near zero
 pub struct BreathingController {
     state:        Arc<Mutex<Option<BreathingState>>>,
     thread:       Option<JoinHandle<()>>,
     stop_flag:    Arc<std::sync::atomic::AtomicBool>,
-    /// Set to restart the animation from inhale phase 0 on the next tick.
+    /// Set to restart the animation from inhale phase 0 on the next tick
     reset_flag:   Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl BreathingController {
-    /// Create and immediately start the controller.
+    /// Create and immediately start the controller
     ///
     /// `state` is the shared snapshot slot the controller writes to each
-    /// tick — pre-constructed so per-overlay render threads can hold the
+    /// tick, pre-constructed so per-overlay render threads can hold the
     /// same `Arc` and read directly without round-tripping through the
     /// main event loop.  `request_draw` is called from the background
     /// thread whenever a new frame should be rendered; wire it to the
     /// overlays' render-thread channels so frame signals bypass the
-    /// main thread's message pump entirely.
+    /// main thread's message pump entirely
     pub fn start(
         settings:     Arc<RwLock<Settings>>,
         state:        Arc<Mutex<Option<BreathingState>>>,
@@ -98,43 +98,43 @@ impl BreathingController {
                 run_controller(settings_clone, state_clone, request_draw, stop_clone, reset_clone);
             })
             .expect(
-                "exhale-controller: thread::spawn failed (system thread limit / OOM) — \
-                 cannot continue without the breathing controller; restart the process \
+                "exhale-controller: thread::spawn failed (system thread limit / OOM): \
+                 can't continue without the breathing controller; restart the process \
                  once memory is available",
             );
 
         Self { state, thread: Some(handle), stop_flag, reset_flag }
     }
 
-    /// Get a snapshot of the current breathing state for rendering.
-    /// Returns `None` only before the first tick.
+    /// Get a snapshot of the current breathing state for rendering. Returns
+    /// `None` only before the first tick
     pub fn get_state(&self) -> Option<BreathingState> {
         *self.state.lock_or_recover()
     }
 
     /// Shared handle to the controller's state slot.  Cheap to clone;
     /// the per-overlay render thread reads from this directly each
-    /// frame instead of round-tripping through the main event loop.
-    /// The controller writes to this BEFORE invoking `request_draw`,
+    /// frame instead of round-tripping through the main event loop. The
+    /// controller writes to this BEFORE invoking `request_draw`,
     /// so any thread woken by `request_draw` is guaranteed to observe
     /// the latest state via the Mutex barrier
     pub fn state_handle(&self) -> Arc<Mutex<Option<BreathingState>>> {
         Arc::clone(&self.state)
     }
 
-    /// Restart the animation from inhale phase 0 on the next tick.
-    /// Matches Swift `MetalBreathingController.start()` which always resets
-    /// `cycleCount = 0` and `currentPhase = .inhale`.
+    /// Restart the animation from inhale phase 0 on the next tick. Matches
+    /// Swift `MetalBreathingController.start()` which always resets
+    /// `cycleCount = 0` and `currentPhase = .inhale`
     ///
     /// `unpark` wakes the controller out of its current
     /// `park_timeout` sleep so the reset takes effect immediately,
     /// not on the controller's next natural wakeup.  This matters
-    /// most when `restart()` is called from the Stop → Start
+    /// most when `restart()` is called from the Stop -> Start
     /// sequence: while `is_animating == false`, the tick function
     /// returns a 10 s sleep interval (no work to do), and without
     /// the unpark the user would see the animation start mid-cycle
     /// in whatever state the renderer had cached and stay frozen
-    /// there for up to 10 s — a bug that read as "Start is
+    /// there for up to 10 s, a bug that read as "Start is
     /// broken / animation is paused"
     pub fn restart(&self) {
         self.reset_flag.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -144,7 +144,7 @@ impl BreathingController {
     }
 
     /// Signal the controller to stop and join the thread.  Same
-    /// `unpark` rationale as [`Self::restart`] — without it,
+    /// `unpark` rationale as [`Self::restart`]; without it,
     /// shutdown could wait up to 10 s for the controller's
     /// not-animating sleep to elapse before the join returns
     pub fn stop(&mut self) {
@@ -179,13 +179,13 @@ fn run_controller(
 
     // Deadline the next iteration should fire at.  We advance this by the
     // tick's requested `next_interval` after every iteration, then sleep
-    // until that deadline rather than sleeping `next_interval` from "now".
-    // Without this, every `thread::sleep` overshoot (typically 0-10 ms on
-    // macOS) accumulated into perceived choppiness even at the same fps —
-    // frames landed at irregular wall-clock times.  Deadline-based
-    // scheduling means a 5-ms-late wake-up is followed by a 5-ms-shorter
-    // sleep, so the long-run cadence stays exact and the eye reads the
-    // motion as smooth at the same render rate / CPU cost.
+    // until that deadline rather than sleeping `next_interval` from "now". Without
+    // this, every `thread::sleep` overshoot (typically 0-10 ms on macOS)
+    // accumulated into perceived choppiness even at the same fps: frames
+    // landed at irregular wall-clock times.  Deadline-based scheduling
+    // means a 5-ms-late wake-up is followed by a 5-ms-shorter sleep, so
+    // the long-run cadence stays exact and the eye reads the motion as
+    // smooth at the same render rate / CPU cost
     let mut next_wakeup = Instant::now();
 
     loop {
@@ -194,7 +194,7 @@ fn run_controller(
         }
 
         // restart() was called (e.g. user pressed Start): reset to inhale phase 0,
-        // matching Swift MetalBreathingController.start() which resets cycleCount=0.
+        // matching Swift MetalBreathingController.start() which resets cycleCount=0
         if reset_flag.swap(false, std::sync::atomic::Ordering::Relaxed) {
             let inhale_dur = settings.read_or_recover().inhale_duration;
             inner = fresh_inner(Instant::now(), inhale_dur);
@@ -208,7 +208,7 @@ fn run_controller(
         );
 
         if should_draw {
-            // Write state snapshot before requesting draw so renderer sees it.
+            // Write state snapshot before requesting draw so renderer sees it
             let snap = compute_state(&inner);
             *state_out.lock_or_recover() = Some(snap);
             (request_draw)();
@@ -217,7 +217,7 @@ fn run_controller(
         // Advance the target deadline by exactly `next_interval`.  Catch-up
         // clamp: if a long pause (laptop sleep, app backgrounded) put us
         // more than 1 second past the target, snap forward instead of
-        // burst-rendering frames to "make up" the missed time.
+        // burst-rendering frames to "make up" the missed time
         next_wakeup += next_interval;
         let now = Instant::now();
         if next_wakeup + Duration::from_secs(1) < now {
@@ -229,11 +229,11 @@ fn run_controller(
         // `park_timeout` instead of `thread::sleep` so `restart()` /
         // `stop()` can wake us via `unpark()` mid-sleep.  When
         // `is_animating == false` the tick function returns a 10 s
-        // sleep interval, and without interruptible sleep a Stop →
+        // sleep interval, and without interruptible sleep a Stop -> 
         // Start press would wait up to 10 s before the controller
         // noticed the reset_flag and started ticking again.  If
         // unpark was called BEFORE we reached the park, the token
-        // is already pending and park_timeout returns immediately —
+        // is already pending and park_timeout returns immediately,
         // which is exactly what we want (don't lose a wakeup
         // signal that arrived during the previous tick's work)
         thread::park_timeout(sleep_for);
@@ -265,7 +265,7 @@ fn tick(
 ) -> (bool, Duration) {
     let now = Instant::now();
 
-    // Snapshot the fields we need; avoid holding the lock across sleeps.
+    // Snapshot the fields we need; avoid holding the lock across sleeps
     let (
         is_animating, is_paused, hold_ripple_enabled,
         shape_is_fullscreen, colors_match,
@@ -302,14 +302,14 @@ fn tick(
     //
     // `cycle_is_static` catches the degenerate input where the user
     // has zeroed every duration field.  Without this short-circuit
-    // the controller would cycle through Inhale → Hold → Exhale →
+    // the controller would cycle through Inhale -> Hold -> Exhale -> 
     // Hold in 400 ms (each phase floored to 0.1 s by `.max(0.1)` in
     // `phase_duration_for`), strobing the breath animation at
     // ~2.5 Hz.  Treating it as static instead: the existing one-
     // frame-per-second cadence renders whatever the last
     // `BreathingState` was, the shader keeps drawing that state,
     // and CPU stays as low as the matching-colour fullscreen tint
-    // path.  Threshold is 0.05 s (50 ms) — comfortably below the
+    // path.  Threshold is 0.05 s (50 ms), comfortably below the
     // 0.1 s phase floor and below human flicker-fusion frequency,
     // so anything the user could meaningfully type as "a real
     // animation" stays above it
@@ -354,7 +354,7 @@ fn tick(
             }
             return (false, INTERVAL_FAST.min(remaining));
         } else {
-            // No ripple: render exactly once per hold, then sleep until it ends.
+            // No ripple: render exactly once per hold, then sleep until it ends
             if !inner.did_render_hold {
                 inner.did_render_hold = true;
                 inner.last_draw_time  = now;
@@ -395,7 +395,7 @@ fn tick(
             inner.last_drawn_progress   = current.progress;
             return (true, cadence.min(time_to_phase_end));
         }
-        // Not yet time; come back when cadence expires.
+        // Not yet time; come back when cadence expires
         let wait = cadence.saturating_sub(elapsed_since_last);
         return (false, wait.min(time_to_phase_end));
     }
@@ -429,10 +429,10 @@ fn compute_state_with_easing(
 
     let hold_time = raw_t as f32;
 
-    // hold_time carries the linear phase-progress for all phases (not only
-    // holds). The shader uses it to drive the cross-phase ripple fade during
-    // the first 10% of inhale/exhale, matching Swift's
-    // `withAnimation(.linear(duration: duration * 0.1)) { rippleOpacity = 0 }`.
+    // hold_time carries the linear phase-progress for all phases, inhale
+    // and exhale included. The shader uses it to drive the cross-phase
+    // ripple fade during the first 10% of inhale/exhale, matching Swift's
+    // `withAnimation(.linear(duration: duration * 0.1)) { rippleOpacity = 0 }`
     match inner.phase {
         BreathingPhase::Inhale => BreathingState {
             phase:    BreathingPhase::Inhale,
@@ -532,7 +532,7 @@ mod tests {
     use std::sync::RwLock;
     use crate::settings::Settings;
 
-    // Helper: advance N phases manually through the inner state machine.
+    // Helper: advance N phases manually through the inner state machine
     fn advance_n_phases(inner: &mut Inner, n: usize, settings: &Settings) {
         for _ in 0..n {
             let now = Instant::now();
@@ -581,8 +581,8 @@ mod tests {
 
     #[test]
     fn drift_accumulates_correctly() {
-        // Drift is off by default now, so set it explicitly: this test is
-        // about compounding, not about what ships
+        // Drift is off by default now, so set it explicitly: this test
+        // covers compounding, independent of what ships as the default
         let mut settings = Settings::default();
         settings.drift = 1.01;
         let now = Instant::now();
@@ -598,7 +598,7 @@ mod tests {
             last_drawn_progress: -1.0,
         };
 
-        // One full cycle advance (HoldAfterExhale → Inhale)
+        // One full cycle advance (HoldAfterExhale -> Inhale)
         advance_n_phases(&mut inner, 1, &settings);
         assert_eq!(inner.cycle_count, 1);
         let expected_drift = 1.01_f64;
@@ -622,7 +622,7 @@ mod tests {
     #[test]
     fn drift_matches_pow() {
         // current_drift should equal drift^cycle_count at every cycle boundary,
-        // for as long as the ceiling has not been reached.
+        // for as long as the ceiling has not been reached
         let mut settings = Settings::default();
         settings.drift = 1.01;
         let now = Instant::now();
@@ -642,13 +642,13 @@ mod tests {
         // unbounded by design, so this must hold arbitrarily far out. An
         // earlier revision capped the compounding; that cap was removed
         // because advanced pranayama practice legitimately reaches breaths
-        // far longer than the research literature happens to have studied.
-        // See docs/CITATIONS.md gaps ledger item 6
+        // far longer than the research literature happens to have studied. See
+        // docs/CITATIONS.md gaps ledger item 6
         for cycle in 0..2_000_u64 {
             // advance one full cycle (4 phases)
             advance_n_phases(&mut inner, 4, &settings);
             let expected = settings.drift.powi((cycle + 1) as i32);
-            // Relative, not absolute: repeated multiplication and `powi` agree
+            // A relative tolerance: repeated multiplication and `powi` agree
             // to ~13 significant figures, but drift is unbounded, so by cycle
             // ~1200 the values are in the hundreds of thousands and a fixed
             // 1e-9 epsilon compares the wrong thing entirely
@@ -734,7 +734,7 @@ mod tests {
 
     #[test]
     fn phase_duration_minimum_is_100ms() {
-        // Even with drift=0 or base=0, duration must be ≥ 0.1s.
+        // Even with drift=0 or base=0, duration must be ≥ 0.1s
         let dur = phase_duration_for(
             BreathingPhase::Inhale,
             0.0, // impossible drift, tests the clamp
@@ -747,8 +747,8 @@ mod tests {
     // ── tick() cadence / hysteresis tests ─────────────────────────────────
     //
     // These exercise the per-tick scheduler logic that decides whether
-    // to render *this* tick and how long to sleep before the next.
-    // Prior to these tests `tick()` had zero coverage despite being the
+    // to render *this* tick and how long to sleep before the next. Prior
+    // to these tests `tick()` had zero coverage despite being the
     // hottest function in the app
 
     fn fresh_inner_at(now: Instant, dur: Duration) -> Inner {
@@ -774,7 +774,7 @@ mod tests {
         let easing   = EasingTable::default_ease_in_out();
         let mut inner = fresh_inner_at(Instant::now(), Duration::from_secs(5));
         let (should_draw, next) = tick(&mut inner, &settings, &easing);
-        assert!(!should_draw, "stopped controller should not request a draw");
+        assert!(!should_draw, "a stopped controller shouldn't request a draw");
         assert!(next >= Duration::from_secs(1), "stopped controller should sleep >=1s, got {next:?}");
     }
 
@@ -787,11 +787,11 @@ mod tests {
         let mut inner = fresh_inner_at(Instant::now(), Duration::from_secs(5));
         // First call: last_draw_time was 1s ago, so this should draw
         // (the paused branch redraws once a second to keep the static
-        // frame current against settings changes).
+        // frame current against settings changes)
         let (should_draw_1, _) = tick(&mut inner, &settings, &easing);
         assert!(should_draw_1, "paused controller draws once per second");
         // Second call immediately after: not yet a second elapsed, so
-        // it should NOT draw and the sleep should be < 1s.
+        // it should NOT draw and the sleep should be < 1s
         let (should_draw_2, next_2) = tick(&mut inner, &settings, &easing);
         assert!(!should_draw_2, "paused controller doesn't draw twice in a row");
         assert!(next_2 < Duration::from_secs(1));
@@ -800,7 +800,7 @@ mod tests {
     #[test]
     fn tick_hold_with_ripple_redraws_periodically() {
         // Hold-with-ripple: should draw at `interval_fast` cadence
-        // throughout the hold, not just at the boundaries.
+        // continuously through the hold, boundaries included
         let mut s = Settings::default();
         s.hold_ripple_mode = crate::types::HoldRippleMode::Gradient;
         s.post_inhale_hold_duration = 2.0; // long hold for the test
@@ -812,7 +812,7 @@ mod tests {
         inner.last_draw_time = now - Duration::from_millis(200); // not yet due
 
         let (should_draw, _) = tick(&mut inner, &settings, &easing);
-        // First tick of a fresh hold draws (did_render_hold was false).
+        // First tick of a fresh hold draws (did_render_hold was false)
         assert!(should_draw);
     }
 
@@ -836,7 +836,7 @@ mod tests {
     #[test]
     fn cadence_matches_swift_reference() {
         // 24 fps = 1/24 s = ~41.67 ms.  Matches `MetalBreathingController.swift`'s
-        // `maximumDrawIntervalFast`.
+        // `maximumDrawIntervalFast`
         let ms = INTERVAL_FAST.as_nanos() as f64 / 1_000_000.0;
         assert!((ms - 1000.0 / 24.0).abs() < 0.01,
             "INTERVAL_FAST should be 1/24 s = 41.67 ms, got {ms}");

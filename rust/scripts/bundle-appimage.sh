@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 #
-# Package the Rust exhale binary as a portable Linux AppImage.
+# Package the Rust exhale binary as a portable Linux AppImage
 #
-# Produces (under `rust/target/appimage/`):
-#   exhale-${VERSION}-x86_64.AppImage   — single-file portable Linux app
+# Produces (under `rust/target/appimage/`)
+#   exhale-${VERSION}-x86_64.AppImage: single-file portable Linux app
 #
-# Requirements:
-#   - Linux host (appimagetool is Linux-only; macOS users should let CI run this).
-#   - Rust toolchain with `x86_64-unknown-linux-gnu` target.
+# Requirements
+#   - Linux host (appimagetool is Linux-only; macOS users should let CI run this)
+#   - Rust toolchain with `x86_64-unknown-linux-gnu` target
 #   - System libraries listed in snapcraft.yaml (libx11-dev, libxkbcommon-dev,
 #     libwayland-dev, libglib2.0-dev, libgtk-3-dev, libayatana-appindicator3-dev,
-#     libvulkan-dev, pkg-config).
-#   - `appimagetool` — auto-downloaded into rust/target/appimage/bin if missing.
+#     libvulkan-dev, pkg-config)
+#   - `appimagetool`, auto-downloaded into rust/target/appimage/bin if missing
 #
-# Usage:
+# Usage
 #   rust/scripts/bundle-appimage.sh                    # VERSION from crate
 #   VERSION=2.0.8 rust/scripts/bundle-appimage.sh
 #
@@ -80,7 +80,7 @@ install -m 644 "$RUST_ROOT/packaging/linux/icons/256x256/exhale.png" \
 install -m 644 "$RUST_ROOT/packaging/linux/icons/512x512/exhale.png" \
                                                                 "$APPDIR/usr/share/icons/hicolor/512x512/apps/exhale.png"
 
-# AppImage convention: exhale.desktop + exhale.png + AppRun all at the AppDir root.
+# AppImage convention: exhale.desktop + exhale.png + AppRun all at the AppDir root
 install -m 644 "$RUST_ROOT/packaging/linux/exhale.desktop"      "$APPDIR/exhale.desktop"
 install -m 644 "$PKG_DIR/exhale.png"                            "$APPDIR/exhale.png"
 
@@ -94,7 +94,7 @@ SH
 chmod +x "$APPDIR/AppRun"
 
 # ── 4. Pack AppImage ─────────────────────────────────────────────────────────
-log "appimagetool $APPDIR → $OUT_APPIMAGE"
+log "appimagetool $APPDIR -> $OUT_APPIMAGE"
 ARCH=x86_64 "$APPIMAGETOOL" --no-appstream "$APPDIR" "$OUT_APPIMAGE"
 
 log "success"

@@ -14,14 +14,14 @@ description: |
 
   The overlay is a translucent, always-on-top, click-through window that
   gently expands on inhale and contracts on exhale, so it never interrupts
-  whatever you are doing. Inhale, post-inhale hold, exhale, and post-exhale
+  whatever you're doing. Inhale, post-inhale hold, exhale, and post-exhale
   hold durations are all configurable. A good place to start is 5 seconds in
   and 5 seconds out, which is 6 breaths a minute. Rates from 5 to 7 a minute
   are the ones that have been tested directly. Box breathing
   (4 / 4 / 4 / 4) is also supported.
 
-  Every claim above is sourced, alongside a ledger of what the research does
-  not support, at
+  Every claim above is sourced, alongside a ledger of what the research
+  doesn't support, at
   https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md
 
   Features:
@@ -34,12 +34,12 @@ description: |
     defaults, open preferences
   - Optional reminder notifications
 
-  Take breaks if intense feelings arise; it is important not to overdo it.
+  Take breaks if intense feelings arise; don't overdo it.
 
   Disclaimer: The information and guidance provided by this app are for
-  general informational purposes only and are not medical advice. The creator
-  is not a medical professional. Always seek the advice of a qualified
-  healthcare provider with any questions about your health, and do not
+  general informational purposes only and aren't medical advice. The creator
+  isn't a medical professional. Always seek the advice of a qualified
+  healthcare provider with any questions about your health, and don't
   disregard or delay professional medical advice because of this app. Use is
   at your own risk.
 
@@ -66,13 +66,13 @@ apps:
 parts:
   # The `rust` plugin can build workspace members directly, but we lean on
   # `override-build` so the invocation mirrors `cargo-deb` / CI exactly and
-  # so we can pin to `--no-default-features` (global-hotkeys off — matches
+  # so we can pin to `--no-default-features` (global-hotkeys off: matches
   # the Mac App Store policy; snap confinement wouldn't grant global-hotkey
-  # access anyway).
+  # access anyway)
   exhale:
     plugin: nil
     # snapcraft.yaml lives at snap/snapcraft.yaml so the project dir is the
-    # repo root; source the whole tree so `override-build` can `cd rust`.
+    # repo root; source the whole tree so `override-build` can `cd rust`
     source: .
     source-type: local
     build-packages:
@@ -90,10 +90,10 @@ parts:
       - libayatana-appindicator3-dev
       - libvulkan-dev
       - libxdo-dev
-    # Keep this list minimal — the `gnome` extension brings in gtk/glib and
+    # Keep this list minimal: the `gnome` extension brings in gtk/glib and
     # most display stack runtimes.  Extra packages here balloon the built
     # snap and have been linked to LXD "Failed to execute pack in instance"
-    # failures on CI. Drop mesa-vulkan-drivers (wgpu falls back to GL).
+    # failures on CI. Drop mesa-vulkan-drivers (wgpu falls back to GL)
     stage-packages:
       - libayatana-appindicator3-1
       - libxdo3
@@ -102,7 +102,7 @@ parts:
 
       # Install a pinned stable rustup toolchain into the build container.
       # snapcraft's build hosts don't ship rust; this mirrors what
-      # `.github/workflows/release.yml` does for the Linux snap job.
+      # `.github/workflows/release.yml` does for the Linux snap job
       if ! command -v cargo >/dev/null 2>&1; then
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
           | sh -s -- -y --default-toolchain stable --profile minimal

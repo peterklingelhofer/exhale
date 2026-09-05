@@ -1,22 +1,22 @@
 //! Shared window-placement helpers used by both the settings window
-//! and the windowed-mode animation window (Wayland fallback path).
+//! and the windowed-mode animation window (Wayland fallback path)
 //!
 //! Each window persists its position as an offset relative to a named
-//! monitor — when that monitor is still connected on next launch the
+//! monitor: when that monitor is still connected on next launch the
 //! window comes back where you left it, and when the monitor's gone
 //! (laptop unplugged from a dock, resolution shrunk, external display
 //! disconnected) we clamp the rect to whichever monitor is closest
 //! rather than restoring to dead coordinates that put the window
-//! mostly or entirely off-screen.
+//! mostly or entirely off-screen
 //!
 //! Two halves:
 //!
-//!   - **Pure geometry** ([`clamp_position_against_monitors`]) — no
-//!     winit dependency, unit-testable.
+//!   - **Pure geometry** ([`clamp_position_against_monitors`]): no
+//!     winit dependency, unit-testable
 //!   - **Winit glue** ([`apply_placement`] / [`capture_placement`] /
-//!     [`clamp_position_to_visible`]) — reads from / writes to the
+//!     [`clamp_position_to_visible`]): reads from / writes to the
 //!     live `Window` and `ActiveEventLoop`, used by both windows
-//!     from `main.rs` and from each window's constructor.
+//!     from `main.rs` and from each window's constructor
 
 use exhale_core::WindowPlacement;
 use winit::{
@@ -27,7 +27,7 @@ use winit::{
 
 /// A monitor's physical rectangle in screen coordinates.  Used by
 /// [`clamp_position_against_monitors`] so its geometry logic can be
-/// unit-tested without a winit event loop.
+/// unit-tested without a winit event loop
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct MonitorRect {
     pub x: i32,
@@ -42,31 +42,31 @@ pub(crate) struct MonitorRect {
 /// origin so a rearranged display arrangement still puts the window
 /// on the right screen.  When the saved monitor is gone, falls back
 /// to treating the offset as absolute and then clamps via
-/// [`clamp_position_to_visible`].
+/// [`clamp_position_to_visible`]
 ///
 /// Size is intentionally NOT restored here.  Each window already
 /// passes its restored size to `Window::default_attributes()
 /// .with_inner_size(...)` at creation time, using the right
 /// `LogicalSize` / `PhysicalSize` variant for the units its
 /// placement field stores in (settings window persists height in
-/// logical points; animation window persists in physical pixels).
-/// Re-applying via `request_inner_size(PhysicalSize::new(...))` here
+/// logical points; animation window persists in physical pixels);
+/// re-applying via `request_inner_size(PhysicalSize::new(...))` here
 /// would treat the logical points as physical pixels, halving the
-/// height on Retina / 2× displays.
+/// height on Retina / 2× displays
 pub fn apply_placement(
     event_loop: &ActiveEventLoop,
     window:     &Window,
     placement:  &WindowPlacement,
 ) {
     // Without a saved position we let the OS / compositor place the
-    // window — on macOS / X11 / Windows this lands centred on the
+    // window: on macOS / X11 / Windows this lands centred on the
     // primary monitor; on Wayland the compositor places however it
-    // likes.
+    // likes
     let (Some(x), Some(y)) = (placement.x, placement.y) else { return; };
 
     // Resolve the offset against the saved monitor when it's still
-    // present.  When it's gone, treat the offset as absolute — the
-    // clamp step below pulls it back onto a visible monitor regardless.
+    // present.  When it's gone, treat the offset as absolute; the
+    // clamp step below pulls it back onto a visible monitor regardless
     let (abs_x, abs_y) = match &placement.screen {
         Some(name) => {
             let matching = event_loop.available_monitors()
@@ -85,7 +85,7 @@ pub fn apply_placement(
     // Use the window's CURRENT outer size (just set by the caller's
     // `with_inner_size` attr) so the clamp respects the actual
     // window dimensions in physical pixels regardless of which units
-    // the placement is stored in.
+    // the placement is stored in
     let outer = window.outer_size();
     let (clamped_x, clamped_y) =
         clamp_position_to_visible(event_loop, abs_x, abs_y, outer.width, outer.height);
@@ -97,7 +97,7 @@ pub fn apply_placement(
 /// [`exhale_core::Settings`].  Position is stored as an offset
 /// relative to the monitor the window's centre currently lies on, so
 /// a saved placement survives the monitor being moved in the OS
-/// display-arrangement panel.
+/// display-arrangement panel
 pub fn capture_placement(
     event_loop: &ActiveEventLoop,
     window:     &Window,
@@ -107,10 +107,10 @@ pub fn capture_placement(
     // The settings window persists its height in LOGICAL points (so
     // a 2x display doesn't re-apply scale on next launch).  This
     // helper persists in PHYSICAL pixels, which is fine for the
-    // animation window — the next launch's monitor will have the
+    // animation window: the next launch's monitor will have the
     // same physical pixel dimensions, and DPI-affected windows can
     // override `width` / `height` via the placement they pass back
-    // through `set_*_window_placement`.
+    // through `set_*_window_placement`
     let (x, y, screen) = current_monitor_offset(event_loop, &outer, &inner);
 
     WindowPlacement {
@@ -147,7 +147,7 @@ pub fn capture_placement_logical_height(
 
 /// Find the monitor the window's centre currently sits on, then
 /// return position as an offset relative to that monitor's origin
-/// plus the monitor's name (for serialisation).
+/// plus the monitor's name (for serialisation)
 fn current_monitor_offset(
     event_loop: &ActiveEventLoop,
     outer:      &PhysicalPosition<i32>,
@@ -173,12 +173,12 @@ fn current_monitor_offset(
 // ─── Clamp helpers ────────────────────────────────────────────────────────────
 
 /// Return `(x, y)` adjusted so the window rectangle is fully contained
-/// inside one of the available monitors.
+/// inside one of the available monitors
 ///
 /// Algorithm: pick the monitor closest to the window's center point
 /// (zero distance when the center is already inside a monitor; positive
 /// distance when off-screen).  Then clamp `(x, y)` so the entire window
-/// rect fits inside that monitor's bounds.
+/// rect fits inside that monitor's bounds
 ///
 /// Handles every shape of "saved position is no longer good":
 ///   - Window dragged partially off-screen by accident, then reopened:
@@ -227,12 +227,12 @@ pub(crate) fn clamp_position_against_monitors(
     (nx, ny)
 }
 
-/// Cross-platform safety net for the persisted-position restore path:
-/// a user who quit exhale on a laptop+external setup and re-opens it
+/// Cross-platform safety net for the persisted-position restore path: a
+/// user who quit exhale on a laptop+external setup and re-opens it
 /// on the laptop alone can land with the saved coords pointing
 /// firmly off-screen (the old external display's coordinate space no
 /// longer exists).  Falls through to [`clamp_position_against_monitors`]
-/// after collecting the live monitor list from `event_loop`.
+/// after collecting the live monitor list from `event_loop`
 pub fn clamp_position_to_visible(
     event_loop: &ActiveEventLoop,
     x: i32, y: i32, width: u32, height: u32,

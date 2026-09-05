@@ -80,7 +80,7 @@ def load_corpus() -> list[dict]:
             issued = (rec.get("issued", {}).get("date-parts") or [[None]])[0][0]
             if keyed and issued and keyed.group(1) != str(issued):
                 problems.append(
-                    f"{rid}: citekey year {keyed.group(1)} does not match issued year {issued}"
+                    f"{rid}: citekey year {keyed.group(1)} doesn't match issued year {issued}"
                 )
         if rid in seen:
             problems.append(f"{rid}: duplicate id")
@@ -113,7 +113,7 @@ def load_corpus() -> list[dict]:
             problems.append(f"{rid}: openCopy must be an https URL")
         # Absent means citable; only an explicit `false` blocks a record
         # from backing something the binary ships. Written as an opt-OUT so
-        # the corpus does not need touching for the common case, and so the
+        # the corpus doesn't need touching for the common case, and so the
         # blocklist is greppable as four lines rather than inferred from
         # forty-four omissions
         if custom.get("inAppCitable", False) not in (True, False):
@@ -123,7 +123,7 @@ def load_corpus() -> list[dict]:
         if not isinstance(claims, list) or not claims:
             problems.append(f"{rid}: backsClaims must be a non-empty list")
 
-        # A record with no DOI cannot honestly call itself Crossref-verified
+        # A record with no DOI can't call itself Crossref-verified
         if custom.get("verification") == "crossref-verified" and not rec.get("DOI"):
             problems.append(f"{rid}: crossref-verified but carries no DOI")
 
@@ -152,24 +152,24 @@ def check_cross_references(records: list[dict]) -> None:
         raise CorpusError("\n".join("  - " + p for p in problems))
 
 
-# Claims the corpus does not support, kept out of the surfaces that assert them.
+# Claims the corpus doesn't support, kept out of the surfaces that assert them
 #
 # Scope is deliberate. Only surfaces that ASSERT are scanned: store listings and
 # anything compiled into the binary. `docs/` and `README.md` are exempt, because
 # the gaps ledger has to be able to name a claim in order to explain what the
-# evidence actually says about it.
+# evidence actually says about it
 #
-# This is not hypothetical. `snapcraft.yaml` went on shipping the parasympathetic
+# This isn't hypothetical. `snapcraft.yaml` went on shipping the parasympathetic
 # claim to the Snap Store for two days after the README had stopped making it,
 # because a store listing is edited in a different place from a README and
 # nothing connected the two
 UNSUPPORTED_PHRASES: list[tuple[str, str]] = [
     ("engage the parasympathetic nervous system", "gaps ledger 4: the cardiac evidence splits 2-for / 1-against / 1-null"),
     ("engages the parasympathetic nervous system", "gaps ledger 4: the cardiac evidence splits 2-for / 1-against / 1-null"),
-    ("breathe more shallowly", "gaps ledger 1: the measured finding is faster and chest-high, not shallower"),
+    ("breathe more shallowly", "gaps ledger 1: the measured finding is faster and chest-high; no study measured shallower breathing"),
     ("screen apnea", "gaps ledger 1: no peer-reviewed source; the measured effect points the other way"),
     ("email apnea", "gaps ledger 1: no peer-reviewed source; the measured effect points the other way"),
-    ("higher in the chest", "gaps ledger 1: the diaphragmatic-to-thoracic shift is theorised, not measured in screen users"),
+    ("higher in the chest", "gaps ledger 1: the diaphragmatic-to-thoracic shift is theorised; no study has measured it in screen users"),
     ("countermeasure with the most evidence", "no source compares countermeasures, and gaps ledger 5 says slow pacing can add to over-breathing"),
     ("hardware buys nothing", "laborde2021-spb-6cpm-biofeedback reports a valence advantage for biofeedback"),
 ]
@@ -214,7 +214,7 @@ def check_note_links(records: list[dict], text: str, where: str) -> None:
 
     Both the gaps ledger and the README deep-link into the corpus by citekey.
     A rename silently breaks every one of them, and the README is the project's
-    front door, so it is checked on exactly the same footing as the notes
+    front door, so it's checked on exactly the same footing as the notes
     """
     known = {r["id"] for r in records}
     # Only anchors shaped like a citekey are entry references; the rest are
@@ -234,15 +234,15 @@ def check_preset_citekeys(records: list[dict]) -> None:
 
     The preset list is the one place the binary makes a *selection* from the
     literature rather than a statement about it, and a selection is an
-    argument whether or not it is worded as one. Offering five patterns says
+    argument whether or not it's worded as one. Offering five patterns says
     these five are worth a click, so each carries a citekey that never reaches
     the screen and exists only to fail this check.
 
     Four conditions, and the third and fourth are the ones that earn their
-    keep. A record downgraded to tier E is lineage-only and cannot license a
+    keep. A record downgraded to tier E is lineage-only and can't license a
     default. A record marked `inAppCitable: false` is one the design review
     blocklisted from a store-reviewed binary, which is a different judgement
-    from whether it is good evidence: `fincham2023` is the strongest warrant
+    from whether it's good evidence: `fincham2023` is the strongest warrant
     in the corpus and is on that list
     """
     if not PRESETS.exists():
@@ -291,13 +291,13 @@ def check_readme_counts(records: list[dict], text: str) -> None:
     README advertised 42 sources verified 40 / 2 while the corpus held 48
     verified 45 / 2 / 1. Nothing caught it, because a number in prose looks
     exactly like a number in prose. Undercounting is the harmless direction and
-    it is still the project's front door claiming a provenance figure it had
-    not checked, which is the specific failure this whole apparatus exists to
+    it's still the project's front door claiming a provenance figure it
+    hadn't checked, which is the specific failure this whole apparatus exists to
     prevent
     """
     counts = collections.Counter(r["custom"]["verification"] for r in records)
     # Each phrase is matched wherever it appears, so the lede and the research
-    # section cannot drift apart from each other either
+    # section can't drift apart from each other either
     expected = [
         (r"(\d+)\s+sources", len(records), "total sources"),
         (r"(\d+)\s+verified against the Crossref REST API", counts["crossref-verified"], "Crossref"),
@@ -320,7 +320,7 @@ def check_readme_counts(records: list[dict], text: str) -> None:
 def slugify(heading: str) -> str:
     """GitHub's heading-anchor rule, reduced to what these headings use.
 
-    Lowercase, drop everything that is not a word character, space or hyphen,
+    Lowercase, drop everything that isn't a word character, space or hyphen,
     then spaces to hyphens. The corpus headings are plain prose, so the full
     GitHub algorithm (duplicate suffixes, emoji, HTML) buys nothing here
     """
@@ -336,7 +336,7 @@ def check_binary_deep_link(rendered: str) -> None:
     stale. This one is compiled into a binary that stays installed for months,
     so a renamed heading strands a user on the top of a 48-entry list at the
     exact moment they went looking for the limits. Renaming the heading is
-    allowed; renaming it silently is not
+    allowed; renaming it silently isn't
 
     The menu may point either at the file on GitHub or at docs/citations.html,
     which fetches that same file from `main` and renders it. Both are the
@@ -379,7 +379,7 @@ def year(rec: dict) -> str:
 
 
 def locator(rec: dict) -> str:
-    """Volume(issue): pages, omitting whatever the record does not have."""
+    """Volume(issue): pages, omitting whatever the record doesn't have."""
     bits = ""
     if rec.get("volume"):
         bits += str(rec["volume"])
@@ -396,7 +396,7 @@ def render_entry(rec: dict) -> list[str]:
     c = rec["custom"]
     lines = [f'#### `{rec["id"]}`', ""]
 
-    # Titles that already end in their own punctuation should not collect a second period
+    # Titles that already end in their own punctuation shouldn't collect a second period
     tail = "" if rec["title"].rstrip().endswith(("?", "!", ".")) else "."
     # Books name the edition the ISBN resolves to, so the reader can find the same one
     if rec.get("edition"):
