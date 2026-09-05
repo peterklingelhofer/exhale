@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use exhale_core::settings::Settings;
 use log::info;
 
-/// All timer state, checked each event-loop tick in `about_to_wait`.
+/// All timer state, checked each event-loop tick in `about_to_wait`
 pub struct Timers {
     pub auto_stop_deadline: Option<Instant>,
     pub last_reminder:      Option<Instant>,
@@ -14,7 +14,7 @@ impl Timers {
         Self { auto_stop_deadline: None, last_reminder: None }
     }
 
-    /// Call whenever `is_animating` or `auto_stop_minutes` changes.
+    /// Call whenever `is_animating` or `auto_stop_minutes` changes
     pub fn reschedule_auto_stop(&mut self, settings: &Settings) {
         self.auto_stop_deadline = if settings.auto_stop_minutes > 0.0 && settings.is_animating {
             let secs = settings.auto_stop_minutes * 60.0;
@@ -24,7 +24,7 @@ impl Timers {
         };
     }
 
-    /// Call whenever `reminder_interval_minutes` changes.
+    /// Call whenever `reminder_interval_minutes` changes
     pub fn reschedule_reminder(&mut self, settings: &Settings) {
         self.last_reminder = if settings.reminder_interval_minutes > 0.0 {
             Some(Instant::now())
@@ -33,11 +33,11 @@ impl Timers {
         };
     }
 
-    /// Earliest time the event loop must wake to service a pending timer.
-    /// Returned to `about_to_wait` so it can configure `ControlFlow::WaitUntil`
-    /// — without this the loop would sleep forever on idle and miss auto-stop
-    /// / reminder firings now that the old per-tick redraw loop no longer
-    /// wakes it every frame.
+    /// Earliest time the event loop must wake to service a pending
+    /// timer; returned to `about_to_wait` so it can configure
+    /// `ControlFlow::WaitUntil`: without this the loop would sleep
+    /// forever on idle and miss auto-stop / reminder firings now that
+    /// the old per-tick redraw loop no longer wakes it every frame
     pub fn next_deadline(&self, settings: &Settings) -> Option<Instant> {
         let mut next: Option<Instant> = self.auto_stop_deadline;
         if settings.reminder_interval_minutes > 0.0 {
@@ -54,9 +54,9 @@ impl Timers {
         next
     }
 
-    /// Returns `true` if the animation should be stopped (auto-stop deadline hit).
-    /// Returns `true` if a reminder notification should fire.
-    /// Caller is responsible for applying the stop and sending the notification.
+    /// Returns `true` if the animation should be stopped (auto-stop deadline hit)
+    /// Returns `true` if a reminder notification should fire
+    /// Caller is responsible for applying the stop and sending the notification
     pub fn tick(&mut self, settings: &Settings) -> TimerEvents {
         let now = Instant::now();
         let mut events = TimerEvents::default();
@@ -90,12 +90,12 @@ pub struct TimerEvents {
     pub reminder:  bool,
 }
 
-/// Cross-platform desktop notification ("Remember to breathe").
+/// Cross-platform desktop notification ("Remember to breathe")
 ///
 /// macOS uses the native `UNUserNotifications` framework (required for Mac
-/// App Store distribution — `NSUserNotification` is deprecated and
+/// App Store distribution: `NSUserNotification` is deprecated and
 /// `notify-rust`'s macOS backend relies on it).  Other platforms continue
-/// to use `notify-rust` (D-Bus on Linux, WinRT toasts on Windows).
+/// to use `notify-rust` (D-Bus on Linux, WinRT toasts on Windows)
 pub fn send_reminder() {
     info!("reminder: Remember to breathe");
     #[cfg(target_os = "macos")]
@@ -113,26 +113,27 @@ fn send_reminder_other() {
     }
 }
 
-/// Deliver a local notification via `UNUserNotificationCenter`.
+/// Deliver a local notification via `UNUserNotificationCenter`
 ///
 /// Mirrors the Swift AppDelegate's `sendReminderNotification()`: builds a
 /// `UNMutableNotificationContent` with title, body, and default sound, wraps
 /// it in a `UNNotificationRequest` with a fresh UUID identifier and a `nil`
-/// trigger (deliver immediately), then hands it to the shared center.
+/// trigger (deliver immediately), then hands it to the shared center
 ///
 /// Requires the bundle to be code-signed and to have been granted
-/// `.alert | .sound` authorization (see `platform::request_notification_permission`).
-/// In an unsigned `cargo run` build the center silently drops the request
-/// — that's fine for development.
+/// `.alert | .sound` authorization (see
+/// `platform::request_notification_permission`); in an unsigned
+/// `cargo run` build the center silently drops the request, which
+/// doesn't affect development
 #[cfg(target_os = "macos")]
 fn send_reminder_macos() {
     use block2::StackBlock;
     use objc2::msg_send;
     use objc2::runtime::{AnyClass, AnyObject};
 
-    // SAFETY: framework class lookups are fallible — skip silently
+    // SAFETY: framework class lookups are fallible; skip silently
     // when `UserNotifications.framework` isn't linked (e.g. in a
-    // bare `cargo test` binary).  Production app bundle has it.
+    // bare `cargo test` binary).  Production app bundle has it
     let (Some(unc_cls), Some(content_cls), Some(sound_cls), Some(req_cls)) = (
         AnyClass::get(c"UNUserNotificationCenter"),
         AnyClass::get(c"UNMutableNotificationContent"),
@@ -147,8 +148,8 @@ fn send_reminder_macos() {
 
         let ns_string = objc2::class!(NSString);
         // C-string literals via `c"…"` are guaranteed nul-terminated
-        // at compile time — no runtime `CString::new(...).unwrap()`,
-        // no allocation per reminder fire.
+        // at compile time, no runtime `CString::new(...).unwrap()`,
+        // no allocation per reminder fire
         let title:  *mut AnyObject = msg_send![ns_string, stringWithUTF8String: c"exhale".as_ptr()];
         let body:   *mut AnyObject = msg_send![ns_string, stringWithUTF8String: c"Remember to breathe".as_ptr()];
         let _: () = msg_send![content, setTitle: title];
@@ -183,10 +184,10 @@ fn send_reminder_macos() {
             ];
         }
 
-        // Balance the +1 retain from `[UNMutableNotificationContent alloc] init]`.
+        // Balance the +1 retain from `[UNMutableNotificationContent alloc] init]`;
         // `requestWithIdentifier:…` retains `content` internally, and the
         // request / sound / strings / uuid are autoreleased convenience
-        // returns that we don't own.
+        // returns that we don't own
         let _: () = msg_send![content, release];
     }
 }
@@ -230,7 +231,7 @@ mod tests {
         t.reschedule_auto_stop(&settings_with(2.0, 0.0, true));
         let deadline = t.auto_stop_deadline.expect("deadline set");
         let dt = deadline.duration_since(before);
-        // 2 minutes = 120s; allow ±100ms for clock noise.
+        // 2 minutes = 120s; allow ±100ms for clock noise
         assert!(dt >= Duration::from_secs_f64(119.9));
         assert!(dt <= Duration::from_secs_f64(120.1));
     }
@@ -266,7 +267,7 @@ mod tests {
         t.reschedule_reminder(&s);
         let d = t.next_deadline(&s).expect("some deadline");
         let now = Instant::now();
-        // Reminder fires in ~1 min, auto-stop in ~10 min → next should be ~1 min.
+        // Reminder fires in ~1 min, auto-stop in ~10 min -> next should be ~1 min
         let dt = d.duration_since(now);
         assert!(dt < Duration::from_secs(90),
             "earliest should be the 1-minute reminder, got {dt:?}");
@@ -276,7 +277,7 @@ mod tests {
     fn tick_fires_auto_stop_when_deadline_passes() {
         let mut t = Timers::new();
         // Use a tiny duration we can wait past.  We can't sleep in
-        // tests reliably, so backdate the deadline directly.
+        // tests reliably, so backdate the deadline directly
         t.auto_stop_deadline = Some(Instant::now() - Duration::from_millis(1));
         let events = t.tick(&settings_with(5.0, 0.0, true));
         assert!(events.auto_stop, "auto-stop event must fire when deadline passed");
@@ -295,7 +296,7 @@ mod tests {
     #[test]
     fn tick_fires_reminder_at_interval_and_resets_clock() {
         let mut t = Timers::new();
-        // Backdate so the interval has just passed.
+        // Backdate so the interval has just passed
         t.last_reminder = Some(Instant::now() - Duration::from_secs(61));
         let s = settings_with(0.0, 1.0, true);
         let events = t.tick(&s);

@@ -1,17 +1,17 @@
-# Pre-release dev builds for the Rust port — runs on every push to the
+# Pre-release dev builds for the Rust port: runs on every push to the
 # `rust-multiplatform` branch (and `main`) and uploads unsigned,
-# unpackaged binaries for Windows and Linux as workflow artifacts.
+# unpackaged binaries for Windows and Linux as workflow artifacts
 #
 # Lets a developer grab a fresh `exhale.exe` / Linux binary without
-# setting up the full local toolchain on the target platform — most
+# setting up the full local toolchain on the target platform, most
 # useful when iterating on cross-platform fixes from a macOS dev box,
-# or when a Windows ARM VM's MSVC toolchain isn't yet wired up.
+# or when a Windows ARM VM's MSVC toolchain isn't yet wired up
 #
 # Complements `release.yml`:
 #   - `release.yml` fires on `v*` tags, signs/packages everything as
 #     MSIX / .pkg / .deb / .snap / .AppImage for store submission.
 #   - This workflow fires every push, skips signing/packaging, dumps
-#     the raw release binary for direct execution / manual sideloading.
+#     the raw release binary for direct execution / manual sideloading
 
 name: Dev Builds
 
@@ -52,7 +52,7 @@ jobs:
       # ARM64 cross-compile: `windows-2025` ships with the ARM64
       # MSVC build tools as part of the default VS 2022 install, so
       # this should "just work."  Marked continue-on-error in case the
-      # runner image regresses on that — x64 stays available either way.
+      # runner image regresses on that; x64 stays available either way
       - name: Build (ARM64)
         working-directory: rust
         run: cargo build --release -p exhale-app --target aarch64-pc-windows-msvc
@@ -75,9 +75,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       # Same dependency set documented in docs/TESTING.md for local
-      # Linux dev — gtk + wayland + xkbcommon for winit, xdo for
+      # Linux dev: gtk + wayland + xkbcommon for winit, xdo for
       # global-hotkey, ssl for HTTP-using crates, appindicator for
-      # tray-icon's Linux backend.
+      # tray-icon's Linux backend
       - name: System deps
         run: |
           sudo apt-get update
@@ -100,10 +100,10 @@ jobs:
           name: exhale-linux-x64
           path: rust/target/release/exhale
 
-  # Native ARM64 Linux build — runs on GitHub's free `ubuntu-22.04-arm`
+  # Native ARM64 Linux build: runs on GitHub's free `ubuntu-22.04-arm`
   # runner so we don't need cross-compilation gymnastics for the system
   # dependencies (gtk3, wayland, etc.).  Targets the Ubuntu ARM64
-  # desktop VM used in docs/TESTING.md.
+  # desktop VM used in docs/TESTING.md
   linux-arm64:
     runs-on: ubuntu-22.04-arm
     steps:

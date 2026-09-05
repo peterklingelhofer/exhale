@@ -4,21 +4,21 @@ use crate::types::{
     AnimationMode, AnimationShape, AppVisibility, ColorFillGradient, HoldRippleMode,
 };
 
-/// All user-configurable settings for the exhale app.
+/// All user-configurable settings for the exhale app
 ///
-/// Matches the Swift `SettingsModel` exactly in field names and default values.
-/// Stored as TOML in the platform config directory.
+/// Matches the Swift `SettingsModel` exactly in field names and default
+/// values. Stored as TOML in the platform config directory
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
     // ── Appearance ────────────────────────────────────────────────────────────
-    /// Linear RGBA of the inhale color. Alpha is display alpha (not premultiplied).
+    /// Linear RGBA of the inhale color. Alpha is display alpha (not premultiplied)
     pub inhale_color: [f32; 4],
-    /// Linear RGBA of the exhale color.
+    /// Linear RGBA of the exhale color
     pub exhale_color: [f32; 4],
-    /// Linear RGBA of the background tint. Alpha controls background opacity.
+    /// Linear RGBA of the background tint. Alpha controls background opacity
     pub background_color: [f32; 4],
 
-    /// Master opacity of the overlay (0.0–1.0).
+    /// Master opacity of the overlay (0.0–1.0)
     pub overlay_opacity: f32,
 
     pub shape: AnimationShape,
@@ -33,15 +33,15 @@ pub struct Settings {
     pub exhale_duration: f64,
     pub post_exhale_hold_duration: f64,
 
-    /// Per-cycle duration multiplier. 1.01 = each cycle 1 % longer (drift).
+    /// Per-cycle duration multiplier. 1.01 = each cycle 1 % longer (drift)
     ///
     /// Defaults to 1.0 (off). Pranayama's graded extension is the reason this
-    /// exists and it is a reasonable thing to turn on, but it should not be
+    /// exists and it's a reasonable thing to turn on, but it should not be
     /// imposed: heart-rate-variability amplitude peaks at 4.5-6.5 breaths a
     /// minute rather than rising without limit, and exhale's default cadence
     /// already sits below that band, so drifting slower from cycle one moves
     /// every new user further from the studied range. When it IS on, the
-    /// compounding is bounded by [`crate::controller::DRIFT_MAX_CYCLE_SECS`].
+    /// compounding is bounded by [`crate::controller::DRIFT_MAX_CYCLE_SECS`]
     pub drift: f64,
 
     // ── Randomisation (±seconds of jitter per phase) ─────────────────────────
@@ -51,14 +51,14 @@ pub struct Settings {
     pub randomized_timing_post_exhale_hold: f64,
 
     // ── Timers ────────────────────────────────────────────────────────────────
-    /// Minutes between "Remember to breathe" notifications. 0 = off.
+    /// Minutes between "Remember to breathe" notifications. 0 = off
     pub reminder_interval_minutes: f64,
-    /// Stop animation after this many minutes. 0 = off.
+    /// Stop animation after this many minutes. 0 = off
     pub auto_stop_minutes: f64,
 
     // ── State ─────────────────────────────────────────────────────────────────
     pub is_animating: bool,
-    /// Pause holds the animation on the current frame without resetting position.
+    /// Pause holds the animation on the current frame without resetting position
     pub is_paused: bool,
 
     // ── Window frame (persisted so each window reopens where you left it) ──
@@ -69,12 +69,12 @@ pub struct Settings {
     // monitor still has visible real estate rather than restoring to
     // off-screen coordinates.  Both windows use the same shape, see
     // [`WindowPlacement`] / [`Settings::settings_window_placement`] /
-    // [`Settings::animation_window_placement`].
+    // [`Settings::animation_window_placement`]
     //
     // The settings window has a fixed width; only its height is
     // persisted (`settings_window_width` doesn't exist).  The animation
     // window persists both dimensions because the user can resize it
-    // freely.
+    // freely
     #[serde(default)]
     pub settings_window_x: Option<i32>,
     #[serde(default)]
@@ -127,9 +127,9 @@ pub const KBD_MOD_META:  u8 = 1 << 3;
 /// bumps that might re-number the underlying enum
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyboardShortcut {
-    /// Bitmask of `KBD_MOD_*`.
+    /// Bitmask of `KBD_MOD_*`
     pub modifiers: u8,
-    /// `keyboard_types::Code` variant name.
+    /// `keyboard_types::Code` variant name
     pub code:      String,
 }
 
@@ -147,12 +147,11 @@ impl KeyboardShortcut {
     pub fn has_alt(&self)   -> bool { self.modifiers & KBD_MOD_ALT   != 0 }
     pub fn has_meta(&self)  -> bool { self.modifiers & KBD_MOD_META  != 0 }
 
-    /// Human-readable rendering for tooltips and capture prompts.
-    /// macOS users see the standard glyph triad (`⌃⇧⌥⌘`); other
-    /// platforms get textual `Ctrl+Shift+...` so the string remains
-    /// legible in any font.  The trailing key strips the `Key` /
-    /// `Digit` prefixes that come from `keyboard_types::Code`'s
-    /// variant names
+    /// Human-readable rendering for tooltips and capture prompts. macOS
+    /// users see the standard glyph triad (`⌃⇧⌥⌘`); other platforms get
+    /// textual `Ctrl+Shift+...` so the string remains legible in any
+    /// font.  The trailing key strips the `Key` / `Digit` prefixes that
+    /// come from `keyboard_types::Code`'s variant names
     pub fn display(&self) -> String {
         #[cfg(target_os = "macos")]
         let (ctrl, shift, alt, meta) = ("\u{2303}", "\u{21E7}", "\u{2325}", "\u{2318}");
@@ -201,13 +200,13 @@ fn human_key(code: &str) -> String {
 }
 
 /// Per-action global-hotkey defaults.  Only Preferences ships with
-/// a binding (Ctrl+Shift+, — the conventional "open preferences"
-/// combo across desktop platforms).  Every other action defaults
-/// to `None` so we ship without any global hotkey that could
-/// silently conflict with the user's other apps; users opt into
-/// bindings via right-click → Change Shortcut on the matching
-/// settings-window button.  Avoids the long support tail of
-/// "Ctrl+Shift+A doesn't work on my mac" reports — anything we
+/// a binding (Ctrl+Shift+, which is the conventional "open
+/// preferences" combo across desktop platforms).  Every other
+/// action defaults to `None` so we ship without any global hotkey
+/// that could silently conflict with the user's other apps; users
+/// opt into bindings via right-click -> Change Shortcut on the
+/// matching settings-window button.  Avoids the long support tail
+/// of "Ctrl+Shift+A doesn't work on my mac" reports: anything we
 /// pre-register is anything we'd have to justify
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyboardShortcuts {
@@ -306,7 +305,7 @@ impl KeyboardShortcuts {
 /// shared shape between [`Settings::settings_window_placement`] /
 /// [`Settings::animation_window_placement`] so the apply-on-create
 /// and capture-on-move logic in `exhale-app::placement` is a single
-/// helper used by both windows.  Not directly serialized — the flat
+/// helper used by both windows.  Not directly serialized: the flat
 /// `*_window_*` fields above are the on-disk format, kept flat for
 /// backward compatibility with existing settings.toml files
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -332,22 +331,22 @@ impl Default for Settings {
             animation_mode:      AnimationMode::Sinusoidal,
             hold_ripple_mode:    HoldRippleMode::Gradient,
             // Show both the menu-bar / tray icon AND the Dock / taskbar
-            // entry by default — users new to the app are more likely to
+            // entry by default; users new to the app are more likely to
             // notice it in the Dock, and discovering the tray-only mode
-            // via Preferences once is easy.
+            // via Preferences once is easy
             app_visibility:      AppVisibility::Both,
 
-            // 5 / 0 / 5 / 0, six breaths a minute, no holds.
+            // 5 / 0 / 5 / 0, six breaths a minute, no holds
             //
             // Inside the 5-to-7 band `you2023-respiratory-frequency` tested
             // directly, and the condition that won the four-way head-to-head in
             // `marchant2025-square-478-six`. The previous default was 5 / 0 / 10 / 0,
-            // four a minute, which nobody has measured; it is still one click away
-            // as a preset.
+            // four a minute, which nobody has measured; it's still one click away
+            // as a preset
             //
             // These fields carry no `#[serde(default)]`, so a settings.toml that
             // predates this change keeps every value it already has. The move
-            // reaches fresh installs and Reset to Defaults, and nobody else.
+            // reaches fresh installs and Reset to Defaults, and nobody else
             inhale_duration:           5.0,
             post_inhale_hold_duration: 0.0,
             exhale_duration:           5.0,
@@ -395,7 +394,7 @@ impl Settings {
     }
 
     /// Write the persisted placement of the settings window.  Width
-    /// is ignored because the settings window is fixed-width.
+    /// is ignored because the settings window is fixed-width
     pub fn set_settings_window_placement(&mut self, p: WindowPlacement) {
         self.settings_window_x      = p.x;
         self.settings_window_y      = p.y;
@@ -418,7 +417,7 @@ impl Settings {
         }
     }
 
-    /// Write the persisted placement of the animation window.
+    /// Write the persisted placement of the animation window
     pub fn set_animation_window_placement(&mut self, p: WindowPlacement) {
         self.animation_window_x      = p.x;
         self.animation_window_y      = p.y;
@@ -430,11 +429,11 @@ impl Settings {
 
 /// Categorised diff between two `Settings` snapshots.  Adding a new
 /// setting is a one-line edit to the relevant `*_changed` computation
-/// here rather than coordinated edits across `main.rs`.
+/// here rather than coordinated edits across `main.rs`
 ///
 /// All `*_changed` fields are inclusive: they're `true` whenever ANY
 /// field in their category differs.  Categories match the downstream
-/// actions:
+/// actions
 ///
 ///   - `animating_changed`: drives tray-state refresh + auto-stop reschedule
 ///   - `paused_changed`: drives overlay redraw
@@ -459,7 +458,7 @@ pub struct SettingsDiff {
 impl SettingsDiff {
     /// Compute the diff between `before` (snapshot taken pre-render)
     /// and `after` (settings as mutated by the egui frame).  All
-    /// float comparisons use an epsilon — 1e-9 for timing values
+    /// float comparisons use an epsilon: 1e-9 for timing values
     /// (seconds) and 1e-4 for the `[0,1]` overlay opacity, both well
     /// below user-perceptible differences
     pub fn from(before: &Settings, after: &Settings) -> Self {
@@ -497,14 +496,14 @@ impl SettingsDiff {
         }
     }
 
-    /// Any setting that should trigger an overlay redraw.
+    /// Any setting that should trigger an overlay redraw
     pub fn should_redraw_overlay(&self) -> bool {
         self.paused_changed || self.animating_changed || self.visual_changed || self.timing_changed
     }
 
     /// Any setting that, per Swift's `triggerAnimationReset()`,
     /// should restart the animation from inhale phase 0 (only when
-    /// the animation is actively running and not paused).
+    /// the animation is actively running and not paused)
     pub fn should_restart_animation(&self, current: &Settings) -> bool {
         self.animating_started
             || ((self.visual_changed || self.timing_changed)
@@ -538,19 +537,19 @@ impl Settings {
     //
     // These exist so the settings window can state what the current
     // configuration actually does without storing a number that can go
-    // stale. Nothing here is a claim about the literature; it is
+    // stale. Nothing here is a claim about the literature; it's
     // division. That distinction is the reason the app can say it at
-    // all: an arithmetic statement cannot be retracted, so it carries
+    // all: an arithmetic statement can't be retracted, so it carries
     // none of the review risk that a health claim in a store-reviewed
-    // binary would.
+    // binary would
     //
     // Deliberately computed from live `Settings` rather than attached
     // to a preset. A rate cached alongside a preset is wrong the
     // moment the user nudges one stepper, and wrong from the first
-    // cycle whenever `drift` is on.
+    // cycle whenever `drift` is on
 
     /// Seconds in one full breath cycle at the current settings,
-    /// before any drift is applied.
+    /// before any drift is applied
     ///
     /// Ignores the randomisation sliders: they perturb individual
     /// phases around these values without changing the mean, so the
@@ -562,9 +561,9 @@ impl Settings {
             + self.post_exhale_hold_duration
     }
 
-    /// Breaths per minute at the start of a session.
+    /// Breaths per minute at the start of a session
     ///
-    /// `None` when all four phases are zero, which is not a rate of
+    /// `None` when all four phases are zero, which isn't a rate of
     /// anything. Callers render nothing rather than an infinity
     pub fn breaths_per_min(&self) -> Option<f64> {
         let cycle = self.cycle_secs();
@@ -572,7 +571,7 @@ impl Settings {
     }
 
     /// Breaths per minute after `minutes` of continuous running, with
-    /// `drift` compounding.
+    /// `drift` compounding
     ///
     /// The closed form is exact at cycle boundaries and worth the
     /// comment, because the obvious implementation is a loop. Cycle
@@ -580,7 +579,7 @@ impl Settings {
     /// geometric sum `S = c·(dᵏ − 1)/(d − 1)`. Substituting the
     /// current cycle length `D = c·dᵏ` gives `S = (D − c)/(d − 1)`,
     /// and solving for `D` at `S = 60·minutes` collapses the whole
-    /// thing to a line with no `powi` and no logarithm:
+    /// thing to a line with no `powi` and no logarithm
     ///
     /// ```text
     /// D = c + 60 · minutes · (d − 1)
@@ -588,12 +587,12 @@ impl Settings {
     ///
     /// The compounding is real; its *effect on elapsed wall time* is
     /// simply linear. `d == 1` falls out as `D == c` with no special
-    /// case.
+    /// case
     ///
     /// `None` when the cycle is zero-length, and also when a drift
     /// below 1.0 has shortened the projected cycle to nothing. Drift
-    /// cannot be set below 1.0 through the UI, but a hand-edited
-    /// settings file can, and a negative rate is not a thing to show
+    /// can't be set below 1.0 through the UI, but a hand-edited
+    /// settings file can, and a negative rate isn't a thing to show
     /// a user
     pub fn breaths_per_min_after(&self, minutes: f64) -> Option<f64> {
         let cycle = self.cycle_secs();
@@ -604,7 +603,7 @@ impl Settings {
         (projected > 0.0).then(|| 60.0 / projected)
     }
 
-    /// True when `drift` is doing anything at all.
+    /// True when `drift` is doing anything at all
     ///
     /// Uses the same `1e-9` epsilon `SettingsDiff::from` uses on this
     /// field, so "the UI shows a drift line" and "a drift change marks
@@ -622,23 +621,23 @@ impl Settings {
             .all(|(a, b)| (a - b).abs() < 0.001)
     }
 
-    /// Background colour stripped of its own alpha — used as the shape background.
+    /// Background colour stripped of its own alpha, used as the shape background
     pub fn background_color_rgb(&self) -> [f32; 4] {
         let [r, g, b, _a] = self.background_color;
         [r, g, b, 1.0]
     }
 
-    /// The alpha component of background_color, clamped to overlay_opacity.
+    /// The alpha component of background_color, clamped to overlay_opacity
     pub fn background_opacity(&self) -> f32 {
         self.background_color[3].min(self.overlay_opacity)
     }
 
-    /// Rectangle scale factor: 2× when gradient is `On` (extends the fill above 100 %).
+    /// Rectangle scale factor: 2× when gradient is `On` (extends the fill above 100 %)
     pub fn rectangle_scale(&self) -> f32 {
         if self.color_fill_gradient == ColorFillGradient::On { 2.0 } else { 1.0 }
     }
 
-    /// Circle gradient scale: same factor as rectangle.
+    /// Circle gradient scale: same factor as rectangle
     pub fn circle_gradient_scale(&self) -> f32 {
         if self.color_fill_gradient == ColorFillGradient::On { 2.0 } else { 1.0 }
     }
@@ -847,7 +846,7 @@ mod tests {
         let d = SettingsDiff::from(&before, &after);
         assert!(d.animating_started);
         assert!(d.animating_changed);
-        // Stopping should not register as `started`.
+        // Stopping should not register as `started`
         let d_rev = SettingsDiff::from(&after, &before);
         assert!(!d_rev.animating_started);
         assert!(d_rev.animating_changed);
@@ -906,13 +905,13 @@ mod tests {
         let d = SettingsDiff::from(&before, &after);
         assert!(d.should_restart_animation(&after));
 
-        // Paused: no restart even though visual changed.
+        // Paused: no restart even though visual changed
         let mut after_paused = after.clone();
         after_paused.is_paused = true;
         let d2 = SettingsDiff::from(&before, &after_paused);
         assert!(!d2.should_restart_animation(&after_paused));
 
-        // Not animating: no restart.
+        // Not animating: no restart
         let mut after_stopped = after.clone();
         after_stopped.is_animating = false;
         let d3 = SettingsDiff::from(&before, &after_stopped);
@@ -925,7 +924,7 @@ mod tests {
         before.is_animating = false;
         let mut after = before.clone();
         after.is_animating = true;
-        // Even with no visual or timing change, `started` triggers a restart.
+        // Even with no visual or timing change, `started` triggers a restart
         let d = SettingsDiff::from(&before, &after);
         assert!(d.should_restart_animation(&after));
     }

@@ -12,17 +12,17 @@ const SHADER_SRC: &str = include_str!("shaders/overlay.wgsl");
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-/// wgpu renderer for a single breathing overlay window.
+/// wgpu renderer for a single breathing overlay window
 ///
 /// Each screen gets its own `OverlayRenderer` with its own **isolated
 /// `wgpu::Device` + `wgpu::Queue`** minted from the shared
-/// [`GpuContext`]'s adapter — so the overlay's command submissions
-/// don't serialize behind the settings window's on a shared queue.
-/// See `GpuContext::new_render_device` for the rationale.
+/// [`GpuContext`]'s adapter, so the overlay's command submissions
+/// don't serialize behind the settings window's on a shared queue. See
+/// `GpuContext::new_render_device` for the rationale
 pub struct OverlayRenderer {
-    /// Per-window device — owns its own `ID3D12CommandQueue` /
+    /// Per-window device, owns its own `ID3D12CommandQueue` /
     /// Metal queue / Vulkan queue.  Independent of any other
-    /// window's renderer.
+    /// window's renderer
     device:         Arc<wgpu::Device>,
     queue:          Arc<wgpu::Queue>,
     surface:        wgpu::Surface<'static>,
@@ -36,7 +36,7 @@ impl OverlayRenderer {
     /// Create a renderer for an existing surface.  Takes the shared
     /// `GpuContext` to access the adapter + instance, then mints its
     /// own (`Device`, `Queue`) pair so it doesn't share a command
-    /// queue with other windows' renderers.
+    /// queue with other windows' renderers
     pub fn new(
         gpu:    Arc<GpuContext>,
         surface: wgpu::Surface<'static>,
@@ -45,13 +45,13 @@ impl OverlayRenderer {
     ) -> Result<Self> {
         // Mint a fresh device + queue for this window.  Independent of
         // the settings window's device, so settings repaints don't
-        // block this overlay's presents on a shared queue.
+        // block this overlay's presents on a shared queue
         let (device, queue) = gpu.new_render_device()
             .context("overlay per-window device")?;
 
         // Re-use the shared adapter to query surface caps.  Adapters
-        // are stateless — caps depend on the (adapter, surface) pair,
-        // not the device, so this is correct.
+        // are stateless, caps depend on the (adapter, surface) pair,
+        // not the device, so this is correct
         let surface_caps   = surface.get_capabilities(&gpu.adapter);
 
         let surface_format = prefer_format(&surface_caps);
@@ -60,11 +60,11 @@ impl OverlayRenderer {
         // Diagnostic: log every alpha mode the surface advertises and
         // the one we picked.  On Windows (especially under WARP / VMs
         // without GPU passthrough) the surface can be limited to
-        // `Opaque` only — in which case alpha is ignored regardless of
+        // `Opaque` only, in which case alpha is ignored regardless of
         // window flags or shader output, and the overlay renders as
         // solid black.  Surfacing this in the log lets us tell apart
         // "code wrong" from "platform doesn't support per-pixel alpha
-        // here" without a debugger.
+        // here" without a debugger
         log::info!(
             "overlay surface alpha_modes={:?}, picked={:?}",
             surface_caps.alpha_modes, alpha_mode,
@@ -106,7 +106,7 @@ impl OverlayRenderer {
             Ok(t)  => t,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
                 self.surface.configure(&self.device, &self.config);
-                warn!("overlay surface lost — reconfigured");
+                warn!("overlay surface lost; reconfigured");
                 return Ok(());
             }
             Err(e) => return Err(e).context("overlay get_current_texture"),
@@ -152,11 +152,11 @@ impl OverlayRenderer {
 
     /// `true` when the swap chain advertises a per-pixel-alpha mode
     /// (`PreMultiplied`, `PostMultiplied`, or `Inherit`).  `false` when
-    /// it could only do `Opaque` — typical for VM environments running
+    /// it could only do `Opaque`, typical for VM environments running
     /// the Microsoft Basic Render Driver (WARP), where the emulated
     /// DXGI surface doesn't expose alpha modes.  Callers can use this
     /// to hide the overlay window in those environments instead of
-    /// painting full-screen opaque black on top of everything.
+    /// painting full-screen opaque black on top of everything
     pub fn alpha_capable(&self) -> bool {
         !matches!(self.config.alpha_mode, wgpu::CompositeAlphaMode::Opaque)
     }
@@ -253,10 +253,10 @@ pub(crate) fn build_pipeline(
 // ─── Surface helpers ──────────────────────────────────────────────────────────
 
 /// Prefer non-sRGB (linear byte) formats so color values fed into the shader
-/// land in the framebuffer 1:1 — matching Swift's `MTKView.colorPixelFormat =
-/// .bgra8Unorm`.  With a `*UnormSrgb` surface wgpu would gamma-encode the
-/// shader output (linear → sRGB) and mid-tone blends would render noticeably
-/// brighter than the Swift reference.
+/// land in the framebuffer 1:1, matching Swift's `MTKView.colorPixelFormat =
+/// .bgra8Unorm`. With a `*UnormSrgb` surface wgpu would gamma-encode the
+/// shader output (linear -> sRGB) and mid-tone blends would render noticeably
+/// brighter than the Swift reference
 fn prefer_format(caps: &wgpu::SurfaceCapabilities) -> wgpu::TextureFormat {
     for &f in &[
         wgpu::TextureFormat::Bgra8Unorm,
@@ -267,8 +267,8 @@ fn prefer_format(caps: &wgpu::SurfaceCapabilities) -> wgpu::TextureFormat {
         if caps.formats.contains(&f) { return f; }
     }
     // Driver bug guard: wgpu specifies `formats` as non-empty, but a
-    // misbehaving driver could in principle return an empty list.
-    // Falling back to a hard-coded `Bgra8Unorm` keeps us from indexing
+    // misbehaving driver could in principle return an empty list. Falling
+    // back to a hard-coded `Bgra8Unorm` keeps us from indexing
     // `formats[0]` past the end and crashing the renderer
     caps.formats.first().copied().unwrap_or(wgpu::TextureFormat::Bgra8Unorm)
 }

@@ -1,29 +1,29 @@
 #
 # Build + sign the Rust exhale binary into an MSIX package for Microsoft
-# Store submission (and sideload testing).
+# Store submission (and sideload testing)
 #
-# Produces (under `rust\target\msix\`):
-#   exhale.msix          — signed MSIX (upload via Partner Center)
+# Produces (under `rust\target\msix\`)
+#   exhale.msix          : signed MSIX (upload via Partner Center)
 #
-# Requirements:
-#   - Windows 10 SDK (10.0.17763 or newer) — provides makeappx.exe + signtool.exe
+# Requirements
+#   - Windows 10 SDK (10.0.17763 or newer), provides makeappx.exe + signtool.exe
 #     Install from: https://developer.microsoft.com/windows/downloads/windows-sdk
 #   - Rust toolchain with x86_64-pc-windows-msvc target
 #   - (Partner-Center upload only) Publisher + Identity Name reserved at
 #     https://partner.microsoft.com/dashboard/windows/overview and pasted into
 #     rust\packaging\windows\AppxManifest.xml before running
-#   - (Signing only) A code-signing cert in PFX form.
+#   - (Signing only) A code-signing cert in PFX form
 #
-# Usage (PowerShell):
+# Usage (PowerShell)
 #   rust\scripts\bundle-msix.ps1                                   # default version
 #   rust\scripts\bundle-msix.ps1 -Version 2.0.8 -Build 208         # override
 #   rust\scripts\bundle-msix.ps1 -CertPath C:\certs\self.pfx `
 #                                -CertPassword (ConvertTo-SecureString "pw" -AsPlainText -Force)
 #   rust\scripts\bundle-msix.ps1 -DryRun                           # skip signing
 #
-# For the Microsoft Store, signing is *optional* here — Partner Center
+# For the Microsoft Store, signing is *optional* here: Partner Center
 # re-signs the submitted MSIX with the Store's own cert.  For sideload /
-# CI smoke tests, pass -CertPath + -CertPassword to self-sign.
+# CI smoke tests, pass -CertPath + -CertPassword to self-sign
 #
 
 [CmdletBinding()]
@@ -53,7 +53,7 @@ function Write-Log($msg)  { Write-Host "[msix] $msg" -ForegroundColor Cyan }
 function Write-Fail($msg) { Write-Host "[msix] error: $msg" -ForegroundColor Red; exit 1 }
 
 function Find-SdkTool($name) {
-    # Walk every installed Windows 10/11 SDK, pick the newest bin\*\x64\$name.
+    # Walk every installed Windows 10/11 SDK, pick the newest bin\*\x64\$name
     $roots = @(
         "${Env:ProgramFiles(x86)}\Windows Kits\10\bin",
         "${Env:ProgramFiles}\Windows Kits\10\bin"
@@ -73,9 +73,9 @@ function Find-SdkTool($name) {
 $MakeAppx = Find-SdkTool "makeappx.exe"
 $SignTool = Find-SdkTool "signtool.exe"
 
-if (-not $MakeAppx) { Write-Fail "makeappx.exe not found — install Windows 10 SDK" }
+if (-not $MakeAppx) { Write-Fail "makeappx.exe not found: install Windows 10 SDK" }
 if (-not $DryRun -and $CertPath -and -not $SignTool) {
-    Write-Fail "signtool.exe not found — install Windows 10 SDK"
+    Write-Fail "signtool.exe not found: install Windows 10 SDK"
 }
 
 # ── 1. Build the Rust binary (release, no-default-features for MAS parity) ──
@@ -107,17 +107,17 @@ $ManifestDst = Join-Path $StageDir "AppxManifest.xml"
 
 # Read via .NET so a BOM on the source file is stripped during decode, and
 # write back with an explicit no-BOM encoder so makeappx doesn't reject the
-# manifest with "Incorrect xml declaration syntax" on Line 1 Col 14.
+# manifest with "Incorrect xml declaration syntax" on Line 1 Col 14
 $manifestText = [System.IO.File]::ReadAllText($ManifestSrc)
 # Coerce any pre-release suffix (e.g. "2.0.8-rc.1") down to the numeric
-# triple MSIX requires; D must be 0 (Microsoft Store rule).
+# triple MSIX requires; D must be 0 (Microsoft Store rule)
 $numericVersion = ($Version -split '-')[0]
 # Case-sensitive replace (-creplace) so we only hit the <Identity Version="…">
 # attribute and leave the lowercase XML declaration `<?xml version="1.0"?>`
 # untouched.  Negative-lookbehind `(?<!\w)` prevents matching inside
-# `MinVersion="…"` or `MaxVersionTested="…"` on the TargetDeviceFamily —
+# `MinVersion="…"` or `MaxVersionTested="…"` on the TargetDeviceFamily,
 # otherwise Partner Center rejects the MSIX with "targets Windows MinVersion
-# <= 10.0.17134.0" because MinVersion got clobbered to the app version.
+# <= 10.0.17134.0" because MinVersion got clobbered to the app version
 $manifestText = $manifestText -creplace '(?<!\w)Version="[^"]+"', "Version=`"$numericVersion.0`""
 [System.IO.File]::WriteAllText($ManifestDst, $manifestText, [System.Text.UTF8Encoding]::new($false))
 
@@ -125,7 +125,7 @@ $manifestText = $manifestText -creplace '(?<!\w)Version="[^"]+"', "Version=`"$nu
 if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir | Out-Null }
 if (Test-Path $OutMsix) { Remove-Item -Force $OutMsix }
 
-Write-Log "makeappx pack → $OutMsix"
+Write-Log "makeappx pack -> $OutMsix"
 & $MakeAppx pack /d $StageDir /p $OutMsix /o
 if ($LASTEXITCODE -ne 0) { Write-Fail "makeappx pack failed" }
 
@@ -139,7 +139,7 @@ if ($DryRun) {
     $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($CertPassword)
     $plainPw = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
     try {
-        Write-Log "signtool sign → $OutMsix"
+        Write-Log "signtool sign -> $OutMsix"
         & $SignTool sign `
             /fd SHA256 `
             /a `
@@ -151,7 +151,7 @@ if ($DryRun) {
         [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
     }
 } else {
-    Write-Log "no -CertPath supplied — MSIX is unsigned"
+    Write-Log "no -CertPath supplied: MSIX is unsigned"
     Write-Log "Microsoft Store will re-sign on submission; for sideload testing"
     Write-Log "pass -CertPath + -CertPassword with a self-signed PFX."
 }
