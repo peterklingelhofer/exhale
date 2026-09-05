@@ -73,7 +73,7 @@ extension Shape {
     }
 }
 
-// Traces half the screen perimeter: bottom-center → corner → side → top-center.
+// Traces half the screen perimeter: bottom-center -> corner -> side -> top-center.
 // Used for the hold-phase ripple effect. `rightSide: true` goes clockwise (right),
 // `rightSide: false` goes counter-clockwise (left).
 struct HalfPerimeterShape: Shape {

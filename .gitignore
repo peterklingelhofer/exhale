@@ -31,14 +31,14 @@ target/
 *.diff
 scratch/
 
-# Mac App Store signing — never commit provisioning profiles or keys
+# Mac App Store signing: never commit provisioning profiles or keys
 rust/signing/
 *.provisionprofile
 *.p12
 *.cer
 
 
-# Local secrets — release credentials (base64 of p12s, passwords, etc.)
+# Local secrets: release credentials (base64 of p12s, passwords, etc.)
 .env
 .env.*
 !.env.example

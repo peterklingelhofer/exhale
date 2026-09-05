@@ -131,13 +131,13 @@ static inline float4 applyGradientRectangle(
 
 // Screen-edge ripple during hold phases.
 // A glowing band sweeps around the screen perimeter.
-// Inhale hold: bottom-center → both sides → top-center (holdTime 0→1)
-// Exhale hold: top-center → both sides → bottom-center (reversed)
+// Inhale hold: bottom-center -> both sides -> top-center (holdTime 0 -> 1)
+// Exhale hold: top-center -> both sides -> bottom-center (reversed)
 //
 // Perimeter parameterization (0 = bottom center, 1 = top center):
-//   Segment 1: bottom edge half  (bottom-center → corner)  length W/2
-//   Segment 2: side edge         (bottom-corner → top-corner) length H
-//   Segment 3: top edge half     (top-corner → top-center)   length W/2
+//   Segment 1: bottom edge half  (bottom-center -> corner)  length W/2
+//   Segment 2: side edge         (bottom-corner -> top-corner) length H
+//   Segment 3: top edge half     (top-corner -> top-center)   length W/2
 //   Half-perimeter = W + H
 // Both left and right halves are mirrored (same param).
 static inline float screenEdgeRipple(float2 pixel, float2 viewportSize, float holdTime, uint phase) {
@@ -152,7 +152,7 @@ static inline float screenEdgeRipple(float2 pixel, float2 viewportSize, float ho
 
     float minDist = min(min(dB, dT), min(dL, dR));
 
-    // Border glow depth — how far inward from the edge the glow reaches
+    // Border glow depth: how far inward from the edge the glow reaches
     float borderDepth = min(W, H) * 0.035f;
 
     // Early exit for pixels far from any edge
@@ -186,7 +186,7 @@ static inline float screenEdgeRipple(float2 pixel, float2 viewportSize, float ho
 
     perimParam = clamp(perimParam / halfPerim, 0.0f, 1.0f);
 
-    // Ripple front: inhale hold sweeps 0→1, exhale hold sweeps 1→0
+    // Ripple front: inhale hold sweeps 0 -> 1, exhale hold sweeps 1 -> 0
     float front = (phase == 3u) ? (1.0f - holdTime) : holdTime;
 
     // Gaussian-shaped glowing band centered on the front

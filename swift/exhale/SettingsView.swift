@@ -62,7 +62,7 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(spacing: sectionSpacing) {
-            // Controls — pinned at top
+            // Controls, pinned at top
             SectionCard {
                 HStack(spacing: 8) {
                     ControlButton(

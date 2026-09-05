@@ -8,7 +8,7 @@
   Store submission rejects with "publisher does not match".
 
   Version must increase monotonically per Store submission (A.B.C.D; keep
-  D=0 and bump the short version in Cargo.toml — the bundle-msix.ps1
+  D=0 and bump the short version in Cargo.toml; the bundle-msix.ps1
   script derives A.B.C from there).
 
   Reference:
@@ -72,7 +72,7 @@
   <Capabilities>
     <!-- The app is a traditional Win32 desktop binary wrapped in MSIX,
          so it needs `runFullTrust` to run outside the UWP sandbox.
-         No network, no filesystem, no location — matches macOS. -->
+         No network, no filesystem, no location, matching macOS -->
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>
 </Package>

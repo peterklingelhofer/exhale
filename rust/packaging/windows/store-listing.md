@@ -1,7 +1,7 @@
 # Microsoft Store listing copy
 
 The Partner Center form field values for the exhale listing (Store ID `9P79Z1NJMZB3`). Build and
-upload mechanics are in [DEPLOYMENT.md](../../../DEPLOYMENT.md#windows--microsoft-store).
+upload mechanics are in [DEPLOYMENT.md](../../../DEPLOYMENT.md#windows-microsoft-store).
 
 ---
 
@@ -12,14 +12,14 @@ A minimal cross-platform breathing overlay: a friendly indicator and reminder to
 
 The overlay is a translucent always-on-top window that gently expands on inhale and contracts on exhale. Inhale, post-inhale hold, exhale, and post-exhale hold durations are all configurable. A good place to start is 5 seconds in and 5 seconds out, which is 6 breaths a minute. Rates from 5 to 7 a minute are the ones that have been tested directly. Box breathing (4 / 4 / 4 / 4) is also supported.
 
-Every claim above is sourced, alongside a ledger of what the research does not support, at https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md
+Every claim above is sourced, alongside a ledger of what the research doesn't support, at https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md
 
 Every action (Start, Stop, Reset, Quit, Preferences) is rebindable to a global keyboard shortcut. Fully keyboard-navigable Preferences panel. Runs as a menu-bar / system-tray app; the overlay itself is click-through so it never interrupts whatever you're doing.
 
-Take breaks if intense feelings arise; it's important not to overdo it.
+Take breaks if intense feelings arise; don't overdo it.
 
 ---
-Disclaimer: The information and guidance provided by this app are intended for general informational purposes only and are not medical advice. The creator is not a medical professional. Always seek the advice of a qualified healthcare provider with any questions about your health, and do not disregard or delay professional medical advice because of this app. Use is at your own risk.
+Disclaimer: The information and guidance provided by this app are intended for general informational purposes only and aren't medical advice. The creator isn't a medical professional. Always seek the advice of a qualified healthcare provider with any questions about your health, and don't disregard or delay professional medical advice because of this app. Use is at your own risk.
 ```
 
 ## Short description (150 char max)
@@ -36,7 +36,7 @@ breathing, mindfulness, focus, breath, reminder, meditation, productivity, calm,
 
 ## What's new in this version
 
-Per-release, so it is **not** pinned here. Take it from the release notes for the tag being
+Per-release, so it's **not** pinned here. Take it from the release notes for the tag being
 submitted. The v2.0.21 text, kept as a shape reference:
 
 ```

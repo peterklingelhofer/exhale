@@ -1,21 +1,20 @@
-//! Headless CPU benchmark — mirrors the Swift `measureCPU` suite.
+//! Headless CPU benchmark, mirrors the Swift `measureCPU` suite
 //!
 //! Runs the real `BreathingController` driving a `HeadlessRenderer` that
-//! draws into an offscreen 1920×1080 Bgra8Unorm texture.  This is not a
-//! like-for-like replacement for the live-process sampler — there is no
-//! window, no compositor, no swapchain present — but it isolates the
-//! controller + render cost of the Rust port and gives a stable number
-//! that is directly comparable between local runs.
+//! draws into an offscreen 1920×1080 Bgra8Unorm texture, distinct from
+//! the live-process sampler: no window, no compositor, no swapchain
+//! present. It isolates the controller + render cost of the Rust port
+//! and gives a stable number that's directly comparable between local runs
 //!
-//! Methodology (matches `exhale/swift/exhaleTests.swift::measureCPU`):
-//!   1. Warm up 0.5 s.
+//! Methodology (matches `exhale/swift/exhaleTests.swift::measureCPU`)
+//!   1. Warm up 0.5 s
 //!   2. Baseline phase: `is_animating = false`, 5 × 1 s samples via
-//!      `getrusage(RUSAGE_SELF)`, averaged.
-//!   3. Animation phase: `is_animating = true`, another 5 × 1 s samples.
-//!   4. Delta = max(0, animation − baselineAvg) for each sample.
-//!   5. Print per-variant peak + avg delta.
+//!      `getrusage(RUSAGE_SELF)`, averaged
+//!   3. Animation phase: `is_animating = true`, another 5 × 1 s samples
+//!   4. Delta = max(0, animation − baselineAvg) for each sample
+//!   5. Print per-variant peak + avg delta
 //!
-//! Usage:
+//! Usage
 //!   cargo run --release --example cpu_bench -p exhale-render
 //!   cargo run --release --example cpu_bench -p exhale-render -- only=circle_ripple
 
@@ -44,7 +43,7 @@ fn get_cpu_seconds() -> f64 {
     u + s
 }
 
-/// Sleep for `dur` and return CPU% used by *this whole process* during the sleep.
+/// Sleep for `dur` and return CPU% used by *this whole process* during the sleep
 fn sample_cpu(dur: Duration) -> f64 {
     let cpu_before  = get_cpu_seconds();
     let wall_before = Instant::now();
@@ -76,10 +75,10 @@ fn variants() -> Vec<Variant> {
 
 #[allow(clippy::field_reassign_with_default)]
 fn run_variant(v: &Variant) {
-    // Build settings with animation ON — matches the real-app default.
-    // Baseline phase intentionally does NOT spawn the controller, so the
+    // Build settings with animation ON, matches the real-app default. Baseline
+    // phase intentionally does NOT spawn the controller, so the
     // baseline measures pure process idle (no controller thread, no GPU
-    // work).  Delta = animation + render cost above that floor.
+    // work).  Delta = animation + render cost above that floor
     let mut s = Settings::default();
     s.shape                = v.shape;
     s.color_fill_gradient  = v.gradient;
@@ -111,7 +110,7 @@ fn run_variant(v: &Variant) {
     let baseline_avg = baseline.iter().sum::<f64>() / baseline.len() as f64;
 
     // ── Phase 2: start controller + measure animation ────────────────────────
-    // Weak-ref slot breaks the controller-callback reference cycle.
+    // Weak-ref slot breaks the controller-callback reference cycle
     let ctrl_slot: Arc<RwLock<Option<std::sync::Weak<BreathingController>>>> =
         Arc::new(RwLock::new(None));
 
@@ -153,9 +152,9 @@ fn run_variant(v: &Variant) {
     let anim_elap  = anim_start.elapsed().as_secs_f64();
     let fps_effect = frame_end as f64 / anim_elap;
 
-    // Drop the last strong Arc → controller's Drop runs stop() + joins thread.
-    // Clear the slot so the Weak inside the callback is released as the thread
-    // shuts down.
+    // Drop the last strong Arc -> controller's Drop runs stop() + joins
+    // thread. Clear the slot so the Weak inside the callback is released
+    // as the thread shuts down
     *ctrl_slot.write().unwrap() = None;
     drop(ctrl);
 
@@ -184,7 +183,7 @@ fn main() {
         .find_map(|a| a.strip_prefix("only=").map(|s| s.to_string()));
 
     println!(
-        "exhale-render headless CPU bench — {w}×{h}, {n}×{s:.1}s samples, warmup {wu:.1}s",
+        "exhale-render headless CPU bench: {w}×{h}, {n}×{s:.1}s samples, warmup {wu:.1}s",
         w = WIDTH, h = HEIGHT, n = SAMPLE_COUNT, s = SAMPLE_SECONDS, wu = WARMUP_SECONDS,
     );
     println!("{}\n", "─".repeat(72));
@@ -197,7 +196,7 @@ fn main() {
     }
 
     println!(
-        "Done.  Baseline measures idle process overhead (controller parked, no \
-         render).  Delta approximates animation + render cost."
+        "Baseline measures idle process overhead (controller parked, no render); \
+         delta approximates animation + render cost."
     );
 }
