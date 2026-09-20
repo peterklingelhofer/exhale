@@ -339,10 +339,12 @@ impl Default for Settings {
             // 5 / 0 / 5 / 0, six breaths a minute, no holds
             //
             // Inside the 5-to-7 band `you2023-respiratory-frequency` tested
-            // directly, and the condition that won the four-way head-to-head in
-            // `marchant2025-square-478-six`. The previous default was 5 / 0 / 10 / 0,
-            // four a minute, which nobody has measured; it's still one click away
-            // as a preset
+            // directly, and at the rate that won the four-way head-to-head in
+            // `marchant2025-square-478-six`, where the 4:6 and 5:5 ratios didn't
+            // differ significantly. The previous default was 5 / 0 / 10 / 0,
+            // four a minute, which no primary study in this corpus has measured
+            // (`lehrer2022-my-life-hrvb` recalls one that did, secondhand). It's
+            // still one click away as a preset
             //
             // These fields carry no `#[serde(default)]`, so a settings.toml that
             // predates this change keeps every value it already has. The move
@@ -680,8 +682,8 @@ mod tests {
         assert_eq!(s.cycle_secs(), 10.0);
         assert!((s.breaths_per_min().unwrap() - 6.0).abs() < 1e-9);
         // Pinned deliberately. Six a minute is inside the 5-to-7 band
-        // `you2023-respiratory-frequency` tested and is the condition
-        // that won `marchant2025-square-478-six`; gaps ledger item 2
+        // `you2023-respiratory-frequency` tested and is the rate that
+        // won `marchant2025-square-478-six`; gaps ledger item 2
         // rests on this number, so moving it means moving that entry
         assert!(!s.drift_is_active());
     }
