@@ -110,9 +110,9 @@ discussed: the Rust sources, the Snap description and the Microsoft Store listin
 listing is edited somewhere a README review never reaches, which is exactly how the two drift.
 
 **In the app.** A *Research* item in the macOS app menu, directly under About, and the same item in
-the system-tray menu on every platform. Both open the gaps ledger rather than the top of the
-reference list, which is the whole point of the item: the label is plain, so the anchor carries the
-intent. The Timing panel offers five patterns as one-click presets, computes the current rate from
+the system-tray menu on every platform. Both open the corpus page, which fetches the current
+`CITATIONS.md` from `main` at load, so an installed build always shows the evidence as it stands
+rather than as it stood at release. The Timing panel offers five patterns as one-click presets, computes the current rate from
 the four duration fields, and prints it against the tested range, unprompted, so a configuration
 outside that range says so where it's being chosen. Selecting box breathing makes the panel state
 that it's 3.8 breaths a minute and slower than anything tested directly, which is the honest thing

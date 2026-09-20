@@ -185,10 +185,9 @@ mod tests {
     fn shipped_research_url_passes_the_allowlist() {
         assert!(is_openable(crate::tray::RESEARCH_URL));
         assert!(
-            crate::tray::RESEARCH_URL.ends_with("#gaps-and-unsupported-choices"),
-            "the anchor is the feature: pointing at the top of CITATIONS.md \
-             lands the reader in 48 references instead of the fourteen \
-             things they don't support"
+            crate::tray::RESEARCH_URL.ends_with("/exhale/citations.html"),
+            "the menu item opens the corpus page at the top; a fragment \
+             would need a heading that scripts/generate-citations.py checks"
         );
     }
 }
