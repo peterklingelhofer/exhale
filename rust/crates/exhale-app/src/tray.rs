@@ -7,15 +7,11 @@ use tray_icon::{
 
 // ─── Research link ────────────────────────────────────────────────────────────
 
-/// Deep link into the gaps ledger; the top of the citation list would
-/// read as authority instead of naming what the research doesn't support
-///
-/// Landing the reader on 48 references reads as a wall of authority;
-/// landing them on the fourteen things the literature *doesn't*
-/// support is the same click with the opposite effect.  The anchor is
-/// as much the feature as the menu item is, so both are pinned here
-/// together and `scripts/generate-citations.py` validates that this
-/// heading still exists
+/// The corpus page, opened at the top so the reader gets the reading
+/// guide (verification status, access level, evidence tier) before the
+/// entries and the gaps ledger the page links to from its first screen.
+/// `scripts/generate-citations.py` validates that this URL still points
+/// into the corpus, and that any anchor it carries still names a heading
 ///
 /// Pinned to `main` rather than a release tag on purpose.  A binary
 /// stays installed long after its tag stops being the current state
@@ -27,16 +23,13 @@ use tray_icon::{
 /// as current as the blob view did, but a reader who followed a menu
 /// item called "Research" arrives at a document instead of at a code
 /// host's file browser
-pub const RESEARCH_URL: &str =
-    "https://peterklingelhofer.github.io/exhale/citations.html#gaps-and-unsupported-choices";
+pub const RESEARCH_URL: &str = "https://peterklingelhofer.github.io/exhale/citations.html";
 
-/// Named next to the URL because the wording and the anchor are one
-/// decision.  The label is plain, so the anchor carries the whole
-/// intent: "Research" pointing at the gaps ledger lands the reader on
-/// the fourteen things the literature doesn't support, where the same
-/// word pointing at the top of `CITATIONS.md` would land them in a wall
-/// of 48 references.  Shared with the macOS app menu, which shows the
-/// same item, so the two can never disagree
+/// Named next to the URL because the wording and the destination are one
+/// decision: a plain label pointing at the whole corpus, rather than a
+/// claim-shaped label pointing at a supporting entry.  Shared with the
+/// macOS app menu, which shows the same item, so the two can never
+/// disagree
 pub const RESEARCH_LABEL: &str = "Research";
 
 // ─── Menu item IDs ────────────────────────────────────────────────────────────
