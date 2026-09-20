@@ -50,9 +50,9 @@
       "evidenceTier": "A",
       "backsClaims": [
         "short breaks of ten minutes or less from a work task reduce fatigue and increase vigor",
-        "an interruption long enough to run one breath cycle is a plausible unit of recovery"
+        "break duration didn't moderate the vigor or fatigue effects, but the studies that measured them used breaks of 2 to 10 minutes, so a one-breath interruption sits below the shortest break tested for well-being and inside the studied range only for performance, where longer breaks did better"
       ],
-      "caveat": "22 studies, 19 manuscripts. The performance effect was smaller and less consistent than the well-being effect, and the authors report it depended on task type. None of the included studies used a breathing exercise as the break activity, so this supports the general shape of exhale's reminder timer; the breathing content itself is untested here."
+      "caveat": "22 independent study samples from 19 publications. Break duration moderated the performance effect (longer was better) but not vigor or fatigue. The pooled breaks ran from 8 seconds to 10 minutes, but every sub-minute break came from a performance-only study, the vigor and fatigue studies used breaks of 2 to 10 minutes, and the break-duration tests rest on nine studies each for vigor and fatigue against 15 for performance. The performance effect was smaller and less consistent than the well-being effect, and the authors report it depended on task type. The paper reports break activities only by category and describes none as a breathing exercise, so this supports the general shape of exhale's reminder timer; the breathing content itself is untested here."
     }
   },
   {
@@ -100,7 +100,7 @@
         "a 2:1 exhale-to-inhale cue raised RMSSD and HF-HRV relative to a 1:1 cue at the participant's own breathing rate",
         "the HF-HRV elevation persisted about four minutes after the 2:1 block ended"
       ],
-      "caveat": "n = 28 (16 young, 12 older). Note the manipulation check: the achieved ratios were 1.08 and 1.33, well short of the instructed 1:1 and 2:1, and pacing was at each participant's spontaneous rate rather than in the resonance range. One of five studies in this corpus that disagree about the ratio; see vandiest2014-ie-ratio-relaxation and laborde2021-ie-ratio-pauses (also positive), lin2014-equal-ratio-hrv (favours the equal ratio) and meehan2024-longer-exhalations (null). Gap 4 in the ledger tabulates all five."
+      "caveat": "n = 28 (16 young, 12 older). Note the manipulation check: the achieved ratios were 1.08 under the 1:1 cue and 1.33 under the 2:1 cue, so the longer-exhale condition fell well short of the instructed 2:1, and pacing was at each participant's spontaneous rate rather than in the resonance range. One of five studies in this corpus that disagree about the ratio; see vandiest2014-ie-ratio-relaxation and laborde2021-ie-ratio-pauses (also positive), lin2014-equal-ratio-hrv (favours the equal ratio) and meehan2024-longer-exhalations (null). Gap 4 in the ledger tabulates all five."
     }
   },
   {
@@ -167,13 +167,13 @@
       "verification": "crossref-verified",
       "accessLevel": "open-access",
       "readDepth": "full-text",
-      "evidenceTier": "B",
+      "evidenceTier": "C",
       "inAppCitable": false,
       "backsClaims": [
-        "five minutes a day of exhale-emphasising cyclic sighing improved mood and lowered respiratory rate more than an equal period of mindfulness meditation over one month",
+        "five minutes a day of exhale-emphasising cyclic sighing raised positive affect and lowered respiratory rate more than an equal period of mindfulness meditation over one month",
         "box breathing, equal inhale / hold / exhale, was tested head-to-head and wasn't the best-performing arm"
       ],
-      "caveat": "Remote randomised controlled study, pre-registered as NCT05304000, with 108 participants: 24 in the mindfulness-meditation control, 30 cyclic sighing, 21 box breathing and 33 cyclic hyperventilation. The comparator is mindfulness meditation rather than a sham, so the arms differ in more than breath ratio. In the mixed-effects model, cyclic sighing separated from the control on positive affect; box breathing and cyclic hyperventilation didn't, and the breathwork arms weren't tested against one another. Daily positive-affect gains were 1.89 points for cyclic sighing and 1.84 for box breathing. This is the best evidence in the corpus that emphasising the exhale is the right emphasis, and it's weaker than the abstract suggests: the box arm is small and the difference between the two patterns isn't established. The cyclic-sighing protocol also adds a double inhale, so its effect can't be attributed to exhale length alone."
+      "caveat": "Remote randomised controlled study with 108 participants: 24 in the mindfulness-meditation control, 30 cyclic sighing, 21 box breathing and 33 cyclic hyperventilation. It was registered retrospectively as NCT05304000. The authors state it was intended as an exploratory study and 'was not pre-registered as a clinical trial'. The comparator is mindfulness meditation rather than a sham, so the arms differ in more than breath ratio. In the mixed-effects model, cyclic sighing separated from the control on positive affect. Box breathing and cyclic hyperventilation didn't, and the breathwork arms weren't tested against one another. Daily positive-affect gains were 1.89 points for cyclic sighing and 1.84 for box breathing. This is the best evidence in the corpus that emphasising the exhale is the right emphasis, and it's weaker than the abstract suggests: the box arm is small and the difference between the two patterns isn't established. The cyclic-sighing protocol also adds a double inhale, so its effect can't be attributed to exhale length alone. Heart rate variability and resting heart rate slopes didn't differ between groups. Respiratory rate did. In raw daily means the mindfulness arm's reductions in negative affect and state anxiety were the larger ones (1.62 against 0.98 points, and 3.95 against 3.03), and the mixed-effects model found no group difference on either, so the breathwork advantage is specific to positive affect."
     }
   },
   {
@@ -309,7 +309,7 @@
         "fifteen minutes of paced breathing at 6 per minute raised arterial oxygen saturation and lowered systemic and pulmonary arterial pressure at high altitude",
         "the proposed mechanism is a larger tidal volume reducing the proportion of each breath spent on anatomical dead space"
       ],
-      "caveat": "Conducted at high altitude in a hypoxic state, so it doesn't transfer to a desk at sea level and must not be cited as if it did. It's carried for two narrow purposes: it's a second study placing the controlled literature at 6 breaths per minute, and its dead-space mechanism is the reason slow breathing isn't simply less breathing."
+      "caveat": "n = 39 (Study A, 4559 m for two to three days) and 28 (Study B, 5400 m for twelve to sixteen days). Conducted at high altitude in a hypoxic state, so it doesn't transfer to a desk at sea level and must not be cited as if it did. It's carried for two narrow purposes: it's a second study placing the controlled literature at 6 breaths per minute, and its dead-space mechanism is the reason slow breathing isn't simply less breathing."
     }
   },
   {
@@ -356,7 +356,7 @@
       "backsClaims": [
         "sustained slow breathing programmes lower systolic blood pressure by about 5.6 mmHg and diastolic by about 3.0 mmHg in hypertensive and prehypertensive adults"
       ],
-      "caveat": "17 RCTs. Heterogeneity was high for every analysis, and the authors say so. Inclusion required at least 5 minutes of breathing at 10 breaths/min or slower, on at least 3 days a week, for at least 4 weeks. exhale asks for none of that and measures none of it, so this describes a dose exhale doesn't deliver. Read alongside vandijk2018-close-the-book."
+      "caveat": "17 trials, each a randomised controlled trial or the first phase of a randomised cross-over study. Heterogeneity was high for every analysis, and the authors say so. Inclusion required at least 5 minutes of breathing at 10 breaths/min or slower, on at least 3 days a week, for at least 4 weeks. exhale asks for none of that and measures none of it, so this describes a dose exhale doesn't deliver. Read alongside vandijk2018-close-the-book."
     }
   },
   {
@@ -550,11 +550,11 @@
       "readDepth": "full-text",
       "evidenceTier": "B",
       "backsClaims": [
-        "mentally demanding work is reliably marked by faster breathing, with medium to large effects",
+        "mentally demanding work is reliably marked by faster breathing, with mostly medium to large effects",
         "respiratory amplitude stays roughly stable under cognitive load",
-        "cognitive load lowers end-tidal CO2, meaning ventilation runs ahead of metabolic need"
+        "in the four experiments that measured it, cognitive load lowered end-tidal CO2, which the authors read as possible overbreathing while noting that CO2 production rose too"
       ],
-      "caveat": "54 experiments across 53 articles. Note the direction of the amplitude finding: cognitive load raises rate while leaving amplitude roughly stable, so this doesn't support 'shallow' if shallow means less air moved. Minute ventilation goes up. For the diaphragmatic-to-thoracic shift that 'shallow' usually names, see schleifer2002-hyperventilation-job-stress; for the same over-breathing measured at a keyboard, see schleifer1994-vdt-petco2 and schleifer2008-emg-gaps-computer-work. This entry is the general cognitive-load backdrop, and it's also the reason the keyboard can't be singled out as the cause: any demanding task produces the pattern."
+      "caveat": "54 experiments across 53 articles. The rate finding is the well-supported one: 20 studies with large effects. The end-tidal CO2 finding rests on four of the 54 experiments, with one computed effect size of d = -0.26, and the authors hedge it as 'may lead to overbreathing'. Note the direction of the amplitude finding: cognitive load raises rate while leaving amplitude roughly stable, so this doesn't support 'shallow' if shallow means less air moved. Minute ventilation goes up. For the diaphragmatic-to-thoracic shift that 'shallow' usually names, see schleifer2002-hyperventilation-job-stress; for the same over-breathing measured at a keyboard, see schleifer1994-vdt-petco2 and schleifer2008-emg-gaps-computer-work. This entry is the general cognitive-load backdrop, and it's also the reason the keyboard can't be singled out as the cause: any demanding task produces the pattern."
     }
   },
   {
@@ -632,13 +632,14 @@
       "group": "tradition",
       "verification": "pubmed-verified",
       "accessLevel": "paywalled",
-      "readDepth": "abstract",
+      "readDepth": "full-text",
       "evidenceTier": "C",
       "backsClaims": [
         "six weeks of pranayama practice in 75 young adults lowered resting respiratory rate and prolonged breath-holding time",
-        "the same training raised forced vital capacity, FEV1, maximum voluntary ventilation and peak expiratory flow rate"
+        "the same training raised forced vital capacity, maximum voluntary ventilation and peak expiratory flow rate in both sexes. FEV1, which the paper reports as a percentage, rose in the women and fell in the men"
       ],
-      "caveat": "Findings taken from the abstract. No DOI exists, and the record was verified against the NCBI E-utilities API by PMID rather than Crossref. Uncontrolled before-and-after design in a 1992 regional journal, so treat the effect sizes as unusable. It's carried because it's the only entry in this corpus that speaks to graded extension as a training progression: capacity grew over six weeks of practice. That's a claim about adaptation across sessions. Extending the breath without limit inside a single sitting is a different proposition, and shaffer2020-resonance-frequency-assessment bears on it."
+      "caveat": "Read in full from the journal's own archive PDF. No DOI exists, and the record was verified against the NCBI E-utilities API by PMID rather than Crossref. 33 male and 42 female medical students, mean age 18.5, each their own control with no separate control group. The protocol was 20 minutes twice a day on weekdays and once on Saturdays for six weeks: two minutes of slow maximal breaths at 5 s in and 5 s out (6 a minute, exhale's default rate), sixteen minutes of 5 s maximal inhale, 17 s hold and 8 s maximal exhale (a 30-second cycle, 2 a minute), then two minutes at 5 s in and out again. Uncontrolled before-and-after design in a 1992 regional journal, so treat the effect sizes as unusable. Per-measure n in the tables runs from 23 to 42 per sex, so the respiratory-rate, FVC and FEV1% results rest on 68, 62 and 58 people rather than 75, and Table III's FEV1% differences don't match Tables I and II. No Crossref record exists to carry a licence and the journal's archive serves the PDF free without stating one, so the access level stays paywalled with the archive PDF as the open copy. It's carried because it's the only entry in this corpus that speaks to graded extension as a training progression: capacity grew over six weeks of practice. That's a claim about adaptation across sessions. Extending the breath without limit inside a single sitting is a different proposition, and shaffer2020-resonance-frequency-assessment bears on it. The trained pattern was hold-heavy, which bears on gap 11: six weeks of a 17-second retention with no adverse effects reported, in an uncontrolled study that wasn't looking for them.",
+      "openCopy": "https://ijpp.com/IJPP%20archives/1992_36_2/105-108.pdf"
     }
   },
   {
@@ -743,13 +744,13 @@
       "group": "timing",
       "verification": "crossref-verified",
       "accessLevel": "open-access",
-      "readDepth": "abstract",
+      "readDepth": "full-text",
       "evidenceTier": "C",
       "backsClaims": [
         "at six cycles per minute, RMSSD was higher when the exhalation was longer than the inhalation, across inhalation/exhalation ratios of 0.8, 1.0 and 1.2",
         "brief 0.4 s pauses after inhalation and after exhalation didn't further change RMSSD"
       ],
-      "caveat": "n = 64 athletes, within-subjects, six 5-minute conditions in one session. Findings taken from the abstract; effect sizes not read. This is the fifth study bearing on the ratio disagreement tabulated in gap 4, on the side of the longer exhale, and the only one that also manipulates respiratory pauses, which is why it also settles gap 11 as far as brief pauses go. Published in Sustainability, an MDPI journal outside the field, which matters when weighing it against the other four."
+      "caveat": "n = 64 athletes, within-subjects, six 5-minute conditions in one session. 66 were recruited and 2 excluded for technical faults. Effect sizes from the full text: ratio main effect partial eta-squared 0.12. The longer exhale beat the shorter exhale at d = 0.51 and the equal ratio at d = 0.37. Equal against shorter exhale was d = 0.14, not significant. The pause main effect was F(1, 63) = 2.495, p = 0.119. Only the breathing rate was verified, so whether participants actually produced the 0.4 s pauses or the exact ratios wasn't measured. Every condition raised RMSSD over baseline at d = 1.05 to 1.36. The authors note that their ratio range, 0.8 to 1.2, is narrower than other studies'. This is one of six studies bearing on the ratio disagreement tabulated in gap 4, on the side of the longer exhale, and the only one that also manipulates respiratory pauses, which is why it also settles gap 11 as far as brief pauses go. Published in Sustainability, an MDPI journal outside the field, which matters when weighing it against the other five."
     }
   },
   {
@@ -814,10 +815,10 @@
       "readDepth": "full-text",
       "evidenceTier": "C",
       "backsClaims": [
-        "slow-paced breathing at six cycles per minute raised RMSSD relative to control in every condition tested",
+        "slow-paced breathing at six cycles per minute raised RMSSD from the pre-session baseline, with and without biofeedback",
         "adding heart-rate-variability biofeedback on top of the six-per-minute pace didn't add a further RMSSD benefit, though that condition reported more positive emotional valence"
       ],
-      "caveat": "n = 112, single session. Crossref records this as issued 2021, appearing in the January 2022 issue (59:1). Both conditions raised RMSSD and lowered arousal; the biofeedback condition also reported more positive emotional valence, so 'no added benefit' is specific to the cardiac measure. Together with tabor2022-guided-breathing-design this is why exhale ships without a sensor: for the physiological effect of a single session, the pace does the work."
+      "caveat": "n = 112, single session, within-subjects, no no-breathing control: the comparison is PRE against DURING and POST. The pacer was a ball moving up and down at 6 cpm (EZ-Air), not an expanding shape. Valence was lower during breathing than before it in both conditions (d = 0.37), which is the abstract's 'more negative emotional valence'. The condition main effect on valence was partial eta-squared 0.06. Crossref records this as issued 2021, appearing in the January 2022 issue (59:1). Both conditions raised RMSSD and lowered arousal; the biofeedback condition also reported more positive emotional valence, so 'no added benefit' is specific to the cardiac measure. Together with tabor2022-guided-breathing-design this is why exhale ships without a sensor: for the physiological effect of a single session, the pace does the work. RMSSD was back at baseline across the five-minute recovery recording that followed the session (PRE against POST d = 0.22, not significant), and so was arousal (d = 0.15). The authors call it a switch-on, switch-off effect, which is a second source for the 'lasts as long as it's on' point in gap 8."
     }
   },
   {
@@ -994,7 +995,7 @@
       "backsClaims": [
         "sighing is generated by a dedicated peptidergic circuit projecting onto the preBotzinger complex rather than as a byproduct of ordinary breathing rhythm"
       ],
-      "caveat": "Mouse work. It establishes that the sigh is a distinct, hardwired respiratory behaviour, which is the mechanistic backdrop for the cyclic-sighing result in balban2023-cyclic-sighing. It says nothing about humans deliberately performing sighs, and must not be cited as if it did."
+      "caveat": "Mouse and rat work. It establishes that the sigh is a distinct, hardwired respiratory behaviour, which is the mechanistic backdrop for the cyclic-sighing result in balban2023-cyclic-sighing. It says nothing about humans deliberately performing sighs, and must not be cited as if it did."
     }
   },
   {
@@ -1038,7 +1039,7 @@
         "5.5 breaths per minute with an equal 5:5 inhale-to-exhale ratio produced higher SDNN and LF power than 6 bpm or than a 4:6 ratio",
         "all four slow-breathing patterns increased self-reported relaxation relative to spontaneous breathing"
       ],
-      "caveat": "n = 47, Latin-square counterbalanced. The clearest published result against a longer exhale on HRV grounds, and one reason exhale makes no mechanism claim for the 1:2 ratio. It also measured relaxation and anxiety across the four patterns and reports that all four increased relaxation over baseline, with no ratio-specific advantage; that's one of three subjective measurements bearing on gap 4. Note the second claim carefully: every pattern tested increased relaxation, so the ratio argument is about which slow pattern is best rather than about whether slow breathing works."
+      "caveat": "n = 47, Latin-square counterbalanced. The clearest published result against a longer exhale on HRV grounds, and one reason exhale makes no mechanism claim for the 1:2 ratio. It also measured relaxation and anxiety across the four patterns and reports that all four increased relaxation over baseline. The abstract doesn't say whether the patterns differed from each other on relaxation, so that's the extent of the subjective finding this corpus can carry from it, one of three bearing on gap 4. Note the second claim carefully: every pattern tested increased relaxation, so the ratio argument is about which slow pattern is best rather than about whether slow breathing works."
     }
   },
   {
@@ -1073,12 +1074,11 @@
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
       "readDepth": "abstract",
-      "openCopy": "https://figshare.com/articles/journal_contribution/Attrition_and_adherence_in_smartphone-delivered_interventions_for_mental_health_problems_a_systematic_and_meta-analytic_review/20730262",
       "evidenceTier": "A",
       "backsClaims": [
-        "dropout and non-adherence are the dominant practical failure mode of smartphone-delivered mental health interventions, even where efficacy trials are positive"
+        "dropout and non-adherence are common in trials of smartphone-delivered mental health interventions and may undermine the validity of their findings, and usage declines over the course of a trial"
       ],
-      "caveat": "Findings taken from the abstract: mean attrition of 24.1% at short-term and 35.5% at longer-term follow-up across 70 trials. Carried as the reality check on every other entry in this corpus: an effect measured in a supervised session says little about a tool someone installs and forgets. exhale has no telemetry and therefore no measure of whether anyone keeps it running, which the gaps ledger states plainly."
+      "caveat": "Findings taken from the abstract: mean attrition of 24.1% at short-term and 35.5% at longer-term follow-up across 70 trials. In trials reporting both per-protocol and intention-to-treat analyses the effect sizes differed by only a d of 0.18. Carried as the reality check on every other entry in this corpus: an effect measured in a supervised session says little about a tool someone installs and forgets. exhale has no telemetry and therefore no measure of whether anyone keeps it running, which the gaps ledger states plainly."
     }
   },
   {
@@ -1116,7 +1116,7 @@
         "23 of 30 reviewed studies reported significant HRV improvement; 10 reported anxiety reduction and 9 reported reduced perceived stress",
         "benefits appear larger in people with elevated baseline distress"
       ],
-      "caveat": "Narrative review, single author, 465 abstracts screened and 30 full texts analysed, with no meta-analysis and no risk-of-bias assessment. It proposes the protocol it reviews, which is a conflict of framing worth naming. Its A52 shape maps onto exhale's four sliders as 5 / 0 / 5 / 2, which is 5 breaths per minute and inside the tested band. marchant2025-square-478-six found that no-hold 6 bpm outperformed both hold-bearing patterns it tested, so the 2 s retention is the least supported part of the protocol."
+      "caveat": "Narrative review, single author, 465 records returned, 269 screened by title and abstract after de-duplication, 93 full texts assessed and 30 analysed, with no meta-analysis and no risk-of-bias assessment. It proposes the protocol it reviews, which is a conflict of framing worth naming, and it states that no study to date has directly tested the 5-5-2 sequence. Its A52 shape maps onto exhale's four sliders as 5 / 0 / 5 / 2, which is 5 breaths per minute and inside the tested band. marchant2025-square-478-six found that no-hold 6 bpm outperformed both hold-bearing patterns it tested, so the 2 s retention is the least supported part of the protocol."
     }
   },
   {
@@ -1161,12 +1161,12 @@
       "readDepth": "full-text",
       "evidenceTier": "C",
       "backsClaims": [
-        "breathing at 6 breaths per minute raised HRV more than either square (box) breathing or 4-7-8 breathing, with small to medium effects",
+        "breathing at 6 breaths per minute raised LF-HRV more than either square (box) breathing or 4-7-8 breathing at both ratios tested, with small to medium effects, and on RMSSD only the 4:6 ratio's advantage over the hold patterns was significant",
         "square and 4-7-8 breathing are popularly promoted but have little empirical support",
-        "none of the four conditions produced meaningful changes in blood pressure or mood",
+        "blood pressure didn't change significantly in any condition after Scheffe correction, neither 6 bpm ratio changed mood, and the two hold-based patterns showed small decreases in positive mood (0.19 and 0.24 SD) of which only the 4:6 against 4-7-8 contrast survived the same correction",
         "breathing at 6 breaths per minute unexpectedly produced mild over-breathing"
       ],
-      "caveat": "n = 84 college students, within-subjects, four conditions: square, 4-7-8, 6 bpm at 4:6, and 6 bpm at 5:5. Single session, so it speaks to acute effect only, and it's the largest ratio comparison in this corpus. This is the head-to-head that ranks exhale's presets, and it ranks against box breathing and 4-7-8. Two of its findings cut against arguments made elsewhere in this corpus: mood didn't change meaningfully in any condition, which is the largest subjective null in gap 4, and 6 bpm produced mild over-breathing, which is gap 5."
+      "caveat": "n = 84 college students, within-subjects, four conditions: square, 4-7-8, 6 bpm at 4:6, and 6 bpm at 5:5. Single session, so it speaks to acute effect only, and it's the largest ratio comparison in this corpus. This is the head-to-head that ranks exhale's presets, and it ranks against box breathing and 4-7-8. RMSSD gains over baseline in standard-deviation units: 5:5 0.45, 4:6 0.65, square 0.25, 4-7-8 0.27, all significant. Scheffe-corrected pairwise: 4:6 beat square and 4-7-8 (p < 0.001). 5:5's edge over them, 0.19 and 0.18, didn't reach significance (p = 0.10 and 0.15). 4:6 against 5:5 was 0.20, p = 0.07. On LF-HRV both 6 bpm conditions beat both hold patterns. So '6 bpm won' is right and 'the 5:5 condition won' isn't: the point estimates favour 4:6, and only 4:6 separated from the hold patterns on RMSSD. The authors' own conclusion is that no outcome differed significantly by ratio, that the study wasn't powered below 0.17, and that if a longer exhale has an effect it is small. Adherence within a second of the target pace was 92.9 percent for 5:5, 86.9 percent for 4:6 and 73.8 percent for both hold patterns, and participants generally breathed faster than paced. End-tidal CO2 fell by 0.56 SD (5:5) and 0.65 SD (4:6), which on average put participants in the 30 to 35 mmHg range the authors call mild over-breathing. They also note the capnometer's baseline zeroing may have been off. Two of its findings cut against arguments made elsewhere in this corpus: mood didn't change at either 6 bpm ratio, which is the largest subjective null in gap 4, and 6 bpm produced mild over-breathing, which is gap 5."
     }
   },
   {
@@ -1206,7 +1206,7 @@
         "at 6 breaths per minute, a 1:2 inhale-to-exhale ratio produced no HRV advantage over 1:1 in either an original experiment or its replication",
         "the finding held across time-domain, frequency-domain and nonlinear HRV metrics"
       ],
-      "caveat": "Original n = 26, replication n = 16; both undergraduate samples, both within-subjects with manipulation checks. Small, but it's the only entry in this corpus that ran its own replication, and its introduction tallies the older literature: three further nulls and one result favouring the longer inhale. Its scope condition matters: it holds rate fixed inside the resonance range, so it doesn't rule out a ratio effect at a person's spontaneous rate, which is what bae2021-exhalation-inhalation-ratio measured. One of five disagreeing studies; see also vandiest2014-ie-ratio-relaxation, laborde2021-ie-ratio-pauses and lin2014-equal-ratio-hrv. All five measured HRV; vandiest2014-ie-ratio-relaxation, lin2014-equal-ratio-hrv and marchant2025-square-478-six also measured how participants felt, and those three don't agree either."
+      "caveat": "Original n = 26, replication n = 16; both undergraduate samples, both within-subjects with manipulation checks. Small, but it's the only entry in this corpus that ran its own replication, and its introduction tallies the older literature: three further nulls and one result favouring the longer inhale. Its scope condition matters: it holds rate fixed inside the resonance range, so it doesn't rule out a ratio effect at a person's spontaneous rate, which is what bae2021-exhalation-inhalation-ratio measured. One of six disagreeing studies. See also vandiest2014-ie-ratio-relaxation, laborde2021-ie-ratio-pauses, lin2014-equal-ratio-hrv and marchant2025-square-478-six. All six measured HRV; vandiest2014-ie-ratio-relaxation, lin2014-equal-ratio-hrv and marchant2025-square-478-six also measured how participants felt, and those three don't agree either."
     }
   },
   {
@@ -1264,7 +1264,8 @@
         "a translucent animated bar spanning the screen, running in the periphery of attention during normal information work, significantly lowered participants' breathing rate",
         "peripheral pacing doesn't require the user's full attention to change breathing"
       ],
-      "caveat": "This is the closest published analogue to exhale that exists, and its limitation is the important part: the reduction occurred while the pacing feedback was active and didn't persist as a lasting change in respiratory pattern. An always-on overlay should be understood as an effect that lasts as long as it's on. An author copy has been distributed from vis.stanford.edu; the ACM Digital Library version is paywalled."
+      "caveat": "n = 13 (9 men, 4 women, mean age 25.5), students from computer science and related fields doing their own work, two 20-minute conditions. The pacer was sensor-triggered and intermittent: it ran in 2-minute bursts when the wearer's breath rate rose 20% above their resting baseline or at least once every six minutes, and was on for about 60% of the pacer condition. It paced to 20% below that baseline, which was taken during three minutes of eyes-closed relaxation (a pre-survey for three of the thirteen) and averaged 9.3 a minute, so the target was near 7.5 a minute, close to exhale's 6. On average they didn't get there: the rate while a burst was on averaged 15.0 (SD 4.4), and the paper gives no per-person figures. Mean rate was 15.7 a minute in the pacer condition against 17.6 without, a difference the paper gives as 1.8 bpm in the results and 1.9 in the discussion, and between bursts the rate returned to 17.1. This is the closest published analogue to exhale that exists, and its limitation is the important part: the reduction occurred while the pacing feedback was active and didn't persist as a lasting change in respiratory pattern. An always-on overlay should be understood as an effect that lasts as long as it's on. An author copy is served from idl.cs.washington.edu. The ACM Digital Library version is paywalled.",
+      "openCopy": "https://idl.cs.washington.edu/files/2011-PPR-UIST.pdf"
     }
   },
   {
@@ -1333,9 +1334,10 @@
       "evidenceTier": "D",
       "backsClaims": [
         "blink rate falls substantially during display work relative to other tasks",
-        "reduced and incomplete blinking is a principal mechanism of computer vision syndrome"
+        "reduced and incomplete blinking, with greater corneal exposure, is the review's probable mechanism for the dry-eye half of computer vision syndrome"
       ],
-      "caveat": "Narrative review of the ocular literature. Load-bearing for the blink half of exhale's opening claim only. exhale does nothing about blinking; see the gaps ledger."
+      "caveat": "Narrative review of the ocular literature. The version of record is served free at the publisher, which labels it Free Access, and the only licence Crossref registers for it is Wiley's own terms rather than a CC licence, so it's marked paywalled here with the publisher page as the open copy. Load-bearing for the blink half of exhale's opening claim only. exhale does nothing about blinking; see the gaps ledger.",
+      "openCopy": "https://onlinelibrary.wiley.com/doi/full/10.1111/j.1475-1313.2011.00834.x"
     }
   },
   {
@@ -1453,7 +1455,8 @@
         "during computer data-entry work, end-tidal CO2 was significantly lower and respiration frequency significantly higher than during either baseline relaxation or progressive muscle relaxation",
         "breathing changes measurably at a screen, and end-tidal CO2 discriminates the state"
       ],
-      "caveat": "n = 11 data-entry operators monitored continuously across three consecutive six-hour work days. Small sample, but this is real work over real working days rather than a lab proxy. Note the comparison: data entry against two relaxation conditions, so it shows what demanding work at a keyboard does; it doesn't show that the screen itself is the cause, and grassmann2016-cognitive-load-respiration finds the same pattern under cognitive load generally. Along with schleifer2008-emg-gaps-computer-work it's the direct evidence that keyboard work changes respiration, and it dates from 1994, well before the topic reached breathwork writing."
+      "caveat": "n = 11 female data-entry operators, temps from a clerical agency, tested over three consecutive six-hour days in the NIOSH work-stress laboratory, with the first two days given to practice and only the third day analysed. End-tidal CO2 averaged 41.8 mmHg during data entry against 42.9 during baseline relaxation and 44.0 during progressive muscle relaxation. The authors call the change small, 1 to 2 mmHg, and a hyperventilatory stress effect, and all three means sit inside the 35 to 45 mmHg range that marchant2025-square-478-six treats as healthy. The paper reports end-tidal CO2 lower than at rest and never reports hypocapnia. A public-domain copy is on CDC Stacks: the article states it was prepared under US Government sponsorship. Small sample, and a laboratory simulation (entering tax-form data on a numeric keypad) rather than the operators' own jobs, though run over full working days rather than a short lab session. Note the comparison: data entry against two relaxation conditions, so it shows what demanding work at a keyboard does. It doesn't show that the screen itself is the cause, and grassmann2016-cognitive-load-respiration finds the same pattern under cognitive load generally. Along with schleifer2008-emg-gaps-computer-work it's the direct evidence that keyboard work changes respiration, and it dates from 1994, well before the topic reached breathwork writing.",
+      "openCopy": "https://stacks.cdc.gov/view/cdc/204606"
     }
   },
   {
@@ -1591,9 +1594,10 @@
       "openCopy": "https://hal.sorbonne-universite.fr/hal-03578368",
       "evidenceTier": "D",
       "backsClaims": [
-        "coherence and resonance are distinct phenomena that are frequently conflated in the slow-breathing literature"
+        "temporal coherence of respiratory, blood-pressure and cardiac oscillations is reached only when breathing at the baroreflex resonant frequency of about 0.1 Hz",
+        "the baroreflex loop's delay of roughly five seconds varies between about 4 and 6.5 seconds across people, putting the natural frequency between 0.075 and 0.12 Hz, roughly 4.5 to 7 breaths per minute"
       ],
-      "caveat": "Narrative review. Carried as a terminology guard: much of the popular writing exhale competes with uses 'coherence' loosely, and this is the paper to check before adopting that vocabulary in the app or the README."
+      "caveat": "Narrative review, hence tier D. It defines its terms: 'resonance' is the roughly 0.1 Hz oscillation the baroreflex loop's delay produces, and 'coherence' the phase alignment of breathing, blood pressure and heart rate that only breathing at that frequency produces. Carried as a terminology reference: 'cardiac coherence' also circulates as a product name in the market exhale sits in, and this is the paper to check before adopting that vocabulary in the app or the README. Its conclusion notes that some studies report no effects and asks for placebo comparisons such as pacing at a spontaneous rate. The delay figures, which the review takes from Vaschillo et al. 2006, are a second citation, with lehrer2014-hrv-biofeedback, for resonance frequency being individual, and the review notes that exact coherence at 0.1 Hz is especially obtained in young participants."
     }
   },
   {
@@ -1673,7 +1677,7 @@
         "digital eye strain is common among heavy display users",
         "reduced blink rate and incomplete blinks during screen work are among its established contributors"
       ],
-      "caveat": "Crossref carries no license field for this record; access level is taken from BMJ Open Ophthalmology being a fully open-access title."
+      "caveat": "The article itself is published under CC BY-NC 4.0. Crossref carries no license field for the record, so access level is taken from BMJ Open Ophthalmology being a fully open-access title."
     }
   },
   {
@@ -1706,11 +1710,11 @@
       "readDepth": "full-text",
       "evidenceTier": "C",
       "backsClaims": [
-        "one sentence of instruction cut the end-tidal CO2 drop during 6-per-minute paced breathing from 5.21 to 2.7 mmHg",
+        "a two-sentence instruction cut the end-tidal CO2 drop during 6-per-minute paced breathing from 5.21 to 2.7 mmHg",
         "hyperventilation symptoms rose 0.63 points on a 7-point scale without the instruction and didn't rise significantly with it",
         "the instruction used was to avoid excessively deep breathing and to breathe shallowly and naturally"
       ],
-      "caveat": "Randomised, two groups, n = 46 aged 19-26, single session. This is the mitigation for gap 5 and it's unusually cheap: the problem with slow pacing is depth rather than rate, and a single sentence removes most of it. exhale paces rate and says nothing about depth, so this is the one instruction in the corpus with a safety rationale for appearing in the app."
+      "caveat": "Randomised, two groups, n = 46 aged 19-26, single session. This is the mitigation for gap 5 and it's unusually cheap: the problem with slow pacing is depth rather than rate, and a two-sentence instruction roughly halves it, cutting the drop from 5.21 to 2.7 mmHg. 36.4% of the instructed group still dropped below 30 mmHg against 43.5% of controls, and baseline end-tidal CO2 was about 36 mmHg in both groups. exhale paces rate and says nothing about depth, so this is the one instruction in the corpus with a safety rationale for appearing in the app."
     }
   },
   {
@@ -1790,11 +1794,11 @@
       "readDepth": "full-text",
       "evidenceTier": "C",
       "backsClaims": [
-        "an expanding and contracting circle pacing 6 breaths per minute produced HRV amplitude gains statistically indistinguishable from sensor-driven HRV biofeedback",
+        "an expanding and contracting circle pacing 6 breaths per minute reduced breathing rate and raised LF power as much as sensor-driven HRV biofeedback, with no significant group difference, and its HRV amplitude gain was larger (4.2 to 8.0 against 5.0 to 7.0, phase by protocol interaction p = 0.03), which the authors still summarise as comparable",
         "both conditions took roughly two minutes for effects to appear",
         "paced breathing needs no sensor, no real-time processing and no sustained attention, which suits it to use as a secondary task"
       ],
-      "caveat": "Between-subjects, n = 28 (14 per group), single 10-minute session. This is the strongest published warrant for exhale's specific design choices: an expanding/contracting shape, no hardware, no account, watchable while doing something else."
+      "caveat": "Between-subjects, n = 28 (14 per group), single 10-minute session. Paced breathing was run as a focused task in the study. The secondary-task suitability in the third claim is the paper's design argument, which the experiment didn't test. Fourteen per group can fail to find a difference without establishing equivalence. This is the strongest published warrant for exhale's specific design choices: an expanding/contracting shape, no hardware, no account, watchable while doing something else."
     }
   },
   {
@@ -1828,13 +1832,13 @@
       "group": "premise",
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
-      "readDepth": "record",
+      "readDepth": "full-text",
       "openCopy": "https://www.nejm.org/doi/pdf/10.1056/NEJM199302253280817",
       "evidenceTier": "C",
       "backsClaims": [
-        "blink rate during display work is far below blink rate at rest"
+        "blink rate during display work is far below blink rate at rest: 22 per minute relaxed, 10 reading a book, 7 viewing a display, in 104 office workers"
       ],
-      "caveat": "Not read. This is a one-page correspondence item rather than a full paper. It's the origin of the widely quoted '22 blinks a minute at rest, 7 during screen work' figures, which circulate almost entirely by secondary citation. Cite it for the direction of the effect. For a magnitude, use rosenfield2011-computer-vision-syndrome or sheppard2018-digital-eye-strain instead."
+      "caveat": "A one-page letter, read in full. 104 healthy office workers, about half of them using computers for around three hours a day. Mean blink rate 22 +/- 9 per minute under relaxed conditions, 10 +/- 6 reading a book at table level, 7 +/- 7 viewing text on a display. The letter also reports a larger exposed ocular surface at the display (2.3 cm2 against 1.2 reading) and a higher tear-evaporation rate. These are the '22 at rest, 7 at a screen' figures that circulate by secondary citation. Note the spread on the display figure (7 +/- 7) and that the letter reports no statistics. For a fuller treatment, use rosenfield2011-computer-vision-syndrome or sheppard2018-digital-eye-strain."
     }
   },
   {
@@ -1890,9 +1894,9 @@
       "backsClaims": [
         "participants reported more relaxation, more stress reduction, more mindfulness and more positive energy breathing with a low inhale/exhale ratio (longer exhale) than a high one",
         "a low inhale/exhale ratio also produced more HF-HRV power, but only in the slow breathing condition",
-        "slowing the rate on its own improved only self-reported positive energy"
+        "of the four relaxation dimensions, slowing the rate on its own improved only positive energy, though it also raised pleasantness and lowered arousal on the SAM"
       ],
-      "caveat": "n = 30, four patterns crossing rate (6 or 12 breaths/min) with i/e ratio (0.42 or 2.33). This is the single most important entry for exhale's longer-exhale preference: it's the one study in this corpus in which the longer exhale won on how people felt. It isn't the only study that measured that. lin2014-equal-ratio-hrv found every slow pattern raised relaxation with no ratio-specific edge, and marchant2025-square-478-six, at nearly three times the sample, found no meaningful mood change in any condition. Gap 4 weighs the three."
+      "caveat": "30 recruited, 23 analysed after five exclusions on criteria and two for not following the pacing, and every F-test carries df (1, 22). Four patterns crossing rate (6 or 12 breaths/min) with i/e ratio (0.42 or 2.33). The achieved ratios at 6 bpm were 0.49 and 1.44. The achieved rates in those conditions were 7.32 and 7.69 breaths a minute rather than 6, so the slow-rate contrast actually tested was about 0.5 against 1.4 at a little over 7 a minute. The authors note that minute ventilation during instructed breathing was high compared with baseline and that participants may have been hyperventilating, which they offer as one reason the subjective effects were small. Heart rate was higher with the longer exhale, which the authors call contrary to expectation. This is the single most important entry for exhale's longer-exhale preference: it's the one study in this corpus in which the longer exhale won on how people felt. It isn't the only study that measured that. lin2014-equal-ratio-hrv found every slow pattern raised relaxation with no ratio-specific edge, and marchant2025-square-478-six, at nearly three times the sample, found no meaningful mood change in any condition. Gap 4 weighs the three."
     }
   },
   {
@@ -1993,9 +1997,9 @@
       "readDepth": "full-text",
       "evidenceTier": "D",
       "backsClaims": [
-        "sighs act as resetters of respiratory variability: random variability is elevated before a sigh and correlated variability increases after one"
+        "the model proposes that sighs act as resetters that restore the balance between components of respiratory variability and cause relief"
       ],
-      "caveat": "Theoretical model paper with supporting data. Carried because it's the honest place to point when someone asks why a deliberately irregular breath might be useful, which is the only literature adjacent to exhale's randomised-timing sliders. It's not evidence that those sliders help; see the gaps ledger."
+      "caveat": "Review and theoretical model paper. Carried because it's the honest place to point when someone asks why a deliberately irregular breath might be useful, which is the only literature adjacent to exhale's randomised-timing sliders. It's not evidence that those sliders help; see the gaps ledger."
     }
   },
   {
@@ -2036,7 +2040,7 @@
       "evidenceTier": "C",
       "backsClaims": [
         "self-reported relief was higher after an instructed deep breath than before it",
-        "spontaneous sighs were followed by a gradual fall in muscle tension, most clearly in people high in anxiety sensitivity"
+        "frontalis muscle tension fell after a spontaneous sigh in people high in anxiety sensitivity, and after a spontaneous breath hold in people low in it"
       ],
       "caveat": "Findings taken from the abstract; the version of record is paywalled. The instructed-breath result is the closest thing in this corpus to evidence that being told to take one deliberate breath, which is what exhale's reminder does, changes how a person feels."
     }
@@ -2077,9 +2081,10 @@
       "readDepth": "full-text",
       "evidenceTier": "C",
       "backsClaims": [
-        "visual pacing produced more measured respiratory change than auditory pacing, but auditory pacing was rated as subjectively more calming"
+        "auditory pacing was rated more calming than visual pacing (t = 1.92, df = 26, reported as p < 0.05), while the visual guide's larger reduction in breathing rate was a non-significant trend (t = 0.66, p = 0.26)"
       ],
-      "caveat": "Two-page adjunct paper, effectively a poster; treat the finding as a design signal rather than a result. It's carried anyway because it's the one published comparison that puts exhale's visual-only design at a disadvantage on the outcome most users actually care about, which is whether they feel calmer."
+      "caveat": "n = 14, phone-based, 1-minute drills at 6.4 breaths per minute, each followed by 3 minutes of reading, both modalities intermittent. The visual guide showed the user's own stomach expansion against a target, so it was biofeedback, which exhale's visual pacer isn't. Both modes raised self-reported calm over reading. Two-page adjunct paper, effectively a poster: the calm difference clears p < 0.05 only one-tailed, the breathing-rate p of 0.256 is one-tailed too (two-tailed about 0.51), and the between-modality tests were run as two-sample tests on paired data. Treat the finding as a design signal rather than a result. It's carried anyway because it's the one published comparison that puts exhale's visual-only design at a disadvantage on the outcome most users actually care about, which is whether they feel calmer. An author copy is served from hci.stanford.edu.",
+      "openCopy": "https://hci.stanford.edu/publications/2012/CantForceCalmUIST2012.pdf"
     }
   },
   {
@@ -2183,7 +2188,7 @@
       "backsClaims": [
         "heart rate rises on inhalation and falls on exhalation, and this respiratory sinus arrhythmia is the coupling that HRV-based breathing claims rest on"
       ],
-      "caveat": "Review. This is the physiological fact underneath every 'longer exhale calms you' claim in this corpus, which is why the claim is so intuitive and why meehan2024-longer-exhalations failing to find a ratio effect is worth taking seriously: a real beat-to-beat mechanism doesn't guarantee a measurable session-level outcome."
+      "caveat": "Opinion and hypothesis article, filed by Chest under Opinions/Hypotheses. The abstract argues that RSA serves pulmonary gas exchange and notes evidence of a possible dissociation between RSA and vagal control of heart rate, a caution against reading RSA as a pure index of vagal tone. This is the physiological fact underneath every 'longer exhale calms you' claim in this corpus, which is why the claim is so intuitive and why meehan2024-longer-exhalations failing to find a ratio effect is worth taking seriously: a real beat-to-beat mechanism doesn't guarantee a measurable session-level outcome."
     }
   },
   {
@@ -2299,7 +2304,7 @@
         "slow breathing, conventionally defined as under 10 breaths per minute, is associated with increased HRV and shifts in central and autonomic measures",
         "reported psychological correlates include increased comfort and relaxation and reduced anxiety and arousal"
       ],
-      "caveat": "Systematic review without meta-analysis. The included studies vary widely in technique, rate and duration, so the pooled picture is directional rather than dose-specific."
+      "caveat": "Systematic review without meta-analysis: 15 articles from 2,461 abstracts. The authors intended a meta-analysis and found pooling infeasible, and they describe the HF and LF outcomes across the included studies as heterogeneous and contradictory. The included studies vary widely in technique, rate and duration, so the overall picture is directional rather than dose-specific."
     }
   },
   {
@@ -2359,6 +2364,44 @@
         "nasal breathing entrains oscillations in human piriform cortex, amygdala and hippocampus, and the effect is specific to the nasal route rather than to breathing as such"
       ],
       "caveat": "Human intracranial recordings in a small epilepsy-surgery cohort plus behavioural experiments. Carried because it's the reason nose-versus-mouth is a real variable and not folklore. exhale gives no nasal-breathing guidance at all, which is a defensible omission for a wordless overlay but should be a conscious one."
+    }
+  },
+  {
+    "id": "lehrer2022-my-life-hrvb",
+    "type": "article-journal",
+    "title": "My Life in HRV Biofeedback Research",
+    "author": [
+      {
+        "family": "Lehrer",
+        "given": "Paul"
+      }
+    ],
+    "container-title": "Applied Psychophysiology and Biofeedback",
+    "volume": "47",
+    "issue": "4",
+    "page": "289-298",
+    "issued": {
+      "date-parts": [
+        [
+          2022
+        ]
+      ]
+    },
+    "DOI": "10.1007/s10484-022-09535-5",
+    "URL": "https://doi.org/10.1007/s10484-022-09535-5",
+    "custom": {
+      "group": "timing",
+      "verification": "crossref-verified",
+      "accessLevel": "paywalled",
+      "readDepth": "full-text",
+      "evidenceTier": "D",
+      "backsClaims": [
+        "the resonance-frequency figure of about 6 breaths per minute came out of Vaschillo's 2002 biofeedback work, where each person's frequency fell between 4.5 and 6.5 cycles per minute, and Song and Lehrer's 2003 pacing study, which paced people from 3 to 14 breaths per minute and found RSA amplitude highest at 4 and 6 and lower at 3",
+        "induced HRV amplitude is at a minimum around 2 to 3 cycles per minute, which the author attributes to negative resonance",
+        "each person's resonance frequency is related to height and gender, with slower frequencies for taller people and men, unrelated to age or weight, and appeared unchangeable even after several months of biofeedback practice, with an average of 5.5 breaths per minute",
+        "paced breathing at a rate above resonance frequency, used as a control condition in several clinical studies, still seems to produce clinically significant effects, which the author lists as an open question, alongside some evidence that breathing slightly away from exact resonance frequency has a slightly smaller clinical effect on blood pressure and anxiety"
+      ],
+      "caveat": "A first-person retrospective by one of the technique's principal developers, so tier D and read as history rather than evidence: the findings carried here are the author's summary of his own group's published papers, cited rather than re-analysed, and the primary sources (Vaschillo et al. 2002, Song and Lehrer 2003, Vaschillo et al. 2006) aren't in this corpus. Lehrer is also an author of lehrer2014-hrv-biofeedback, so the 5.5 figure and the individual-variation point come from one group twice. Carried for two reasons. It's the clearest account of where the 6-a-minute figure came from, and its report that RSA amplitude was highest at 4 and 6 a minute and fell at 3 is why gaps 2 and 6 say that no primary study in this corpus has measured 4 a minute or reported worse outcomes below 5. Those are HRV-amplitude findings, the same kind of peak shaffer2020-resonance-frequency-assessment describes, and they say nothing about relaxation or comfort at slower rates. Read from a copy posted on academia.edu. The version of record is paywalled at Springer."
     }
   }
 ]
