@@ -334,14 +334,14 @@ def check_binary_deep_link(rendered: str) -> None:
 
     Every other link into the corpus lives in a file the reader can see is
     stale. This one is compiled into a binary that stays installed for months,
-    so a renamed heading strands a user on the top of a 48-entry list at the
-    exact moment they went looking for the limits. Renaming the heading is
-    allowed; renaming it silently isn't
+    so it has to keep pointing into the corpus, and if it ever carries an
+    anchor again that anchor has to name a heading that still exists.
+    Renaming a heading is allowed; renaming it silently isn't
 
     The menu may point either at the file on GitHub or at docs/citations.html,
     which fetches that same file from `main` and renders it. Both are the
-    corpus and both break identically when an anchor moves, so both are
-    accepted and the anchor is checked the same way either way
+    corpus, so both are accepted. The URL currently opens the page at the top,
+    with no anchor, so the reader meets the reading guide before the entries
     """
     if not TRAY.exists():
         return
@@ -358,6 +358,8 @@ def check_binary_deep_link(rendered: str) -> None:
     if not path.endswith(("/docs/CITATIONS.md", "/exhale/citations.html")):
         raise CorpusError(f"  - RESEARCH_URL points outside the corpus: {url}")
 
+    if not fragment:
+        return
     anchors = {slugify(h) for h in re.findall(r"^#{1,6} +(.+)$", rendered, re.M)}
     if fragment not in anchors:
         raise CorpusError(
