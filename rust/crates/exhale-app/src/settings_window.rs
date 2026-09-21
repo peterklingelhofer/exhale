@@ -17,6 +17,7 @@ use widgets::*;
 use egui::ViewportId;
 use egui_wgpu::ScreenDescriptor;
 use exhale_core::{
+    session_log::{export_dir, SessionLog},
     settings::{KeyboardShortcut, Settings, ShortcutAction},
     settings_manager::SettingsManager,
     types::{
@@ -86,6 +87,17 @@ pub struct SettingsWindow {
     /// dark and light themes.  None on non-macOS or when the
     /// rasteriser fails: callers fall back to Unicode glyphs
     icon_cache: IconCache,
+    /// Study builds only: the session log the Export and Clear buttons
+    /// in the Study card act on.  `None` everywhere else, and the card
+    /// then shows the participant id and condition with no buttons
+    session_log: Option<Arc<SessionLog>>,
+    /// Last thing the Study card's buttons did, shown under them.  An
+    /// export path, or why an export or a clear failed
+    study_status: Option<String>,
+    /// Clear only appears once an export has succeeded in this session.
+    /// Emptying a log nobody has copied yet destroys the measurement,
+    /// and a participant reading "Clear" has no way to know that
+    exported_this_session: bool,
     /// Last value passed to `set_max_inner_size` so we can no-op when
     /// the natural content height hasn't changed.  Calling
     /// `set_max_inner_size` every frame translates on macOS to
@@ -197,6 +209,7 @@ impl SettingsWindow {
         settings:          &exhale_core::settings::Settings,
         on_quit:           Box<dyn Fn() + Send + Sync + 'static>,
         on_rebind_hotkeys: Box<dyn Fn() + Send + Sync + 'static>,
+        session_log:       Option<Arc<SessionLog>>,
     ) -> Result<Self> {
         // Width is fixed.  Only height is user-resizable.  Max height is set
         // later (once egui has measured the natural content size) so the
@@ -412,6 +425,9 @@ impl SettingsWindow {
             theme,
             vev_ptr,
             icon_cache,
+            session_log,
+            study_status: None,
+            exported_this_session: false,
             last_max_height: None,
         })
     }
@@ -559,6 +575,9 @@ impl SettingsWindow {
                 &*self.on_quit,
                 &*self.on_rebind_hotkeys,
                 &self.icon_cache,
+                &self.session_log,
+                &mut self.study_status,
+                &mut self.exported_this_session,
             );
         });
 
@@ -835,6 +854,181 @@ fn control_slot_width(avail: f32) -> f32 {
     ((avail - CONTROL_GAP * (SLOTS - 1.0)) / SLOTS).floor().max(1.0)
 }
 
+/// The colour the panel says something has gone wrong in
+///
+/// One definition for the reset confirmation and the study-file
+/// warning, so the two can't drift apart. Pastel red on dark has enough
+/// contrast to read as a warning without screaming, and the light
+/// variant is dark enough to stay legible on the near-white card
+fn warning_color(ui: &egui::Ui) -> egui::Color32 {
+    if ui.visuals().dark_mode {
+        egui::Color32::from_rgb(255, 130, 130)
+    } else {
+        egui::Color32::from_rgb(180, 0, 0)
+    }
+}
+
+/// The cards under Appearance: the Study card when a study file locked
+/// the pacing, otherwise Timing, Randomization and Timers
+///
+/// A locked build shows none of the three, and no preset chips and no
+/// pacing readout with them: a participant who can read the rate, or
+/// change it, isn't blinded any more. Hidden rather than disabled,
+/// because a read-only stepper showing 5 and 5 names the rate just as
+/// well as an editable one does
+///
+/// Split out of [`settings_ui`] so a test can prove that without
+/// standing up a `SettingsManager` and its writer thread
+///
+/// Returns true when something in it changed the settings
+fn body_cards(
+    ui:                    &mut egui::Ui,
+    settings:              &mut Settings,
+    session_log:           &Option<Arc<SessionLog>>,
+    study_status:          &mut Option<String>,
+    exported_this_session: &mut bool,
+) -> bool {
+    // Cloned so the study branch below can read the lock while it also
+    // reads the rest of `settings` for the log header. Two short
+    // strings and eleven floats, on a window that repaints on input
+    let Some(study) = settings.study.clone() else {
+        let mut dirty = false;
+        // ── Timing ─────────────────────────────────────────────────────
+        section(ui, "Timing", |ui| {
+            // Above the steppers: the whole point of a
+            // chip is that clicking it visibly moves all four rows
+            // under it, which isn't something the user has to be
+            // told if they can watch it happen
+            if preset_chips(ui, settings) { dirty = true; }
+            if duration_row(ui, "Inhale Duration (s)",  "Duration of the inhale phase, in seconds.",             &mut settings.inhale_duration) { dirty = true; }
+            if duration_row(ui, "Post-Inhale Hold (s)", "Hold/pause duration at the end of inhale, in seconds.", &mut settings.post_inhale_hold_duration) { dirty = true; }
+            if duration_row(ui, "Exhale Duration (s)",  "Duration of the exhale phase, in seconds.",             &mut settings.exhale_duration) { dirty = true; }
+            if duration_row(ui, "Post-Exhale Hold (s)", "Hold/pause duration at the end of exhale, in seconds.", &mut settings.post_exhale_hold_duration) { dirty = true; }
+            // Computed from the four rows above, every frame.  A
+            // rate stored anywhere else would be wrong the moment
+            // one stepper moves, and wrong from the first cycle
+            // whenever Drift is on.  Drift lives in the
+            // Randomization card below, so its projection is
+            // reported here where the cycle it lengthens is
+            // defined, instead of duplicated under the stepper
+            pacing_readout(ui, settings);
+        });
+
+        // ── Randomization ──────────────────────────────────────────────
+        section(ui, "Randomization", |ui| {
+            if pct_row(ui, "Inhale (%)",           "Randomize inhale duration by this percentage.",            &mut settings.randomized_timing_inhale) { dirty = true; }
+            if pct_row(ui, "Post-Inhale Hold (%)", "Randomize post-inhale hold duration by this percentage.",  &mut settings.randomized_timing_post_inhale_hold) { dirty = true; }
+            if pct_row(ui, "Exhale (%)",           "Randomize exhale duration by this percentage.",            &mut settings.randomized_timing_exhale) { dirty = true; }
+            if pct_row(ui, "Post-Exhale Hold (%)", "Randomize post-exhale hold duration by this percentage.",  &mut settings.randomized_timing_post_exhale_hold) { dirty = true; }
+
+            // Drift: stored as a per-cycle multiplier (1.01 = +1 %), displayed
+            // as a percentage above 1.0 so "1" reads as "+1 % per cycle".
+            // Swift's stepper has no upper limit (`max: nil`).  Minimum
+            // stays at 0 % (drift = 1.0) per the `defaultMin` clamp
+            //
+            // Step is 0.1 percentage points: compounding makes whole
+            // percents enormous. 1 % doubles the breath in 70 breaths, which
+            // runs away inside one sitting.  0.1 % takes 693, about 2.8 hours
+            // from the 10 s default. Counted in breaths instead of minutes because
+            // `d^k = 2` has no cycle length in it, so the figure holds
+            // whatever the four steppers above are set to. The useful range
+            // sat entirely below the old minimum step, so whole percents
+            // offered no gentle setting at all. Finer values can still be
+            // typed: `format_num` caps display at three decimals, so 0.001 %
+            // is the finest value the field round-trips
+            //
+            // Display is `(stored - 1) * 100`, so the user reads 0 for "off"
+            // and never sees the multiplier. One step up from off is 0.1 %,
+            // stored as 1.001. See `ValueScale::DriftPercent`
+            if stepper_row(
+                ui, "Drift (%)",
+                "Lengthens every cycle by this much, compounding, for pranayama-style graded extension. Off by default. Type a value for finer control than the arrows give.",
+                None, &mut settings.drift, 0.1, 0.0, None,
+                ValueScale::DriftPercent,
+            ) { dirty = true; }
+        });
+
+        // ── Timers ─────────────────────────────────────────────────────
+        section(ui, "Timers", |ui| {
+            if stepper_row(
+                ui, "Reminder (mins)",
+                "Notification reminder every N minutes. 0 to disable.",
+                Some("0 = off"),
+                &mut settings.reminder_interval_minutes,
+                1.0, 0.0, None,
+                ValueScale::Identity,
+            ) { dirty = true; }
+            if stepper_row(
+                ui, "End After (mins)",
+                "Auto-stop after N minutes. 0 to disable.",
+                Some("0 = off"),
+                &mut settings.auto_stop_minutes,
+                1.0, 0.0, None,
+                ValueScale::Identity,
+            ) { dirty = true; }
+        });
+        return dirty;
+    };
+
+    // ── Study ───────────────────────────────────────────────────────
+    section(ui, "Study", |ui| {
+        study_line(ui, "Participant", &study.participant_id);
+        study_line(ui, "Condition",   &study.condition);
+
+        let Some(log) = session_log else { return; };
+
+        ui.add_space(ROW_GAP);
+        ui.horizontal(|ui| {
+            if ui.button("Export log").clicked() {
+                *study_status = Some(match export_dir() {
+                    Some(dir) => match log.export_to(&dir, &study.participant_id) {
+                        Ok(path) => {
+                            *exported_this_session = true;
+                            format!("Exported to {}", path.display())
+                        }
+                        Err(e) => format!("Export failed: {e}"),
+                    },
+                    None => "Export failed: no folder to export to".to_string(),
+                });
+            }
+            // Appears only after an export has landed, and appears
+            // rather than sitting there disabled: a disabled egui
+            // widget surrenders focus mid-Tab and breaks the
+            // traversal for every control after it (see the
+            // Background Color comment)
+            if *exported_this_session && ui.button("Clear log").clicked() {
+                *study_status = Some(match log.clear() {
+                    Ok(())  => {
+                        log.record("log_cleared", &crate::header_fields(settings));
+                        "Log cleared.".to_string()
+                    }
+                    Err(e) => format!("Clear failed: {e}"),
+                });
+            }
+        });
+        if let Some(status) = study_status.as_deref() {
+            ui.label(
+                egui::RichText::new(status)
+                    .small()
+                    .color(ui.visuals().weak_text_color()),
+            );
+        }
+    });
+    false
+}
+
+/// One "label: value" line in the Study card
+///
+/// Wraps rather than truncates, because a lab can hand out participant
+/// ids of any length and a clipped one is worse than a two-line one
+fn study_line(ui: &mut egui::Ui, label: &str, value: &str) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        paint_label(ui, label);
+        ui.add(egui::Label::new(egui::RichText::new(value).strong()).wrap());
+    });
+}
+
 /// Returns the natural (fully-expanded) content height in logical points so
 /// the caller can clamp the window's max size
 #[allow(clippy::too_many_arguments)]
@@ -847,6 +1041,9 @@ fn settings_ui(
     on_quit:                &dyn Fn(),
     on_rebind_hotkeys:      &dyn Fn(),
     icons:                  &IconCache,
+    session_log:            &Option<Arc<SessionLog>>,
+    study_status:           &mut Option<String>,
+    exported_this_session:  &mut bool,
 ) -> f32 {
     let mut dirty = false;
     let mut content_height = 0.0f32;
@@ -924,6 +1121,23 @@ fn settings_ui(
                 option_labels(RIPPLE_OPTIONS),
                 option_labels(VISIBILITY_OPTIONS),
             ]);
+
+            // ── Study file that couldn't be used ──────────────────────
+            //
+            // First card in the window, above Controls.  A lab that
+            // installs a file and gets no lock has to find that out
+            // before the participant runs a session at the shipped
+            // default pace believing it's an assigned arm
+            if let Some(msg) = settings_manager.study_error() {
+                section(ui, "Study", |ui| {
+                    let warning = warning_color(ui);
+                    ui.label(
+                        egui::RichText::new(format!("Study file could not be used: {msg}"))
+                            .color(warning),
+                    );
+                    ui.label(egui::RichText::new("Pacing is not locked.").color(warning));
+                });
+            }
 
             // ── Controls (no header, matches Swift's top SectionCard) ───────
             // Swift has only three buttons: Start, Stop, Reset.  Pause is
@@ -1132,14 +1346,7 @@ fn settings_ui(
                 // misclick risk
                 if *pending_reset {
                     ui.add_space(ROW_GAP);
-                    let dark_mode = ui.visuals().dark_mode;
-                    let warning_color = if dark_mode {
-                        // Pastel red on dark: enough contrast to
-                        // read as "warning" without screaming
-                        egui::Color32::from_rgb(255, 130, 130)
-                    } else {
-                        egui::Color32::from_rgb(180, 0, 0)
-                    };
+                    let warning_color = warning_color(ui);
                     ui.label(
                         egui::RichText::new("Reset all settings to their defaults?")
                             .strong(),
@@ -1317,80 +1524,20 @@ fn settings_ui(
                 ) { dirty = true; }
             });
 
-            // ── Timing ───────────────────────────────────────────────────────
-            section(ui, "Timing", |ui| {
-                // Above the steppers: the whole point of a
-                // chip is that clicking it visibly moves all four rows
-                // under it, which isn't something the user has to be
-                // told if they can watch it happen
-                if preset_chips(ui, settings) { dirty = true; }
-                if duration_row(ui, "Inhale Duration (s)",  "Duration of the inhale phase, in seconds.",             &mut settings.inhale_duration) { dirty = true; }
-                if duration_row(ui, "Post-Inhale Hold (s)", "Hold/pause duration at the end of inhale, in seconds.", &mut settings.post_inhale_hold_duration) { dirty = true; }
-                if duration_row(ui, "Exhale Duration (s)",  "Duration of the exhale phase, in seconds.",             &mut settings.exhale_duration) { dirty = true; }
-                if duration_row(ui, "Post-Exhale Hold (s)", "Hold/pause duration at the end of exhale, in seconds.", &mut settings.post_exhale_hold_duration) { dirty = true; }
-                // Computed from the four rows above, every frame.  A
-                // rate stored anywhere else would be wrong the moment
-                // one stepper moves, and wrong from the first cycle
-                // whenever Drift is on.  Drift lives in the
-                // Randomization card below, so its projection is
-                // reported here where the cycle it lengthens is
-                // defined, instead of duplicated under the stepper
-                pacing_readout(ui, settings);
-            });
+            if body_cards(ui, settings, session_log, study_status, exported_this_session) {
+                dirty = true;
+            }
 
-            // ── Randomization ────────────────────────────────────────────────
-            section(ui, "Randomization", |ui| {
-                if pct_row(ui, "Inhale (%)",           "Randomize inhale duration by this percentage.",            &mut settings.randomized_timing_inhale) { dirty = true; }
-                if pct_row(ui, "Post-Inhale Hold (%)", "Randomize post-inhale hold duration by this percentage.",  &mut settings.randomized_timing_post_inhale_hold) { dirty = true; }
-                if pct_row(ui, "Exhale (%)",           "Randomize exhale duration by this percentage.",            &mut settings.randomized_timing_exhale) { dirty = true; }
-                if pct_row(ui, "Post-Exhale Hold (%)", "Randomize post-exhale hold duration by this percentage.",  &mut settings.randomized_timing_post_exhale_hold) { dirty = true; }
-
-                // Drift: stored as a per-cycle multiplier (1.01 = +1 %), displayed
-                // as a percentage above 1.0 so "1" reads as "+1 % per cycle".
-                // Swift's stepper has no upper limit (`max: nil`).  Minimum
-                // stays at 0 % (drift = 1.0) per the `defaultMin` clamp
-                //
-                // Step is 0.1 percentage points: compounding makes whole
-                // percents enormous. 1 % doubles the breath in 70 breaths, which
-                // runs away inside one sitting.  0.1 % takes 693, about 2.8 hours
-                // from the 10 s default. Counted in breaths instead of minutes because
-                // `d^k = 2` has no cycle length in it, so the figure holds
-                // whatever the four steppers above are set to. The useful range
-                // sat entirely below the old minimum step, so whole percents
-                // offered no gentle setting at all. Finer values can still be
-                // typed: `format_num` caps display at three decimals, so 0.001 %
-                // is the finest value the field round-trips
-                //
-                // Display is `(stored - 1) * 100`, so the user reads 0 for "off"
-                // and never sees the multiplier. One step up from off is 0.1 %,
-                // stored as 1.001. See `ValueScale::DriftPercent`
-                if stepper_row(
-                    ui, "Drift (%)",
-                    "Lengthens every cycle by this much, compounding, for pranayama-style graded extension. Off by default. Type a value for finer control than the arrows give.",
-                    None, &mut settings.drift, 0.1, 0.0, None,
-                    ValueScale::DriftPercent,
-                ) { dirty = true; }
-            });
-
-            // ── Timers ───────────────────────────────────────────────────────
-            section(ui, "Timers", |ui| {
-                if stepper_row(
-                    ui, "Reminder (mins)",
-                    "Notification reminder every N minutes. 0 to disable.",
-                    Some("0 = off"),
-                    &mut settings.reminder_interval_minutes,
-                    1.0, 0.0, None,
-                    ValueScale::Identity,
-                ) { dirty = true; }
-                if stepper_row(
-                    ui, "End After (mins)",
-                    "Auto-stop after N minutes. 0 to disable.",
-                    Some("0 = off"),
-                    &mut settings.auto_stop_minutes,
-                    1.0, 0.0, None,
-                    ValueScale::Identity,
-                ) { dirty = true; }
-            });
+            // Version footer, on every platform and in every build.
+            // Windows and Linux have no About panel, so without this
+            // there's no way to read back which build is running, and a
+            // study that can't name the version its participants ran
+            // can't be replicated
+            ui.label(
+                egui::RichText::new(format!("exhale {}", env!("CARGO_PKG_VERSION")))
+                    .small()
+                    .color(ui.visuals().weak_text_color()),
+            );
         });
         content_height = scroll_out.content_size.y;
     });
@@ -1837,6 +1984,98 @@ mod tests {
 
         assert!(changed, "clicking a segment should report a change");
         assert_eq!(value, 2);
+    }
+
+    // ── Study mode ────────────────────────────────────────────────
+
+    fn locked_settings() -> exhale_core::settings::Settings {
+        let study = exhale_core::StudyConfig {
+            participant_id: "P07".to_string(),
+            condition:      "B".to_string(),
+            inhale_duration:           5.0,
+            post_inhale_hold_duration: 0.0,
+            exhale_duration:           5.0,
+            post_exhale_hold_duration: 0.0,
+            drift:                     1.0,
+            randomized_timing_inhale:           0.0,
+            randomized_timing_post_inhale_hold: 0.0,
+            randomized_timing_exhale:           0.0,
+            randomized_timing_post_exhale_hold: 0.0,
+            auto_stop_minutes:         0.0,
+            reminder_interval_minutes: 0.0,
+        };
+        let mut s = exhale_core::settings::Settings::default();
+        study.apply(&mut s);
+        s
+    }
+
+    /// One frame of the cards below Appearance, returning the height
+    /// they laid out.  No `SettingsManager`, so no writer thread and
+    /// nothing touches a real config directory
+    fn run_body_cards_frame(
+        ctx:      &Context,
+        settings: &mut exhale_core::settings::Settings,
+    ) -> f32 {
+        let mut height = 0.0;
+        let _ = ctx.run(blank_input(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let mut status   = None;
+                let mut exported = false;
+                let _ = body_cards(ui, settings, &None, &mut status, &mut exported);
+                height = ui.min_rect().height();
+            });
+        });
+        height
+    }
+
+    #[test]
+    fn a_locked_build_lays_out_no_preset_chips() {
+        let ctx = Context::default();
+        let mut locked = locked_settings();
+        let height = run_body_cards_frame(&ctx, &mut locked);
+        assert!(
+            super::widgets::test_hooks::take_chip_rects().is_none(),
+            "study mode renders no Timing card, so no chips are laid out",
+        );
+        assert!(height > 0.0, "the Study card still occupies the window");
+    }
+
+    #[test]
+    fn an_unlocked_build_lays_out_every_chip() {
+        let ctx = Context::default();
+        let mut open = exhale_core::settings::Settings::default();
+        let _ = run_body_cards_frame(&ctx, &mut open);
+        let rects = super::widgets::test_hooks::take_chip_rects()
+            .expect("an unlocked build lays out the Timing card");
+        assert_eq!(rects.len(), exhale_core::presets::PRESETS.len());
+    }
+
+    #[test]
+    fn a_locked_build_keeps_the_pace_it_was_given() {
+        // The card selection is the only blinding mechanism: prove the
+        // durations the study file wrote are still there after a frame
+        // that had no way to change them
+        let ctx = Context::default();
+        let mut locked = locked_settings();
+        let before = (
+            locked.inhale_duration,
+            locked.post_inhale_hold_duration,
+            locked.exhale_duration,
+            locked.post_exhale_hold_duration,
+            locked.drift,
+        );
+        let _ = run_body_cards_frame(&ctx, &mut locked);
+        assert_eq!(
+            (
+                locked.inhale_duration,
+                locked.post_inhale_hold_duration,
+                locked.exhale_duration,
+                locked.post_exhale_hold_duration,
+                locked.drift,
+            ),
+            before,
+        );
+        assert!(locked.study.is_some(), "and the lock survives a frame");
     }
 
     #[test]

@@ -1014,7 +1014,11 @@ use super::*;
     ///
     /// Safe to call multiple times.  Replaces the existing main menu
     /// each call.  Called once from app startup
-    pub fn install_main_menu() {
+    ///
+    /// `show_research` is false in study mode, which leaves the
+    /// Research item out.  About stays: a participant still has to be
+    /// able to read which version they ran
+    pub fn install_main_menu(show_research: bool) {
         use objc2::msg_send;
         use objc2::rc::Retained;
         use objc2::sel;
@@ -1073,16 +1077,18 @@ use super::*;
             // knowing the tray exists, and NSMenu items are exposed to
             // the accessibility tree even though nothing inside the
             // egui settings window is
-            let research = NSMenuItem::initWithTitle_action_keyEquivalent(
-                mtm.alloc::<NSMenuItem>(),
-                &NSString::from_str(crate::tray::RESEARCH_LABEL),
-                Some(sel!(exhaleShowResearch:)),
-                &NSString::from_str(""),
-            );
-            if let Some(handler) = menu_handler_instance() {
-                let _: () = msg_send![&*research, setTarget: handler];
+            if show_research {
+                let research = NSMenuItem::initWithTitle_action_keyEquivalent(
+                    mtm.alloc::<NSMenuItem>(),
+                    &NSString::from_str(crate::tray::RESEARCH_LABEL),
+                    Some(sel!(exhaleShowResearch:)),
+                    &NSString::from_str(""),
+                );
+                if let Some(handler) = menu_handler_instance() {
+                    let _: () = msg_send![&*research, setTarget: handler];
+                }
+                apple_menu.addItem(&research);
             }
-            apple_menu.addItem(&research);
             apple_menu.addItem(&NSMenuItem::separatorItem(mtm));
 
             // Services submenu: AppKit wires this up automatically if we

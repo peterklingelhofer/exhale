@@ -136,6 +136,9 @@ fn run_variant(v: &Variant) {
         Arc::clone(&settings),
         state_slot,
         request_draw,
+        // No phase-end observer: the bench measures frame cost, and a
+        // study log would add file I/O that isn't in the shipped path
+        None,
     ));
     *ctrl_slot.write().unwrap() = Some(Arc::downgrade(&ctrl));
 

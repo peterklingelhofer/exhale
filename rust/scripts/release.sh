@@ -4,6 +4,7 @@
 # optionally commit, tag, and push the release
 #
 # Files touched
+#   CITATION.cff                               version: X.Y.Z / date-released: YYYY-MM-DD
 #   rust/crates/exhale-app/Cargo.toml          version = "X.Y.Z"
 #   snap/snapcraft.yaml                        version: 'X.Y.Z'
 #   rust/packaging/windows/AppxManifest.xml    Version="X.Y.Z.0"
@@ -98,6 +99,11 @@ sed_inplace 's/(VERSION="\$\{VERSION:-)[^}]+(\}")/\1'"$VERSION"'\2/' \
 sed_inplace 's/(^[[:space:]]*V=")[0-9]+\.[0-9]+\.[0-9]+(")/\1'"$VERSION"'\2/' \
     .github/workflows/release.yml
 
+sed_inplace 's/(^version: )[0-9]+\.[0-9]+\.[0-9]+/\1'"$VERSION"'/' \
+    CITATION.cff
+sed_inplace 's/(^date-released: )[0-9]{4}-[0-9]{2}-[0-9]{2}/\1'"$(date +%F)"'/' \
+    CITATION.cff
+
 if [[ "$MODE" == "--dry-run" ]]; then
     echo "[dry-run] would run: (cd rust && cargo update -p exhale-app --workspace)"
     echo "[dry-run] done"
@@ -109,6 +115,7 @@ echo "refreshing Cargo.lock"
 
 FILES=(
     .github/workflows/release.yml
+    CITATION.cff
     rust/Cargo.lock
     rust/crates/exhale-app/Cargo.toml
     rust/packaging/windows/AppxManifest.xml

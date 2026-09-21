@@ -3,8 +3,10 @@ pub mod easing;
 pub mod pacing;
 pub mod poison;
 pub mod presets;
+pub mod session_log;
 pub mod settings;
 pub mod settings_manager;
+pub mod study;
 pub mod types;
 
 pub use controller::{BreathingController, BreathingState};
@@ -13,6 +15,7 @@ pub use settings::{
     KBD_MOD_ALT, KBD_MOD_CTRL, KBD_MOD_META, KBD_MOD_SHIFT,
 };
 pub use settings_manager::SettingsManager;
+pub use study::StudyConfig;
 pub use types::{
     AnimationMode, AnimationShape, AppVisibility, BreathingPhase, ColorFillGradient,
     HoldRippleMode,

@@ -27,8 +27,9 @@ use std::{
 
 use anyhow::Result;
 use exhale_core::{
-    controller::BreathingController,
+    controller::{BreathingController, PhaseEnd, PhaseObserver},
     poison::RwLockPoisonExt,
+    session_log::{SessionLog, Value, LOG_FILE_NAME},
     settings::{Settings, ShortcutAction},
     settings_manager::SettingsManager,
 };
@@ -92,6 +93,55 @@ fn event_for(action: ShortcutAction) -> AppEvent {
         ShortcutAction::Quit        => AppEvent::Quit,
         ShortcutAction::Preferences => AppEvent::ShowSettings,
     }
+}
+
+// ─── Session-log field lists ───────────────────────────────────────────
+
+/// Everything a reader of the log needs to know what produced the
+/// lines under it: the build, the machine's OS, who the lab assigned
+/// and the eleven numbers the study file locked
+///
+/// Written at `app_start` and again after Clear, so a cleared log is
+/// still self-describing.  `pub(crate)` because the settings window's
+/// Clear button writes the second one
+pub(crate) fn header_fields(settings: &Settings) -> Vec<(&'static str, Value<'_>)> {
+    let (participant_id, condition) = match &settings.study {
+        Some(s) => (s.participant_id.as_str(), s.condition.as_str()),
+        None    => ("", ""),
+    };
+    vec![
+        ("version",        Value::Str(env!("CARGO_PKG_VERSION"))),
+        ("os",             Value::Str(std::env::consts::OS)),
+        ("participant_id", Value::Str(participant_id)),
+        ("condition",      Value::Str(condition)),
+        ("inhale_duration",           Value::Num(settings.inhale_duration)),
+        ("post_inhale_hold_duration", Value::Num(settings.post_inhale_hold_duration)),
+        ("exhale_duration",           Value::Num(settings.exhale_duration)),
+        ("post_exhale_hold_duration", Value::Num(settings.post_exhale_hold_duration)),
+        ("drift",                     Value::Num(settings.drift)),
+        ("randomized_timing_inhale",           Value::Num(settings.randomized_timing_inhale)),
+        ("randomized_timing_post_inhale_hold", Value::Num(settings.randomized_timing_post_inhale_hold)),
+        ("randomized_timing_exhale",           Value::Num(settings.randomized_timing_exhale)),
+        ("randomized_timing_post_exhale_hold", Value::Num(settings.randomized_timing_post_exhale_hold)),
+        ("auto_stop_minutes",         Value::Num(settings.auto_stop_minutes)),
+        ("reminder_interval_minutes", Value::Num(settings.reminder_interval_minutes)),
+    ]
+}
+
+/// The five fields that decide what the next cycle looks like, written
+/// with every `animation_start`
+///
+/// Repeated on each start rather than inferred from the header, because
+/// a participant can restart mid-session and a reader shouldn't have to
+/// scan backwards to find out at what pace
+fn animation_fields(settings: &Settings) -> [(&'static str, Value<'_>); 5] {
+    [
+        ("inhale_duration",           Value::Num(settings.inhale_duration)),
+        ("post_inhale_hold_duration", Value::Num(settings.post_inhale_hold_duration)),
+        ("exhale_duration",           Value::Num(settings.exhale_duration)),
+        ("post_exhale_hold_duration", Value::Num(settings.post_exhale_hold_duration)),
+        ("drift",                     Value::Num(settings.drift)),
+    ]
 }
 
 // ─── App state ────────────────────────────────────────────────────────────────
@@ -178,10 +228,21 @@ struct App {
 
     // Timers
     timers: Timers,
+
+    // Study builds only: the append-only session log the participant
+    // hands back to the lab.  `None` in every ordinary build, and also
+    // in a study build whose log file couldn't be opened. The app runs
+    // locked either way, because a missing log is a lost measurement
+    // and a refused session is a lost participant
+    session_log: Option<Arc<SessionLog>>,
 }
 
 impl App {
-    fn new(proxy: EventLoopProxy<AppEvent>, settings_manager: Arc<SettingsManager>) -> Self {
+    fn new(
+        proxy:            EventLoopProxy<AppEvent>,
+        settings_manager: Arc<SettingsManager>,
+        session_log:      Option<Arc<SessionLog>>,
+    ) -> Self {
         let settings = Arc::clone(&settings_manager.settings);
         Self {
             proxy,
@@ -207,6 +268,7 @@ impl App {
             #[cfg(feature = "global-hotkeys")]
             hotkey_ids:       None,
             timers:           Timers::new(),
+            session_log,
         }
     }
 
@@ -250,6 +312,7 @@ impl App {
             let on_rebind_hotkeys = Box::new(|| {});
             match SettingsWindow::new(
                 event_loop, Arc::clone(gpu), &settings_snap, on_quit, on_rebind_hotkeys,
+                self.session_log.clone(),
             ) {
                 Ok(sw) => {
                     self.settings_win_id = Some(sw.window.id());
@@ -318,6 +381,10 @@ impl App {
 
     fn do_start(&mut self) {
         self.set_animating(true);
+        if let Some(log) = &self.session_log {
+            let s = self.settings.read_or_recover();
+            log.record("animation_start", &animation_fields(&s));
+        }
         self.request_settings_redraw();
     }
 
@@ -326,6 +393,9 @@ impl App {
         // Force one final render so the shader sees display_mode=STOPPED and
         // clears to transparent, matches Swift `window.backgroundColor = .clear`
         for h in self.overlays.values() { h.wake_render(); }
+        if let Some(log) = &self.session_log {
+            log.record("animation_stop", &[]);
+        }
         self.request_settings_redraw();
     }
 
@@ -345,8 +415,13 @@ impl App {
         let needs_tray = vis != AppVisibility::DockOnly;
         let has_tray   = self._tray.is_some();
         if needs_tray && !has_tray {
-            let shortcuts = self.settings.read_or_recover().keyboard_shortcuts.clone();
-            match tray::build_tray(&shortcuts) {
+            // Study mode drops the Research item: nothing a participant
+            // can reach may point at the evidence
+            let (shortcuts, show_research) = {
+                let s = self.settings.read_or_recover();
+                (s.keyboard_shortcuts.clone(), s.study.is_none())
+            };
+            match tray::build_tray(&shortcuts, show_research) {
                 Ok((t, ids)) => {
                     let s = self.settings.read_or_recover();
                     self._tray    = Some(t);
@@ -746,6 +821,21 @@ impl ApplicationHandler<AppEvent> for App {
         // controller thread
         let frame_senders = Arc::new(RwLock::new(initial_senders));
         let senders_for_cb = Arc::clone(&frame_senders);
+        // Study builds log every phase boundary from the controller
+        // thread.  `actual_ms` is the wall-clock length including the
+        // tick latency, which is the number a pacing-validation run is
+        // there to measure
+        let on_phase_end: Option<PhaseObserver> = self.session_log.as_ref().map(|log| {
+            let log = Arc::clone(log);
+            Arc::new(move |e: PhaseEnd| {
+                log.record("phase_end", &[
+                    ("phase",        Value::Str(e.phase.name())),
+                    ("cycle",        Value::Int(e.cycle as i64)),
+                    ("scheduled_ms", Value::Num(e.scheduled.as_secs_f64() * 1000.0)),
+                    ("actual_ms",    Value::Num(e.actual.as_secs_f64() * 1000.0)),
+                ]);
+            }) as PhaseObserver
+        });
         self.controller = Some(BreathingController::start(
             Arc::clone(&self.settings),
             breathing_state,
@@ -754,7 +844,18 @@ impl ApplicationHandler<AppEvent> for App {
                     tx.send_frame();
                 }
             }),
+            on_phase_end,
         ));
+        // The app always comes up animating (`load_or_default` forces
+        // it), and the log has to say so: every later `animation_stop`
+        // needs a start to pair with, or a reader can't tell a stopped
+        // session from one that never ran
+        if let Some(log) = &self.session_log {
+            let s = self.settings.read_or_recover();
+            if s.is_animating {
+                log.record("animation_start", &animation_fields(&s));
+            }
+        }
         self.frame_senders = Some(frame_senders);
         // Schedule the first hot-plug scan ~2 s out so startup isn't
         // doing redundant work.  Subsequent scans are paced inside
@@ -810,7 +911,7 @@ impl ApplicationHandler<AppEvent> for App {
         // Cmd-X/Cmd-C/etc all stop working.  Closes a Swift-parity gap
         // that's invisible until you try to copy text from a settings
         // field.  No-op on Windows / Linux
-        platform::install_main_menu();
+        platform::install_main_menu(self.settings.read_or_recover().study.is_none());
 
         // ── Dock-icon reopen handler (macOS-only internally, no-op elsewhere) ─
         platform::register_reopen_handler();
@@ -934,6 +1035,27 @@ impl ApplicationHandler<AppEvent> for App {
                         // write lock is held only for a struct assignment: brief
                         // compared to the whole paint pass
                         *self.settings.write_or_recover() = settings.clone();
+
+                        // Study log: the panel's own Start / Stop / Pause
+                        // land here rather than in `do_start` / `do_stop`,
+                        // which the tray, the hotkeys and the close button
+                        // go through, so neither path logs the other's
+                        // event twice
+                        if let Some(log) = &self.session_log {
+                            if diff.animating_changed {
+                                if settings.is_animating {
+                                    log.record("animation_start", &animation_fields(&settings));
+                                } else {
+                                    log.record("animation_stop", &[]);
+                                }
+                            }
+                            if diff.paused_changed {
+                                log.record(
+                                    if settings.is_paused { "pause" } else { "resume" },
+                                    &[],
+                                );
+                            }
+                        }
 
                         // Schedule egui's requested next repaint via a
                         // deadline checked in about_to_wait.  `MAX` means
@@ -1202,9 +1324,14 @@ impl ApplicationHandler<AppEvent> for App {
             self.timers.tick(&s)
         };
         if events.auto_stop {
+            // Before `do_stop`, so the log reads in the order the two
+            // things happened: the timer fired, then the animation
+            // stopped
+            if let Some(log) = &self.session_log { log.record("auto_stop", &[]); }
             self.do_stop();
         }
         if events.reminder {
+            if let Some(log) = &self.session_log { log.record("reminder", &[]); }
             timers::send_reminder();
         }
 
@@ -1261,6 +1388,7 @@ impl ApplicationHandler<AppEvent> for App {
 impl App {
     fn shutdown(&mut self, event_loop: &ActiveEventLoop) {
         info!("shutting down, flushing settings");
+        if let Some(log) = &self.session_log { log.record("app_stop", &[]); }
         if let Some(c) = self.controller.as_mut() { c.stop(); }
         if let Err(e) = self.settings_manager.flush_sync() { error!("flush: {e}"); }
         event_loop.exit();
@@ -1360,10 +1488,36 @@ fn main() -> Result<()> {
     let settings_manager = Arc::new(SettingsManager::new()?);
     info!("settings: {}", settings_manager.config_path().display());
 
+    // Study builds keep a local session log beside settings.toml.  It
+    // is opened only when a study file locked the pacing, so an
+    // ordinary install writes nothing and has nothing to export.  A log
+    // that won't open is logged and skipped: the participant still gets
+    // their session at the assigned pace
+    let session_log = {
+        let s = settings_manager.settings.read_or_recover();
+        if s.study.is_some() {
+            let path = settings_manager.config_dir().join(LOG_FILE_NAME);
+            match SessionLog::open(path.clone()) {
+                Ok(log) => {
+                    let log = Arc::new(log);
+                    log.record("app_start", &header_fields(&s));
+                    info!("study session log: {}", log.path().display());
+                    Some(log)
+                }
+                Err(e) => {
+                    error!("session log {}: {e}", path.display());
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    };
+
     let event_loop = EventLoop::<AppEvent>::with_user_event().build()?;
     let proxy      = event_loop.create_proxy();
 
-    let mut app = App::new(proxy, settings_manager);
+    let mut app = App::new(proxy, settings_manager, session_log);
     event_loop.run_app(&mut app)?;
     // A fatal failure in `resumed()` exits the loop the way a quit does,
     // so hand it back here for a non-zero exit status

@@ -106,8 +106,11 @@ pub use linux::{
 /// Non-macOS stub for `install_main_menu`.  Windows and Linux apps
 /// don't have a unified menu-bar concept: the settings window's own
 /// in-window controls are the UI surface there
+///
+/// `show_research` exists for signature parity with the macOS
+/// implementation, which drops the Research item in study mode
 #[cfg(not(target_os = "macos"))]
-pub fn install_main_menu() {}
+pub fn install_main_menu(_show_research: bool) {}
 
 /// Non-macOS stub for `render_sf_symbol`: SF Symbols are AppKit-only.
 /// Callers fall back to Unicode glyphs when this returns `None`

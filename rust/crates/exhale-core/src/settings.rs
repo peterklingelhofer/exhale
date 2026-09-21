@@ -97,6 +97,20 @@ pub struct Settings {
     /// files without this section still load and pick up the defaults
     #[serde(default)]
     pub keyboard_shortcuts: KeyboardShortcuts,
+
+    // ── Study lock ───────────────────────────────────────────────────────
+    /// Present when a study file locked the pacing fields at load. Never
+    /// written to settings.toml: the study file is its only source, so
+    /// removing that file unlocks the app on the next launch
+    ///
+    /// The locked VALUES are still persisted by the writer thread like
+    /// any other setting, so a machine that later loses its study file
+    /// keeps the study pace until someone changes it. That's documented
+    /// in docs/for-researchers.md rather than worked around: a
+    /// participant who deletes the file mid-study shouldn't silently
+    /// drop back to the shipped default pace
+    #[serde(skip)]
+    pub study: Option<crate::study::StudyConfig>,
 }
 
 // ── KeyboardShortcut bitmask constants ────────────────────────────────────────
@@ -345,6 +359,8 @@ impl Default for Settings {
             animation_window_screen: None,
 
             keyboard_shortcuts: KeyboardShortcuts::default(),
+
+            study: None,
         }
     }
 }
@@ -495,10 +511,18 @@ impl Settings {
         let was_animating = self.is_animating;
         let was_paused    = self.is_paused;
         let win_placement = self.settings_window_placement();
+        // The study lock outlives Reset. It came from a file the
+        // participant didn't write and can't see, so a Reset press has
+        // to restore appearance and shortcuts without handing back
+        // control of the pace
+        let study         = self.study.take();
         *self = Settings::default();
         self.is_animating = was_animating;
         self.is_paused    = was_paused;
         self.set_settings_window_placement(win_placement);
+        if let Some(study) = study {
+            study.apply(self);
+        }
     }
 
     // ── Derived pacing arithmetic ────────────────────────────────────────
@@ -974,5 +998,87 @@ mod tests {
         let d = SettingsDiff::from(&before, &after);
         assert!(d.visibility_changed);
         assert_eq!(d.new_visibility, AppVisibility::TopBarOnly);
+    }
+
+    #[test]
+    fn reset_restores_appearance_and_keeps_the_study_lock() {
+        let study = crate::study::StudyConfig {
+            participant_id: "P07".to_string(),
+            condition:      "B".to_string(),
+            inhale_duration:           4.0,
+            post_inhale_hold_duration: 1.0,
+            exhale_duration:           6.0,
+            post_exhale_hold_duration: 2.0,
+            drift:                     1.002,
+            randomized_timing_inhale:           0.1,
+            randomized_timing_post_inhale_hold: 0.2,
+            randomized_timing_exhale:           0.3,
+            randomized_timing_post_exhale_hold: 0.4,
+            auto_stop_minutes:         30.0,
+            reminder_interval_minutes: 15.0,
+        };
+        let mut s = Settings::default();
+        study.apply(&mut s);
+        s.shape           = AnimationShape::Circle;
+        s.overlay_opacity = 0.9;
+        s.keyboard_shortcuts.start = Some(KeyboardShortcut::new(KBD_MOD_CTRL | KBD_MOD_SHIFT, "KeyG"));
+
+        s.reset_preserving_runtime_state();
+
+        // Appearance and shortcuts came back
+        assert_eq!(s.shape, Settings::default().shape);
+        assert_eq!(s.overlay_opacity, Settings::default().overlay_opacity);
+        assert_eq!(s.keyboard_shortcuts, KeyboardShortcuts::default());
+        // The eleven locked fields and the lock itself did not
+        assert_eq!(s.inhale_duration,           4.0);
+        assert_eq!(s.post_inhale_hold_duration, 1.0);
+        assert_eq!(s.exhale_duration,           6.0);
+        assert_eq!(s.post_exhale_hold_duration, 2.0);
+        assert_eq!(s.drift,                     1.002);
+        assert_eq!(s.randomized_timing_inhale,           0.1);
+        assert_eq!(s.randomized_timing_post_inhale_hold, 0.2);
+        assert_eq!(s.randomized_timing_exhale,           0.3);
+        assert_eq!(s.randomized_timing_post_exhale_hold, 0.4);
+        assert_eq!(s.auto_stop_minutes,         30.0);
+        assert_eq!(s.reminder_interval_minutes, 15.0);
+        assert_eq!(s.study.as_ref(), Some(&study));
+    }
+
+    #[test]
+    fn the_lock_never_reaches_settings_toml() {
+        // The study file is the only source of the lock, which is what
+        // makes deleting it enough to unlock the app
+        let mut s = Settings::default();
+        crate::study::StudyConfig {
+            participant_id: "P07".to_string(),
+            condition:      "B".to_string(),
+            inhale_duration:           5.0,
+            post_inhale_hold_duration: 0.0,
+            exhale_duration:           5.0,
+            post_exhale_hold_duration: 0.0,
+            drift:                     1.0,
+            randomized_timing_inhale:           0.0,
+            randomized_timing_post_inhale_hold: 0.0,
+            randomized_timing_exhale:           0.0,
+            randomized_timing_post_exhale_hold: 0.0,
+            auto_stop_minutes:         0.0,
+            reminder_interval_minutes: 0.0,
+        }.apply(&mut s);
+
+        let text = toml::to_string(&s).expect("serialise");
+        assert!(!text.contains("study"),  "settings.toml carries no study block: {text}");
+        assert!(!text.contains("P07"),    "and no participant id: {text}");
+
+        let back: Settings = toml::from_str(&text).expect("deserialise");
+        assert!(back.study.is_none(), "reading settings.toml back never locks anything");
+    }
+
+    #[test]
+    fn reset_without_a_lock_leaves_no_lock() {
+        let mut s = Settings::default();
+        s.inhale_duration = 9.0;
+        s.reset_preserving_runtime_state();
+        assert_eq!(s.inhale_duration, Settings::default().inhale_duration);
+        assert!(s.study.is_none());
     }
 }

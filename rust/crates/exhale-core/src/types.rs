@@ -85,6 +85,20 @@ impl BreathingPhase {
     pub(crate) fn is_hold(self) -> bool {
         matches!(self, Self::HoldAfterInhale | Self::HoldAfterExhale)
     }
+
+    /// Name written into the session log's `phase_end` lines
+    ///
+    /// Snake case and stable: a lab's analysis script matches on these
+    /// strings, so they're part of the log format rather than a display
+    /// detail
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Inhale          => "inhale",
+            Self::HoldAfterInhale => "hold_after_inhale",
+            Self::Exhale          => "exhale",
+            Self::HoldAfterExhale => "hold_after_exhale",
+        }
+    }
 }
 
 impl AnimationShape {
@@ -115,6 +129,14 @@ mod tests {
         assert_eq!(BreathingPhase::HoldAfterInhale.shader_value(), 1);
         assert_eq!(BreathingPhase::Exhale.shader_value(), 2);
         assert_eq!(BreathingPhase::HoldAfterExhale.shader_value(), 3);
+    }
+
+    #[test]
+    fn phase_names_are_the_logged_snake_case_strings() {
+        assert_eq!(BreathingPhase::Inhale.name(),          "inhale");
+        assert_eq!(BreathingPhase::HoldAfterInhale.name(), "hold_after_inhale");
+        assert_eq!(BreathingPhase::Exhale.name(),          "exhale");
+        assert_eq!(BreathingPhase::HoldAfterExhale.name(), "hold_after_exhale");
     }
 
     #[test]
