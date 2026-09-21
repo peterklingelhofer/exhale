@@ -44,7 +44,7 @@ pub struct Settings {
     /// compounding is bounded by [`crate::controller::DRIFT_MAX_CYCLE_SECS`]
     pub drift: f64,
 
-    // ── Randomisation (±seconds of jitter per phase) ─────────────────────────
+    // ── Randomisation (± fraction of each phase, shown as a percent) ──────────
     pub randomized_timing_inhale: f64,
     pub randomized_timing_post_inhale_hold: f64,
     pub randomized_timing_exhale: f64,

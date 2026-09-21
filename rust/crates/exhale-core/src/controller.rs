@@ -241,10 +241,17 @@ fn run_controller(
 }
 
 fn fresh_inner(now: Instant, inhale_dur: f64) -> Inner {
+    // A zero-length inhale takes zero time, so the first tick finds the
+    // phase already over and advances to whatever the user did configure
+    let phase_duration = if inhale_dur <= 0.0 {
+        Duration::ZERO
+    } else {
+        Duration::from_secs_f64(inhale_dur.max(0.1))
+    };
     Inner {
         phase:               BreathingPhase::Inhale,
         phase_start:         now,
-        phase_duration:      Duration::from_secs_f64(inhale_dur.max(0.1)),
+        phase_duration,
         cycle_count:         0,
         current_drift:       1.0,
         did_render_hold:     false,
@@ -302,17 +309,17 @@ fn tick(
     //
     // `cycle_is_static` catches the degenerate input where the user
     // has zeroed every duration field.  Without this short-circuit
-    // the controller would cycle through Inhale -> Hold -> Exhale -> 
-    // Hold in 400 ms (each phase floored to 0.1 s by `.max(0.1)` in
-    // `phase_duration_for`), strobing the breath animation at
-    // ~2.5 Hz.  Treating it as static instead: the existing one-
-    // frame-per-second cadence renders whatever the last
-    // `BreathingState` was, the shader keeps drawing that state,
-    // and CPU stays as low as the matching-colour fullscreen tint
-    // path.  Threshold is 0.05 s (50 ms), comfortably below the
-    // 0.1 s phase floor and below human flicker-fusion frequency,
-    // so anything the user could meaningfully type as "a real
-    // animation" stays above it
+    // every phase would be zero length, so `advance_phase` would walk
+    // all four and hand back the same zero-length phase it started on,
+    // and the next tick would do it again: a whole cycle per frame,
+    // spent on an animation that never moves.  Treating it as static
+    // instead: the existing one-frame-per-second cadence renders
+    // whatever the last `BreathingState` was, the shader keeps drawing
+    // that state, and CPU stays as low as the matching-colour
+    // fullscreen tint path.  Threshold is 0.05 s (50 ms), below the
+    // 0.1 s floor a phase the user did configure still gets and below
+    // human flicker-fusion frequency, so anything the user could
+    // meaningfully type as "a real animation" stays above it
     let cycle_is_static = inhale_dur < 0.05
         && post_inhale_dur < 0.05
         && exhale_dur      < 0.05
@@ -459,6 +466,14 @@ fn compute_state_with_easing(
 
 // ─── Phase advancement ────────────────────────────────────────────────────────
 
+/// Move to the next phase the user actually configured
+///
+/// A phase set to 0 is passed over rather than rendered for a floored
+/// 0.1 s, so 5 / 0 / 5 / 0 is a ten-second cycle instead of a 10.2-second
+/// one.  At most four steps: an all-zero pattern comes back round to the
+/// phase it started on instead of spinning forever.  `tick` never gets
+/// one this far because `cycle_is_static` short-circuits first, but a
+/// function that can spin is a function that will
 #[allow(clippy::too_many_arguments)]
 fn advance_phase(
     inner:              &mut Inner,
@@ -473,24 +488,30 @@ fn advance_phase(
     rand_exhale:        f64,
     rand_post_exhale:   f64,
 ) {
-    inner.phase = match inner.phase {
-        BreathingPhase::Inhale          => BreathingPhase::HoldAfterInhale,
-        BreathingPhase::HoldAfterInhale => BreathingPhase::Exhale,
-        BreathingPhase::Exhale          => BreathingPhase::HoldAfterExhale,
-        BreathingPhase::HoldAfterExhale => {
-            inner.cycle_count  += 1;
-            inner.current_drift *= drift;
-            BreathingPhase::Inhale
-        }
-    };
+    for _ in 0..4 {
+        inner.phase = match inner.phase {
+            BreathingPhase::Inhale          => BreathingPhase::HoldAfterInhale,
+            BreathingPhase::HoldAfterInhale => BreathingPhase::Exhale,
+            BreathingPhase::Exhale          => BreathingPhase::HoldAfterExhale,
+            BreathingPhase::HoldAfterExhale => {
+                inner.cycle_count  += 1;
+                inner.current_drift *= drift;
+                BreathingPhase::Inhale
+            }
+        };
 
-    inner.phase_start    = now;
-    inner.phase_duration = phase_duration_for(
-        inner.phase,
-        inner.current_drift,
-        inhale_dur, post_inhale_dur, exhale_dur, post_exhale_dur,
-        rand_inhale, rand_post_inhale, rand_exhale, rand_post_exhale,
-    );
+        inner.phase_start    = now;
+        inner.phase_duration = phase_duration_for(
+            inner.phase,
+            inner.current_drift,
+            inhale_dur, post_inhale_dur, exhale_dur, post_exhale_dur,
+            rand_inhale, rand_post_inhale, rand_exhale, rand_post_exhale,
+        );
+
+        if inner.phase_duration > Duration::ZERO {
+            break;
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -506,21 +527,33 @@ fn phase_duration_for(
     rand_exhale:      f64,
     rand_post_exhale: f64,
 ) -> Duration {
-    let base = match phase {
-        BreathingPhase::Inhale          => jitter(inhale_dur,      rand_inhale),
-        BreathingPhase::HoldAfterInhale => jitter(post_inhale_dur, rand_post_inhale),
-        BreathingPhase::Exhale          => jitter(exhale_dur,      rand_exhale),
-        BreathingPhase::HoldAfterExhale => jitter(post_exhale_dur, rand_post_exhale),
+    let (base, fraction) = match phase {
+        BreathingPhase::Inhale          => (inhale_dur,      rand_inhale),
+        BreathingPhase::HoldAfterInhale => (post_inhale_dur, rand_post_inhale),
+        BreathingPhase::Exhale          => (exhale_dur,      rand_exhale),
+        BreathingPhase::HoldAfterExhale => (post_exhale_dur, rand_post_exhale),
     };
-    Duration::from_secs_f64((base * current_drift).max(0.1))
+    // A phase set to 0 takes no time.  The 0.1 s floor below is the
+    // anti-strobe guarantee, and it's only for a phase the user asked for
+    if base <= 0.0 {
+        return Duration::ZERO;
+    }
+    Duration::from_secs_f64((jitter(base, fraction) * current_drift).max(0.1))
 }
 
-fn jitter(base: f64, range: f64) -> f64 {
-    if range <= 0.0 {
+/// Perturb `base` by up to ±`fraction` of itself
+///
+/// The stored slider value is 0.0 to 1.0 and the settings window shows it
+/// as a percent.  Scaling the phase rather than adding seconds to it means
+/// the slider means the same thing on a 2 s hold as on a 10 s exhale, and
+/// a phase set to 0 stays 0
+fn jitter(base: f64, fraction: f64) -> f64 {
+    if fraction <= 0.0 || base <= 0.0 {
         return base;
     }
+    let fraction = fraction.min(1.0);
     let mut rng = rand::thread_rng();
-    base + rng.gen_range(-range..=range)
+    base * (1.0 + rng.gen_range(-fraction..=fraction))
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -551,7 +584,14 @@ mod tests {
 
     #[test]
     fn phase_sequence_is_correct() {
-        let settings = Settings::default();
+        // Every phase non-zero, so each advance is one step. What the
+        // default 5 / 0 / 5 / 0 does with its zero holds is covered by
+        // `zero_length_holds_are_skipped` below
+        let mut settings = Settings::default();
+        settings.inhale_duration           = 4.0;
+        settings.post_inhale_hold_duration = 4.0;
+        settings.exhale_duration           = 4.0;
+        settings.post_exhale_hold_duration = 4.0;
         let now = Instant::now();
         let mut inner = Inner {
             phase:           BreathingPhase::Inhale,
@@ -580,11 +620,75 @@ mod tests {
     }
 
     #[test]
+    fn the_default_cycle_is_exactly_ten_seconds() {
+        // 5 / 0 / 5 / 0 is 6.0 breaths a minute, the number the readout
+        // and the README quote. Flooring each hold to 0.1 s used to make
+        // it a 10.2 s cycle and 5.88 a minute
+        let settings = Settings::default();
+        let mut inner = fresh_inner(Instant::now(), settings.inhale_duration);
+
+        let mut total   = Duration::ZERO;
+        let mut visited = Vec::new();
+        for _ in 0..8 {
+            if inner.cycle_count > 0 {
+                break;
+            }
+            total += inner.phase_duration;
+            visited.push(inner.phase);
+            advance_n_phases(&mut inner, 1, &settings);
+        }
+
+        assert_eq!(inner.cycle_count, 1, "never completed a cycle: {visited:?}");
+        assert_eq!(total, Duration::from_secs(10), "visited {visited:?}");
+        assert_eq!(
+            visited,
+            vec![BreathingPhase::Inhale, BreathingPhase::Exhale],
+            "a zero-length hold should never be a phase we sit in"
+        );
+    }
+
+    #[test]
+    fn zero_length_holds_are_skipped() {
+        let settings = Settings::default();
+        let mut inner = fresh_inner(Instant::now(), settings.inhale_duration);
+
+        advance_n_phases(&mut inner, 1, &settings);
+        assert_eq!(inner.phase, BreathingPhase::Exhale, "the 0 s hold is passed over");
+        assert_eq!(inner.phase_duration, Duration::from_secs(5));
+        assert_eq!(inner.cycle_count, 0);
+
+        advance_n_phases(&mut inner, 1, &settings);
+        assert_eq!(inner.phase, BreathingPhase::Inhale);
+        assert_eq!(inner.cycle_count, 1, "the skipped hold still closes the cycle");
+    }
+
+    #[test]
+    fn an_all_zero_pattern_advances_once_round_and_stops() {
+        // `tick` short-circuits on `cycle_is_static` long before this,
+        // but `advance_phase` has to terminate on its own
+        let mut settings = Settings::default();
+        settings.inhale_duration           = 0.0;
+        settings.post_inhale_hold_duration = 0.0;
+        settings.exhale_duration           = 0.0;
+        settings.post_exhale_hold_duration = 0.0;
+        let mut inner = fresh_inner_at(Instant::now(), Duration::ZERO);
+
+        advance_n_phases(&mut inner, 1, &settings);
+        assert_eq!(inner.phase, BreathingPhase::Inhale);
+        assert_eq!(inner.cycle_count, 1);
+        assert_eq!(inner.phase_duration, Duration::ZERO);
+    }
+
+    #[test]
     fn drift_accumulates_correctly() {
         // Drift is off by default now, so set it explicitly: this test
         // covers compounding, independent of what ships as the default
         let mut settings = Settings::default();
         settings.drift = 1.01;
+        // Non-zero holds so that four advances are still exactly one
+        // cycle: a hold left at 0 is skipped rather than stepped through
+        settings.post_inhale_hold_duration = 1.0;
+        settings.post_exhale_hold_duration = 1.0;
         let now = Instant::now();
         let mut inner = Inner {
             phase:           BreathingPhase::HoldAfterExhale,
@@ -625,6 +729,9 @@ mod tests {
         // for as long as the ceiling has not been reached
         let mut settings = Settings::default();
         settings.drift = 1.01;
+        // Non-zero holds, same reason as `drift_accumulates_correctly`
+        settings.post_inhale_hold_duration = 1.0;
+        settings.post_exhale_hold_duration = 1.0;
         let now = Instant::now();
         let mut inner = Inner {
             phase:           BreathingPhase::HoldAfterExhale,
@@ -658,6 +765,32 @@ mod tests {
                 inner.current_drift
             );
         }
+    }
+
+    #[test]
+    fn drift_still_compounds_across_skipped_holds() {
+        // Skipping a zero-length hold must not skip the cycle bookkeeping
+        let mut settings = Settings::default();
+        settings.drift = 1.01;
+        let mut inner = fresh_inner(Instant::now(), settings.inhale_duration);
+
+        // Default 5 / 0 / 5 / 0: two advances per cycle, so four is two
+        advance_n_phases(&mut inner, 4, &settings);
+        assert_eq!(inner.cycle_count, 2);
+        assert_eq!(inner.phase, BreathingPhase::Inhale);
+
+        let expected = 1.01_f64 * 1.01_f64;
+        assert!(
+            (inner.current_drift - expected).abs() < 1e-9,
+            "after 2 cycles drift={} expected {expected}",
+            inner.current_drift
+        );
+        let inhale_secs = inner.phase_duration.as_secs_f64();
+        assert!(
+            (inhale_secs - 5.0 * expected).abs() < 1e-6,
+            "inhale is {inhale_secs} s, expected {} s",
+            5.0 * expected
+        );
     }
 
     #[test]
@@ -720,8 +853,27 @@ mod tests {
     #[test]
     fn jitter_stays_in_range() {
         for _ in 0..1000 {
-            let v = jitter(5.0, 1.0);
+            let v = jitter(5.0, 0.2);
             assert!((4.0..=6.0).contains(&v), "jitter out of range: {v}");
+        }
+        for _ in 0..1000 {
+            let v = jitter(5.0, 1.0);
+            assert!((0.0..=10.0).contains(&v), "jitter out of range: {v}");
+        }
+    }
+
+    #[test]
+    fn jitter_is_a_fraction_of_the_phase() {
+        // The slider stores 0.0 to 1.0 and the window shows it as a
+        // percent, so 50 % of a 2 s phase is a second either way
+        for _ in 0..1000 {
+            let v = jitter(2.0, 0.5);
+            assert!((1.0..=3.0).contains(&v), "jitter out of range: {v}");
+        }
+        assert_eq!(jitter(0.0, 0.5), 0.0, "a zero-length phase stays zero");
+        for _ in 0..1000 {
+            let v = jitter(5.0, 1.5);
+            assert!((0.0..=10.0).contains(&v), "fraction should clamp at 1.0: {v}");
         }
     }
 
@@ -733,15 +885,32 @@ mod tests {
     }
 
     #[test]
-    fn phase_duration_minimum_is_100ms() {
-        // Even with drift=0 or base=0, duration must be ≥ 0.1s
-        let dur = phase_duration_for(
+    fn a_non_zero_phase_is_floored_and_a_zero_phase_is_zero() {
+        // A phase the user asked for never renders shorter than 0.1 s
+        let tiny = phase_duration_for(
             BreathingPhase::Inhale,
-            0.0, // impossible drift, tests the clamp
-            0.0, 0.0, 0.0, 0.0,
+            1.0,
+            0.01, 0.0, 0.0, 0.0,
             0.0, 0.0, 0.0, 0.0,
         );
-        assert!(dur >= Duration::from_millis(100));
+        assert_eq!(tiny, Duration::from_millis(100));
+
+        let clamped = phase_duration_for(
+            BreathingPhase::Inhale,
+            0.0, // impossible drift, tests the clamp
+            5.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0,
+        );
+        assert_eq!(clamped, Duration::from_millis(100));
+
+        // A phase set to 0 gets no floor: it takes no time at all
+        let zero = phase_duration_for(
+            BreathingPhase::HoldAfterInhale,
+            1.0,
+            5.0, 0.0, 5.0, 0.0,
+            0.0, 0.0, 0.0, 0.0,
+        );
+        assert_eq!(zero, Duration::ZERO);
     }
 
     // ── tick() cadence / hysteresis tests ─────────────────────────────────
@@ -831,6 +1000,27 @@ mod tests {
         assert!(should_draw_1, "first tick of no-ripple hold draws");
         let (should_draw_2, _) = tick(&mut inner, &settings, &easing);
         assert!(!should_draw_2, "second tick of no-ripple hold sleeps");
+    }
+
+    #[test]
+    fn a_zero_inhale_starts_on_the_next_phase() {
+        // 0 / 2 / 2 / 0: there's no inhale to draw, so the very first
+        // tick moves on to the hold instead of sitting out 100 ms
+        let mut s = Settings::default();
+        s.inhale_duration           = 0.0;
+        s.post_inhale_hold_duration = 2.0;
+        s.exhale_duration           = 2.0;
+        s.post_exhale_hold_duration = 0.0;
+        s.is_animating = true;
+        s.is_paused    = false;
+        let settings = Arc::new(RwLock::new(s));
+        let easing   = EasingTable::default_ease_in_out();
+
+        let mut inner = fresh_inner(Instant::now(), 0.0);
+        assert_eq!(inner.phase_duration, Duration::ZERO);
+
+        tick(&mut inner, &settings, &easing);
+        assert_eq!(inner.phase, BreathingPhase::HoldAfterInhale);
     }
 
     #[test]
