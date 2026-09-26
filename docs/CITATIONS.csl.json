@@ -94,7 +94,7 @@
       "group": "timing",
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
-      "readDepth": "full-text",
+      "readDepth": "abstract",
       "evidenceTier": "C",
       "backsClaims": [
         "a 2:1 exhale-to-inhale cue raised RMSSD and HF-HRV relative to a 1:1 cue at the participant's own breathing rate",
@@ -215,7 +215,7 @@
       "group": "timing",
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
-      "readDepth": "full-text",
+      "readDepth": "abstract",
       "evidenceTier": "C",
       "backsClaims": [
         "breathing at 6 per minute depressed both hypoxic and hypercapnic chemoreflex responses compared with spontaneous or 15 per minute breathing",
@@ -350,7 +350,7 @@
       "group": "slow-breathing",
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
-      "readDepth": "full-text",
+      "readDepth": "abstract",
       "evidenceTier": "A",
       "inAppCitable": false,
       "backsClaims": [
@@ -588,7 +588,7 @@
       "group": "premise",
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
-      "readDepth": "full-text",
+      "readDepth": "abstract",
       "evidenceTier": "C",
       "backsClaims": [
         "the widely repeated 20-20-20 rule has little peer-reviewed support",
@@ -1033,7 +1033,7 @@
       "group": "timing",
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
-      "readDepth": "full-text",
+      "readDepth": "abstract",
       "evidenceTier": "C",
       "backsClaims": [
         "5.5 breaths per minute with an equal 5:5 inhale-to-exhale ratio produced higher SDNN and LF power than 6 bpm or than a 4:6 ratio",
@@ -1494,7 +1494,7 @@
       "group": "premise",
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
-      "readDepth": "full-text",
+      "readDepth": "abstract",
       "evidenceTier": "D",
       "backsClaims": [
         "hyperventilation is often characterised by a shift from a diaphragmatic to a thoracic breathing pattern",
@@ -1551,7 +1551,7 @@
       "group": "premise",
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
-      "readDepth": "full-text",
+      "readDepth": "abstract",
       "evidenceTier": "C",
       "backsClaims": [
         "end-tidal CO2 was lower during high mental workload than during low mental workload in computer data entry, consistent with the over-breathing pattern schleifer1994-vdt-petco2 found in an earlier, independent sample",
@@ -1994,7 +1994,7 @@
       "group": "mechanism",
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
-      "readDepth": "full-text",
+      "readDepth": "abstract",
       "evidenceTier": "D",
       "backsClaims": [
         "the model proposes that sighs act as resetters that restore the balance between components of respiratory variability and cause relief"
@@ -2183,7 +2183,7 @@
       "group": "mechanism",
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
-      "readDepth": "full-text",
+      "readDepth": "abstract",
       "evidenceTier": "D",
       "backsClaims": [
         "heart rate rises on inhalation and falls on exhalation, and this respiratory sinus arrhythmia is the coupling that HRV-based breathing claims rest on"
@@ -2238,7 +2238,7 @@
       "group": "timing",
       "verification": "crossref-verified",
       "accessLevel": "paywalled",
-      "readDepth": "full-text",
+      "readDepth": "abstract",
       "evidenceTier": "C",
       "backsClaims": [
         "five minutes of slow-paced breathing at 5, 5.5, 6, 6.5 and 7 cycles per minute all raised cardiac vagal activity above spontaneous breathing",

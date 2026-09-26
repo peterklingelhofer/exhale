@@ -1,13 +1,14 @@
 # Citation corpus
 
-49 sources: 46 Crossref-verified, 2 verified against Open Library, 1 verified against PubMed. 45 were read in full, 2 from the abstract only, and 2 are catalogue records only; each entry says which. 2 are not peer-reviewed and are tiered E so they can back lineage but never a claim.
+49 sources: 46 Crossref-verified, 2 verified against Open Library, 1 verified against PubMed. 35 were read in full, 12 from the abstract only, and 2 are catalogue records only; each entry says which. 2 are not peer-reviewed and are tiered E so they can back lineage but never a claim.
 
 Machine-readable companion: [`CITATIONS.csl.json`](./CITATIONS.csl.json) (CSL-JSON).
 Bibliographic records were verified on 2026-08-28 (Crossref, Open Library) and 2026-08-30 (PubMed)
 and re-verified against all three registries on 2026-09-20 and 2026-09-26. Every claim was re-checked
 against the abstracts and open full texts on 2026-09-02, and again on 2026-09-20 against the full text
 of 35 entries and the abstract of 12, with the two books unread as before. On 2026-09-26 every
-statement was checked again against the same texts.
+statement was checked again against the same texts, and the ten entries that were marked as read in
+full but could only be checked against their abstracts are now marked as read from the abstract.
 
 > **This file is generated.** Edit [`CITATIONS.csl.json`](./CITATIONS.csl.json) for records and
 > [`citations-notes.md`](./citations-notes.md) for the prose, then run
@@ -79,8 +80,8 @@ establish that it does.
 
 | Read depth | n |
 |---|---|
-| abstract | 2 |
-| full-text | 45 |
+| abstract | 12 |
+| full-text | 35 |
 | record | 2 |
 | **total** | **49** |
 
@@ -139,7 +140,7 @@ Grassmann, Mariel; Vlemincx, Elke; von Leupoldt, Andreas; Mittelstädt, Justin M
 Johnson, Sophia; Rosenfield, Mark. (2023). *20-20-20 Rule: Are These Numbers Justified?* Optometry and Vision Science 100(1): 52-56
 
 - DOI: [10.1097/OPX.0000000000001971](https://doi.org/10.1097/OPX.0000000000001971)
-- Verification: crossref-verified | Access: paywalled | Read: full text | evidence tier **C**
+- Verification: crossref-verified | Access: paywalled | Read: abstract only | evidence tier **C**
 - Backs:
   - the widely repeated 20-20-20 rule has little peer-reviewed support
   - scheduled 20-second breaks every 5, 10 or 20 minutes produced no significant effect on ocular symptoms, reading speed or task accuracy
@@ -184,7 +185,7 @@ Schleifer, Lawrence M.; Ley, Ronald. (1994). *End-tidal PCO2 as an index of psyc
 Schleifer, Lawrence M.; Ley, Ronald; Spalding, Thomas W. (2002). *A hyperventilation theory of job stress and musculoskeletal disorders*. American Journal of Industrial Medicine 41(5): 420-432
 
 - DOI: [10.1002/ajim.10061](https://doi.org/10.1002/ajim.10061)
-- Verification: crossref-verified | Access: paywalled | Read: full text | evidence tier **D**
+- Verification: crossref-verified | Access: paywalled | Read: abstract only | evidence tier **D**
 - Backs:
   - hyperventilation is often characterised by a shift from a diaphragmatic to a thoracic breathing pattern
   - thoracic breathing recruits sternocleidomastoid, scalene and trapezius muscles, imposing biomechanical stress on the neck and shoulder region
@@ -196,7 +197,7 @@ Schleifer, Lawrence M.; Ley, Ronald; Spalding, Thomas W. (2002). *A hyperventila
 Schleifer, Lawrence M.; Spalding, Thomas W.; Kerick, Scott E.; Cram, Jeffrey R.; Ley, Ronald; Hatfield, Bradley D. (2008). *Mental stress and trapezius muscle activation under psychomotor challenge: A focus on EMG gaps during computer work*. Psychophysiology 45(3): 356-365
 
 - DOI: [10.1111/j.1469-8986.2008.00645.x](https://doi.org/10.1111/j.1469-8986.2008.00645.x)
-- Verification: crossref-verified | Access: paywalled | Read: full text | evidence tier **C**
+- Verification: crossref-verified | Access: paywalled | Read: abstract only | evidence tier **C**
 - Backs:
   - end-tidal CO2 was lower during high mental workload than during low mental workload in computer data entry, consistent with the over-breathing pattern schleifer1994-vdt-petco2 found in an earlier, independent sample
   - lower end-tidal CO2 tracked reduced trapezius EMG-gap frequency, suggesting over-breathing mediates muscle tension at the keyboard
@@ -235,7 +236,7 @@ Tsubota, Kazuo; Nakamori, Katsu. (1993). *Dry Eyes and Video Display Terminals*.
 Chaddha, Ashish; Modaff, Daniel; Hooper-Lane, Christopher; Feldstein, David A. (2019). *Device and non-device-guided slow breathing to reduce blood pressure: A systematic review and meta-analysis*. Complementary Therapies in Medicine 45: 179-184
 
 - DOI: [10.1016/j.ctim.2019.03.005](https://doi.org/10.1016/j.ctim.2019.03.005)
-- Verification: crossref-verified | Access: paywalled | Read: full text | evidence tier **A**
+- Verification: crossref-verified | Access: paywalled | Read: abstract only | evidence tier **A**
 - Backs:
   - sustained slow breathing programmes lower systolic blood pressure by about 5.6 mmHg and diastolic by about 3.0 mmHg in hypertensive and prehypertensive adults at low cardiac risk
 - Caveat: 17 trials, each a randomised controlled trial or the first phase of a randomised cross-over study. Heterogeneity was high for every analysis, and the authors say so. Inclusion required at least 5 minutes of breathing at 10 breaths/min or slower, on at least 3 days a week, for at least 4 weeks. exhale asks for none of that and measures none of it, so this describes a dose exhale doesn't deliver. Read alongside vandijk2018-close-the-book.
@@ -319,7 +320,7 @@ Zaccaro, Andrea; Piarulli, Andrea; Laurino, Marco; Garbella, Erika; Menicucci, D
 Bae, Dalbyeol; Matthews, Jacob J. L.; Chen, J. Jean; Mah, Linda. (2021). *Increased exhalation to inhalation ratio during breathing enhances high-frequency heart rate variability in healthy adults*. Psychophysiology 58(11): e13905
 
 - DOI: [10.1111/psyp.13905](https://doi.org/10.1111/psyp.13905)
-- Verification: crossref-verified | Access: paywalled | Read: full text | evidence tier **C**
+- Verification: crossref-verified | Access: paywalled | Read: abstract only | evidence tier **C**
 - Backs:
   - a 2:1 exhale-to-inhale cue raised RMSSD and HF-HRV relative to a 1:1 cue at the participant's own breathing rate
   - the HF-HRV elevation persisted about four minutes after the 2:1 block ended
@@ -341,7 +342,7 @@ Balban, Melis Yilmaz; Neri, Eric; Kogon, Manuela M.; Weed, Lara; Nouriani, Bita;
 Bernardi, Luciano; Gabutti, Alessandra; Porta, Cesare; Spicuzza, Lucia. (2001). *Slow breathing reduces chemoreflex response to hypoxia and hypercapnia, and increases baroreflex sensitivity*. Journal of Hypertension 19(12): 2221-2229
 
 - DOI: [10.1097/00004872-200112000-00016](https://doi.org/10.1097/00004872-200112000-00016)
-- Verification: crossref-verified | Access: paywalled | Read: full text | evidence tier **C**
+- Verification: crossref-verified | Access: paywalled | Read: abstract only | evidence tier **C**
 - Backs:
   - breathing at 6 per minute depressed both hypoxic and hypercapnic chemoreflex responses compared with spontaneous or 15 per minute breathing
   - baroreflex sensitivity was greater during slow breathing
@@ -398,7 +399,7 @@ Lehrer, Paul. (2022). *My Life in HRV Biofeedback Research*. Applied Psychophysi
 Lin, I. M.; Tai, L. Y.; Fan, S. Y. (2014). *Breathing at a rate of 5.5 breaths per minute with equal inhalation-to-exhalation ratio increases heart rate variability*. International Journal of Psychophysiology 91(3): 206-211
 
 - DOI: [10.1016/j.ijpsycho.2013.12.006](https://doi.org/10.1016/j.ijpsycho.2013.12.006)
-- Verification: crossref-verified | Access: paywalled | Read: full text | evidence tier **C**
+- Verification: crossref-verified | Access: paywalled | Read: abstract only | evidence tier **C**
 - Backs:
   - 5.5 breaths per minute with an equal 5:5 inhale-to-exhale ratio produced higher SDNN and LF power than 6 bpm or than a 4:6 ratio
   - all four slow-breathing patterns increased self-reported relaxation relative to spontaneous breathing
@@ -481,7 +482,7 @@ Van Diest, Ilse; Verstappen, Karen; Aubert, André E.; Widjaja, Devy; Vansteenwe
 You, Min; Laborde, Sylvain; Ackermann, Stefan; Borges, Uirassu; Dosseville, Fabrice; Mosley, Emma. (2023). *Influence of Respiratory Frequency of Slow-Paced Breathing on Vagally-Mediated Heart Rate Variability*. Applied Psychophysiology and Biofeedback 49(1): 133-143
 
 - DOI: [10.1007/s10484-023-09605-2](https://doi.org/10.1007/s10484-023-09605-2)
-- Verification: crossref-verified | Access: paywalled | Read: full text | evidence tier **C**
+- Verification: crossref-verified | Access: paywalled | Read: abstract only | evidence tier **C**
 - Backs:
   - five minutes of slow-paced breathing at 5, 5.5, 6, 6.5 and 7 cycles per minute all raised cardiac vagal activity above spontaneous breathing
   - LF-HRV discriminated between the tested frequencies more sensitively than RMSSD
@@ -602,7 +603,7 @@ Li, Peng; Janczewski, Wiktor A.; Yackle, Kevin; Kam, Kaiwen; Pagliardini, Silvia
 Vlemincx, Elke; Abelson, James L.; Lehrer, Paul M.; Davenport, Paul W.; Van Diest, Ilse; Van den Bergh, Omer. (2013). *Respiratory variability and sighing: A psychophysiological reset model*. Biological Psychology 93(1): 24-32
 
 - DOI: [10.1016/j.biopsycho.2012.12.001](https://doi.org/10.1016/j.biopsycho.2012.12.001)
-- Verification: crossref-verified | Access: paywalled | Read: full text | evidence tier **D**
+- Verification: crossref-verified | Access: paywalled | Read: abstract only | evidence tier **D**
 - Backs:
   - the model proposes that sighs act as resetters that restore the balance between components of respiratory variability and cause relief
 - Caveat: Review and theoretical model paper. Carried because it's the honest place to point when someone asks why a deliberately irregular breath might be useful, which is the only literature adjacent to exhale's randomised-timing sliders. It's not evidence that those sliders help; see the gaps ledger.
@@ -635,7 +636,7 @@ Yackle, Kevin; Schwarz, Lindsay A.; Kam, Kaiwen; Sorokin, Jordan M.; Huguenard, 
 Yasuma, Fumihiko; Hayano, Jun-ichiro. (2004). *Respiratory Sinus Arrhythmia: Why Does the Heartbeat Synchronize With Respiratory Rhythm?* Chest 125(2): 683-690
 
 - DOI: [10.1378/chest.125.2.683](https://doi.org/10.1378/chest.125.2.683)
-- Verification: crossref-verified | Access: paywalled | Read: full text | evidence tier **D**
+- Verification: crossref-verified | Access: paywalled | Read: abstract only | evidence tier **D**
 - Backs:
   - heart rate rises on inhalation and falls on exhalation, and this respiratory sinus arrhythmia is the coupling that HRV-based breathing claims rest on
 - Caveat: Opinion and hypothesis article, filed by Chest under Opinions/Hypotheses. The abstract argues that RSA serves pulmonary gas exchange and notes evidence of a possible dissociation between RSA and vagal control of heart rate, a caution against reading RSA as a pure index of vagal tone. This is the physiological fact underneath every 'longer exhale calms you' claim in this corpus, which is why the claim is so intuitive and why meehan2024-longer-exhalations failing to find a ratio effect is worth taking seriously: a real beat-to-beat mechanism doesn't guarantee a measurable session-level outcome.
@@ -1032,12 +1033,19 @@ its ISBN resolves to; a 2008 fourth revised edition exists under the same imprin
 
 In rough order of value per unit effort:
 
-1. Read the two entries still cited from their abstract only,
-   [`linardon2020-app-attrition`](#linardon2020-app-attrition) and
-   [`vlemincx2016-sigh-relief`](#vlemincx2016-sigh-relief), and re-read in full the ten entries
-   whose full text couldn't be reached on the 2026-09-20 pass and were checked against their
-   abstracts instead. The effect sizes of
-   [`laborde2021-ie-ratio-pauses`](#laborde2021-ie-ratio-pauses) are now in its entry.
+1. Read in full the twelve entries cited from their abstract only:
+   [`bae2021-exhalation-inhalation-ratio`](#bae2021-exhalation-inhalation-ratio),
+   [`bernardi2001-slow-breathing-chemoreflex`](#bernardi2001-slow-breathing-chemoreflex),
+   [`chaddha2019-slow-breathing-bp`](#chaddha2019-slow-breathing-bp),
+   [`johnson2023-20-20-20`](#johnson2023-20-20-20),
+   [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv),
+   [`linardon2020-app-attrition`](#linardon2020-app-attrition),
+   [`schleifer2002-hyperventilation-job-stress`](#schleifer2002-hyperventilation-job-stress),
+   [`schleifer2008-emg-gaps-computer-work`](#schleifer2008-emg-gaps-computer-work),
+   [`vlemincx2013-sigh-reset-model`](#vlemincx2013-sigh-reset-model),
+   [`vlemincx2016-sigh-relief`](#vlemincx2016-sigh-relief), [`yasuma2004-rsa`](#yasuma2004-rsa) and
+   [`you2023-respiratory-frequency`](#you2023-respiratory-frequency). Their full texts sit behind
+   paywalls or captchas.
 2. Nobody has tested a slow visual pacer on a screen worker who is already over-breathing (gap 5). That's a
    real, publishable question that exhale is unusually well placed to ask.
 3. Settle whether graded extension does anything, which would put a floor under gap 6. No study in
