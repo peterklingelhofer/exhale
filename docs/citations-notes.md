@@ -4,9 +4,10 @@
 
 Machine-readable companion: [`CITATIONS.csl.json`](./CITATIONS.csl.json) (CSL-JSON).
 Bibliographic records were verified on 2026-08-28 (Crossref, Open Library) and 2026-08-30 (PubMed)
-and re-verified against all three registries on 2026-09-20. Every claim was re-checked against the
-abstracts and open full texts on 2026-09-02, and again on 2026-09-20 against the full text of 35
-entries and the abstract of 12, with the two books unread as before.
+and re-verified against all three registries on 2026-09-20 and 2026-09-26. Every claim was re-checked
+against the abstracts and open full texts on 2026-09-02, and again on 2026-09-20 against the full text
+of 35 entries and the abstract of 12, with the two books unread as before. On 2026-09-26 every
+statement was checked again against the same texts.
 
 > **This file is generated.** Edit [`CITATIONS.csl.json`](./CITATIONS.csl.json) for records and
 > [`citations-notes.md`](./citations-notes.md) for the prose, then run
@@ -69,7 +70,7 @@ establish that it does.
 
 ## Gaps and unsupported choices
 
-Written by hand. This section is the point of the exercise: everything below is a place where exhale
+This section is the point of the exercise: everything below is a place where exhale
 ships something the literature doesn't settle, or where the evidence is thinner or more divided
 than a bare citation would suggest. Nothing here is a reason not to use the app. It's a list of
 things that are currently believed rather than known.
@@ -86,7 +87,7 @@ The relevant literature is old, small, and filed under ergonomics rather than br
   fourteen years later, n = 23. Lower end-tidal CO2 under high mental workload during computer data
   entry, tracking reduced trapezius EMG gaps.
 - [`schleifer2002-hyperventilation-job-stress`](#schleifer2002-hyperventilation-job-stress): the
-  theory paper tying it together, which states that hyperventilation "is often characterised by a
+  theory paper tying it together, which states that hyperventilation "is often characterized by a
   shift from a **diaphragmatic to a thoracic** breathing pattern," recruiting sternocleidomastoid,
   scalene and trapezius.
 
@@ -143,7 +144,8 @@ corpus. "Inside the range that has been tested" is a statement about coverage; i
 
 **Resonance frequency is individual.** [`lehrer2014-hrv-biofeedback`](#lehrer2014-hrv-biofeedback)
 puts the average at about 5.5 breaths per minute and is explicit that it varies from person to
-person; [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) found 5.5 outperformed 6. A single
+person. [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) found 5.5 bpm with an equal ratio
+outperformed the 6 bpm variants tested. A single
 shipped number can't be right for everyone, and finding a person's own resonance frequency takes an
 assessment protocol and a sensor, neither of which exhale has. The default is a reasonable starting
 point rather than a personalised one.
@@ -163,7 +165,8 @@ the corpus, and RSA amplitude is a heart-rate measure rather than a report of ho
 default and further below the tested band. The holds hide the rate, which is why
 the settings panel computes it.
 
-Box breathing has also been tested head-to-head twice and didn't win either time:
+Box breathing has also been tested against alternatives twice, head-to-head in one of them, and
+didn't win either time:
 
 - [`marchant2025-square-478-six`](#marchant2025-square-478-six), n = 84, compared square breathing,
   4-7-8 breathing, and 6 breaths per minute at two ratios. Breathing at 6 raised HRV **more than
@@ -205,7 +208,8 @@ On HRV, six results, and they don't line up:
 
 Three for, one against, two nulls inside this corpus.
 [`meehan2024-longer-exhalations`](#meehan2024-longer-exhalations)'s introduction tallies the older
-literature as three further nulls and one result favouring the longer inhale. No mechanism claim
+literature beyond this corpus as three further nulls, one of which didn't measure HRV, one further
+result favouring the longer exhale and one favouring the longer inhale. No mechanism claim
 survives that split, which is why exhale doesn't make one.
 
 On how people reported feeling, the picture isn't cleaner. Three studies here measured subjective
@@ -255,24 +259,28 @@ shows a two-sentence anti-hyperventilation instruction cuts the end-tidal CO2 dr
 ### 6. `drift` is an invention of this app
 
 `drift` lengthens every cycle by a fixed percentage, compounding, so the breath extends gradually
-across a session. Graded extension of the breath is a long-standing pranayama practice
-([`satyananda1999-apmb`](#satyananda1999-apmb)), but **no study in this corpus examines a
-progressively lengthening pace at all.** [`szulczewski2019-training-relaxation`](#szulczewski2019-training-relaxation)
+across a session. Graded extension of the breath fits the pranayama tradition broadly, though the
+contents of [`satyananda1999-apmb`](#satyananda1999-apmb) haven't been read to confirm it, and no
+study in this corpus examines a progressively lengthening pace at all.
+[`szulczewski2019-training-relaxation`](#szulczewski2019-training-relaxation)
 trained at a fixed rate and found relaxation accrued over a week of practice, which supports "keep
 practising" rather than "keep slowing down within a session."
 
-Nothing in this review contradicts the tradition either. The primary studies in this corpus stop below
-about 5 breaths a minute and don't report worse outcomes there. The one report from slower pacing is
+Nothing in this review contradicts the tradition either. The primary rate-comparison studies in this
+corpus stop below about 5 breaths a minute and don't report worse outcomes there.
+[`joshi1992-pranayam-training`](#joshi1992-pranayam-training)'s protocol spent 16 of its 20 minutes at 2
+a minute, but it compared no rates, and its before-and-after results, which include a fall in FEV1%
+among the men, cover the whole protocol. The one report from slower pacing is
 secondhand and about HRV amplitude: [`lehrer2022-my-life-hrvb`](#lehrer2022-my-life-hrvb) recalls RSA
 amplitude lower at 3 a minute than at 4 and 6, and induced HRV amplitude at a minimum around 2 to 3.
 Both are the same kind of measure as the inverted-U below, and neither says anything about relaxation
-or comfort. What subjective evidence
-exists points the tradition's way:
+or comfort. What subjective evidence exists points the tradition's way:
 [`vandiest2014-ie-ratio-relaxation`](#vandiest2014-ie-ratio-relaxation) found the longer exhale
-produced more relaxation, stress reduction and positive energy;
+produced more relaxation, stress reduction, mindfulness and positive energy, and
 [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) found every slow pattern beat baseline on
-relaxation; and [`joshi1992-pranayam-training`](#joshi1992-pranayam-training) found six weeks of
-practice lowered resting respiratory rate and lengthened breath-holding time. The inverted-U in
+relaxation. Objective measures point the same way:
+[`joshi1992-pranayam-training`](#joshi1992-pranayam-training) found six weeks of practice lowered
+resting respiratory rate and lengthened breath-holding time. The inverted-U in
 [`shaffer2020-resonance-frequency-assessment`](#shaffer2020-resonance-frequency-assessment) is worth
 reading alongside these, but it describes a peak in **HRV amplitude** rather than in relaxation or comfort,
 and doesn't transfer to one.
@@ -286,12 +294,12 @@ exhale is unremarkable in pranayama, and absence of research isn't evidence of h
 
 The stepper moves in 0.1 percentage points, and values below that can be typed; display is capped at
 three decimals, so 0.001 % is the finest value the field round-trips. Compounding is steep enough
-that whole percents are unusable: from a 15 s cycle, 1 % doubles the breath in about 25 minutes,
-0.1 % in about 4.2 hours, 0.01 % in about 41. The settings panel reports the doubling point in
+that whole percents are unusable: from the 10 s default, 1 % doubles the breath in about 17
+minutes, 0.1 % in about 2.8 hours, 0.01 % in about 28. The settings panel reports the doubling point in
 **breaths** rather than minutes, because cycle `k` lasts `c · dᵏ` and so `dᵏ = 2` at
 `k = ln2 / ln d`, with the starting cycle length cancelling out: 1 % is 70 breaths from any starting
 pace, 0.1 % is 693, 0.001 % is 69,315. A doubling time would depend on where the user started and
-would disagree with the minute figures quoted above, which are anchored to the 15 s default.
+would disagree with the minute figures quoted above, which are anchored to the 10 s default.
 
 ### 7. Randomised timing has no literature behind it either
 
@@ -363,8 +371,10 @@ keep it running, is unmeasured and unmeasurable here.
 [`linardon2020-app-attrition`](#linardon2020-app-attrition) is the reality check: across 70
 trials of smartphone-delivered mental health interventions, attrition averaged 24.1% at short-term
 and 35.5% at longer-term follow-up, usage consistently declined over the course of the trials, and
-the authors say this may undermine the validity of the findings. Every effect size in this corpus was measured in a supervised session with a compliant
-participant. That's not the same population as someone who installed a menu-bar app in March.
+the authors say this may undermine the validity of the findings. Nearly every effect size in this
+corpus was measured in a supervised session with a compliant participant.
+[`balban2023-cyclic-sighing`](#balban2023-cyclic-sighing)'s month-long trial is the exception, run
+remotely. That's not the same population as someone who installed a menu-bar app in March.
 
 ### 13. Adverse-event reporting in this field is thin
 
@@ -372,9 +382,9 @@ participant. That's not the same population as someone who installed a menu-bar 
 primary-outcome trials reported on adverse events at all, none attributing lasting harm to
 breathwork. [`laborde2022-vsb-meta`](#laborde2022-vsb-meta) concludes that few adverse effects are expected from
 *slow* breathing specifically, which is the mode exhale is built around. exhale's sliders can also
-be set to fast, hold-heavy patterns that leave that evidence base entirely; those belong to the
+be set to fast, hold-heavy patterns that leave that evidence base entirely. Those belong to the
 high-ventilation literature ([`fincham2024-high-ventilation-rct`](#fincham2024-high-ventilation-rct)),
-where transient tetany, light-headedness and distress are documented. This is the basis for the
+where transient tetany and light-headedness are documented. This is the basis for the
 README's advice to take breaks if intense feelings arise.
 
 ### 14. The tradition sources are lineage rather than evidence, and are tiered accordingly
@@ -387,12 +397,12 @@ works.
 
 This is a deliberate inclusion rather than an endorsement, for two reasons. Retrofitting a 2020s HRV
 citation onto an instruction that's centuries older would be revisionist about the app's actual
-design history. And the "longer exhale" idea specifically entered modern breathing apps through this
-tradition rather than through a laboratory, which matters when weighing how much of the supporting
-literature was designed to test a pre-existing belief rather than to discover something.
+design history. And the "longer exhale" idea in modern breathing apps predates any laboratory study
+of it, since pranayama traditions taught longer-exhale ratios centuries earlier, which is worth
+weighing when reading the studies that later tested it.
 
 Both entries are catalogue records only: checked against Open Library, contents not consulted, and
-no claim in this repository rests on them. The Satyananda entry cites the 1999 third revised edition
+no claim about whether a practice works rests on them. The Satyananda entry cites the 1999 third revised edition
 its ISBN resolves to; a 2008 fourth revised edition exists under the same imprint.
 
 ## What would close the biggest gaps
