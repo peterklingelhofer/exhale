@@ -34,7 +34,7 @@ description: |
     open preferences, quit
   - Optional reminder notifications
 
-  Take breaks if intense feelings arise; don't overdo it.
+  Take breaks if intense feelings arise, and don't overdo it.
 
   Disclaimer: The information and guidance provided by this app are for
   general informational purposes only and aren't medical advice. The creator
@@ -65,14 +65,14 @@ apps:
 
 parts:
   # The `rust` plugin can build workspace members directly, but we lean on
-  # `override-build` so the invocation mirrors `cargo-deb` / CI exactly and
-  # so we can pin to `--no-default-features` (global-hotkeys off: matches
-  # the Mac App Store policy; snap confinement wouldn't grant global-hotkey
-  # access anyway)
+  # `override-build` so the invocation mirrors `cargo-deb` / CI and so we
+  # can pin to `--no-default-features` (global-hotkeys off, which matches
+  # the Mac App Store policy, and snap confinement wouldn't grant
+  # global-hotkey access anyway)
   exhale:
     plugin: nil
     # snapcraft.yaml lives at snap/snapcraft.yaml so the project dir is the
-    # repo root; source the whole tree so `override-build` can `cd rust`
+    # repo root. Source the whole tree so `override-build` can `cd rust`
     source: .
     source-type: local
     build-packages:
@@ -101,7 +101,7 @@ parts:
       set -euo pipefail
 
       # Install a pinned stable rustup toolchain into the build container.
-      # snapcraft's build hosts don't ship rust; this mirrors what
+      # snapcraft's build hosts don't ship rust. This mirrors what
       # `.github/workflows/release.yml` does for the Linux snap job
       if ! command -v cargo >/dev/null 2>&1; then
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
