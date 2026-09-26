@@ -59,15 +59,15 @@ pub fn egui_key_to_code(key: egui::Key) -> Option<&'static str> {
 
 /// Convert egui [`egui::Modifiers`] to our bitmask form.  egui's
 /// `command` field is the Mac Command key on macOS and Ctrl
-/// elsewhere; we always pack Mac Command into the META bit so the
+/// elsewhere.  We always pack Mac Command into the META bit so the
 /// serialised shortcut means the same thing across OSes
 pub fn egui_modifiers_to_mask(m: egui::Modifiers) -> u8 {
     let mut mask = 0;
     if m.ctrl  { mask |= KBD_MOD_CTRL; }
     if m.shift { mask |= KBD_MOD_SHIFT; }
     if m.alt   { mask |= KBD_MOD_ALT; }
-    // On macOS, egui's `mac_cmd` is Command and `command` is also Command;
-    // on other OSes `command` aliases to Ctrl which we've already captured
+    // On macOS, egui's `mac_cmd` is Command and `command` is also Command.
+    // On other OSes `command` aliases to Ctrl, which we've already captured
     // Only count Meta explicitly via mac_cmd so non-macOS double-counts don't happen
     #[cfg(target_os = "macos")]
     if m.mac_cmd { mask |= KBD_MOD_META; }

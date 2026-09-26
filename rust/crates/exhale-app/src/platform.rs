@@ -7,7 +7,7 @@
 //!   - `apply_app_visibility`: TopBarOnly/DockOnly/Both (tray vs taskbar)
 //!   - `request_notification_permission`: no-op off macOS
 //!   - `register_reopen_handler`: no-op off macOS
-//!   - `DOCK_REOPEN`: atomic flag (always defined; only macOS sets it)
+//!   - `DOCK_REOPEN`: atomic flag (always defined, only macOS sets it)
 //!
 //! The per-OS implementations live in submodules
 //! (`platform/{mac,win,linux}.rs`).  This file is the API layer: it
@@ -24,7 +24,7 @@ use exhale_core::types::AppVisibility;
 use winit::window::Window;
 
 /// Set when the macOS Dock icon is clicked while the app is already
-/// running; defined unconditionally so callers don't need `cfg` around
+/// running.  Defined unconditionally so callers don't need `cfg` around
 /// the read
 pub static DOCK_REOPEN: AtomicBool = AtomicBool::new(false);
 
@@ -35,7 +35,7 @@ pub static DOCK_REOPEN: AtomicBool = AtomicBool::new(false);
 /// transparent panels (blur active) or fall back to opaque rendering
 static BLUR_ACTIVE: AtomicBool = AtomicBool::new(false);
 
-/// Public read-side accessor for [`BLUR_ACTIVE`].
+/// Public read-side accessor for [`BLUR_ACTIVE`]
 pub fn is_blur_active() -> bool {
     BLUR_ACTIVE.load(std::sync::atomic::Ordering::Relaxed)
 }
@@ -85,8 +85,8 @@ pub use linux::{
 #[cfg(not(target_os = "macos"))]
 pub fn install_main_menu() {}
 
-/// Non-macOS stub for `render_sf_symbol`: SF Symbols are AppKit-only;
-/// callers fall back to Unicode glyphs when this returns `None`
+/// Non-macOS stub for `render_sf_symbol`: SF Symbols are AppKit-only.
+/// Callers fall back to Unicode glyphs when this returns `None`
 #[cfg(not(target_os = "macos"))]
 pub fn render_sf_symbol(_name: &str, _point_size: f64, _dark_mode: bool) -> Option<(Vec<u8>, u32, u32)> {
     None
@@ -94,7 +94,7 @@ pub fn render_sf_symbol(_name: &str, _point_size: f64, _dark_mode: bool) -> Opti
 
 /// Non-Windows no-op for `reassert_overlay_topmost`.  Only Windows
 /// orders topmost-windows by activation in a way that lets a newly-
-/// opened app rise above ours; macOS pins by window level, Linux X11
+/// opened app rise above ours.  macOS pins by window level, Linux X11
 /// pins by EWMH state, neither needs periodic re-assertion.  Callers
 /// are themselves cfg-gated to Windows (see `App::maybe_reassert_topmost`
 /// and the `topmost_deadline` wake schedule in `about_to_wait`), so
@@ -111,19 +111,18 @@ pub fn reassert_overlay_topmost(_window: &winit::window::Window) {}
 /// Hand `url` to the user's default browser
 ///
 /// This is the only outbound-link path in the app, so the scheme
-/// check lives here rather than at each call site: anything that
+/// check lives here instead of at each call site: anything that
 /// isn't a plain `https://` URL is dropped with a log line and never
 /// reaches the platform API.  `ShellExecuteW` in particular will
 /// happily launch a local executable for a `file:` URL, and
 /// `xdg-open` will hand an arbitrary scheme to whatever handler
-/// claims it, so the allowlist is load-bearing rather than
+/// claims it, so the allowlist is load-bearing instead of
 /// decorative, even though every current caller passes a
 /// compile-time constant
 ///
-/// Best-effort by design.  A machine with no browser, no
-/// `xdg-open`, or a refused `NSWorkspace` open is a fully working
-/// exhale; the documentation is on the web either way.  Failures
-/// log and return
+/// A machine with no browser, no `xdg-open`, or a refused
+/// `NSWorkspace` open is still a fully working exhale by design.  The
+/// documentation is on the web either way.  Failures log and return
 pub fn open_url(url: &str) {
     if !is_openable(url) {
         log::warn!("open_url: refusing non-https or malformed URL: {url:?}");
@@ -141,12 +140,12 @@ pub fn open_url(url: &str) {
 /// The allowlist [`open_url`] enforces, split out so it can be tested
 /// without launching a browser
 ///
-/// Rejecting on the whole `https://` prefix (rather than "starts with
+/// Rejecting on the whole `https://` prefix (instead of "starts with
 /// http") also rules out `https:/evil` and scheme-relative junk, and
 /// the control-character check keeps anything unprintable out of a
-/// command argument on the Linux path.  There's deliberately no
-/// `http://` escape hatch: every destination this app links to is a
-/// GitHub URL that redirects to TLS anyway
+/// command argument on the Linux path.  There's no `http://` escape
+/// hatch: every destination this app links to is a GitHub URL that
+/// redirects to TLS anyway
 fn is_openable(url: &str) -> bool {
     url.starts_with("https://")
         && url.len() > "https://".len()
@@ -169,8 +168,8 @@ mod tests {
         assert!(!is_openable("https:/example.com"));
         assert!(!is_openable("//example.com"));
         assert!(!is_openable(" https://example.com"));
-        // A bare scheme resolves to nothing; reject rather than
-        // hand an empty host to three different platform APIs
+        // A bare scheme resolves to nothing.  Reject instead of
+        // handing an empty host to three different platform APIs
         assert!(!is_openable("https://"));
         assert!(!is_openable(""));
         // Newline injection into the argument of a spawned process
@@ -178,8 +177,8 @@ mod tests {
         assert!(!is_openable("https://example.com\u{0}"));
     }
 
-    /// The tray constant is the only URL that actually ships, so the
-    /// allowlist it has to pass is asserted here rather than left to
+    /// The tray constant is the only URL that ships, so the
+    /// allowlist it has to pass is asserted here instead of left to
     /// the code review that introduced it
     #[test]
     fn shipped_research_url_passes_the_allowlist() {

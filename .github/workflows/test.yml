@@ -37,8 +37,8 @@ jobs:
 
       - name: Run tests
         # `CI=true` is set on the runner shell by GitHub Actions, but
-        # `xcodebuild test` does NOT propagate the shell environment
-        # to the xctest target's subprocess; the step's `env:` block
+        # `xcodebuild test` doesn't propagate the shell environment
+        # to the xctest target's subprocess. The step's `env:` block
         # reaches `xcodebuild` itself. The test runner it spawns never
         # sees it.  Xcode's documented escape hatch: any env var prefixed
         # with `TEST_RUNNER_` is forwarded to the test runner with the
@@ -48,8 +48,8 @@ jobs:
         # to pick the looser CPU thresholds calibrated for runner
         # noise instead of the tighter local thresholds.  Confirmed by
         # a prior failure measuring 8.18% avg under the 8.0% local
-        # threshold despite the runner setting `CI=true` in the shell;
-        # the test target wasn't seeing the env var
+        # threshold despite the runner setting `CI=true` in the shell.
+        # The test target wasn't seeing the env var
         env:
           CI: "true"
         run: >
@@ -71,7 +71,7 @@ jobs:
   # hand-written notes, so it can silently fall behind either one.  This
   # job also validates citekey format, the group / verification / access /
   # tier enums, and every anchor link the gaps ledger makes into the
-  # corpus, so a renamed entry fails here rather than rotting in the docs.
+  # corpus, so a renamed entry fails here instead of rotting in the docs.
   # Stdlib only and no Rust toolchain, so it costs seconds
   citations:
     runs-on: ubuntu-latest

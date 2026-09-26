@@ -50,8 +50,8 @@ impl OverlayRenderer {
             .context("overlay per-window device")?;
 
         // Re-use the shared adapter to query surface caps.  Adapters
-        // are stateless, caps depend on the (adapter, surface) pair,
-        // not the device, so this is correct
+        // are stateless, caps depend only on the (adapter, surface) pair,
+        // so this is correct
         let surface_caps   = surface.get_capabilities(&gpu.adapter);
 
         let surface_format = prefer_format(&surface_caps);
@@ -106,7 +106,7 @@ impl OverlayRenderer {
             Ok(t)  => t,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
                 self.surface.configure(&self.device, &self.config);
-                warn!("overlay surface lost; reconfigured");
+                warn!("overlay surface lost, reconfigured");
                 return Ok(());
             }
             Err(e) => return Err(e).context("overlay get_current_texture"),

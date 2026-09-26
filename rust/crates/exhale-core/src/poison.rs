@@ -21,9 +21,9 @@
 use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 pub trait RwLockPoisonExt<T> {
-    /// Read-acquire; on poison, log once and continue with the wrapped guard
+    /// Read-acquire. On poison, log once and continue with the wrapped guard
     fn read_or_recover(&self) -> RwLockReadGuard<'_, T>;
-    /// Write-acquire; on poison, log once and continue with the wrapped guard
+    /// Write-acquire. On poison, log once and continue with the wrapped guard
     fn write_or_recover(&self) -> RwLockWriteGuard<'_, T>;
 }
 
@@ -49,7 +49,7 @@ impl<T> RwLockPoisonExt<T> for RwLock<T> {
 }
 
 pub trait MutexPoisonExt<T> {
-    /// Lock; on poison, log once and continue with the wrapped guard
+    /// Lock. On poison, log once and continue with the wrapped guard
     fn lock_or_recover(&self) -> MutexGuard<'_, T>;
 }
 
@@ -79,7 +79,7 @@ mod tests {
             let _g = l2.write().unwrap();
             panic!("intentional poison");
         }).join();
-        // Now the lock is poisoned.  `.unwrap()` would panic; ours recovers
+        // Now the lock is poisoned.  `.unwrap()` would panic. Ours recovers
         let v = *lock.read_or_recover();
         assert_eq!(v, 7);
         *lock.write_or_recover() = 9;

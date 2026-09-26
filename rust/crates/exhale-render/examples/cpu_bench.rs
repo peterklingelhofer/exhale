@@ -75,8 +75,8 @@ fn variants() -> Vec<Variant> {
 
 #[allow(clippy::field_reassign_with_default)]
 fn run_variant(v: &Variant) {
-    // Build settings with animation ON, matches the real-app default. Baseline
-    // phase intentionally does NOT spawn the controller, so the
+    // Build settings with animation on, matches the real-app default. Baseline
+    // phase intentionally doesn't spawn the controller, so the
     // baseline measures pure process idle (no controller thread, no GPU
     // work).  Delta = animation + render cost above that floor
     let mut s = Settings::default();
@@ -196,7 +196,7 @@ fn main() {
     }
 
     println!(
-        "Baseline measures idle process overhead (controller parked, no render); \
-         delta approximates animation + render cost."
+        "Baseline measures idle process overhead (controller parked, no render). \
+         Delta approximates animation + render cost."
     );
 }

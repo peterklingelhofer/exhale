@@ -103,7 +103,7 @@ struct App {
     breathing_state:     Option<Arc<std::sync::Mutex<Option<exhale_core::controller::BreathingState>>>>,
 
     // Earliest instant we'll next call `available_monitors()` to
-    // detect hot-plug events.  We poll on a ~2 s cadence rather than
+    // detect hot-plug events.  We poll on a ~2 s cadence instead of
     // subscribing to platform-specific notifications (NSApplicationDid
     // ChangeScreenParameters / WM_DISPLAYCHANGE / XRandR) because the
     // poll cost is negligible (~microseconds), the worst-case 2 s
@@ -112,8 +112,8 @@ struct App {
     // hot-plug behaviour identical on macOS, Windows, and Linux
     next_monitor_scan:   Option<Instant>,
 
-    // Snapshot of max(w,h)/min(w,h) for the primary monitor at startup;
-    // shared across all overlay renderers so a circle on any display covers
+    // Snapshot of max(w,h)/min(w,h) for the primary monitor at startup.
+    // Shared across all overlay renderers so a circle on any display covers
     // the same fraction it would on the primary, matching Swift's
     // `getMaxCircleScale()` which snapshots `NSScreen.main` once at onAppear
     // and never recomputes
@@ -136,7 +136,7 @@ struct App {
     // of the topmost band.  We re-assert at most once per second
     // (negligible CPU vs every-frame, still imperceptible latency
     // before the overlay reclaims the top).  None = never re-asserted
-    // yet; gets set after the first call
+    // yet.  Gets set after the first call
     #[cfg(target_os = "windows")]
     next_topmost_reassert: Option<Instant>,
 
@@ -268,7 +268,7 @@ impl App {
         self.update_tray_state(&s);
         drop(s);
         // Windowed-mode (Wayland fallback): hide the animation
-        // window so Stop actually closes it from the user's
+        // window so Stop closes it from the user's
         // perspective.  Threaded fullscreen overlays stay mapped
         // and instead render the "stopped" clear frame below
         for h in self.overlays.values() {
@@ -284,13 +284,13 @@ impl App {
         if let Some(ids) = &self.tray_ids {
             // Start disabled while animating (matches Swift AppDelegate)
             ids.start_item.set_enabled(!s.is_animating);
-            // Stop enabled when animating OR paused (matches Swift AppDelegate)
+            // Stop enabled when animating or paused (matches Swift AppDelegate)
             ids.stop_item.set_enabled(s.is_animating || s.is_paused);
         }
     }
 
     /// Matches Swift AppDelegate.applyAppVisibility: DockOnly removes the
-    /// status-bar item; TopBarOnly / Both show it
+    /// status-bar item.  TopBarOnly / Both show it
     fn sync_tray_to_visibility(&mut self, vis: exhale_core::types::AppVisibility) {
         use exhale_core::types::AppVisibility;
         let needs_tray = vis != AppVisibility::DockOnly;
@@ -324,11 +324,11 @@ impl App {
         // `keyboard_shortcuts` block back to its per-action default
         // (None for everything except Preferences -> ⌃⇧,).  Without
         // re-running the rebind path the global-hotkey manager
-        // keeps the OLD bindings active and the tray menu keeps
-        // displaying them; both diverge from what the settings
+        // keeps the old bindings active and the tray menu keeps
+        // displaying them.  Both diverge from what the settings
         // panel and `settings.toml` claim are in effect.  Cover the
         // macOS NSAlert reset path (which feeds back into do_reset)
-        // and the tray-menu Reset click; the egui in-window
+        // and the tray-menu Reset click.  The egui in-window
         // confirmation flow already calls `on_rebind_hotkeys` for
         // its own reasons but invoking the same routine twice is a
         // cheap no-op
@@ -370,8 +370,8 @@ impl App {
 
     /// Unregister every currently-bound global hotkey and re-register
     /// from `settings.keyboard_shortcuts`.  Triggered when the
-    /// settings window captures a new shortcut for any action;
-    /// errors are logged but never propagated: a failed rebind
+    /// settings window captures a new shortcut for any action.
+    /// Errors are logged but never propagated: a failed rebind
     /// leaves the dispatcher with whatever ids did register, which
     /// is preferable to a panic on a user action
     #[cfg(feature = "global-hotkeys")]
@@ -433,7 +433,7 @@ impl App {
     /// app can land above our overlay until we re-bump it to the front
     /// of the topmost band.  After bumping the overlay forward, we
     /// also bump the settings window (when visible) so the settings
-    /// panel ends up ABOVE the overlay; otherwise `overlay_opacity =
+    /// panel ends up above the overlay.  Otherwise `overlay_opacity =
     /// 1.0` would lock the user out by covering the controls.  No-op
     /// on non-Windows.  Driven from `about_to_wait` because overlay
     /// rendering lives on dedicated threads
@@ -452,7 +452,7 @@ impl App {
 
         // Determine which of our windows should be at the top: if
         // settings is visible, settings should be above the overlay
-        // (so the user can interact with controls); otherwise the
+        // (so the user can interact with controls).  Otherwise the
         // overlay holds the top.  If nothing foreign sits above that
         // window, the entire reassert is a no-op and we can skip the
         // SetWindowPos calls that would otherwise flicker the frame
@@ -476,8 +476,8 @@ impl App {
         }
     }
 
-    /// Request a settings-window redraw if the window exists and is visible;
-    /// used after external state mutations (hotkeys, tray) so the panel
+    /// Request a settings-window redraw if the window exists and is visible.
+    /// Used after external state mutations (hotkeys, tray) so the panel
     /// reflects the new `is_animating` / `is_paused` state without the old
     /// per-tick redraw loop
     fn request_settings_redraw(&mut self) {
@@ -523,8 +523,8 @@ impl App {
             .collect();
         for wid in &to_remove {
             if let Some(h) = self.overlays.remove(wid) {
-                info!("monitor disconnected; dropping overlay {:?}", h.window.id());
-                // h drops here; Drop joins the render thread
+                info!("monitor disconnected, dropping overlay {:?}", h.window.id());
+                // h drops here.  Drop joins the render thread
             }
         }
 
@@ -539,7 +539,7 @@ impl App {
                 self.primary_max_circle_scale,
             ) {
                 Ok(h) => {
-                    info!("monitor connected; created overlay {:?}", h.window.id());
+                    info!("monitor connected, created overlay {:?}", h.window.id());
                     added_any = true;
                     self.overlays.insert(h.window.id(), h);
                 }
@@ -656,8 +656,8 @@ impl ApplicationHandler<AppEvent> for App {
         // render thread, bypassing the main event loop.  No WM_PAINT
         // dance and no risk of WM_MOUSEMOVE starvation
         //
-        // The sender list is shared via `Arc<RwLock<...>>` rather than
-        // captured by-value so [`Self::rescan_monitors`] can extend it
+        // The sender list is shared via `Arc<RwLock<...>>` instead of
+        // being captured by-value so [`Self::rescan_monitors`] can extend it
         // when a new monitor is hot-plugged without restarting the
         // controller thread
         let frame_senders = Arc::new(RwLock::new(initial_senders));
@@ -673,7 +673,7 @@ impl ApplicationHandler<AppEvent> for App {
         ));
         self.frame_senders = Some(frame_senders);
         // Schedule the first hot-plug scan ~2 s out so startup isn't
-        // doing redundant work; subsequent scans are paced inside
+        // doing redundant work.  Subsequent scans are paced inside
         // `about_to_wait`
         self.next_monitor_scan = Some(Instant::now() + Duration::from_secs(2));
 
@@ -715,10 +715,10 @@ impl ApplicationHandler<AppEvent> for App {
         // field.  No-op on Windows / Linux
         platform::install_main_menu();
 
-        // ── Dock-icon reopen handler (macOS-only internally; no-op elsewhere) ─
+        // ── Dock-icon reopen handler (macOS-only internally, no-op elsewhere) ─
         platform::register_reopen_handler();
 
-        // ── Notification permission (macOS-only internally; no-op elsewhere) ──
+        // ── Notification permission (macOS-only internally, no-op elsewhere) ──
         if self.settings.read_or_recover().reminder_interval_minutes > 0.0 {
             platform::request_notification_permission();
         }
@@ -727,9 +727,9 @@ impl ApplicationHandler<AppEvent> for App {
         self.toggle_settings(event_loop);
 
         // ── Activation policy / taskbar presence ──────────────────────────────
-        // Cross-platform: macOS toggles NSApp activation policy; Windows toggles
-        // the settings window's taskbar entry; Linux toggles SKIP_TASKBAR/PAGER.
-        // Applied AFTER the settings window exists so Windows/Linux can see it
+        // Cross-platform: macOS toggles NSApp activation policy.  Windows toggles
+        // the settings window's taskbar entry.  Linux toggles SKIP_TASKBAR/PAGER.
+        // Applied after the settings window exists so Windows/Linux can see it
         {
             let vis = self.settings.read_or_recover().app_visibility;
             let settings_win = self.settings_win.as_ref().map(|sw| sw.window.as_ref());
@@ -769,7 +769,7 @@ impl ApplicationHandler<AppEvent> for App {
                 // egui signals via `repaint` when it needs a fresh paint
                 // (mouse move, click, focus change, tooltip, etc)
                 //
-                // BUT egui_winit returns `repaint=true` for `RedrawRequested`
+                // But egui_winit returns `repaint=true` for `RedrawRequested`
                 // itself: if we honour that, every paint schedules another
                 // paint and we spin at refresh rate.  Skip it: we're already
                 // about to render below, no second request needed
@@ -787,7 +787,7 @@ impl ApplicationHandler<AppEvent> for App {
                     WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
                         // Persist position + height via the shared
                         // capture helper.  Height is stored as logical
-                        // points (settings window has a fixed width;
+                        // points (settings window has a fixed width,
                         // logical-vs-physical matters because next
                         // launch feeds height back through
                         // `LogicalSize::new(...)`)
@@ -804,7 +804,7 @@ impl ApplicationHandler<AppEvent> for App {
                         // never holds the shared RwLock.  All settings
                         // mutations happen on this thread, so the only
                         // concurrent access is readers (controller,
-                        // settings-writer); they can run freely while egui
+                        // settings-writer).  They can run freely while egui
                         // works on the clone.  Commit-back at the end is a
                         // ~200-byte memcpy held for microseconds
                         //
@@ -871,7 +871,7 @@ impl ApplicationHandler<AppEvent> for App {
                         if diff.reminder_changed {
                             self.timers.reschedule_reminder(&settings);
                             // Request notification permission when reminders are first enabled
-                            // (macOS-only; no-op elsewhere)
+                            // (macOS-only, no-op elsewhere)
                             if settings.reminder_interval_minutes > 0.0 {
                                 platform::request_notification_permission();
                             }
@@ -893,21 +893,21 @@ impl ApplicationHandler<AppEvent> for App {
                         if should_restart {
                             if let Some(c) = &self.controller { c.restart(); }
                         }
-                        // Only fire an immediate redraw when we are
-                        // NOT also restarting the controller
+                        // Only fire an immediate redraw when we're
+                        // not also restarting the controller
                         //
                         // `c.restart()` now wakes the controller via
                         // `unpark()` and produces a fresh frame
                         // through its own `request_draw` path with
                         // the post-reset `BreathingState`.  If we
-                        // ALSO `wake_render` here, the render thread
+                        // also `wake_render` here, the render thread
                         // receives our message first, reads whatever
                         // stale state is still sitting in the shared
                         // mutex from before the Stop, paints it, and
                         // the user sees a one-frame flash of the
                         // previous cycle's animation before the
-                        // controller's reset-driven frame arrives;
-                        // skipping `wake_render` in the restart case
+                        // controller's reset-driven frame arrives.
+                        // Skipping `wake_render` in the restart case
                         // means the next visible frame is always the
                         // post-reset one.  Non-restart redraws
                         // (visual / paused changes while idle) still
@@ -921,12 +921,12 @@ impl ApplicationHandler<AppEvent> for App {
                     WindowEvent::CloseRequested => {
                         // Platform-conventional behavior:
                         //   macOS / Windows: closing the settings
-                        //     window HIDES it; the menu bar (mac) / tray
+                        //     window hides it.  The menu bar (mac) / tray
                         //     icon (win) keeps the app alive. Matches
                         //     NSApp + tray-resident-app conventions
-                        //   Linux: closing the window QUITS the app;
-                        //     tray-icon support is unreliable across DEs
-                        //     (Ubuntu has it via AppIndicator extension;
+                        //   Linux: closing the window quits the app.
+                        //     Tray-icon support is unreliable across DEs
+                        //     (Ubuntu has it via AppIndicator extension,
                         //     many distros / sessions don't show the
                         //     tray icon at all), and on Wayland sessions
                         //     where overlay click-through isn't honored,
@@ -979,7 +979,7 @@ impl ApplicationHandler<AppEvent> for App {
             // without alpha support, WARP / remote-desktop) the
             // overlay is a regular OS window with title-bar X / Alt-
             // F4 / red dot.  Native conventions are that clicking
-            // close on a movable app window dismisses it; treating
+            // close on a movable app window dismisses it.  Treating
             // that as a Stop press (hide window, halt animation,
             // tray + settings stay alive) matches every other "Stop"
             // input source: keyboard hotkey, tray menu, Stop
@@ -1017,7 +1017,7 @@ impl ApplicationHandler<AppEvent> for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        // macOS: show settings when the user clicks the Dock icon while running;
+        // macOS: show settings when the user clicks the Dock icon while running.
         // DOCK_REOPEN is always defined but only ever set by the macOS handler
         if platform::DOCK_REOPEN.swap(false, std::sync::atomic::Ordering::Relaxed) {
             let _ = self.proxy.send_event(AppEvent::ShowSettings);
@@ -1025,7 +1025,7 @@ impl ApplicationHandler<AppEvent> for App {
 
         // Re-assert topmost ordering on a 1-second cadence.  Used to ride
         // along with each overlay render pass, but now that overlays
-        // render on their own threads, the main thread owns this beat;
+        // render on their own threads, the main thread owns this beat.
         // Windows-only: the underlying `reassert_overlay_topmost` is a
         // no-op elsewhere, so don't bother waking the loop at 1 Hz on
         // macOS / Linux for nothing
@@ -1076,7 +1076,7 @@ impl ApplicationHandler<AppEvent> for App {
                     let _ = self.proxy.send_event(AppEvent::BeginCapturingShortcut(action));
                 }
                 else if id == &ids.preferences { let _ = self.proxy.send_event(AppEvent::ShowSettings); }
-                // Handled inline rather than through an `AppEvent`:
+                // Handled inline instead of through an `AppEvent`:
                 // opening a URL touches no app state, and
                 // `about_to_wait` already runs on the main thread,
                 // which is where `NSWorkspace` has to be called from
@@ -1089,7 +1089,7 @@ impl ApplicationHandler<AppEvent> for App {
         }
 
         // Poll global hotkey events.  Drain the channel completely:
-        // pre-drain, the loop popped only ONE event per
+        // pre-drain, the loop popped only one event per
         // `about_to_wait` tick.  Since each hotkey press generates
         // both a Pressed and Released event, and the loop's idle
         // wake cadence is 2 s (monitor scan), a quick sequence of
@@ -1099,7 +1099,7 @@ impl ApplicationHandler<AppEvent> for App {
         // other things to do."  Draining here turns that into
         // batch dispatch on the next tick instead
         //
-        // Within a single drain we also COALESCE duplicate ids so
+        // Within a single drain we also coalesce duplicate ids so
         // mashing the same hotkey twice in the same tick only
         // sends one UserEvent.  Without this, two rapid Ctrl+Shift+F
         // presses queued two reset-confirm alerts: the user would
@@ -1111,7 +1111,7 @@ impl ApplicationHandler<AppEvent> for App {
             // Suppress action dispatch while the settings window is in
             // shortcut-capture mode: otherwise pressing the user's
             // currently-bound combo to "see what it does" or as part
-            // of rebinding would fire BOTH the captured-key handler
+            // of rebinding would fire both the captured-key handler
             // (which writes a new binding) and the existing global
             // hotkey (which runs the old action).  Events still get
             // drained so the channel stays empty on capture exit
@@ -1121,8 +1121,8 @@ impl ApplicationHandler<AppEvent> for App {
             let mut sent_ids: std::collections::HashSet<u32> = std::collections::HashSet::new();
             while let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
                 use global_hotkey::HotKeyState;
-                // We only act on Pressed; Released events for the same
-                // hotkey still get drained here (just no-op'd) so they
+                // We only act on Pressed.  Released events for the same
+                // hotkey still get drained here (no-op'd) so they
                 // don't queue up indefinitely
                 if event.state != HotKeyState::Pressed {
                     continue;
@@ -1165,13 +1165,13 @@ impl ApplicationHandler<AppEvent> for App {
         }
 
         // Fire a settings-window redraw only if egui has asked for one via
-        // its `repaint_delay` (tooltip fade, button-press animation, etc.);
-        // previously this block unconditionally called `sw.request_redraw()`
+        // its `repaint_delay` (tooltip fade, button-press animation, etc.).
+        // Previously this block unconditionally called `sw.request_redraw()`
         // every idle tick, which spun the event loop at the display's
         // refresh rate and drove a full egui + GPU paint pass ~60 times per
         // second while the settings window was open: the dominant cause of
         // the ~18 % idle CPU baseline.  Now the window sits idle until
-        // there's an input event or a scheduled animation frame; handle a
+        // there's an input event or a scheduled animation frame.  Handle a
         // fired settings-repaint deadline first
         if let Some(deadline) = self.next_settings_repaint {
             if Instant::now() >= deadline {
@@ -1185,7 +1185,7 @@ impl ApplicationHandler<AppEvent> for App {
         }
 
         // Compute the earliest deadline we need the event loop to wake for: an
-        // egui-requested repaint OR an auto-stop/reminder firing.  With
+        // egui-requested repaint or an auto-stop/reminder firing.  With
         // `ControlFlow::Wait` alone the loop would sleep indefinitely and
         // miss these, since nothing else wakes it on an idle desktop
         let timer_deadline = {
@@ -1239,17 +1239,17 @@ fn main() -> Result<()> {
     // submission index N` chatter doesn't flood the log file at ~10
     // fps.  `wgpu_hal::metal::adapter` is pinned to ERROR
     // specifically to suppress the per-frame "Unable to get the
-    // current view dimensions on a non-main thread" WARN; that
+    // current view dimensions on a non-main thread" WARN.  That
     // warning is benign for our use case (wgpu's fallback uses the
-    // cached size from the last `configure()`, which we DO call
+    // cached size from the last `configure()`, which we do call
     // from the main thread on every Resized event)
     //
-    // `sctk_adwaita` is the Wayland client-side decoration crate;
-    // some compositors send button events it doesn't recognise and
-    // it logs a WARN per event ("Ignoring unknown button type:");
-    // not actionable from our side, so capped at ERROR
+    // `sctk_adwaita` is the Wayland client-side decoration crate.
+    // Some compositors send button events it doesn't recognise and
+    // it logs a WARN per event ("Ignoring unknown button type:").
+    // Not actionable from our side, so capped at ERROR
     //
-    // Override via `RUST_LOG=info` to see everything when actually
+    // Override via `RUST_LOG=info` to see everything when
     // debugging wgpu/naga/wayland issues.  Re-enable just the metal
     // adapter chatter with `RUST_LOG=wgpu_hal::metal=warn`
     let mut builder = env_logger::Builder::from_env(
@@ -1274,16 +1274,16 @@ fn main() -> Result<()> {
     install_panic_logger(log_path.clone());
     info!("logging to {}", log_path.display());
 
-    // Linux: initialise GTK before anything in the tray-icon path runs;
+    // Linux: initialise GTK before anything in the tray-icon path runs.
     // `tray-icon` builds on top of GTK + libayatana-appindicator on
-    // Linux; constructing menu items without a prior `gtk::init()`
+    // Linux.  Constructing menu items without a prior `gtk::init()`
     // panics with "GTK hasn't been initialized".  This call is
     // cheap when GTK is already up, and we pump its event loop
     // non-blockingly inside `about_to_wait` so menu clicks dispatch
     #[cfg(all(unix, not(target_os = "macos")))]
     {
         if let Err(e) = gtk::init() {
-            log::error!("gtk::init failed: {e}; tray menu will be unavailable");
+            log::error!("gtk::init failed: {e}, tray menu will be unavailable");
         }
     }
 

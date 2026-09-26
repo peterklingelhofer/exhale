@@ -10,7 +10,7 @@ use crate::{gpu_context::GpuContext, renderer::build_pipeline, uniforms::Overlay
 ///
 /// Used by the CPU benchmark to measure render cost without the presentation
 /// path (swapchain acquire + present + compositor work).  The pipeline mirrors
-/// [`crate::OverlayRenderer`] exactly so the work-per-frame is comparable
+/// [`crate::OverlayRenderer`] so the work-per-frame is comparable
 pub struct HeadlessRenderer {
     gpu:            Arc<GpuContext>,
     /// Owned to keep the render target alive: `view` borrows it internally

@@ -155,7 +155,7 @@ run_phase() {
 }
 
 # ── Build once ────────────────────────────────────────────────────────────────
-log "building exhale (release)…"
+log "building exhale (release)..."
 (cd "$RUST_ROOT" && cargo build --release -p exhale-app >/dev/null 2>&1)
 BIN="$RUST_ROOT/target/release/exhale"
 [[ -x "$BIN" ]] || { echo "error: binary missing at $BIN" >&2; exit 1; }
@@ -206,5 +206,5 @@ PY
 done
 
 echo "Baseline includes full idle app (tray + event loop + static overlay"
-echo "repainting at compositor cadence); delta isolates the controller +"
+echo "repainting at compositor cadence). Delta isolates the controller +"
 echo "state-update cost above that floor."

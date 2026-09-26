@@ -77,7 +77,7 @@ final class MetalBreathingController {
             self?.tick()
         }
 
-        // Start immediately; we re-schedule inside tick()
+        // Start immediately: we re-schedule inside tick()
         timer.schedule(deadline: .now(), repeating: .seconds(3600), leeway: .milliseconds(5))
         drawTimer = timer
         timer.resume()
@@ -113,7 +113,7 @@ final class MetalBreathingController {
             }
 
             if settingsModel.isPaused {
-                // Tint is static; redraw occasionally to reflect settings changes
+                // Tint is static: redraw occasionally to reflect settings changes
                 nextInterval = 1.0
 
                 if now - lastDrawRequestTime >= nextInterval {
@@ -249,7 +249,7 @@ final class MetalBreathingController {
                     nextInterval = min(cadenceInterval - (now - lastDrawRequestTime), timeUntilPhaseEnd)
                 }
             } else {
-                // No draw needed; wake again at cadence or phase end (whichever is sooner)
+                // No draw needed: wake again at cadence or phase end (whichever is sooner)
                 nextInterval = min(cadenceInterval, timeUntilPhaseEnd)
             }
         }

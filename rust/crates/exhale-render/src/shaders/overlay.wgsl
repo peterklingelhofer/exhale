@@ -4,7 +4,7 @@
 // ripple_enabled and background_color so that background_color sits at
 // offset 64 (vec4<f32> alignment = 16).  The Rust OverlayUniforms struct
 // adds the same 12 bytes as explicit _pad0/1/2 fields so both sides
-// agree exactly
+// agree
 
 struct OverlayUniforms {
     viewport_size:         vec2<f32>,  // offset  0
@@ -20,7 +20,7 @@ struct OverlayUniforms {
     circle_gradient_scale: f32,        // offset 44
     ripple_enabled:        u32,        // offset 48
     display_mode:          u32,        // offset 52  0=normal 1=paused 2=stopped
-    // WGSL inserts 8 bytes of implicit padding here (offsets 56–63)
+    // WGSL inserts 8 bytes of implicit padding here (offsets 56-63)
     // so that the vec4 below lands at offset 64
     background_color:      vec4<f32>,  // offset 64
     inhale_color:          vec4<f32>,  // offset 80
@@ -81,8 +81,8 @@ fn apply_premultiplied(color: vec4<f32>) -> vec4<f32> {
 /// exhale_color during exhale/holdAfterExhale
 ///
 /// Matches Swift ContentView's `colorTransitionFill` which uses `lastColor` =
-/// a flat phase color.  The color switches INSTANTLY at phase boundaries;
-/// only the shape size/progress animates
+/// a flat phase color.  The color switches instantly at phase boundaries.
+/// Only the shape size/progress animates
 fn phase_color() -> vec4<f32> {
     if u.phase == 0u || u.phase == 1u {
         return u.inhale_color;
@@ -92,7 +92,7 @@ fn phase_color() -> vec4<f32> {
 
 /// Color used for the screen-edge ripple
 ///
-/// Picks the color of the NEXT phase so the ripple stands out against
+/// Picks the color of the next phase so the ripple stands out against
 /// whatever the current fill is painting
 ///   • HoldAfterInhale (phase 1): screen is currently filled with
 ///     `inhale_color` (e.g. red).  Ripple uses `exhale_color` (blue)
@@ -105,8 +105,8 @@ fn phase_color() -> vec4<f32> {
 ///
 /// Cross-phase fade-out (the first 10 % of the next phase, where
 /// `rippleOpacity` fades from 1 -> 0): the ripple keeps the colour
-/// it had during the hold it's fading FROM, so the transition reads
-/// as a single continuous animation rather than a colour swap. That
+/// it had during the hold it's fading from, so the transition reads
+/// as a single continuous animation instead of a colour swap. That
 /// translates to
 ///   • Exhale (phase 2): fading out the HoldAfterInhale ripple
 ///     (which was `exhale_color`), so still `exhale_color`
@@ -150,10 +150,10 @@ fn gradient_circle(base: vec4<f32>, pixel: vec2<f32>, _bg: vec4<f32>) -> vec4<f3
 fn gradient_rectangle(base: vec4<f32>, pixel: vec2<f32>, rect_h: f32, _bg: vec4<f32>) -> vec4<f32> {
     let y01 = clamp01(pixel.y / max(rect_h, 1.0));
 
-    // Both modes fade the BASE color's alpha rather than lerping toward bg's
+    // Both modes fade the base color's alpha instead of lerping toward bg's
     // RGB. With the default `background_color = [0,0,0,0]`, lerping toward bg
     // produces (rgb=0, low alpha) at the rectangle's edges, which composites
-    // over dark wallpapers (notably Tahoe's new desktop visuals) as visible
+    // over dark wallpapers (Tahoe's new desktop visuals) as visible
     // black bands at the top + bottom of the shape. Holding base.rgb constant
     // and fading only alpha keeps any wallpaper bleed-through harmonious
     // with the base hue. Smoothstep softens the falloff so the transition
@@ -191,8 +191,8 @@ fn screen_edge_ripple(pixel: vec2<f32>) -> f32 {
     // Swift: borderUnit = min(w, h) * 0.04
     let border_unit  = min(W, H) * 0.04;
 
-    // Stroke + blur half-extents: stark gets 2× borderUnit stroke and no blur;
-    // gradient gets 3× borderUnit stroke and 2× borderUnit blur
+    // Stroke + blur half-extents: stark gets 2× borderUnit stroke and no blur.
+    // Gradient gets 3× borderUnit stroke and 2× borderUnit blur
     let use_gradient = u.ripple_enabled == 2u;
     let stroke_half  = select(border_unit, border_unit * 1.5, use_gradient);
     let blur_radius  = select(0.0, border_unit * 2.0, use_gradient);
@@ -226,7 +226,7 @@ fn screen_edge_ripple(pixel: vec2<f32>) -> f32 {
     //   HoldAfterExhale (phase 3): 1 -> 0
     //   Exhale (phase 2), cross-phase fade: frozen at 1 (end of inhale-hold)
     //   Inhale (phase 0), cross-phase fade: frozen at 0 (end of exhale-hold,
-    //     but trail/band collapse to [0,0] so nothing draws; Swift quirk preserved)
+    //     but trail/band collapse to [0,0] so nothing draws, a Swift quirk preserved)
     var hp: f32;
     if u.phase == 1u {
         hp = u.hold_time;
@@ -240,7 +240,7 @@ fn screen_edge_ripple(pixel: vec2<f32>) -> f32 {
 
     // Swift's isExhale is true only during HoldAfterExhale (phase 3). During
     // inhale/exhale, isExhale is false because holdProgress is 0 in that
-    // branch. Trail/band formulas below follow Swift exactly
+    // branch. Trail/band formulas below match Swift's
     let is_exhale_hold = u.phase == 3u;
 
     var trail_from: f32;
@@ -271,12 +271,12 @@ fn screen_edge_ripple(pixel: vec2<f32>) -> f32 {
     let perp   = 1.0 - smoothstep(stroke_half - perp_b, stroke_half + perp_b, min_dist);
 
     // Swift trail opacity = 0.25, band opacity = 0.8. Take the max so the band
-    // rides on top of the trail rather than double-counting
+    // rides on top of the trail instead of double-counting
     let intensity = max(in_trail * 0.25, in_band * 0.80) * perp;
 
     // rippleOpacity: Swift holds it at 1 during the hold phase, then fades it
     // 1 -> 0 over the first 10% of the following inhale/exhale. hold_time carries
-    // the LINEAR phase progress (not eased) so 10% of hold_time == 10% of the
+    // the raw phase progress before easing, so 10% of hold_time == 10% of the
     // wall-clock phase, matching Swift's `.linear(duration: duration * 0.1)`
     var ripple_opacity: f32 = 1.0;
     if u.phase == 0u || u.phase == 2u {
@@ -306,15 +306,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // background_opacity = min(bg.a, overlay_opacity), the final background
     // alpha, matching Swift's .opacity(min(bgAlpha, overlayOpacity)) on the
-    // background layer. Background pixels must NOT have overlay_opacity
-    // applied again; only shape pixels do
+    // background layer. Background pixels mustn't have overlay_opacity
+    // applied again. Only shape pixels do
     var bg = vec4<f32>(u.background_color.rgb, u.background_opacity);
 
     let pc        = phase_color();
     let rpc       = ripple_color();
-    // ripple_enabled is toggled on by from_state for hold phases AND during the
+    // ripple_enabled is toggled on by from_state for hold phases and during the
     // first 10% of the following inhale/exhale (cross-phase fade). The shader
-    // itself applies the fade envelope; this gate just avoids paying the cost
+    // itself applies the fade envelope. This gate avoids paying the cost
     // outside those windows
     let do_ripple = u.ripple_enabled != 0u;
 
@@ -347,10 +347,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 sc = gradient_rectangle(pc, pixel, rect_h, bg);
             }
             if do_ripple {
-                // Swift band alpha = 0.8, trail = 0.25; screen_edge_ripple returns
-                // intensity in [0, 0.8] so lerp factor is the intensity directly. Target
-                // color is ripple_color (inhale except during HoldAfterExhale), not the
-                // shape fill color, see Swift's `phaseColor = isExhale ? ...`
+                // Swift band alpha = 0.8, trail = 0.25. screen_edge_ripple returns
+                // intensity in [0, 0.8] so lerp factor is the intensity directly.
+                // Target color is ripple_color (inhale except during HoldAfterExhale),
+                // which differs from the shape fill color, see Swift's
+                // `phaseColor = isExhale ? ...`
                 let r = screen_edge_ripple(pixel);
                 sc = lerp_color(sc, rpc, r);
             }
@@ -361,7 +362,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             return apply_premultiplied(lerp_color(bg, rpc, r));
         }
         // Background-only pixel: alpha is already background_opacity =
-        // min(bg.a, overlay_opacity). Do NOT multiply by overlay_opacity again,
+        // min(bg.a, overlay_opacity). Don't multiply by overlay_opacity again,
         // matches Swift's separate background layer
         return vec4<f32>(bg.rgb * bg.a, bg.a);
     }

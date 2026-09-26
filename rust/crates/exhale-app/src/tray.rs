@@ -13,12 +13,12 @@ use tray_icon::{
 /// `scripts/generate-citations.py` validates that this URL still points
 /// into the corpus, and that any anchor it carries still names a heading
 ///
-/// Pinned to `main` rather than a release tag on purpose.  A binary
+/// Pinned to `main` instead of a release tag.  A binary
 /// stays installed long after its tag stops being the current state
 /// of the evidence, and a retraction has to reach the people running
-/// old builds.  A moved anchor is a CI failure; a stale claim isn't
+/// old builds.  A moved anchor is a CI failure, but a stale claim isn't
 ///
-/// Points at `docs/citations.html` rather than the file itself.  That
+/// Points at `docs/citations.html` instead of the file itself.  That
 /// page fetches `docs/CITATIONS.md` from `main` at load, so it stays
 /// as current as the blob view did, but a reader who followed a menu
 /// item called "Research" arrives at a document instead of at a code
@@ -26,7 +26,7 @@ use tray_icon::{
 pub const RESEARCH_URL: &str = "https://peterklingelhofer.github.io/exhale/citations.html";
 
 /// Named next to the URL because the wording and the destination are one
-/// decision: a plain label pointing at the whole corpus, rather than a
+/// decision: a plain label pointing at the whole corpus, instead of a
 /// claim-shaped label pointing at a supporting entry.  Shared with the
 /// macOS app menu, which shows the same item, so the two can never
 /// disagree
@@ -50,7 +50,7 @@ pub struct TrayMenuIds {
     // whole tray
     pub preferences_item: MenuItem,
     // No binding is embedded in this one's label, so `refresh_labels`
-    // never touches it; the handle is kept only so the menu owns it
+    // never touches it.  The handle is kept only so the menu owns it
     // for as long as the tray lives
     pub research_item:    MenuItem,
     pub reset_item:       MenuItem,
@@ -59,12 +59,12 @@ pub struct TrayMenuIds {
     //
     // Each entry both displays the action's current binding (label
     // text via `set_text` on rebind) and acts as a click target that
-    // opens the settings window in capture mode for that action;
-    // storing the handles here lets us update labels in place without
+    // opens the settings window in capture mode for that action.
+    // Storing the handles here lets us update labels in place without
     // a tray rebuild. The handles themselves are only `set_text`'d by
     // `refresh_labels`, which only runs from the hotkey-rebind path
     // (feature-gated). MAS build keeps the fields populated so the
-    // constructor stays one shape; lint silenced on that build
+    // constructor stays one shape.  The lint is silenced on that build
     #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
     pub kb_start_item:       MenuItem,
     #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
@@ -84,8 +84,8 @@ pub struct TrayMenuIds {
 
 impl TrayMenuIds {
     /// Match a clicked tray-menu item id back to the
-    /// [`ShortcutAction`] whose binding the user wants to change;
-    /// returns `None` for items that aren't part of the
+    /// [`ShortcutAction`] whose binding the user wants to change.
+    /// Returns `None` for items that aren't part of the
     /// "Keyboard Shortcuts ▶" submenu
     pub fn kb_action_for(&self, id: &tray_icon::menu::MenuId) -> Option<ShortcutAction> {
         if id == &self.kb_start       { Some(ShortcutAction::Start) }
@@ -118,7 +118,7 @@ impl TrayMenuIds {
 
 /// Format a top-level menu item's label.  Embeds the current
 /// binding in parentheses so the user can read it without opening
-/// the submenu; reads "Preferences" when the slot is unbound
+/// the submenu.  Reads "Preferences" when the slot is unbound
 fn top_level_label(base: &str, sc: Option<&exhale_core::KeyboardShortcut>) -> String {
     match sc {
         Some(sc) => format!("{base}  ({})", sc.display()),
@@ -141,13 +141,13 @@ fn submenu_label(action: ShortcutAction, shortcuts: &KeyboardShortcuts) -> Strin
 /// (must stay alive) and the menu item IDs so the caller can match
 /// incoming `MenuEvent`s
 ///
-/// `shortcuts` is the current snapshot of user keybindings; labels
+/// `shortcuts` is the current snapshot of user keybindings.  Labels
 /// embed each action's binding so the user can see at a glance what's
 /// bound to what without leaving the menu.  Pass the same struct back
 /// to [`TrayMenuIds::refresh_labels`] when bindings change to keep
 /// the menu in sync
 pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuIds)> {
-    // Propagate icon-construction failures via `?` rather than
+    // Propagate icon-construction failures via `?` instead of
     // panicking: callers (`App::sync_tray_to_visibility`) already
     // log + continue when `build_tray` returns `Err`, so a bad
     // RGBA buffer or platform limitation degrades gracefully to
@@ -159,10 +159,10 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
     let icon = make_icon()?;
 
     // No `Accelerator::new(...)` on any item.  Reasons:
-    //   1. Bindings are user-customisable now; a static accelerator
+    //   1. Bindings are user-customisable now.  A static accelerator
     //      label would lie when the user reassigns a shortcut
     //   2. On macOS, an `Accelerator` becomes the NSMenuItem's
-    //      `keyEquivalent`, which fires WHILE the menu is open.  The
+    //      `keyEquivalent`, which fires while the menu is open.  The
     //      same key press also queues in the global-hotkey channel,
     //      so closing the menu plays the action a second time: a
     //      double-trigger bug
@@ -266,7 +266,7 @@ fn make_icon() -> Result<tray_icon::Icon> {
             let aa_inner = (d - inner).clamp(0.0, 1.0);
             let alpha = (aa_outer.min(aa_inner) * 255.0) as u8;
             // White RGB so template-image tinting on macOS and plain display
-            // on Windows/Linux both come out legible; alpha carries the shape
+            // on Windows/Linux both come out legible.  Alpha carries the shape
             [0xFF, 0xFF, 0xFF, alpha]
         }))
         .collect();
