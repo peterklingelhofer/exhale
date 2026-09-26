@@ -22,7 +22,7 @@ pub struct BreathingState {
     pub phase:     BreathingPhase,
     /// 0.0 = fully collapsed, 1.0 = fully expanded
     pub progress:  f32,
-    /// 0.0–1.0 elapsed fraction within the current hold phase (for ripple)
+    /// 0.0-1.0 elapsed fraction within the current hold phase (for ripple)
     pub hold_time: f32,
 }
 
@@ -76,7 +76,7 @@ impl BreathingController {
     /// tick, pre-constructed so per-overlay render threads can hold the
     /// same `Arc` and read directly without round-tripping through the
     /// main event loop.  `request_draw` is called from the background
-    /// thread whenever a new frame should be rendered; wire it to the
+    /// thread whenever a new frame should be rendered. Wire it to the
     /// overlays' render-thread channels so frame signals bypass the
     /// main thread's message pump entirely
     pub fn start(
@@ -99,7 +99,7 @@ impl BreathingController {
             })
             .expect(
                 "exhale-controller: thread::spawn failed (system thread limit / OOM): \
-                 can't continue without the breathing controller; restart the process \
+                 can't continue without the breathing controller. Restart the process \
                  once memory is available",
             );
 
@@ -112,10 +112,10 @@ impl BreathingController {
         *self.state.lock_or_recover()
     }
 
-    /// Shared handle to the controller's state slot.  Cheap to clone;
-    /// the per-overlay render thread reads from this directly each
+    /// Shared handle to the controller's state slot.  Cheap to clone.
+    /// The per-overlay render thread reads from this directly each
     /// frame instead of round-tripping through the main event loop. The
-    /// controller writes to this BEFORE invoking `request_draw`,
+    /// controller writes to this before invoking `request_draw`,
     /// so any thread woken by `request_draw` is guaranteed to observe
     /// the latest state via the Mutex barrier
     pub fn state_handle(&self) -> Arc<Mutex<Option<BreathingState>>> {
@@ -128,7 +128,7 @@ impl BreathingController {
     ///
     /// `unpark` wakes the controller out of its current
     /// `park_timeout` sleep so the reset takes effect immediately,
-    /// not on the controller's next natural wakeup.  This matters
+    /// without waiting for the controller's next natural wakeup.  This matters
     /// most when `restart()` is called from the Stop -> Start
     /// sequence: while `is_animating == false`, the tick function
     /// returns a 10 s sleep interval (no work to do), and without
@@ -144,7 +144,7 @@ impl BreathingController {
     }
 
     /// Signal the controller to stop and join the thread.  Same
-    /// `unpark` rationale as [`Self::restart`]; without it,
+    /// `unpark` rationale as [`Self::restart`]. Without it,
     /// shutdown could wait up to 10 s for the controller's
     /// not-animating sleep to elapse before the join returns
     pub fn stop(&mut self) {
@@ -179,7 +179,7 @@ fn run_controller(
 
     // Deadline the next iteration should fire at.  We advance this by the
     // tick's requested `next_interval` after every iteration, then sleep
-    // until that deadline rather than sleeping `next_interval` from "now". Without
+    // until that deadline instead of sleeping `next_interval` from "now". Without
     // this, every `thread::sleep` overshoot (typically 0-10 ms on macOS)
     // accumulated into perceived choppiness even at the same fps: frames
     // landed at irregular wall-clock times.  Deadline-based scheduling
@@ -214,7 +214,7 @@ fn run_controller(
             (request_draw)();
         }
 
-        // Advance the target deadline by exactly `next_interval`.  Catch-up
+        // Advance the target deadline by `next_interval`.  Catch-up
         // clamp: if a long pause (laptop sleep, app backgrounded) put us
         // more than 1 second past the target, snap forward instead of
         // burst-rendering frames to "make up" the missed time
@@ -232,9 +232,9 @@ fn run_controller(
         // sleep interval, and without interruptible sleep a Stop -> 
         // Start press would wait up to 10 s before the controller
         // noticed the reset_flag and started ticking again.  If
-        // unpark was called BEFORE we reached the park, the token
+        // unpark was called before we reached the park, the token
         // is already pending and park_timeout returns immediately,
-        // which is exactly what we want (don't lose a wakeup
+        // which is what we want (don't lose a wakeup
         // signal that arrived during the previous tick's work)
         thread::park_timeout(sleep_for);
     }
@@ -272,7 +272,7 @@ fn tick(
 ) -> (bool, Duration) {
     let now = Instant::now();
 
-    // Snapshot the fields we need; avoid holding the lock across sleeps
+    // Snapshot the fields we need. Avoid holding the lock across sleeps
     let (
         is_animating, is_paused, hold_ripple_enabled,
         shape_is_fullscreen, colors_match,
@@ -361,7 +361,7 @@ fn tick(
             }
             return (false, INTERVAL_FAST.min(remaining));
         } else {
-            // No ripple: render exactly once per hold, then sleep until it ends
+            // No ripple: render once per hold, then sleep until it ends
             if !inner.did_render_hold {
                 inner.did_render_hold = true;
                 inner.last_draw_time  = now;
@@ -402,7 +402,7 @@ fn tick(
             inner.last_drawn_progress   = current.progress;
             return (true, cadence.min(time_to_phase_end));
         }
-        // Not yet time; come back when cadence expires
+        // Not yet time. Come back when cadence expires
         let wait = cadence.saturating_sub(elapsed_since_last);
         return (false, wait.min(time_to_phase_end));
     }
@@ -466,14 +466,13 @@ fn compute_state_with_easing(
 
 // ─── Phase advancement ────────────────────────────────────────────────────────
 
-/// Move to the next phase the user actually configured
+/// Move to the next phase the user configured
 ///
-/// A phase set to 0 is passed over rather than rendered for a floored
-/// 0.1 s, so 5 / 0 / 5 / 0 is a ten-second cycle instead of a 10.2-second
-/// one.  At most four steps: an all-zero pattern comes back round to the
-/// phase it started on instead of spinning forever.  `tick` never gets
-/// one this far because `cycle_is_static` short-circuits first, but a
-/// function that can spin is a function that will
+/// A phase set to 0 is skipped, so 5 / 0 / 5 / 0 runs a ten-second
+/// cycle.  At most four steps: an all-zero pattern comes back round to
+/// the phase it started on and stops there.  `tick` never gets one this
+/// far because `cycle_is_static` short-circuits first, and the four-step
+/// limit covers any other caller
 #[allow(clippy::too_many_arguments)]
 fn advance_phase(
     inner:              &mut Inner,
@@ -544,7 +543,7 @@ fn phase_duration_for(
 /// Perturb `base` by up to ±`fraction` of itself
 ///
 /// The stored slider value is 0.0 to 1.0 and the settings window shows it
-/// as a percent.  Scaling the phase rather than adding seconds to it means
+/// as a percent.  Scaling the phase instead of adding seconds to it means
 /// the slider means the same thing on a 2 s hold as on a 10 s exhale, and
 /// a phase set to 0 stays 0
 fn jitter(base: f64, fraction: f64) -> f64 {
@@ -685,8 +684,8 @@ mod tests {
         // covers compounding, independent of what ships as the default
         let mut settings = Settings::default();
         settings.drift = 1.01;
-        // Non-zero holds so that four advances are still exactly one
-        // cycle: a hold left at 0 is skipped rather than stepped through
+        // Non-zero holds so that four advances are still one
+        // cycle: a hold left at 0 is skipped instead of stepped through
         settings.post_inhale_hold_duration = 1.0;
         settings.post_exhale_hold_duration = 1.0;
         let now = Instant::now();
@@ -726,7 +725,7 @@ mod tests {
     #[test]
     fn drift_matches_pow() {
         // current_drift should equal drift^cycle_count at every cycle boundary,
-        // for as long as the ceiling has not been reached
+        // for as long as the ceiling hasn't been reached
         let mut settings = Settings::default();
         settings.drift = 1.01;
         // Non-zero holds, same reason as `drift_accumulates_correctly`
@@ -745,9 +744,9 @@ mod tests {
             last_drawn_progress: -1.0,
         };
 
-        // Deliberately far more cycles than any plausible session: drift is
+        // Far more cycles than any plausible session: drift is
         // unbounded by design, so this must hold arbitrarily far out. An
-        // earlier revision capped the compounding; that cap was removed
+        // earlier revision capped the compounding. That cap was removed
         // because advanced pranayama practice legitimately reaches breaths
         // far longer than the research literature happens to have studied. See
         // docs/CITATIONS.md gaps ledger item 6
@@ -960,7 +959,7 @@ mod tests {
         let (should_draw_1, _) = tick(&mut inner, &settings, &easing);
         assert!(should_draw_1, "paused controller draws once per second");
         // Second call immediately after: not yet a second elapsed, so
-        // it should NOT draw and the sleep should be < 1s
+        // it shouldn't draw and the sleep should be < 1s
         let (should_draw_2, next_2) = tick(&mut inner, &settings, &easing);
         assert!(!should_draw_2, "paused controller doesn't draw twice in a row");
         assert!(next_2 < Duration::from_secs(1));
@@ -1004,7 +1003,7 @@ mod tests {
 
     #[test]
     fn a_zero_inhale_starts_on_the_next_phase() {
-        // 0 / 2 / 2 / 0: there's no inhale to draw, so the very first
+        // 0 / 2 / 2 / 0: there's no inhale to draw, so the first
         // tick moves on to the hold instead of sitting out 100 ms
         let mut s = Settings::default();
         s.inhale_duration           = 0.0;

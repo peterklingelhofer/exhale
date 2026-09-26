@@ -5,7 +5,7 @@
 //! either a one-shot side effect (logger, panic hook) or a pure
 //! lookup (log-path picker, lock-file path).  The single-instance
 //! guard takes an [`winit::event_loop::EventLoopProxy`] only as a
-//! placeholder for the type parameter; the "secondary" path just exits
+//! placeholder for the type parameter.  The "secondary" path exits
 
 use std::path::PathBuf;
 
@@ -16,19 +16,19 @@ use crate::AppEvent;
 /// Outcome of [`single_instance_guard`].  See enum variants for
 /// platform behaviour
 pub(crate) enum InstanceGuard {
-    /// First instance; holds the lockfile alive for the process
+    /// First instance: holds the lockfile alive for the process
     /// lifetime.  Releasing the file (drop) releases the OS-level
     /// advisory lock so a subsequent launch can take over
     First(std::fs::File),
     /// Another instance is already running.  On macOS we asked the
     /// running instance to activate (which fires its
     /// `applicationShouldHandleReopen:` handler and shows the
-    /// settings window); on Windows/Linux the OS-level dock/taskbar
+    /// settings window).  On Windows/Linux the OS-level dock/taskbar
     /// re-activation does the same thing when the user clicks the
     /// existing app icon.  This process should exit immediately
     Secondary,
-    /// Couldn't open the lockfile at all (permissions, full disk);
-    /// proceed without the guard rather than refuse to start: the
+    /// Couldn't open the lockfile at all (permissions, full disk).
+    /// Proceed without the guard instead of refusing to start: the
     /// duplicate-instance behaviour is degraded but the app still
     /// runs
     Unavailable,
@@ -46,7 +46,7 @@ pub(crate) fn single_instance_guard(_proxy: &EventLoopProxy<AppEvent>) -> Instan
         Some(p) => p,
         None    => {
             log::warn!(
-                "single_instance_guard: no lock-path candidate available; \
+                "single_instance_guard: no lock-path candidate available, \
                  running without the guard",
             );
             return InstanceGuard::Unavailable;
@@ -62,7 +62,7 @@ pub(crate) fn single_instance_guard(_proxy: &EventLoopProxy<AppEvent>) -> Instan
         Ok(f) => f,
         Err(e) => {
             log::warn!(
-                "single_instance_guard: could not open lock file {} ({e}); \
+                "single_instance_guard: could not open lock file {} ({e}), \
                  running without the guard",
                 lock_path.display(),
             );
@@ -87,23 +87,23 @@ pub(crate) fn single_instance_guard(_proxy: &EventLoopProxy<AppEvent>) -> Instan
             // the running event loop drains and dispatches as
             // `AppEvent::ShowSettings`.  On other platforms, OS-level
             // launcher behaviour (taskbar pin re-click, GNOME
-            // Activities, etc.) brings the existing window to focus;
-            // we just exit
+            // Activities, etc.) brings the existing window to focus.
+            // We exit
             //
             // Print to stderr in addition to the log file so a
             // `cargo run --release` invocation surfaces "you're
-            // running the OLD binary because the previous one is
+            // running the old binary because the previous one is
             // still alive" instead of silently bringing the old
             // window forward.  Without this it's easy to mistake the
             // existing app reappearing for a successful relaunch of
             // freshly-built code
             eprintln!(
-                "exhale: another instance is already running; \
+                "exhale: another instance is already running, \
                  activating it and exiting.  Quit the running app first \
                  if you intended to relaunch a new build.",
             );
             log::info!(
-                "single_instance_guard: another instance holds the lock at {}; \
+                "single_instance_guard: another instance holds the lock at {}, \
                  bringing it to front and exiting",
                 lock_path.display(),
             );
@@ -113,7 +113,7 @@ pub(crate) fn single_instance_guard(_proxy: &EventLoopProxy<AppEvent>) -> Instan
         }
         Err(e) => {
             log::warn!(
-                "single_instance_guard: lock-acquire syscall failed ({e}); \
+                "single_instance_guard: lock-acquire syscall failed ({e}), \
                  running without the guard",
             );
             InstanceGuard::Unavailable
@@ -124,12 +124,12 @@ pub(crate) fn single_instance_guard(_proxy: &EventLoopProxy<AppEvent>) -> Instan
 /// Resolve the path used for the single-instance lock.  Picks a
 /// per-user location that's writable under every platform's default
 /// sandbox configuration:
-///   * **macOS**: `<config_dir>/exhale.lock` where `config_dir` is
+///   * macOS: `<config_dir>/exhale.lock` where `config_dir` is
 ///     `~/Library/Application Support/com.peterklingelhofer.exhale`
 ///     (sandboxed apps get this auto-mapped to the container)
-///   * **Windows**: `%LOCALAPPDATA%\peterklingelhofer\exhale\exhale.lock`
+///   * Windows: `%LOCALAPPDATA%\peterklingelhofer\exhale\exhale.lock`
 ///     via the `directories` crate, same as `settings.toml`
-///   * **Linux**: `$XDG_RUNTIME_DIR/exhale.lock` if set, else
+///   * Linux: `$XDG_RUNTIME_DIR/exhale.lock` if set, else
 ///     `~/.config/exhale/exhale.lock` (writable under every
 ///     mainstream sandbox / flatpak / snap configuration)
 fn instance_lock_path() -> Option<PathBuf> {
@@ -153,11 +153,11 @@ fn try_lock_exclusive(file: &std::fs::File) -> std::io::Result<bool> {
     {
         use std::os::fd::AsRawFd;
         // `flock(2)` with `LOCK_EX | LOCK_NB`.  EWOULDBLOCK means
-        // another process holds the lock, which we treat as our
-        // "secondary instance" signal rather than an error
+        // another process holds the lock, which we treat here as
+        // the "secondary instance" signal by returning `Ok(false)`
         // SAFETY: `file.as_raw_fd()` returns a valid file descriptor
         // owned by `file` for the duration of this call (the borrow
-        // checker enforces it via the `&std::fs::File` argument);
+        // checker enforces it via the `&std::fs::File` argument).
         // `flock` has no other safety requirements beyond the fd
         // being a valid open file descriptor
         let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
@@ -184,7 +184,7 @@ fn try_lock_exclusive(file: &std::fs::File) -> std::io::Result<bool> {
         // another process
         // SAFETY: `OVERLAPPED` is a plain POD struct documented as
         // safe to zero-initialise: `Offset = 0` / `OffsetHigh = 0`
-        // is exactly what we want for "lock byte 0".  Other fields
+        // is what we want for "lock byte 0".  Other fields
         // (`hEvent` etc.) are unused in the FAIL_IMMEDIATELY path
         let mut ovl: OVERLAPPED = unsafe { std::mem::zeroed() };
         // SAFETY: `file.as_raw_handle()` returns a valid `HANDLE`
@@ -215,9 +215,9 @@ fn try_lock_exclusive(file: &std::fs::File) -> std::io::Result<bool> {
     }
 }
 
-/// `Write` adapter that mirrors every byte to both stderr AND a backing
+/// `Write` adapter that mirrors every byte to both stderr and a backing
 /// file.  We use this as `env_logger`'s target so the same log output
-/// appears in the terminal (when there's one) AND on disk next to the
+/// appears in the terminal (when there's one) and on disk next to the
 /// exe: needed for windowed-app debugging where stderr is nowhere
 /// reachable, including the on-Windows scenario where a black-screen
 /// overlay bug renders every other window invisible until the process
@@ -329,7 +329,7 @@ mod tests {
         let second = try_lock_exclusive(&f2).expect("second lock call");
         assert!(!second, "second open should detect the lock held by the first");
 
-        // Drop the first lock; the file system / OS releases the
+        // Drop the first lock.  The file system / OS releases the
         // advisory lock.  A third open should then succeed
         drop(f1);
         let f3 = std::fs::OpenOptions::new()
@@ -346,12 +346,12 @@ mod tests {
 
     #[test]
     fn instance_lock_path_resolves_to_writable_dir() {
-        // We don't write to the file in the test, just verify the
-        // path resolver returns a value whose parent we can `mkdir -p`
+        // This test verifies the path resolver returns a value whose
+        // parent we can `mkdir -p`, without writing to the file
         let path = instance_lock_path().expect("path candidate");
         assert!(path.is_absolute(), "lock path should be absolute: {}", path.display());
         let parent = path.parent().expect("path has parent");
-        // create_dir_all is idempotent; on a clean system it creates
+        // create_dir_all is idempotent.  On a clean system it creates
         // the dir, on a populated system it no-ops
         std::fs::create_dir_all(parent)
             .unwrap_or_else(|e| panic!("could not create {}: {e}", parent.display()));

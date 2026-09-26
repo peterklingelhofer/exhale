@@ -6,7 +6,7 @@
 #   exhale-${VERSION}-x86_64.AppImage: single-file portable Linux app
 #
 # Requirements
-#   - Linux host (appimagetool is Linux-only; macOS users should let CI run this)
+#   - Linux host (appimagetool is Linux-only. macOS users should let CI run this)
 #   - Rust toolchain with `x86_64-unknown-linux-gnu` target
 #   - System libraries listed in snapcraft.yaml (libx11-dev, libxkbcommon-dev,
 #     libwayland-dev, libglib2.0-dev, libgtk-3-dev, libayatana-appindicator3-dev,
@@ -39,7 +39,7 @@ die() { printf '\033[1;31m[appimage] error:\033[0m %s\n' "$*" >&2; exit 1; }
 
 case "$(uname -s)" in
     Linux*) ;;
-    *) die "appimagetool requires Linux; run this via GitHub Actions or a Linux VM." ;;
+    *) die "appimagetool requires Linux. Run this via GitHub Actions or a Linux VM." ;;
 esac
 
 for t in cargo rustup; do
@@ -59,7 +59,7 @@ BIN_PATH="$RUST_ROOT/target/x86_64-unknown-linux-gnu/release/exhale"
 # ── 2. Fetch appimagetool if needed ──────────────────────────────────────────
 mkdir -p "$TOOL_DIR"
 if [[ ! -x "$APPIMAGETOOL" ]]; then
-    log "downloading appimagetool…"
+    log "downloading appimagetool..."
     curl -fsSL -o "$APPIMAGETOOL" \
         "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
     chmod +x "$APPIMAGETOOL"

@@ -9,14 +9,7 @@ use std::time::{Duration, Instant};
 pub(super) fn section(ui: &mut egui::Ui, header: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
     let dark_mode = ui.visuals().dark_mode;
 
-    // Swift's SectionCard fill is `Color(NSColor.controlBackgroundColor)
-    // .opacity(0.55)`: over an NSVisualEffectView .hudWindow backdrop that
-    // renders at ~80% (dark) or ~85% (light) luminance, this produces cards
-    // that are *barely* distinguishable from the vibrancy.  Matching that
-    // with a hand-tuned premul-unaware fill:
-    //   dark: controlBackgroundColor ≈ #1E1E1E, .55 alpha ≈ 86 out of 255
-    //           but vibrancy already tints toward dark, so the visible delta
-    // EXACT match for Swift's `SectionCard.fill`:
+    // Exact match for Swift's `SectionCard.fill`:
     //   Color(NSColor.controlBackgroundColor).opacity(0.55)
     // `controlBackgroundColor`:
     //   dark -> (0.118, 0.118, 0.118, 1.0) ≈ #1E1E1E (RGB 30, 30, 30)
@@ -26,7 +19,7 @@ pub(super) fn section(ui: &mut egui::Ui, header: &str, add_contents: impl FnOnce
     // Swift's "dark dark gray" card in dark mode and a translucent
     // white card in light mode
     let fill = card_fill(dark_mode);
-    // Constrain the card to exactly the scroll area's viewport width so every
+    // Constrain the card to the scroll area's viewport width so every
     // section (Controls, Appearance, Timing, Randomization, Timers) aligns at
     // the same left and right gutters
     let target_w = (super::SETTINGS_WIDTH as f32 - 2.0 * OUTER_PAD).min(ui.available_width());
@@ -95,12 +88,12 @@ pub(super) fn section_header(ui: &mut egui::Ui, text: &str) {
 /// layout with equal allocations gives us for free via `allocate_exact_size`
 ///
 /// Two rendering paths depending on what icon material is available:
-///   - **macOS (SF Symbol texture present)**: paint the whole
+///   - macOS (SF Symbol texture present): paint the whole
 ///     `.circle.fill` symbol directly.  Apple has done the optical
 ///     centring of the inner glyph against the surrounding ring, so
 ///     the rendering matches Swift's `Image(systemName:)` output
 ///     pixel-for-pixel and no per-icon offset is needed
-///   - **Windows / Linux (no texture)**: paint a filled circle in
+///   - Windows / Linux (no texture): paint a filled circle in
 ///     the foreground colour then composite the Unicode glyph
 ///     (`▶ ■ ↺ ×`) on top in a muted contrasting colour, mimicking
 ///     SF Symbol's transparent cutout look.  Per-glyph
@@ -121,21 +114,21 @@ pub(super) fn section_header(ui: &mut egui::Ui, text: &str) {
 /// source of truth for inner-glyph positioning there
 ///
 /// `draw_inner_square` and `draw_inner_triangle` paint the inner
-/// shape as an egui primitive instead of using the texture / glyph;
-/// the two have **different precedence** to reflect different
+/// shape as an egui primitive instead of using the texture / glyph.
+/// The two have different precedence to reflect different
 /// rendering issues:
 ///
-///   - `draw_inner_square` overrides BOTH the texture and Unicode
+///   - `draw_inner_square` overrides both the texture and Unicode
 ///     paths.  Used by Stop because Apple's `stop.circle.fill`
 ///     rasterises the inner square slightly high in our pipeline
-///     (visible side-by-side with Swift) AND the Unicode U+25A0
+///     (visible side-by-side with Swift) and the Unicode U+25A0
 ///     glyph isn't reliably centred across system fonts
 ///   - `draw_inner_triangle` overrides only the Unicode path,
-///     yielding to the SF Symbol texture when one is available;
-///     used by Play because Apple's `play.circle.fill` renders
+///     yielding to the SF Symbol texture when one is available.
+///     Used by Play because Apple's `play.circle.fill` renders
 ///     correctly on macOS: the issue is only Segoe UI / Linux
-///     fonts positioning U+25B6 low-left in its em-box (the glyph
-///     reads as a dropdown indicator rather than a play button)
+///     fonts positioning U+25B6 low-left in its em-box, which
+///     reads as a dropdown indicator
 #[allow(clippy::too_many_arguments)]
 pub(super) fn control_button(
     ui:                      &mut egui::Ui,
@@ -154,16 +147,15 @@ pub(super) fn control_button(
     // reset-confirmation Cancel and Reset buttons render with, so
     // all six buttons in the Controls section land in a single
     // visually-consistent style.  The button is laid out with an
-    // empty label so its centred-text slot is empty; we paint the
+    // empty label so its centred-text slot is empty.  We paint the
     // icon + label ourselves on top of the chrome below.  Pre-fix
-    // this routine painted its OWN translucent Swift-style fill +
+    // this routine painted its own translucent Swift-style fill +
     // stroke, which read as off-brand next to the egui-default
     // Cancel / Reset buttons.  Button height drops from `ROW_H + 6`
     // (Swift's tall 28-pt tile) to `ROW_H` (egui's default 22 pt)
-    // so the top row matches the Cancel / Reset pair height
-    // exactly; the icon + label rendering below still fits since
-    // we paint at 16-pt icon and 12-pt label, both within the
-    // 22-pt bounds
+    // so the top row matches the Cancel / Reset pair height.  The
+    // icon + label rendering below still fits since we paint at
+    // 16-pt icon and 12-pt label, both within the 22-pt bounds
     let size     = egui::vec2(width, ROW_H);
     let response = ui.add_sized(size, egui::Button::new(""));
     let rect     = response.rect;
@@ -172,8 +164,8 @@ pub(super) fn control_button(
     // scrolled out of the settings ScrollArea's viewport, the focus
     // halo would render off-screen and the user would think Tab
     // skipped past: `scroll_to_me(None)` nudges the ScrollArea just
-    // enough to bring the focused widget into view, no further;
-    // `gained_focus()` is true only on the FRAME focus arrived, so
+    // enough to bring the focused widget into view, no further.
+    // `gained_focus()` is true only on the frame focus arrived, so
     // we don't re-scroll every subsequent frame the button is
     // focused
     if response.gained_focus() {
@@ -199,13 +191,13 @@ pub(super) fn control_button(
 
     // Keyboard-focus indicator.  When the button is reached via Tab
     // (response.has_focus()), draw a subtle outer ring in the
-    // theme-inverse colour so the user can see where focus landed;
-    // the fill alone doesn't change visibly when focused; without
-    // this ring the user has to remember which button they just
-    // tabbed onto, especially in the top-row controls where every
-    // button shares the same chrome.  Multi-layer soft halo (3 px
-    // outside, mid-alpha) reads as a glow rather than a hard
-    // outline, matching the user's "subtle drop shadow glow"
+    // theme-inverse colour so the user can see where focus landed.
+    // The fill alone doesn't change visibly when focused, and
+    // without this ring the user has to remember which button they
+    // just tabbed onto, especially in the top-row controls where
+    // every button shares the same chrome.  Multi-layer soft halo
+    // (3 px outside, mid-alpha) reads as a soft glow instead of a
+    // hard outline, matching the user's "subtle drop shadow glow"
     // request
     if response.has_focus() {
         // Halo colour matches the `primary` foreground (white in
@@ -223,8 +215,8 @@ pub(super) fn control_button(
     }
 
     // Pressed state: Swift uses `.opacity(0.7)` + `.scaleEffect(0.97)`.  Scale
-    // is awkward in immediate-mode; drop opacity instead: the user still gets
-    // a clear "pressed" read
+    // is awkward in immediate-mode, so we drop opacity instead: the user
+    // still gets a clear "pressed" read
     let content_alpha: u8 = if pressed { 178 } else if enabled { 255 } else { 110 };
     let content_color = with_alpha(primary, content_alpha);
 
@@ -240,7 +232,7 @@ pub(super) fn control_button(
     // Ring diameter: dropped from 16 pt to 13 pt because at 16 pt
     // the filled circle visibly dominated the 22 pt button height
     // next to the 12 pt label text (icon read as larger than the
-    // word it sat beside).  13 pt leaves the ring just a touch
+    // word it sat beside).  13 pt leaves the ring a touch
     // taller than the label cap-height, same family of weights
     // egui's segmented-picker glyphs use elsewhere in the panel
     let icon_w     = 13.0_f32;
@@ -266,17 +258,17 @@ pub(super) fn control_button(
     );
 
     if draw_inner_square {
-        // Stop button: paint the outer ring AND the inner square as
-        // egui primitives so the square's geometric centre lands
-        // exactly on the ring's geometric centre.  We do this
-        // instead of using `stop.circle.fill` (macOS) or the
-        // Unicode U+25A0 glyph (Win/Linux) because both of those
-        // rasterise the square slightly above the ring's centre in
-        // our rendering pipeline, visible side-by-side with Swift
-        // even though both apps load the same SF Symbol.  Drawing
-        // the rectangle ourselves trades a tiny anti-aliasing
-        // difference vs Apple's hand-tuned symbol for guaranteed
-        // pixel-perfect centring across every OS
+        // Stop button: paint the outer ring and the inner square as
+        // egui primitives so the square's geometric centre lands on
+        // the ring's geometric centre.  We do this instead of using
+        // `stop.circle.fill` (macOS) or the Unicode U+25A0 glyph
+        // (Win/Linux) because both of those rasterise the square
+        // slightly above the ring's centre in our rendering
+        // pipeline, visible side-by-side with Swift even though
+        // both apps load the same SF Symbol.  Drawing the rectangle
+        // ourselves trades a tiny anti-aliasing difference vs
+        // Apple's hand-tuned symbol for guaranteed pixel-perfect
+        // centring across every OS
         let icon_center = egui::pos2(start_x + icon_w * 0.5, baseline_y);
         painter.circle_filled(icon_center, icon_w * 0.5, content_color);
         // Square sized to ~34% of the ring's diameter so it reads
@@ -299,12 +291,12 @@ pub(super) fn control_button(
         // `Image(systemName:)` rendering pixel-for-pixel without any
         // per-icon offset on our side.  `content_color` tint
         // modulates pressed / disabled states the same way the label
-        // dims; the texture itself is a white silhouette in dark
+        // dims.  The texture itself is a white silhouette in dark
         // mode and black in light mode (see `render_sf_symbol`'s
         // template + SourceAtop pass)
         // Match the icon_w ring-painting paths so the SF Symbol
         // texture renders at the same diameter as the Win / Linux
-        // primitives below; both targets land at 13 pt
+        // primitives below: both targets land at 13 pt
         let icon_size = 13.0_f32;
         let icon_rect = egui::Rect::from_min_size(
             egui::pos2(start_x, baseline_y - icon_size / 2.0),
@@ -317,25 +309,24 @@ pub(super) fn control_button(
             content_color,
         );
     } else if draw_inner_triangle {
-        // Play button on Win / Linux: paint the outer ring AND a
+        // Play button on Win / Linux: paint the outer ring and a
         // right-pointing triangle as egui primitives.  We don't
         // override the SF Symbol texture path (Apple's
         // `play.circle.fill` renders correctly), but the Unicode
         // U+25B6 BLACK RIGHT-POINTING TRIANGLE glyph is positioned
-        // low-left in Segoe UI's em-box (the glyph reads as a
-        // dropdown indicator rather than a play button), so painting our
-        // own triangle is the only reliable cross-font centring
+        // low-left in Segoe UI's em-box, reading as a dropdown
+        // indicator, so painting our own triangle is the only
+        // reliable cross-font centring
         let icon_center = egui::pos2(start_x + icon_w * 0.5, baseline_y);
         painter.circle_filled(icon_center, icon_w * 0.5, content_color);
         // Triangle bounding box ~5.5×5.5 pt, matching the stop
-        // square's visual weight.  Shifted RIGHT ~0.9 px so the
-        // centroid (true centre of mass) lands on the ring's centre
-        // rather than the bounding box.  An isoceles right-pointing
-        // triangle's centroid sits at 1/3 of its width from the
-        // base, i.e. left of bounding-box centre by `width / 6`: for
-        // a 5.5 pt triangle that's ~0.9 px.  Adding the shift
-        // moves the centroid to the ring's centre, where the eye
-        // expects "centred" to mean
+        // square's visual weight.  Shifted right ~0.9 px so the
+        // centroid (true centre of mass) lands on the ring's centre.
+        // An isoceles right-pointing triangle's centroid sits at 1/3
+        // of its width from the base, i.e. left of bounding-box
+        // centre by `width / 6`: for a 5.5 pt triangle that's ~0.9
+        // px.  Adding the shift moves the centroid to the ring's
+        // centre, where the eye expects "centred" to mean
         // Triangle scaled proportionally with the smaller ring
         // (4.5 ≈ 5.5 × 13 / 16) so its visual weight relative to
         // the ring matches the stop-square ratio above
@@ -405,18 +396,9 @@ pub(super) const BUTTON_RADIUS:    f32 = 7.0;
 // `visuals_for_theme` and nothing else, no reason to expose it here)
 pub(super) const STEPPER_FIELD_W:  f32 = 56.0;
 
-/// macOS-native selection pill: a slightly inset rounded rect filled in
-/// gray (lighter than the container in dark mode, near-white in light
-/// mode), matching AppKit's `NSSegmentedControl`
-/// `.selectedContentBackground`
-///
-/// Shared by the segmented pickers and the preset chips so there's one
-/// selected colour in the window rather than two that drift apart, and
-/// so the contrast test in this file covers both. It's measured rather
-/// than eyeballed: see `selected_pill_text_meets_wcag_aa`
 /// Translucent `SectionCard` fill, composited over the platform
 /// vibrancy backdrop. Hoisted out of [`section`] so the contrast test
-/// can composite against the real value rather than a guess at it
+/// can composite against the real value instead of a guess at it
 pub(super) fn card_fill(dark_mode: bool) -> egui::Color32 {
     if dark_mode {
         egui::Color32::from_rgba_unmultiplied(30, 30, 30, 140)
@@ -425,6 +407,14 @@ pub(super) fn card_fill(dark_mode: bool) -> egui::Color32 {
     }
 }
 
+/// macOS-native selection pill: a slightly inset rounded rect filled in
+/// gray (lighter than the container in dark mode, near-white in light
+/// mode), matching AppKit's `NSSegmentedControl`
+/// `.selectedContentBackground`
+///
+/// Shared by the segmented pickers and the preset chips so the window
+/// keeps one selected colour and the contrast test in this file covers
+/// both. The contrast is measured in `selected_pill_text_meets_wcag_aa`
 pub(super) fn selected_pill_fill(dark_mode: bool) -> egui::Color32 {
     if dark_mode {
         // ~rgb(110,110,110) at 90%, reads as a clear lighter gray over
@@ -436,7 +426,7 @@ pub(super) fn selected_pill_fill(dark_mode: bool) -> egui::Color32 {
     }
 }
 
-/// Text painted on top of [`selected_pill_fill`].
+/// Text painted on top of [`selected_pill_fill`]
 pub(super) fn selected_pill_text(dark_mode: bool) -> egui::Color32 {
     if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK }
 }
@@ -444,9 +434,9 @@ pub(super) fn selected_pill_text(dark_mode: bool) -> egui::Color32 {
 
 /// Measure every segmented picker in a single frame and return the largest
 /// natural column width across them.  Buttons within a single picker get
-/// equal width (so all options in that picker fit their widest text); the
-/// column width is then max-of-natural-widths so that every picker in the
-/// settings window shares the same left AND right bounds
+/// equal width (so all options in that picker fit their widest text), and
+/// the column width is then max-of-natural-widths so that every picker in
+/// the settings window shares the same left and right bounds
 ///
 /// `SEGMENT_SLACK_PX` adds a small per-segment breathing room so the
 /// measurement is always wide enough for the actual rendered text: the
@@ -476,7 +466,7 @@ pub(super) fn uniform_picker_column_width(ui: &egui::Ui, pickers: &[&[&str]]) ->
 /// Two-cell row layout for non-picker rows: fixed-width label on the left,
 /// DragValue / ColorPicker / etc. right-aligned against the row's trailing
 /// edge.  Everything to the right of the label cell sits in a `right_to_left`
-/// layout so the widget hugs the right edge exactly like Swift's Form.
+/// layout so the widget hugs the right edge like Swift's Form.
 /// Two-column row: a fixed-width label painted directly via the painter on
 /// the left, and a `right_to_left` widget area on the right
 ///
@@ -497,9 +487,9 @@ pub(super) fn labeled_row(ui: &mut egui::Ui, label: &str, add_widget: impl FnOnc
 
 /// Reserve a LABEL_W × ROW_H rect and paint `label` into it flush against the
 /// rect's left edge with the current theme's text colour.  Using the painter
-/// directly (rather than `ui.put(rect, Label::truncate())`) pins the text
-/// exactly at `rect.left()`: `Label` was adding implicit horizontal padding
-/// that read as "the labels aren't left-aligned" against Swift's reference
+/// directly instead of `ui.put(rect, Label::truncate())` pins the text at
+/// `rect.left()`: `Label` was adding implicit horizontal padding that read
+/// as "the labels aren't left-aligned" against Swift's reference
 pub(super) fn paint_label(ui: &mut egui::Ui, label: &str) -> egui::Response {
     paint_label_with_width(ui, label, LABEL_W)
 }
@@ -508,12 +498,12 @@ pub(super) fn paint_label(ui: &mut egui::Ui, label: &str) -> egui::Response {
 /// `segmented_row` so the picker can extend leftward into the label column
 /// when its natural width would otherwise overflow the card on the right
 ///
-/// Returns the label's hover-Response so callers can scope tooltips
-/// to the label region only (not the entire row).  Important for the
-/// segmented picker: attaching `on_hover_text` to the row meant
-/// hovering an option button raised a tooltip whose help text often
-/// quoted the option name itself ("Animation shape: Rectangle…"),
-/// which mid-fade-in read as "the label is rendered twice"
+/// Returns the label's hover-Response so callers can scope tooltips to
+/// the label region only.  Important for the segmented picker:
+/// attaching `on_hover_text` to the row meant hovering an option
+/// button raised a tooltip whose help text often quoted the option
+/// name itself ("Animation shape: Rectangle..."), which mid-fade-in
+/// read as "the label is rendered twice"
 pub(super) fn paint_label_with_width(
     ui:    &mut egui::Ui,
     label: &str,
@@ -543,7 +533,7 @@ pub(super) fn paint_label_with_width(
     response
 }
 
-/// Segmented picker row.  Label on the left; a right-aligned picker cell
+/// Segmented picker row.  Label on the left.  A right-aligned picker cell
 /// of `column_w` wide on the right.  `column_w` is measured once per frame
 /// (see `uniform_picker_column_width`) and passed identically to every
 /// picker in the Appearance section, so the leftmost option button lands
@@ -590,12 +580,12 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
         ui.add_enabled_ui(enabled, |ui| {
             let n = options.len();
             // Sub-pixel remainder is absorbed by the last segment so the
-            // rightmost edge lands exactly on picker_w
+            // rightmost edge lands on picker_w
             let per_w  = (picker_w / n as f32).floor().max(1.0);
             let last_w = per_w + (picker_w - per_w * n as f32).max(0.0);
 
             // Pre-compute the outer rect ourselves and use `ui.put(rect, btn)`
-            // for each segment.  `ui.add_sized(size, btn)` does NOT actually
+            // for each segment.  `ui.add_sized(size, btn)` doesn't
             // constrain the Button to `size`: Button's `allocate_at_least`
             // grows the frame to the natural text+padding width, which was
             // the real source of the Appearance-section right-overflow (debug
@@ -609,7 +599,7 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
 
             let dark_mode = ui.visuals().dark_mode;
 
-            // Disable egui's default Button hover/press fills; we'll paint
+            // Disable egui's default Button hover/press fills.  We'll paint
             // a rounded inset pill ourselves for hover/press/selected so all
             // three states share the same macOS-native pill look
             {
@@ -630,8 +620,8 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
             const SELECTED_ROUNDING: f32 = 5.0;
 
             // Pre-compute every segment's rect so we can interact + paint
-            // pill chrome BEFORE rendering each label (the pill must sit
-            // under the text rather than over it)
+            // pill chrome before rendering each label (the pill must sit
+            // under the text)
             let mut seg_rects: Vec<egui::Rect> = Vec::with_capacity(n);
             let mut seg_x = outer_rect.min.x;
             for i in 0..n {
@@ -683,7 +673,7 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
                 }
 
                 // Keyboard-focus halo for the segment reached via Tab.
-                // Drawn ABOVE the selected/hover pill so the focus
+                // Drawn above the selected/hover pill so the focus
                 // outline reads even when the segment is also the
                 // currently-selected one.  Three stacked stroked
                 // rects with decreasing alpha produce a soft glow
@@ -709,7 +699,7 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
                     }
                 }
 
-                // Selected text flips to primary; unselected uses default text color
+                // Selected text flips to primary.  Unselected uses default text color
                 let label_color = if is_selected {
                     selected_pill_text(dark_mode)
                 } else {
@@ -719,7 +709,7 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
                 // Paint the label centered in the segment via the painter,
                 // matching the segment width we measured for the picker
                 // column: `ui.put(rect, Button)` would re-allocate and
-                // grow `min_rect`, which we deliberately avoid in this row
+                // grow `min_rect`, which we avoid in this row
                 let galley = ui.painter().layout_no_wrap(
                     text.to_string(),
                     font_id.clone(),
@@ -738,14 +728,14 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
             }
 
             // Explicitly allocate the outer rect so the parent's cursor
-            // advances past picker_w exactly; otherwise nothing has
+            // advances past picker_w.  Otherwise nothing has
             // reserved the horizontal space and the scope's min_rect
             // wouldn't include the pickers (ui.put doesn't advance cursor)
             let _ = ui.allocate_rect(outer_rect, egui::Sense::hover());
 
             // Rounded outline around the picker's outer bounds.  The
             // outer rounding matches `SELECTED_ROUNDING + SELECTED_INSET`
-            // so the rounded-rect SELECTED pill sits concentric inside
+            // so the rounded-rect selected pill sits concentric inside
             // the rounded outer border (`pill = outer.shrink(INSET)`
             // means pill's corner-radius needs to be outer's minus
             // INSET to stay visually concentric).  AppKit's native
@@ -761,30 +751,25 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
     changed
 }
 
-/// Duration row (seconds). Swift's CombinedStepperTextField with `limits: (0, nil)`
-/// and step 1.0, so the ±-button step matches the Stepper control on macOS.
 /// Preset chips: one click that moves all four Timing steppers at once
 ///
 /// Lives inside the Timing card, directly above the steppers it writes,
-/// so the effect of a click is visible in the same glance rather than
-/// having to be believed
+/// so the effect of a click is visible in the same glance
 ///
-/// **Selection is derived, never stored.** Which chip is lit comes from
-/// comparing the four durations in `Settings` against each preset, with
-/// the epsilon `SettingsDiff::from` uses on those same fields. There is
-/// no sixth "selected preset" field, so there's nothing to migrate,
-/// nothing to desync, and nothing that can be stale after the user
-/// nudges a stepper by hand: the chip simply goes out
+/// Which chip is lit comes from comparing the four durations in
+/// `Settings` against each preset, with the epsilon `SettingsDiff::from`
+/// uses on those same fields. There's no sixth "selected preset" field,
+/// so there's nothing to migrate or desync, and nothing that can go stale
+/// after the user nudges a stepper by hand: the chip goes out
 ///
-/// **There's no "Custom" chip.** Custom is the absence of a lit pill.
-/// A chip that does nothing when clicked is still a Tab stop, and this
-/// file already documents that hazard twice
+/// Custom is the absence of a lit pill, so there's no "Custom" chip. A
+/// chip that does nothing when clicked would still be a Tab stop
 ///
-/// Laid out by hand rather than with `ui.horizontal_wrapped` because
-/// the pill chrome has to be painted UNDER the label, which means every
+/// Laid out by hand instead of with `ui.horizontal_wrapped` because
+/// the pill chrome has to be painted under the label, which means every
 /// rect has to be known before anything is drawn. Same technique as
 /// `segmented_row`, which is also why the focus halo, the hover fill
-/// and the selected colour are literally the same code
+/// and the selected colour are the same code
 pub(super) fn preset_chips(
     ui:       &mut egui::Ui,
     settings: &mut exhale_core::settings::Settings,
@@ -801,7 +786,7 @@ pub(super) fn preset_chips(
     // to 297 pt at these values and 331 pt at a roomier 10 and 6, so the
     // difference between them is whether the last chip sits in the row or
     // alone underneath it. Nothing breaks if a future label pushes past
-    // the width: the wrap below is the fallback and simply gives back the
+    // the width: the wrap below is the fallback and gives back the
     // second row
     const CHIP_PAD_X:  f32 = 7.0;
     const CHIP_GAP:    f32 = 5.0;
@@ -842,7 +827,7 @@ pub(super) fn preset_chips(
 
     // Wrap into rows. Never truncate: a clipped pattern label is a
     // different pattern, and `paint_label_with_width`'s single-row
-    // ellipsis is exactly the wrong tool here
+    // ellipsis is the wrong tool here
     let avail  = ui.available_width();
     let origin = ui.cursor().min;
     let mut rects: Vec<egui::Rect> = Vec::with_capacity(PRESETS.len());
@@ -897,7 +882,7 @@ pub(super) fn preset_chips(
             ui.painter().rect_filled(pill, ROUNDING, fill);
         } else {
             // Unselected chips need a visible edge. The pickers get one
-            // from the container outline around the whole control; a
+            // from the container outline around the whole control.  A
             // wrapped chip row has no container, so without this an
             // unselected chip is bare text and doesn't read as
             // clickable at all
@@ -958,24 +943,22 @@ pub(super) fn preset_chips(
     changed
 }
 
-/// The pacing readout: what the current timing settings actually work
-/// out to, and how that sits against the range with direct
-/// experimental support
+/// The pacing readout: what the current timing settings work out to,
+/// and how that sits against the range with direct experimental
+/// support
 ///
 /// Every string comes from [`exhale_core::pacing::readout_lines`],
 /// which is where the copy is tested. This function only paints
 ///
-/// Rendered unprompted, never behind a hover or a disclosure triangle.
-/// The reason is specific rather than stylistic. A disclosure reaches
-/// only the people who go looking, and the settings most in need of a
-/// coverage note are the ones a user picks *without* reading anything:
-/// box breathing works out to 3.8 a minute, below the tested range, and
-/// looks gentler than it's because the holds hide the arithmetic.
-/// A line that appears only when the news is bad is a line nobody
-/// trusts, so it appears always, including for the default, which it
-/// reports as inside the range
+/// Always shown, with no hover or disclosure triangle in front of it. A
+/// disclosure reaches only the people who go looking, and the settings
+/// that most need a coverage note are the ones a user picks without
+/// reading anything. Box breathing works out to 3.8 a minute, below the
+/// tested range, and looks gentler than it is because the holds hide
+/// the arithmetic. The line shows for every setting, including the
+/// default, which it reports as inside the range
 ///
-/// A tooltip could not carry this either. `egui`'s tooltip width
+/// A tooltip couldn't carry this either. `egui`'s tooltip width
 /// clamps to `ctx.screen_rect()`, which here is a 360 pt window, so
 /// anything this long truncates
 pub(super) fn pacing_readout(ui: &mut egui::Ui, settings: &exhale_core::settings::Settings) {
@@ -988,11 +971,11 @@ pub(super) fn pacing_readout(ui: &mut egui::Ui, settings: &exhale_core::settings
     // card. `section` sets `item_spacing.y = ROW_GAP` for control rows,
     // which is right between a slider and the next slider and wrong
     // between two sentences: at 8 pt these read as three unrelated
-    // statements rather than one paragraph
+    // statements instead of one paragraph
     ui.scope(|ui| {
         ui.spacing_mut().item_spacing.y = 2.0;
         for line in lines {
-            // Wrapping rather than truncating. `paint_label_with_width` sets
+            // Wrapping instead of truncating. `paint_label_with_width` sets
             // `max_rows: 1` with an ellipsis, which is right for a
             // control label in a fixed column and wrong for a sentence
             // whose second half is the qualification
@@ -1005,13 +988,15 @@ pub(super) fn pacing_readout(ui: &mut egui::Ui, settings: &exhale_core::settings
     });
 }
 
+/// Duration row (seconds). Swift's CombinedStepperTextField with `limits: (0, nil)`
+/// and step 1.0, so the ±-button step matches the Stepper control on macOS
 pub(super) fn duration_row(ui: &mut egui::Ui, label: &str, help: &str, value: &mut f64) -> bool {
     stepper_row(ui, label, help, None, value, 1.0, 0.0, None, ValueScale::Identity)
 }
 
-/// Randomised-timing percentage row.  Stored in Settings as 0.0–1.0; Swift
-/// displays it multiplied by 100 with a stepper step of 1 % (== 0.01 in
-/// storage).  `ValueScale::Percent` handles the ×100 / ÷100 conversion on
+/// Randomised-timing percentage row.  Stored in Settings as 0.0 to 1.0.
+/// Swift displays it multiplied by 100 with a stepper step of 1 % (== 0.01
+/// in storage).  `ValueScale::Percent` handles the ×100 / ÷100 conversion on
 /// both read and write so the displayed/entered value is always a percent
 pub(super) fn pct_row(ui: &mut egui::Ui, label: &str, help: &str, value: &mut f64) -> bool {
     stepper_row(ui, label, help, None, value, 1.0, 0.0, None, ValueScale::Percent)
@@ -1054,7 +1039,7 @@ impl ValueScale {
 
 /// SwiftUI's `CombinedStepperTextField`: a fixed-width numeric TextField with
 /// a two-button vertical Stepper to its right and an optional left-hand hint
-/// ("0 = off").  `step`, `min`, and `max` are in the *displayed* unit; the
+/// ("0 = off").  `step`, `min`, and `max` are in the *displayed* unit.  The
 /// `scale` enum maps that display value to/from the stored `value`
 ///
 /// The buffer is persisted in egui's temp data keyed by `label` so typing a
@@ -1076,7 +1061,7 @@ pub(super) fn stepper_row(
 ) -> bool {
     let mut changed = false;
     let resp = ui.horizontal(|ui| {
-        // Zero item_spacing.x at the row level; we insert explicit
+        // Zero item_spacing.x at the row level.  We insert explicit
         // `add_space` between components so the right-alignment math
         // is exact and `widgets_w` accounts for every gap placed
         ui.spacing_mut().item_spacing.x = 0.0;
@@ -1142,7 +1127,7 @@ pub(super) fn stepper_row(
 
         // Arrow-key stepping: while the text field is focused, the
         // up / down arrows nudge the value by one `step` per press.
-        // `consume_key` drains EVERY matching event in the queue
+        // `consume_key` drains every matching event in the queue
         // this frame (including key-repeat fires from a held key)
         // so hold-to-step works naturally: one tick per system
         // repeat interval.  Singleline `TextEdit` doesn't do
@@ -1178,7 +1163,7 @@ pub(super) fn stepper_row(
 
         // Stepper buttons (right of field): pass the TextEdit's actual
         // rendered rect so the stepper's vertical bounds match the field's
-        // visible bounds exactly (otherwise `ROW_H`-sized stepper overhangs
+        // visible bounds (otherwise `ROW_H`-sized stepper overhangs
         // the TextEdit's slightly-shorter visible rectangle)
         let field_rect = field_resp.rect;
         let stepper_changed = stepper_buttons(
@@ -1197,7 +1182,7 @@ pub(super) fn stepper_row(
         }
 
         // Canonicalise the buffer when the field isn't focused, or when the
-        // stepper just nudged the value (button click OR arrow-key step): this
+        // stepper just nudged the value (button click or arrow-key step): this
         // prevents stale text hanging around after external state changes
         // (reset, cross-row effects) and keeps the on-screen text in
         // sync after an arrow nudge while focus remains on the field
@@ -1211,15 +1196,15 @@ pub(super) fn stepper_row(
 }
 
 /// Vertically stacked ▲/▼ Stepper buttons sized to match the adjacent
-/// TextEdit's physical rect exactly.  `field_rect` is the TextEdit's
-/// response rect: we use its `top()` and `bottom()` directly rather than
+/// TextEdit's physical rect.  `field_rect` is the TextEdit's
+/// response rect: we use its `top()` and `bottom()` directly instead of
 /// the parent UI's `ROW_H` so the stepper's top and bottom edges align with
 /// the field's visible frame, never overhanging top or bottom
 ///
 /// Button widgets handle clicks and draw the chrome (fill + stroke +
-/// hover/press states); triangles are drawn geometrically with the painter
+/// hover/press states).  Triangles are drawn geometrically with the painter
 /// because egui's default font (Ubuntu) doesn't include the ▲ U+25B2 /
-/// ▼ U+25BC glyphs; they rendered as missing-glyph tofu boxes
+/// ▼ U+25BC glyphs.  They rendered as missing-glyph tofu boxes
 pub(super) fn stepper_buttons(
     ui:         &mut egui::Ui,
     field_rect: egui::Rect,
@@ -1233,12 +1218,12 @@ pub(super) fn stepper_buttons(
     let btn_w: f32 = 13.0;
     let total_h = field_rect.height();
 
-    // Reserve horizontal space WITHOUT creating a widget response at the
+    // Reserve horizontal space without creating a widget response at the
     // full rect: `allocate_exact_size(Sense::hover())` was registering an
     // interaction zone at the whole column that could absorb pointer
     // events ahead of the per-half `ui.interact` calls below, resulting
     // in clicks never registering for the stepper halves.  `allocate_space`
-    // only advances the cursor; the actual hit-testing is done exclusively
+    // only advances the cursor.  The actual hit-testing is done exclusively
     // by the two `ui.interact` calls, whose IDs are unique to each half
     let (_, alloc_rect) = ui.allocate_space(egui::vec2(btn_w, total_h));
     let rect = egui::Rect::from_min_size(
@@ -1255,15 +1240,15 @@ pub(super) fn stepper_buttons(
         egui::vec2(btn_w, total_h - half_h),
     );
 
-    // Hit-testing via `ui.interact`: this is the ONLY way to get pixel-
+    // Hit-testing via `ui.interact`: this is the only way to get pixel-
     // perfect sub_rects.  Debug logs proved `egui::Button` ignores
     // ui.put's max_rect and draws at its own desired_size (empty-text
     // galley line-height ≈ 15 px), overhanging the 9 px sub_rect by 6 px
-    // below: exactly the "gray below the input" artifact.  With raw
-    // interact + painter chrome, the rect we pass IS the rect drawn.
+    // below: the "gray below the input" artifact.  With raw
+    // interact + painter chrome, the rect we pass is the rect drawn.
     // Scope the interact IDs by `row_salt` (the stepper_row's label) so
     // every stepper in the window has a unique ID pair.  Using `ui.id()`
-    // alone gave every stepper the SAME id because egui 0.29's default
+    // alone gave every stepper the same id because egui 0.29's default
     // UiBuilder has no id_salt, so sibling `ui.horizontal()` children of
     // a given parent all share the parent's id.  That caused egui's
     // click-tracking to silently drop every click because it couldn't
@@ -1278,7 +1263,7 @@ pub(super) fn stepper_buttons(
     // scrolled out of the settings ScrollArea's viewport, nudge
     // the viewport just enough to bring it into view, same
     // pattern as `control_button` / segmented-picker segment.
-    // `gained_focus()` is true only on the FRAME focus arrived
+    // `gained_focus()` is true only on the frame focus arrived
     // so we don't re-scroll every subsequent frame
     if up_resp.gained_focus() { up_resp.scroll_to_me(None); }
     if dn_resp.gained_focus() { dn_resp.scroll_to_me(None); }
@@ -1293,7 +1278,7 @@ pub(super) fn stepper_buttons(
 
     // Keyboard-focus halo for the stepper halves.  The button rects
     // here are tiny (~13×9 px) so the layered glow that works on
-    // the top-row control buttons reads too soft; bump the inner
+    // the top-row control buttons reads too soft.  Bump the inner
     // ring alpha to fully-opaque so even at glance distance the
     // user can see which half of the stepper Tab landed on (and
     // why pressing Tab three more times before hitting the next
@@ -1324,7 +1309,7 @@ pub(super) fn stepper_buttons(
     if dn_resp.has_focus() { paint_halo(bot_rect); }
 
     // Press-and-hold auto-repeat: matches macOS NSStepper / SwiftUI
-    // Stepper.  A click fires once on press-down; holding the button past
+    // Stepper.  A click fires once on press-down.  Holding the button past
     // `INITIAL_DELAY` starts a repeat that fires every `REPEAT_INTERVAL`
     // until release.  Values match AppKit's NSStepper defaults
     // (`autorepeatDelay = 0.4s`, `autorepeatInterval = 0.075s`)
@@ -1389,7 +1374,7 @@ pub(super) fn stepper_hold_tick(
     // `held` combines two signals: "the primary pointer button is currently
     // down somewhere" (a global state independent of widget hit-test)
     // with our own memo "the press started on this widget" (set
-    // either by an in-rect press-down THIS frame or by an existing
+    // either by an in-rect press-down this frame or by an existing
     // `StepperHoldState` carried over from a previous frame).  As
     // long as the user keeps the button down, `held` stays true
     // regardless of small cursor drift
@@ -1418,7 +1403,7 @@ pub(super) fn stepper_hold_tick(
         } else {
             // Fresh press-down: fire one immediate step and start
             // tracking the hold.  This matches NSStepper, which sends
-            // its `action` on press-down rather than waiting for release
+            // its `action` on press-down instead of waiting for release
             ui.data_mut(|d| d.insert_temp(id, StepperHoldState {
                 press_start: now,
                 last_tick:   now,
@@ -1429,7 +1414,7 @@ pub(super) fn stepper_hold_tick(
     } else {
         if prev.is_some() {
             // Released: we already fired on the press-down edge and
-            // any auto-repeat ticks during the hold, so just clear the
+            // any auto-repeat ticks during the hold, so clear the
             // hold state.  Don't re-fire on release
             ui.data_mut(|d| d.remove::<StepperHoldState>(id));
             None
@@ -1517,13 +1502,13 @@ pub(super) fn format_num(v: f64) -> String {
 }
 
 // ─── Color conversion ─────────────────────────────────────────────────────────
-// Settings stores sRGB [f32;4] in 0..1 (not linear), matching SwiftUI's Color
-// values (NSColor/CGColor in the deviceRGB space). The shader treats channel
-// values as sRGB and writes them to an 8-bit UNORM framebuffer as-is, which
-// the OS compositor displays as sRGB, identical to Swift's MTKView
-// (`colorPixelFormat = .bgra8Unorm`) pipeline. Storing sRGB also makes
-// gradient lerps interpolate in gamma space, matching SwiftUI's
-// LinearGradient/RadialGradient default behaviour
+// Settings stores sRGB [f32;4] in 0..1 as gamma-encoded values, matching
+// SwiftUI's Color values (NSColor/CGColor in the deviceRGB space). The
+// shader treats channel values as sRGB and writes them to an 8-bit UNORM
+// framebuffer as-is, which the OS compositor displays as sRGB, identical
+// to Swift's MTKView (`colorPixelFormat = .bgra8Unorm`) pipeline. Storing
+// sRGB also makes gradient lerps interpolate in gamma space, matching
+// SwiftUI's LinearGradient/RadialGradient default behaviour
 
 pub(super) fn to_color32(c: [f32; 4]) -> egui::Color32 {
     egui::Color32::from_rgba_unmultiplied(
@@ -1556,7 +1541,7 @@ pub(super) fn from_color32_opaque(c: egui::Color32) -> [f32; 4] {
 // ─── Test hooks ─────────────────────────────────────────────────────────
 //
 // A handful of test-only atomics and helpers so unit tests can observe
-// where stepper_buttons actually placed its interact rects during the
+// where stepper_buttons placed its interact rects during the
 // previous frame.  Used only under `#[cfg(test)]`
 #[cfg(test)]
 pub(super) mod test_hooks {
@@ -1573,7 +1558,7 @@ pub(super) mod test_hooks {
         LAST.with(|c| c.borrow_mut().take())
     }
 
-    // Unlike the stepper hook above, the chip hook is `cfg(test)`: it is
+    // Unlike the stepper hook above, the chip hook is `cfg(test)`: it's
     // written on every frame the chips are laid out, and a thread-local
     // borrow plus a Vec clone per frame isn't worth paying for in a
     // release build to support a test
@@ -1632,7 +1617,7 @@ mod tests {
     fn over(fg: egui::Color32, bg: egui::Color32) -> egui::Color32 {
         // `Color32::from_rgba_unmultiplied` stores premultiplied bytes, so
         // read the alpha back out and un-premultiply before compositing,
-        // or the result is wrong in exactly the direction that flatters
+        // or the result is wrong in the direction that flatters
         let a = fg.a() as f64 / 255.0;
         let ch = |f: u8, b: u8| {
             let straight = if a > 0.0 { (f as f64 / 255.0) / a } else { 0.0 };
@@ -1649,7 +1634,7 @@ mod tests {
         // 230, so what shows through the card and the vibrancy behind it
         // moves the result by less than a point of contrast
         //
-        // Swept across every possible backdrop rather than one assumed
+        // Swept across every possible backdrop instead of one assumed
         // desktop grey, because the vibrancy material composites against
         // whatever is behind the window and nobody controls that. Both
         // segmented pickers and preset chips use these colours, so this
@@ -1679,8 +1664,8 @@ mod tests {
     fn chip_text_meets_wcag_aa_on_the_backdrop_the_app_controls() {
         // With blur unavailable (older Windows, GNOME, EXHALE_DISABLE_BLUR)
         // the window is opaque and `clear_color_for_theme` picks the
-        // backdrop, so this is a contrast floor exhale can actually
-        // promise rather than one that depends on the wallpaper
+        // backdrop, so this is a contrast floor exhale can
+        // promise instead of one that depends on the wallpaper
         for (dark_mode, clear) in [
             (true,  egui::Color32::from_gray((0.12 * 255.0) as u8)),
             (false, egui::Color32::from_gray((0.96 * 255.0) as u8)),
@@ -1714,13 +1699,13 @@ mod tests {
         // The bound swept here is that the material doesn't invert: a
         // dark material never renders lighter than mid-grey and a light
         // one never renders darker. That's what "dark material" means,
-        // and it's the strongest honest assumption available from
+        // and it's the strongest assumption available from
         // inside the process, since `NSVisualEffectView` gives back no
         // sampled colour to test against
         //
         // Past that bound the guarantee does lapse: near-white behind a
         // dark-mode window measures about 3.0:1. That's a property of
-        // every `ui.label` in this window rather than anything the chips
+        // every `ui.label` in this window instead of anything the chips
         // introduced, and it's the same accessibility debt as the
         // missing AccessKit tree. Recorded here so it's a known number
         // instead of a surprise
@@ -1769,7 +1754,7 @@ mod tests {
     /// The Drift row shows a percentage, never the multiplier it stores.
     /// Zero must mean "no drift" so that "off" is legible without the user
     /// knowing anything about how it's stored, and one 0.1 step up from off
-    /// must land on 1.001 rather than anything coarser
+    /// must land on 1.001 instead of anything coarser
     #[test]
     fn drift_zero_is_off_and_one_step_is_a_tenth_of_a_percent() {
         const STEP: f64 = 0.1; // matches the Drift stepper_row in settings_window.rs
@@ -1785,7 +1770,7 @@ mod tests {
             "one 0.1 % step should store 1.001, got {after_one}"
         );
 
-        // And it keeps stepping in tenths rather than snapping to whole percents
+        // And it keeps stepping in tenths instead of snapping to whole percents
         let after_two = ValueScale::DriftPercent.from_display(0.0 + STEP * 2.0);
         assert!((after_two - 1.002).abs() < 1e-12, "two steps should store 1.002, got {after_two}");
 

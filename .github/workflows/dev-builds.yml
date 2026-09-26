@@ -52,7 +52,7 @@ jobs:
       # ARM64 cross-compile: `windows-2025` ships with the ARM64
       # MSVC build tools as part of the default VS 2022 install, so
       # this should "just work."  Marked continue-on-error in case the
-      # runner image regresses on that; x64 stays available either way
+      # runner image regresses on that. x64 stays available either way
       - name: Build (ARM64)
         working-directory: rust
         run: cargo build --release -p exhale-app --target aarch64-pc-windows-msvc

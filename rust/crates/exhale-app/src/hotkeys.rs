@@ -8,7 +8,7 @@ use global_hotkey::{
 /// Per-action ids returned by [`register_hotkeys`].  The dispatcher in
 /// `main.rs` matches incoming `GlobalHotKeyEvent`s by `id`, so
 /// missing actions (registration failed, or no key code matched) stay
-/// `None` and silently no-op rather than dispatching the wrong event
+/// `None` and silently no-op, so the dispatcher never fires the wrong event
 ///
 /// `registered` keeps the original `HotKey` objects so the caller can
 /// call [`GlobalHotKeyManager::unregister`] when the user reassigns a
@@ -30,12 +30,12 @@ pub struct HotkeyIds {
 /// system or other-app global hotkey), the remaining hotkeys are
 /// still registered.  An earlier version used `?` propagation which
 /// meant a single failed registration silently disabled every later
-/// one in the sequence; the user would see only "Reset works" with no
+/// one in the sequence.  The user would see only "Reset works" with no
 /// log entry pointing at the root cause (e.g. another app holding
 /// Ctrl+Shift+A)
 ///
 /// Returns the ids regardless of partial failure so the dispatcher
-/// can match any that did register; failures are logged with enough
+/// can match any that did register.  Failures are logged with enough
 /// context for the user to recognise the conflict
 pub fn register_hotkeys(
     manager:   &GlobalHotKeyManager,
@@ -54,12 +54,12 @@ pub fn register_hotkeys(
         (ShortcutAction::Preferences, shortcuts.preferences.as_ref()),
     ] {
         let Some(sc) = sc_opt else {
-            log::info!("hotkey {} is unbound; skipping registration", action.label());
+            log::info!("hotkey {} is unbound, skipping registration", action.label());
             continue;
         };
         let label = format!("{} ({})", sc.display(), action.label());
         let Some(hk) = shortcut_to_hotkey(sc) else {
-            log::warn!("hotkey {label} unrecognised key code '{}'; skipping registration", sc.code);
+            log::warn!("hotkey {label} unrecognised key code '{}', skipping registration", sc.code);
             continue;
         };
         let id = hk.id();
@@ -77,9 +77,9 @@ pub fn register_hotkeys(
             }
             Err(e) => {
                 log::warn!(
-                    "global hotkey {label} (id={id}) failed to register: {e}; \
-                     likely conflicts with a system or other-app shortcut; \
-                     the rest of exhale's hotkeys will still work.  Right-click the \
+                    "global hotkey {label} (id={id}) failed to register: {e}.  \
+                     Likely conflicts with a system or other-app shortcut.  \
+                     The rest of exhale's hotkeys will still work.  Right-click the \
                      matching button in the settings window to assign a different key"
                 );
             }
@@ -119,7 +119,7 @@ pub fn shortcut_to_hotkey(sc: &KeyboardShortcut) -> Option<HotKey> {
 /// name like `"KeyA"`, `"Comma"`, `"Digit1"`, `"F5"`) to the actual
 /// `Code` value.  The string form is what we persist to disk, chosen
 /// over the underlying `u32` because the enum's discriminant ordering
-/// is not part of `keyboard_types`' stable API
+/// isn't part of `keyboard_types`' stable API
 fn code_from_str(s: &str) -> Option<Code> {
     use Code::*;
     Some(match s {

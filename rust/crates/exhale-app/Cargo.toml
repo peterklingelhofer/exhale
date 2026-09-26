@@ -11,7 +11,7 @@ homepage    = "https://github.com/peterklingelhofer/exhale"
 # ── Debian package metadata (used by `cargo deb`) ─────────────────────────────
 # Runtime dependency list is the conservative superset covering Ubuntu 20.04+
 # (`focal`, `jammy`, `noble`).  `libayatana-appindicator3-1` is the modern
-# tray-icon backend; distros that still ship libappindicator3-1 symlink it
+# tray-icon backend.  Distros that still ship libappindicator3-1 symlink it
 [package.metadata.deb]
 maintainer          = "Peter Klingelhofer <peterklingelhofer@gmail.com>"
 copyright           = "2023-2026, Peter Klingelhofer"
@@ -65,7 +65,7 @@ directories   = "5"
 libc          = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# macOS uses native `UNUserNotifications` via objc2; `notify-rust` is only
+# macOS uses native `UNUserNotifications` via objc2.  `notify-rust` is only
 # pulled in on other platforms.  objc2 + the per-framework binding crates
 # give us typed message dispatch (selector typos and arg-type mismatches
 # become compile errors) and `Retained<T>` retain/release safety, replacing
@@ -127,11 +127,11 @@ windows-sys = { version = "0.59", features = [
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 notify-rust = { workspace = true }
 # X11 click-through + shape input region for Linux overlay windows.
-# x11-dl loads libX11 / libXfixes at runtime, so the Rust build doesn't need
-# X11 development headers installed; only the runtime libraries (which are
-# pre-installed on every X11 desktop distro)
+# x11-dl loads libX11 / libXfixes at runtime, so the Rust build needs
+# only the runtime libraries (which are pre-installed on every X11
+# desktop distro)
 x11-dl = "2.21"
-# `tray-icon` on Linux is built on top of GTK + libayatana-appindicator;
+# `tray-icon` on Linux is built on top of GTK + libayatana-appindicator.
 # GTK has to be initialised before any menu item is constructed and its
 # main loop has to be pumped to dispatch tray clicks.  We call `gtk::init`
 # at startup and run a non-blocking iteration in `about_to_wait` so the

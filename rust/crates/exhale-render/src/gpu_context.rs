@@ -10,10 +10,10 @@ use log::info;
 /// for headless / benchmarking code that doesn't need its own isolated
 /// command queue
 ///
-/// **Per-window renderers should call [`GpuContext::new_render_device`] to
-/// mint their own (`Device`, `Queue`) pair** instead of using the default
+/// Per-window renderers should call [`GpuContext::new_render_device`] to
+/// mint their own (`Device`, `Queue`) pair instead of using the default
 /// one.  Each `wgpu::Device` maps to a separate `ID3D12CommandQueue` (or
-/// Metal/Vulkan queue) under the hood; modern GPUs schedule those
+/// Metal/Vulkan queue) under the hood. Modern GPUs schedule those
 /// concurrently, but commands submitted to the *same* queue serialize. Sharing
 /// the default device across the overlay and settings windows meant every
 /// hover-driven settings repaint blocked the overlay's next present on the
@@ -28,7 +28,7 @@ pub struct GpuContext {
     /// capabilities for its own surface
     pub adapter:  Arc<wgpu::Adapter>,
     /// Default device, convenient for headless / one-off rendering. Per-window
-    /// renderers should NOT use this directly; call `new_render_device()`
+    /// renderers shouldn't use this directly. Call `new_render_device()`
     /// instead so each window gets its own queue
     pub device:   Arc<wgpu::Device>,
     /// Default queue (see `device`)
@@ -37,7 +37,7 @@ pub struct GpuContext {
 
 impl GpuContext {
     /// Initialise a shared GPU context compatible with the given surface. Call
-    /// once on startup; clone the returned `Arc` for each renderer
+    /// once on startup. Clone the returned `Arc` for each renderer
     pub fn new_for_surface(
         instance: wgpu::Instance,
         surface:  &wgpu::Surface<'_>,

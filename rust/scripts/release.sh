@@ -46,7 +46,7 @@ case "$MODE" in ""|--dry-run|--tag) ;; *)
 # 2021 as v2.0.20 resubmissions, then v2.0.21's default 2021 collided
 # with App Store Connect rejection ID 8a9458f3-...). Using commit count
 # instead gives a monotonic value that doesn't depend on VERSION, plus a
-# 10000 offset to clear the historical 2020–2022 range we already burned. Matches
+# 10000 offset to clear the historical 2020-2022 range we already burned. Matches
 # the computation in release.yml + bundle-mas.sh
 BUILD="$(( $(git rev-list --count HEAD) + 10000 ))"
 
@@ -80,8 +80,8 @@ sed_inplace 's/(^version[[:space:]]+=[[:space:]]+")[^"]+(")/\1'"$VERSION"'\2/' \
 sed_inplace "s/(^version: ')[^']+(')/\\1${VERSION}\\2/" \
     snap/snapcraft.yaml
 
-# Anchor to line-start whitespace so only the <Identity Version="…">
-# attribute is touched, leaving the <TargetDeviceFamily Min/MaxVersion="…">
+# Anchor to line-start whitespace so only the <Identity Version="...">
+# attribute is touched, leaving the <TargetDeviceFamily Min/MaxVersion="...">
 # siblings alone
 sed_inplace 's/(^[[:space:]]+Version=")[0-9]+\.[0-9]+\.[0-9]+\.0(")/\1'"${VERSION}"'.0\2/' \
     rust/packaging/windows/AppxManifest.xml
@@ -125,13 +125,13 @@ if [[ "$MODE" != "--tag" ]]; then
     echo "done. files modified:"
     printf '  %s\n' "${FILES[@]}"
     echo
-    echo "next: git add … && git commit -m 'release: v$VERSION'"
+    echo "next: git add ... && git commit -m 'release: v$VERSION'"
     echo "      git tag v$VERSION && git push origin HEAD v$VERSION"
     exit 0
 fi
 
 if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-    echo "error: tag v$VERSION already exists; pick a new version" >&2
+    echo "error: tag v$VERSION already exists: pick a new version" >&2
     exit 1
 fi
 

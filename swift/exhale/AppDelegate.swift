@@ -103,7 +103,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Single-instance enforcement: if another instance is already running,
-        // ask it to show settings and terminate this one.
+        // ask it to show settings and terminate this one
         let bundleID = Bundle.main.bundleIdentifier ?? "com.peterklingelhofer.exhale"
         let runningInstances = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
         if runningInstances.count > 1 {
@@ -220,7 +220,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ])
 
         // Compute max height dynamically from the SwiftUI content's intrinsic size
-        // so we never need to hardcode a pixel value when settings are added/removed.
+        // so we never need to hardcode a pixel value when settings are added/removed
         let fittingSize = hostingView.fittingSize
         let titleBarHeight: CGFloat = 28
         let idealHeight = ceil(fittingSize.height + titleBarHeight)
@@ -470,7 +470,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     func reloadContentView() {
         // Intentionally left blank.
-        // NSHostingView is created once per window; SwiftUI updates via EnvironmentObject.
+        // NSHostingView is created once per window. SwiftUI updates via EnvironmentObject
     }
     
     // Prevent the settings window from closing (just hide it instead)
