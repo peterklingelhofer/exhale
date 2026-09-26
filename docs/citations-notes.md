@@ -7,7 +7,8 @@ Bibliographic records were verified on 2026-08-28 (Crossref, Open Library) and 2
 and re-verified against all three registries on 2026-09-20 and 2026-09-26. Every claim was re-checked
 against the abstracts and open full texts on 2026-09-02, and again on 2026-09-20 against the full text
 of 35 entries and the abstract of 12, with the two books unread as before. On 2026-09-26 every
-statement was checked again against the same texts.
+statement was checked again against the same texts, and the ten entries that were marked as read in
+full but could only be checked against their abstracts are now marked as read from the abstract.
 
 > **This file is generated.** Edit [`CITATIONS.csl.json`](./CITATIONS.csl.json) for records and
 > [`citations-notes.md`](./citations-notes.md) for the prose, then run
@@ -409,12 +410,19 @@ its ISBN resolves to; a 2008 fourth revised edition exists under the same imprin
 
 In rough order of value per unit effort:
 
-1. Read the two entries still cited from their abstract only,
-   [`linardon2020-app-attrition`](#linardon2020-app-attrition) and
-   [`vlemincx2016-sigh-relief`](#vlemincx2016-sigh-relief), and re-read in full the ten entries
-   whose full text couldn't be reached on the 2026-09-20 pass and were checked against their
-   abstracts instead. The effect sizes of
-   [`laborde2021-ie-ratio-pauses`](#laborde2021-ie-ratio-pauses) are now in its entry.
+1. Read in full the twelve entries cited from their abstract only:
+   [`bae2021-exhalation-inhalation-ratio`](#bae2021-exhalation-inhalation-ratio),
+   [`bernardi2001-slow-breathing-chemoreflex`](#bernardi2001-slow-breathing-chemoreflex),
+   [`chaddha2019-slow-breathing-bp`](#chaddha2019-slow-breathing-bp),
+   [`johnson2023-20-20-20`](#johnson2023-20-20-20),
+   [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv),
+   [`linardon2020-app-attrition`](#linardon2020-app-attrition),
+   [`schleifer2002-hyperventilation-job-stress`](#schleifer2002-hyperventilation-job-stress),
+   [`schleifer2008-emg-gaps-computer-work`](#schleifer2008-emg-gaps-computer-work),
+   [`vlemincx2013-sigh-reset-model`](#vlemincx2013-sigh-reset-model),
+   [`vlemincx2016-sigh-relief`](#vlemincx2016-sigh-relief), [`yasuma2004-rsa`](#yasuma2004-rsa) and
+   [`you2023-respiratory-frequency`](#you2023-respiratory-frequency). Their full texts sit behind
+   paywalls or captchas.
 2. Nobody has tested a slow visual pacer on a screen worker who is already over-breathing (gap 5). That's a
    real, publishable question that exhale is unusually well placed to ask.
 3. Settle whether graded extension does anything, which would put a floor under gap 6. No study in
