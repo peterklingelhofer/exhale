@@ -1395,8 +1395,8 @@ fn settings_ui(
                 //
                 // Step is 0.1 percentage points: compounding makes whole
                 // percents enormous. 1 % doubles the breath in 70 breaths, which
-                // runs away inside one sitting.  0.1 % takes 693, which is a
-                // working day. Counted in breaths instead of minutes because
+                // runs away inside one sitting.  0.1 % takes 693, about 2.8 hours
+                // from the 10 s default. Counted in breaths instead of minutes because
                 // `d^k = 2` has no cycle length in it, so the figure holds
                 // whatever the four steppers above are set to. The useful range
                 // sat entirely below the old minimum step, so whole percents

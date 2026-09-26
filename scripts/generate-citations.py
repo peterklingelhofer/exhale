@@ -159,14 +159,13 @@ def check_cross_references(records: list[dict]) -> None:
 # the gaps ledger has to be able to name a claim in order to explain what the
 # evidence actually says about it
 #
-# This isn't hypothetical. `snapcraft.yaml` went on shipping the parasympathetic
-# claim to the Snap Store for two days after the README had stopped making it,
-# because a store listing is edited in a different place from a README and
-# nothing connected the two
+# `snapcraft.yaml` and the README have fallen out of sync on the parasympathetic
+# claim before, because a store listing is edited in a different place from a
+# README and nothing connected the two
 UNSUPPORTED_PHRASES: list[tuple[str, str]] = [
-    ("engage the parasympathetic nervous system", "gaps ledger 4: the cardiac evidence splits 2-for / 1-against / 1-null"),
-    ("engages the parasympathetic nervous system", "gaps ledger 4: the cardiac evidence splits 2-for / 1-against / 1-null"),
-    ("breathe more shallowly", "gaps ledger 1: the measured finding is faster and chest-high; no study measured shallower breathing"),
+    ("engage the parasympathetic nervous system", "gaps ledger 4: the cardiac evidence splits 3-for / 1-against / 2-null"),
+    ("engages the parasympathetic nervous system", "gaps ledger 4: the cardiac evidence splits 3-for / 1-against / 2-null"),
+    ("breathe more shallowly", "gaps ledger 1: the measured finding is faster and slightly over-ventilated, the chest-high shift is theorised, and no study measured shallower breathing"),
     ("screen apnea", "gaps ledger 1: no peer-reviewed source; the measured effect points the other way"),
     ("email apnea", "gaps ledger 1: no peer-reviewed source; the measured effect points the other way"),
     ("higher in the chest", "gaps ledger 1: the diaphragmatic-to-thoracic shift is theorised; no study has measured it in screen users"),

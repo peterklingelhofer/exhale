@@ -2,7 +2,7 @@ name: exhale-app
 title: exhale
 base: core22
 version: '2.0.22'
-summary: A full-screen breathing overlay for mindful breathing.
+summary: A translucent breathing overlay for mindful breathing.
 description: |
   A minimal cross-platform breathing overlay, a friendly indicator and
   reminder to take full, deep breaths while looking at screens. Demanding
@@ -30,8 +30,8 @@ description: |
   - Fully tunable inhale / hold / exhale / hold cadence
   - Customisable colours, shapes (fullscreen, circle, or rectangle), and
     opacity
-  - Runs from the system tray: start/stop animation, pause, reset to
-    defaults, open preferences
+  - Runs from the system tray: start/stop animation, reset to defaults,
+    open preferences, quit
   - Optional reminder notifications
 
   Take breaks if intense feelings arise; don't overdo it.
