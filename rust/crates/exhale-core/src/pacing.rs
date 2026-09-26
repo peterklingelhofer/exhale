@@ -2,20 +2,18 @@
 //!
 //! This module exists so that every user-visible statement about the
 //! research is derived, testable, and covered by CI. It lives in
-//! `exhale-core` rather than next to the widget that paints it for one
-//! blunt reason: CI runs `cargo test -p exhale-core` and doesn't
-//! compile `exhale-app`, which needs wgpu, winit and GTK. Copy that
-//! makes a coverage statement should not be the only text in the
-//! project with no test behind it
+//! `exhale-core`, away from the widget that paints it, because CI runs
+//! `cargo test -p exhale-core` and doesn't compile `exhale-app`, which
+//! needs wgpu, winit and GTK. Copy that makes a coverage statement
+//! shouldn't be the only text in the project with no test behind it
 //!
-//! **What the binary is permitted to assert.** Numbers it computed
-//! itself, one range, and nothing else. No effect, no benefit, no
-//! condition, no outcome measure. The corpus contains far stronger
-//! warrants than anything here, and they stay out of the binary on
-//! purpose: a store-reviewed app carries a retraction latency measured
+//! The binary may assert only numbers it computed itself, which can't
+//! be retracted, and one range. It may not name an effect, a benefit,
+//! a condition or an outcome measure. The corpus contains far stronger
+//! warrants than anything here, and they stay out of the binary
+//! because a store-reviewed app carries a retraction latency measured
 //! in weeks, so a claim compiled into it can't be withdrawn at the
-//! speed the evidence can change. Arithmetic has no such problem,
-//! because arithmetic can't be retracted. See `docs/CITATIONS.md`
+//! speed the evidence can change. See `docs/CITATIONS.md`
 
 use crate::settings::Settings;
 
@@ -23,9 +21,9 @@ use crate::settings::Settings;
 ///
 /// From `you2023-respiratory-frequency`, which tested 5, 5.5, 6, 6.5
 /// and 7 cycles per minute. The endpoints are the edges of what was
-/// actually run: a fact about the experiment, separate from a
-/// recommendation or a safe range. Outside it means untested here,
-/// which is different from tested and found wanting. Gaps ledger item 2
+/// run: a fact about the experiment, separate from a recommendation
+/// or a safe range. Outside it means untested here, which is
+/// different from tested and found wanting. Gaps ledger item 2
 pub const TESTED_MIN_BPM: f64 = 5.0;
 /// Fastest rate with direct experimental support. See [`TESTED_MIN_BPM`]
 pub const TESTED_MAX_BPM: f64 = 7.0;
@@ -39,12 +37,11 @@ pub enum Coverage {
 }
 
 impl Coverage {
-    /// Classify a rate that has ALREADY been rounded for display
+    /// Classify a rate that has already been rounded for display
     ///
-    /// Rounding first is deliberate. Classifying the raw value lets the
-    /// panel print "5.0 breaths a minute" directly above "slower than
-    /// any of them" for a true rate of 4.96, which reads as a bug and
-    /// costs the reader their trust in the rest of the line
+    /// Classifying the raw value lets the panel print "5.0 breaths a
+    /// minute" directly above "slower than any of them" for a true rate
+    /// of 4.96, which reads as a bug
     pub fn of_displayed(bpm: f64) -> Self {
         if bpm < TESTED_MIN_BPM {
             Self::Slower
@@ -96,8 +93,8 @@ fn grouped(n: u64) -> String {
 /// Breaths of continuous running before one cycle takes twice as long
 /// as it does now, or `None` when drift is off or shortening
 ///
-/// **Counted in breaths, because that unit stays constant across
-/// cycle lengths.** Cycle `k` lasts `c · dᵏ`, so `dᵏ = 2` at
+/// Counted in breaths, because that unit stays constant across
+/// cycle lengths. Cycle `k` lasts `c · dᵏ`, so `dᵏ = 2` at
 /// `k = ln2 / ln d`: the starting cycle length cancels out
 /// entirely. One per cent doubles the breath in 70 breaths
 /// whether the user started at 10 s or at 15 s
@@ -105,7 +102,7 @@ fn grouped(n: u64) -> String {
 /// Quoting a doubling *time* instead made the panel look broken. The
 /// same 1 % setting reads as 17 minutes from a 10 s cycle and 25
 /// minutes from a 15 s one, which invites the reader to conclude the
-/// arithmetic is unreliable when in fact both are correct and the
+/// arithmetic is unreliable when both are correct and the
 /// question was ambiguous. A count of breaths is a property of the
 /// drift value alone, so it's stable, and it's also the thing the
 /// user is about to sit through
@@ -121,7 +118,7 @@ pub fn breaths_to_double(settings: &Settings) -> Option<f64> {
 
 /// The horizon the drift line projects to. An hour is long enough that
 /// a gentle drift has visibly moved and short enough to be a session
-/// somebody might actually sit through
+/// somebody might sit through
 const PROJECTION_MINUTES: f64 = 60.0;
 
 /// Build the readout, one string per line, in display order
@@ -145,7 +142,7 @@ pub fn readout_lines(settings: &Settings) -> Vec<String> {
         .map(round_bpm);
 
     if projected.is_some() {
-        // Seconds, rather than breaths per minute. "About 1.3 a minute after an
+        // The projection is given in seconds. "About 1.3 a minute after an
         // hour" is arithmetically correct and unreadable: nobody holds a
         // mental picture of 1.3 breaths a minute, whereas everybody can
         // picture a breath that has gone from 10 seconds to 46. Seconds
@@ -167,7 +164,7 @@ pub fn readout_lines(settings: &Settings) -> Vec<String> {
         // Suppress the second clause when an hour doesn't move the
         // number a person could read off the screen. At 0.001 % a 15 s
         // cycle reaches 15.04 s, and "after an hour the cycle is 15 s,
-        // up from 15 s" reads as a bug rather than as a gentle setting
+        // up from 15 s" reads as a bug
         if (then - now).abs() >= 0.5 {
             drift_line.push_str(&format!(
                 " After an hour the cycle is {}, up from {}.",
@@ -186,7 +183,7 @@ pub fn readout_lines(settings: &Settings) -> Vec<String> {
 /// setting falls against it
 ///
 /// Phrased about the literature throughout. It reports what was
-/// measured and whether this number was among it; it doesn't tell the
+/// measured and whether this number was among it. It doesn't tell the
 /// user their breathing is wrong, because the corpus doesn't support
 /// that and the app is in no position to say so
 fn coverage_line(now: f64, projected: Option<f64>) -> String {
@@ -196,8 +193,8 @@ fn coverage_line(now: f64, projected: Option<f64>) -> String {
     let start = Coverage::of_displayed(now);
     match projected.map(Coverage::of_displayed) {
         // Drift that carries the pace out of the tested range within
-        // the projection window is exactly the thing a static label
-        // would hide, so it gets said rather than implied
+        // the projection window is the thing a static label would
+        // hide, so the line states it explicitly
         Some(end) if end != start => format!(
             "{base}This one starts {} and is {} within an hour.",
             match start {
@@ -230,9 +227,9 @@ mod tests {
     #[test]
     fn the_shipped_default_reports_itself_as_inside_the_tested_band() {
         // exhale defaults to 5 / 0 / 5 / 0, six a minute, and the panel
-        // says so on first open without being asked. The readout isn't
-        // here to flatter the default: `box_breathing_is_reported_as_
-        // slower_than_it_looks` is the same code volunteering bad news
+        // says so on first open without being asked. The same code
+        // reports box breathing as outside the range, which
+        // `box_breathing_is_reported_as_slower_than_it_looks` checks
         let lines = readout_lines(&Settings::default());
         assert_eq!(lines.len(), 2, "{lines:#?}");
         assert_eq!(lines[0], "Now: 6.0 breaths a minute, a 10 s cycle.");
@@ -291,8 +288,7 @@ mod tests {
     #[test]
     fn the_doubling_count_separates_gentle_drift_from_runaway_drift() {
         // The contrast gaps ledger item 6 turns on, and the reason the
-        // stepper moves in tenths of a percentage point rather than
-        // whole ones
+        // stepper moves in tenths of a percentage point
         let mut gentle = Settings::default();
         gentle.drift = 1.001;
         assert_eq!(breaths_to_double(&gentle).unwrap().round(), 693.0);
@@ -312,8 +308,8 @@ mod tests {
     fn the_doubling_count_does_not_depend_on_the_starting_cycle() {
         // Guards against the bug where quoting a doubling *time* read as
         // 17 minutes from a 10 s cycle and 25 minutes from a 15 s one,
-        // and the panel looked like it could not do arithmetic. Both
-        // were right; the unit was wrong
+        // and the panel looked like it couldn't do arithmetic when both
+        // numbers were right and the unit was wrong
         let mut ten = Settings::default();
         ten.drift = 1.01;
         assert_eq!(ten.cycle_secs(), 10.0);
@@ -328,9 +324,9 @@ mod tests {
 
     #[test]
     fn doubling_is_a_repeat_rate_not_a_one_off_milestone() {
-        // "Every N breaths" claims the interval repeats. It does: the
-        // same count takes the cycle from 2c to 4c, because `dᵏ = 2`
-        // has no `c` in it
+        // "Every N breaths" claims the interval repeats. The same count
+        // takes the cycle from 2c to 4c, because `dᵏ = 2` has no `c`
+        // in it
         let mut s = Settings::default();
         s.drift = 1.01;
         let k = breaths_to_double(&s).unwrap();
@@ -387,12 +383,12 @@ mod tests {
 
     #[test]
     fn no_line_names_an_effect_a_benefit_or_a_condition() {
-        // A denylist, enforced rather than suggested. `scripts/generate-citations.py`
-        // keeps retracted phrasing out of the store listings; this
+        // This test enforces a denylist. `scripts/generate-citations.py`
+        // keeps retracted phrasing out of the store listings, and this
         // keeps outcome vocabulary out of the binary, which is the
         // constraint that rules out quoting `custom.backsClaims`
         // verbatim however well-sourced those strings are. `docs/CITATIONS.md`
-        // may say all of this; the app may not
+        // may say all of this, while the app may not
         const BANNED: &[&str] = &[
             "anxiety", "depress", "stress", "calm", "relax", "vagal", "parasympathetic",
             "blood pressure", "heart rate variability", "hrv", "mood", "sleep",

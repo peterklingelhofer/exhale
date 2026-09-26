@@ -34,7 +34,7 @@ TRAY = ROOT / "rust/crates/exhale-app/src/tray.rs"
 PRESETS = ROOT / "rust/crates/exhale-core/src/presets.rs"
 
 # Section order in the rendered document. Each group answers one question the
-# app actually raises, rather than following the shape of the literature
+# app raises
 GROUPS = [
     ("premise", "Why a breathing reminder next to a screen"),
     ("slow-breathing", "Whether slow paced breathing does anything"),
@@ -48,8 +48,8 @@ GROUP_IDS = {g for g, _ in GROUPS}
 
 VERIFICATIONS = {"crossref-verified", "openlibrary-verified", "pubmed-verified", "unverified"}
 ACCESS_LEVELS = {"open-access", "paywalled"}
-# How much of the source was actually read before its claims were written down.
-# Verification confirms the citation; this field says what stands behind the claim
+# How much of the source was read before its claims were written down.
+# Verification confirms the citation. This field says what stands behind the claim
 READ_DEPTHS = {"full-text", "abstract", "record"}
 TIERS = {"A", "B", "C", "D", "E", None}
 
@@ -106,16 +106,16 @@ def load_corpus() -> list[dict]:
         if custom.get("readDepth") not in READ_DEPTHS:
             problems.append(f"{rid}: readDepth must be one of {sorted(READ_DEPTHS)}")
         # A legal open copy of a paywalled version of record, from a repository
-        # or free at the publisher. Only ever an https URL; never a DOI, which
-        # would just point back at the paywall
+        # or free at the publisher. Only ever an https URL, and never a DOI,
+        # which would point back at the paywall
         open_copy = custom.get("openCopy")
         if open_copy is not None and not str(open_copy).startswith("https://"):
             problems.append(f"{rid}: openCopy must be an https URL")
-        # Absent means citable; only an explicit `false` blocks a record
-        # from backing something the binary ships. Written as an opt-OUT so
+        # Absent means citable. Only an explicit `false` blocks a record
+        # from backing something the binary ships. Written as an opt-out so
         # the corpus doesn't need touching for the common case, and so the
-        # blocklist is greppable as four lines rather than inferred from
-        # forty-four omissions
+        # blocklist is greppable as four lines and never has to be inferred
+        # from forty-four omissions
         if custom.get("inAppCitable", False) not in (True, False):
             problems.append(f"{rid}: inAppCitable must be true or false")
 
@@ -154,10 +154,10 @@ def check_cross_references(records: list[dict]) -> None:
 
 # Claims the corpus doesn't support, kept out of the surfaces that assert them
 #
-# Scope is deliberate. Only surfaces that ASSERT are scanned: store listings and
-# anything compiled into the binary. `docs/` and `README.md` are exempt, because
-# the gaps ledger has to be able to name a claim in order to explain what the
-# evidence actually says about it
+# Only surfaces that assert are scanned: store listings and anything compiled
+# into the binary. `docs/` and `README.md` are exempt, because the gaps ledger
+# has to be able to name a claim in order to explain what the evidence says
+# about it
 #
 # `snapcraft.yaml` and the README have fallen out of sync on the parasympathetic
 # claim before, because a store listing is edited in a different place from a
@@ -166,15 +166,15 @@ UNSUPPORTED_PHRASES: list[tuple[str, str]] = [
     ("engage the parasympathetic nervous system", "gaps ledger 4: the cardiac evidence splits 3-for / 1-against / 2-null"),
     ("engages the parasympathetic nervous system", "gaps ledger 4: the cardiac evidence splits 3-for / 1-against / 2-null"),
     ("breathe more shallowly", "gaps ledger 1: the measured finding is faster and slightly over-ventilated, the chest-high shift is theorised, and no study measured shallower breathing"),
-    ("screen apnea", "gaps ledger 1: no peer-reviewed source; the measured effect points the other way"),
-    ("email apnea", "gaps ledger 1: no peer-reviewed source; the measured effect points the other way"),
-    ("higher in the chest", "gaps ledger 1: the diaphragmatic-to-thoracic shift is theorised; no study has measured it in screen users"),
+    ("screen apnea", "gaps ledger 1: no peer-reviewed source, and the measured effect points the other way"),
+    ("email apnea", "gaps ledger 1: no peer-reviewed source, and the measured effect points the other way"),
+    ("higher in the chest", "gaps ledger 1: the diaphragmatic-to-thoracic shift is theorised, and no study has measured it in screen users"),
     ("countermeasure with the most evidence", "no source compares countermeasures, and gaps ledger 5 says slow pacing can add to over-breathing"),
     ("hardware buys nothing", "laborde2021-spb-6cpm-biofeedback reports a valence advantage for biofeedback"),
 ]
 
-# Surfaces where one of the phrases above would be an assertion rather than a
-# discussion of one. Missing files are skipped
+# Surfaces where one of the phrases above would be an assertion. Missing files
+# are skipped
 ASSERTING_SURFACES: list[str] = [
     "snap/snapcraft.yaml",
     "rust/packaging/windows/AppxManifest.xml",
@@ -184,7 +184,7 @@ ASSERTING_GLOBS: list[str] = ["rust/crates/**/*.rs"]
 
 
 def check_unsupported_phrases() -> None:
-    """Fail if an unsupported claim survives on a surface that asserts it."""
+    """Fail if an unsupported claim survives on a surface that asserts it"""
     targets = [ROOT / rel for rel in ASSERTING_SURFACES]
     for pattern in ASSERTING_GLOBS:
         targets.extend(sorted(ROOT.glob(pattern)))
@@ -213,12 +213,12 @@ def check_note_links(records: list[dict], text: str, where: str) -> None:
 
     Both the gaps ledger and the README deep-link into the corpus by citekey.
     A rename silently breaks every one of them, and the README is the project's
-    front door, so it's checked on exactly the same footing as the notes
+    front door, so it's checked on the same footing as the notes
     """
     known = {r["id"] for r in records}
-    # Only anchors shaped like a citekey are entry references; the rest are
+    # Only anchors shaped like a citekey are entry references. The rest are
     # ordinary intra-document links to headings in the notes
-    # The notes link as (#citekey); the README links as (docs/CITATIONS.md#citekey)
+    # The notes link as (#citekey), the README as (docs/CITATIONS.md#citekey)
     anchors = re.findall(r"\]\((?:docs/CITATIONS\.md)?#([a-z0-9-]+)\)", text)
     referenced = {a for a in anchors if ID_RE.match(a)}
     dangling = sorted(referenced - known)
@@ -232,13 +232,13 @@ def check_preset_citekeys(records: list[dict]) -> None:
     """Every pattern the app offers has to be traceable to a live record.
 
     The preset list is the one place the binary makes a *selection* from the
-    literature rather than a statement about it, and a selection is an
-    argument whether or not it's worded as one. Offering five patterns says
-    these five are worth a click, so each carries a citekey that never reaches
-    the screen and exists only to fail this check.
+    literature, and a selection is an argument whether or not it's worded as
+    one. Offering five patterns says these five are worth a click, so each
+    carries a citekey that never reaches the screen and exists only to fail
+    this check.
 
-    Four conditions, and the third and fourth are the ones that earn their
-    keep. A record downgraded to tier E is lineage-only and can't license a
+    Of the four conditions, the third and fourth do most of the work.
+    A record downgraded to tier E is lineage-only and can't license a
     default. A record marked `inAppCitable: false` is one the design review
     blocklisted from a store-reviewed binary, which is a different judgement
     from whether it's good evidence: `fincham2023` is the strongest warrant
@@ -249,11 +249,11 @@ def check_preset_citekeys(records: list[dict]) -> None:
 
     text = PRESETS.read_text(encoding="utf-8")
     # `citekey: "..."` inside the const table. Comments mention citekeys in
-    # prose, so anchor on the field name rather than scanning for the shape
+    # prose, so anchor on the field name
     found = re.findall(r'citekey:\s*"([^"]*)"', text)
     if not found:
         raise CorpusError(
-            f"  - {PRESETS.relative_to(ROOT)} defines no preset citekeys; the shipped\n"
+            f"  - {PRESETS.relative_to(ROOT)} defines no preset citekeys. The shipped\n"
             "    patterns have lost their link to the corpus"
         )
 
@@ -267,7 +267,7 @@ def check_preset_citekeys(records: list[dict]) -> None:
         custom = rec["custom"]
         if custom["group"] not in ("timing", "slow-breathing"):
             problems.append(
-                f"preset citekey '{key}' is group '{custom['group']}'; a preset has to be "
+                f"preset citekey '{key}' is group '{custom['group']}'. A preset has to be "
                 "backed by a timing or slow-breathing record"
             )
         if custom.get("evidenceTier") == "E":
@@ -284,15 +284,14 @@ def check_preset_citekeys(records: list[dict]) -> None:
 
 
 def check_readme_counts(records: list[dict], text: str) -> None:
-    """The README states the size of the corpus. Make it prove it.
+    """The README states the size of the corpus. Check the figures.
 
     These numbers were wrong for the entire life of the previous commit: the
     README advertised 42 sources verified 40 / 2 while the corpus held 48
-    verified 45 / 2 / 1. Nothing caught it, because a number in prose looks
-    exactly like a number in prose. Undercounting is the harmless direction and
-    it's still the project's front door claiming a provenance figure it
-    hadn't checked, which is the specific failure this whole apparatus exists to
-    prevent
+    verified 45 / 2 / 1. Nothing caught it, because a wrong number in prose
+    looks like a right one. Undercounting is the harmless direction, and it's
+    still the project's front door claiming a provenance figure it hadn't
+    checked, which is the failure this apparatus exists to prevent
     """
     counts = collections.Counter(r["custom"]["verification"] for r in records)
     # Each phrase is matched wherever it appears, so the lede and the research
@@ -311,7 +310,7 @@ def check_readme_counts(records: list[dict], text: str) -> None:
             continue
         for got in found:
             if int(got) != want:
-                problems.append(f"README.md says {got} for {what}; the corpus holds {want}")
+                problems.append(f"README.md says {got} for {what}. The corpus holds {want}")
     if problems:
         raise CorpusError("\n".join("  - " + p for p in problems))
 
@@ -335,7 +334,7 @@ def check_binary_deep_link(rendered: str) -> None:
     stale. This one is compiled into a binary that stays installed for months,
     so it has to keep pointing into the corpus, and if it ever carries an
     anchor again that anchor has to name a heading that still exists.
-    Renaming a heading is allowed; renaming it silently isn't
+    Renaming a heading is allowed as long as it doesn't happen silently
 
     The menu may point either at the file on GitHub or at docs/citations.html,
     which fetches that same file from `main` and renders it. Both are the
@@ -348,7 +347,7 @@ def check_binary_deep_link(rendered: str) -> None:
     m = re.search(r'RESEARCH_URL: &str =\s*\n?\s*"([^"]+)"', TRAY.read_text(encoding="utf-8"))
     if not m:
         raise CorpusError(
-            f"  - {TRAY.relative_to(ROOT)} no longer defines RESEARCH_URL; the shipped\n"
+            f"  - {TRAY.relative_to(ROOT)} no longer defines RESEARCH_URL. The shipped\n"
             "    binary has lost its only pointer at the evidence"
         )
 
@@ -380,7 +379,7 @@ def year(rec: dict) -> str:
 
 
 def locator(rec: dict) -> str:
-    """Volume(issue): pages, omitting whatever the record doesn't have."""
+    """Volume(issue): pages, omitting whatever the record doesn't have"""
     bits = ""
     if rec.get("volume"):
         bits += str(rec["volume"])
@@ -403,7 +402,7 @@ def render_entry(rec: dict) -> list[str]:
     if rec.get("edition"):
         edition = rec["edition"]
         tail = f", {edition}" + ("" if edition.endswith(".") else tail)
-    # Journal articles carry a container title; books carry a publisher and place
+    # Journal articles carry a container title, books a publisher and place
     source = rec.get("container-title") or ": ".join(
         p for p in (rec.get("publisher-place"), rec.get("publisher")) if p
     )
@@ -480,9 +479,9 @@ def render_corpus(records: list[dict]) -> str:
 
 
 # How each verification status is named in the one-line summary. Driven off the
-# same enum the validator uses, so adding a source verified some new way is a
-# KeyError here rather than a source that silently vanishes from the count. The
-# previous hand-written version added up to 47 of 48 for exactly that reason
+# same enum the validator uses, so a source verified some new way raises a
+# KeyError here and can't silently vanish from the count. The previous
+# hand-written version added up to 47 of 48 for that reason
 VERIFICATION_LABELS = {
     "crossref-verified":    "Crossref-verified",
     "openlibrary-verified": "verified against Open Library",
@@ -509,8 +508,8 @@ def render_summary(records: list[dict]) -> str:
     return (
         f"{len(records)} sources: {', '.join(parts)}. "
         f"{depth['full-text']} were read in full, {depth['abstract']} from the abstract only, "
-        f"and {depth['record']} are catalogue records only; each entry says which. "
-        f"{tiered_out} are not peer-reviewed and are tiered E so they can back lineage but "
+        f"and {depth['record']} are catalogue records only. Each entry says which. "
+        f"{tiered_out} aren't peer-reviewed and are tiered E so they can back lineage but "
         f"never a claim."
     )
 
