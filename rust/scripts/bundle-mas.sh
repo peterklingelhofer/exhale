@@ -69,10 +69,8 @@ APP_IDENT="${APP_IDENT:-Apple Distribution: Peter Klingelhofer ($TEAM_ID)}"
 INSTALLER_IDENT="${INSTALLER_IDENT:-3rd Party Mac Developer Installer: Peter Klingelhofer ($TEAM_ID)}"
 PROVISION_PROFILE="${PROVISION_PROFILE:-$RUST_ROOT/signing/exhale.provisionprofile}"
 
-# Read version from crate Cargo.toml unless overridden.  The crate currently
-# reads 0.1.0, so users will almost always want to override, but we match the
-# Swift 2.0.7 -> 2.0.8 expectation by default so a fresh run produces a
-# submission one higher than the current MAS listing
+# Version of the build unless overridden.  `release.sh` rewrites this line
+# in step with the crate's Cargo.toml on every tag
 VERSION="${VERSION:-2.0.22}"
 # CFBundleVersion. Apple requires this to be monotonically increasing
 # across all uploads (rejected ones count too), so derive from git commit
@@ -198,12 +196,20 @@ plutil -lint "$CONTENTS/Info.plist" >/dev/null || die "Info.plist failed plutil 
 # uses.  PlistBuddy uses `:` and handles the real key names
 PROF_PLIST=$(mktemp)
 trap 'rm -f "$PROF_PLIST"' EXIT
-security cms -D -i "$PROVISION_PROFILE" > "$PROF_PLIST" \
-    || die "couldn't decode $PROVISION_PROFILE"
-APP_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "$PROF_PLIST") \
-    || die "couldn't read application-identifier from $PROVISION_PROFILE"
-TEAM_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.team-identifier" "$PROF_PLIST") \
-    || die "couldn't read team-identifier from $PROVISION_PROFILE"
+if [[ "$DRY_RUN" != "1" ]]; then
+    security cms -D -i "$PROVISION_PROFILE" > "$PROF_PLIST" \
+        || die "couldn't decode $PROVISION_PROFILE"
+    APP_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "$PROF_PLIST") \
+        || die "couldn't read application-identifier from $PROVISION_PROFILE"
+    TEAM_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.team-identifier" "$PROF_PLIST") \
+        || die "couldn't read team-identifier from $PROVISION_PROFILE"
+else
+    # No real profile to decode under DRY_RUN. Derive the same values a
+    # real MAS profile would carry, from the constants above, so the
+    # entitlements plist below still gets sensible (if unsigned) identifiers
+    APP_IDENTIFIER="$TEAM_ID.$BUNDLE_ID"
+    TEAM_IDENTIFIER="$TEAM_ID"
+fi
 
 cat > "$BUILD_DIR/exhale.entitlements" <<ENT
 <?xml version="1.0" encoding="UTF-8"?>

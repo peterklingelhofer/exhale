@@ -46,11 +46,29 @@ GROUPS = [
 ]
 GROUP_IDS = {g for g, _ in GROUPS}
 
-VERIFICATIONS = {"crossref-verified", "openlibrary-verified", "pubmed-verified", "unverified"}
+# How each verification status is named in the one-line summary. VERIFICATIONS
+# below is these same keys, so a source verified some new way fails the
+# validator instead of silently vanishing from the count later. The previous
+# hand-written version added up to 47 of 48 for that reason
+VERIFICATION_LABELS = {
+    "crossref-verified":    "Crossref-verified",
+    "openlibrary-verified": "verified against Open Library",
+    "pubmed-verified":      "verified against PubMed",
+    "unverified":           "unverified",
+}
+VERIFICATIONS = set(VERIFICATION_LABELS)
+
 ACCESS_LEVELS = {"open-access", "paywalled"}
+
 # How much of the source was read before its claims were written down.
 # Verification confirms the citation. This field says what stands behind the claim
-READ_DEPTHS = {"full-text", "abstract", "record"}
+READ_DEPTH_LABELS = {
+    "full-text": "full text",
+    "abstract":  "abstract only",
+    "record":    "catalogue record only",
+}
+READ_DEPTHS = set(READ_DEPTH_LABELS)
+
 TIERS = {"A", "B", "C", "D", "E", None}
 
 ID_RE = re.compile(r"^[a-z][a-z0-9]+[0-9]{4}-[a-z0-9-]+$")
@@ -59,7 +77,14 @@ MENTION_RE = re.compile(r"\b[a-z][a-z0-9]+[0-9]{4}-[a-z0-9-]+\b")
 
 
 class CorpusError(Exception):
-    pass
+    """Raised with a ready-made message, or a list of problems that get
+    formatted as one bullet per line"""
+
+    def __init__(self, problems: str | list[str]) -> None:
+        if isinstance(problems, str):
+            super().__init__(problems)
+        else:
+            super().__init__("\n".join("  - " + p for p in problems))
 
 
 def load_corpus() -> list[dict]:
@@ -128,7 +153,7 @@ def load_corpus() -> list[dict]:
             problems.append(f"{rid}: crossref-verified but carries no DOI")
 
     if problems:
-        raise CorpusError("\n".join("  - " + p for p in problems))
+        raise CorpusError(problems)
 
     return sorted(records, key=lambda r: r["id"])
 
@@ -149,7 +174,7 @@ def check_cross_references(records: list[dict]) -> None:
             if mention not in known:
                 problems.append(f"{rec['id']}: names unknown entry '{mention}'")
     if problems:
-        raise CorpusError("\n".join("  - " + p for p in problems))
+        raise CorpusError(problems)
 
 
 # Claims the corpus doesn't support, kept out of the surfaces that assert them
@@ -205,7 +230,7 @@ def check_unsupported_phrases() -> None:
                 problems.append(f"{rel}:{line} asserts \"{phrase}\" ({why})")
 
     if problems:
-        raise CorpusError("\n".join("  - " + p for p in problems))
+        raise CorpusError(problems)
 
 
 def check_note_links(records: list[dict], text: str, where: str) -> None:
@@ -223,9 +248,7 @@ def check_note_links(records: list[dict], text: str, where: str) -> None:
     referenced = {a for a in anchors if ID_RE.match(a)}
     dangling = sorted(referenced - known)
     if dangling:
-        raise CorpusError(
-            "\n".join(f"  - {where} links to unknown entry #{d}" for d in dangling)
-        )
+        raise CorpusError([f"{where} links to unknown entry #{d}" for d in dangling])
 
 
 def check_preset_citekeys(records: list[dict]) -> None:
@@ -280,7 +303,7 @@ def check_preset_citekeys(records: list[dict]) -> None:
                 "anything the binary ships"
             )
     if problems:
-        raise CorpusError("\n".join("  - " + p for p in problems))
+        raise CorpusError(problems)
 
 
 def check_readme_counts(records: list[dict], text: str) -> None:
@@ -312,7 +335,7 @@ def check_readme_counts(records: list[dict], text: str) -> None:
             if int(got) != want:
                 problems.append(f"README.md says {got} for {what}. The corpus holds {want}")
     if problems:
-        raise CorpusError("\n".join("  - " + p for p in problems))
+        raise CorpusError(problems)
 
 
 def slugify(heading: str) -> str:
@@ -443,11 +466,11 @@ def render_entry(rec: dict) -> list[str]:
 
 
 def tally(records: list[dict], key: str) -> list[str]:
-    counts: dict[str, int] = {}
+    labels = []
     for r in records:
         value = r["custom"].get(key)
-        label = value if value is not None else "null (not a study)"
-        counts[label] = counts.get(label, 0) + 1
+        labels.append(value if value is not None else "null (not a study)")
+    counts = collections.Counter(labels)
     rows = [f"| {label} | {n} |" for label, n in sorted(counts.items())]
     rows.append(f"| **total** | **{len(records)}** |")
     return rows
@@ -476,24 +499,6 @@ def render_corpus(records: list[dict]) -> str:
         for rec in in_group:
             out += render_entry(rec)
     return "\n".join(out).rstrip()
-
-
-# How each verification status is named in the one-line summary. Driven off the
-# same enum the validator uses, so a source verified some new way raises a
-# KeyError here and can't silently vanish from the count. The previous
-# hand-written version added up to 47 of 48 for that reason
-VERIFICATION_LABELS = {
-    "crossref-verified":    "Crossref-verified",
-    "openlibrary-verified": "verified against Open Library",
-    "pubmed-verified":      "verified against PubMed",
-    "unverified":           "unverified",
-}
-
-READ_DEPTH_LABELS = {
-    "full-text": "full text",
-    "abstract":  "abstract only",
-    "record":    "catalogue record only",
-}
 
 
 def render_summary(records: list[dict]) -> str:
