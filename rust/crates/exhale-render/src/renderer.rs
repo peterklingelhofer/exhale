@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use bytemuck::cast_slice;
+use bytemuck::{cast_slice, Zeroable};
 use exhale_core::{controller::BreathingState, settings::Settings};
 use log::{debug, warn};
 use wgpu::util::DeviceExt;
@@ -146,10 +146,6 @@ impl OverlayRenderer {
         Ok(())
     }
 
-    pub fn width(&self)  -> u32 { self.config.width }
-    pub fn height(&self) -> u32 { self.config.height }
-    pub fn surface_format(&self) -> wgpu::TextureFormat { self.config.format }
-
     /// `true` when the swap chain advertises a per-pixel-alpha mode
     /// (`PreMultiplied`, `PostMultiplied`, or `Inherit`).  `false` when
     /// it could only do `Opaque`, typical for VM environments running
@@ -285,8 +281,19 @@ fn pick_alpha_mode(caps: &wgpu::SurfaceCapabilities) -> wgpu::CompositeAlphaMode
     caps.alpha_modes.first().copied().unwrap_or(M::Opaque)
 }
 
-// ─── Zeroed helper ────────────────────────────────────────────────────────────
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
-impl OverlayUniforms {
-    pub(crate) fn zeroed() -> Self { bytemuck::Zeroable::zeroed() }
+#[cfg(test)]
+mod tests {
+    use wgpu::naga::valid::{Capabilities, ValidationFlags, Validator};
+
+    // CPU-only: parses and validates the WGSL, no GPU device needed
+    #[test]
+    fn overlay_shader_is_valid_wgsl() {
+        let module = wgpu::naga::front::wgsl::parse_str(super::SHADER_SRC)
+            .expect("overlay.wgsl parses");
+        Validator::new(ValidationFlags::all(), Capabilities::empty())
+            .validate(&module)
+            .expect("overlay.wgsl validates");
+    }
 }

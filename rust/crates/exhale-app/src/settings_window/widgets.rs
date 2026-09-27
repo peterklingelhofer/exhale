@@ -160,17 +160,7 @@ pub(super) fn control_button(
     let response = ui.add_sized(size, egui::Button::new(""));
     let rect     = response.rect;
 
-    // When Tab moves focus to a control button that's currently
-    // scrolled out of the settings ScrollArea's viewport, the focus
-    // halo would render off-screen and the user would think Tab
-    // skipped past: `scroll_to_me(None)` nudges the ScrollArea just
-    // enough to bring the focused widget into view, no further.
-    // `gained_focus()` is true only on the frame focus arrived, so
-    // we don't re-scroll every subsequent frame the button is
-    // focused
-    if response.gained_focus() {
-        response.scroll_to_me(None);
-    }
+    scroll_into_view_on_focus(&response);
 
     let enabled   = ui.is_enabled();
     let pressed   = response.is_pointer_button_down_on() && enabled;
@@ -196,22 +186,11 @@ pub(super) fn control_button(
     // without this ring the user has to remember which button they
     // just tabbed onto, especially in the top-row controls where
     // every button shares the same chrome.  Multi-layer soft halo
-    // (3 px outside, mid-alpha) reads as a soft glow instead of a
+    // (out to 4 px, fading alpha) reads as a soft glow instead of a
     // hard outline, matching the user's "subtle drop shadow glow"
     // request
     if response.has_focus() {
-        // Halo colour matches the `primary` foreground (white in
-        // dark mode, black in light mode) but at low alpha so it
-        // composites as a soft outer glow over whatever sits behind
-        // the panel.  Two stacked stroked rects with decreasing
-        // alpha produce the falloff a single thicker stroke can't
-        for (i, alpha) in [(1.0_f32, 110_u8), (2.5_f32, 60_u8), (4.0_f32, 28_u8)] {
-            painter.rect_stroke(
-                rect.expand(i),
-                BUTTON_RADIUS + i,
-                egui::Stroke::new(1.0, with_alpha(primary, alpha)),
-            );
-        }
+        focus_halo(&painter, rect, BUTTON_RADIUS, dark_mode, BUTTON_HALO);
     }
 
     // Pressed state: Swift uses `.opacity(0.7)` + `.scaleEffect(0.97)`.  Scale
@@ -382,8 +361,8 @@ pub(super) fn control_button(
 // "Overlay Opacity (%)" and "Background Color".  Swift's SettingsView
 // uses 115 pt with `.lineLimit(1)`, same behaviour.  The pickers at this
 // width get ~191 px to share across 3 segments (≈63 px each), which fits
-// "Rectangle" (≈55 px natural) with room to spare when we render buttons
-// with `button_padding = 0` inside the segmented row
+// "Rectangle" (≈55 px natural) with room to spare, since the segments
+// paint their labels directly with no button padding
 pub(super) const LABEL_W:          f32 = 115.0;
 pub(super) const ROW_H:            f32 = 22.0;
 pub(super) const OUTER_PAD:        f32 = 14.0;
@@ -431,6 +410,66 @@ pub(super) fn selected_pill_text(dark_mode: bool) -> egui::Color32 {
     if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK }
 }
 
+/// Pill under a segment or chip label: the selected colour, else a faint
+/// press or hover tint, else none
+fn pill_fill(resp: &egui::Response, selected: bool, dark: bool) -> Option<egui::Color32> {
+    if selected {
+        Some(selected_pill_fill(dark))
+    } else if resp.is_pointer_button_down_on() {
+        Some(if dark { egui::Color32::from_white_alpha(36) } else { egui::Color32::from_black_alpha(30) })
+    } else if resp.hovered() {
+        Some(if dark { egui::Color32::from_white_alpha(22) } else { egui::Color32::from_black_alpha(18) })
+    } else {
+        None
+    }
+}
+
+/// Focus-halo layers, each `(offset, alpha, stroke width)`.  Control
+/// buttons start 1 px outside their chrome
+const BUTTON_HALO:  &[(f32, u8, f32)] = &[(1.0, 110, 1.0), (2.5, 60, 1.0), (4.0, 28, 1.0)];
+/// Segment and chip pills start on the pill's own edge
+const PILL_HALO:    &[(f32, u8, f32)] = &[(0.0, 140, 1.0), (1.5, 70, 1.0), (3.0, 28, 1.0)];
+/// The stepper halves are tiny (13 × 11 pt), so the soft glow that works
+/// on the control buttons reads too faint there.  A near-opaque, thicker
+/// inner ring shows at glance distance which half Tab landed on, and why
+/// Tab stops three times per row (TextEdit -> ▲ -> ▼ -> next row)
+const STEPPER_HALO: &[(f32, u8, f32)] = &[(0.0, 220, 1.5), (1.5, 120, 1.0), (3.0, 55, 1.0)];
+
+/// Keyboard-focus halo: stacked stroked rects around `rect`, each one
+/// `offset` px further out with its corner radius grown by the same
+/// amount so the rings stay concentric.  Painted in the primary
+/// foreground (white on dark, black on light) at alpha fading outward,
+/// which composites as a soft glow a single thicker stroke can't give
+fn focus_halo(
+    painter:       &egui::Painter,
+    rect:          egui::Rect,
+    base_rounding: f32,
+    dark:          bool,
+    layers:        &[(f32, u8, f32)],
+) {
+    let c = selected_pill_text(dark);
+    for &(offset, alpha, width) in layers {
+        painter.rect_stroke(
+            rect.expand(offset),
+            base_rounding + offset,
+            egui::Stroke::new(width, egui::Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha)),
+        );
+    }
+}
+
+/// Scroll `resp`'s widget into view on the frame Tab moves focus onto
+/// it.  egui doesn't scroll to a newly focused widget on its own, so one
+/// scrolled out of the settings ScrollArea's viewport would take focus
+/// off-screen, its halo would never show and Tab would look like it
+/// skipped past.  `scroll_to_me(None)` nudges the ScrollArea just enough
+/// to bring the widget into view, no further, and `gained_focus()` is
+/// true only on the frame focus arrived, so a widget that stays focused
+/// isn't re-scrolled every frame
+fn scroll_into_view_on_focus(resp: &egui::Response) {
+    if resp.gained_focus() {
+        resp.scroll_to_me(None);
+    }
+}
 
 /// Measure every segmented picker in a single frame and return the largest
 /// natural column width across them.  Buttons within a single picker get
@@ -444,7 +483,7 @@ pub(super) fn selected_pill_text(dark_mode: bool) -> egui::Color32 {
 /// a couple of pixels due to font hinting and sub-pixel positioning, which
 /// was enough to let "Rectangle" wrap onto a second line inside a segment
 /// that measured as "just big enough"
-pub(super) fn uniform_picker_column_width(ui: &egui::Ui, pickers: &[&[&str]]) -> f32 {
+pub(super) fn uniform_picker_column_width(ui: &egui::Ui, pickers: &[Vec<&str>]) -> f32 {
     const SEGMENT_SLACK_PX: f32 = 10.0;
     let pad_x   = ui.spacing().button_padding.x * 2.0;
     let font_id = egui::TextStyle::Button.resolve(ui.style());
@@ -463,26 +502,39 @@ pub(super) fn uniform_picker_column_width(ui: &egui::Ui, pickers: &[&[&str]]) ->
     max_col.ceil()
 }
 
-/// Two-cell row layout for non-picker rows: fixed-width label on the left,
-/// DragValue / ColorPicker / etc. right-aligned against the row's trailing
-/// edge.  Everything to the right of the label cell sits in a `right_to_left`
-/// layout so the widget hugs the right edge like Swift's Form.
-/// Two-column row: a fixed-width label painted directly via the painter on
-/// the left, and a `right_to_left` widget area on the right
-///
-/// The painter-direct approach exists because `allocate_ui_with_layout` with
-/// a fixed min_size collapses to the label's natural width inside a
-/// horizontal layout, which left the remaining widget area wider than it
-/// should be, and caused stepper TextEdits to draw over labels that were
-/// still in their natural rect.  Reserving an exact-size rect and drawing
-/// into it with the painter API guarantees the widget area to the right
-/// starts at `LABEL_W + item_spacing`
-pub(super) fn labeled_row(ui: &mut egui::Ui, label: &str, add_widget: impl FnOnce(&mut egui::Ui)) -> egui::Response {
+/// The labels of one picker's `(label, value)` options, in order, for
+/// [`uniform_picker_column_width`]
+pub(super) fn option_labels<'a, T>(options: &[(&'a str, T)]) -> Vec<&'a str> {
+    options.iter().map(|&(label, _)| label).collect()
+}
+
+/// Colour-picker row: fixed-width label on the left, the swatch in a
+/// `right_to_left` area so it hugs the row's trailing edge like Swift's
+/// Form.  An `Alpha::Opaque` row always stores alpha 1.0
+pub(super) fn color_row(
+    ui:    &mut egui::Ui,
+    label: &str,
+    help:  &str,
+    value: &mut [f32; 4],
+    alpha: egui::color_picker::Alpha,
+) -> bool {
+    let mut changed = false;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         paint_label(ui, label);
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), add_widget);
-    }).response
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let mut c = to_color32(*value);
+            let resp = egui::color_picker::color_edit_button_srgba(ui, &mut c, alpha);
+            scroll_into_view_on_focus(&resp);
+            if resp.changed() {
+                let mut out = from_color32(c);
+                if alpha == egui::color_picker::Alpha::Opaque { out[3] = 1.0; }
+                *value  = out;
+                changed = true;
+            }
+        });
+    }).response.on_hover_text(help);
+    changed
 }
 
 /// Reserve a LABEL_W × ROW_H rect and paint `label` into it flush against the
@@ -490,6 +542,12 @@ pub(super) fn labeled_row(ui: &mut egui::Ui, label: &str, add_widget: impl FnOnc
 /// directly instead of `ui.put(rect, Label::truncate())` pins the text at
 /// `rect.left()`: `Label` was adding implicit horizontal padding that read
 /// as "the labels aren't left-aligned" against Swift's reference
+///
+/// The exact-size rect matters too: `allocate_ui_with_layout` with a fixed
+/// min_size collapses to the label's natural width inside a horizontal
+/// layout, which left the widget area to the right too wide and let stepper
+/// TextEdits draw over labels still in their natural rect.  Reserving the
+/// rect guarantees the widgets to the right start at `LABEL_W + item_spacing`
 pub(super) fn paint_label(ui: &mut egui::Ui, label: &str) -> egui::Response {
     paint_label_with_width(ui, label, LABEL_W)
 }
@@ -543,7 +601,6 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
     ui:       &mut egui::Ui,
     label:    &str,
     help:     &str,
-    enabled:  bool,
     column_w: f32,
     current:  &mut T,
     options:  &[(&str, T)],
@@ -577,21 +634,19 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
         let gap       = (remaining - picker_w).max(0.0);
         if gap > 0.0 { ui.add_space(gap); }
 
-        ui.add_enabled_ui(enabled, |ui| {
+        ui.scope(|ui| {
             let n = options.len();
             // Sub-pixel remainder is absorbed by the last segment so the
             // rightmost edge lands on picker_w
             let per_w  = (picker_w / n as f32).floor().max(1.0);
             let last_w = per_w + (picker_w - per_w * n as f32).max(0.0);
 
-            // Pre-compute the outer rect ourselves and use `ui.put(rect, btn)`
-            // for each segment.  `ui.add_sized(size, btn)` doesn't
-            // constrain the Button to `size`: Button's `allocate_at_least`
-            // grows the frame to the natural text+padding width, which was
-            // the real source of the Appearance-section right-overflow (debug
-            // showed picker_w=156 requested but actual=167 delivered).
-            // `ui.put` positions the widget into a fixed rect without
-            // letting it grow the parent's min_rect
+            // Pre-compute the outer rect ourselves and hit-test + paint
+            // each segment inside it by hand.  `egui::Button` can't be
+            // held to a fixed size: its `allocate_at_least` grows the
+            // frame to the natural text+padding width, which was the
+            // real source of the Appearance-section right-overflow (debug
+            // showed picker_w=156 requested but actual=167 delivered)
             let outer_rect = egui::Rect::from_min_size(
                 ui.cursor().min,
                 egui::vec2(picker_w, ROW_H),
@@ -599,23 +654,6 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
 
             let dark_mode = ui.visuals().dark_mode;
 
-            // Disable egui's default Button hover/press fills.  We'll paint
-            // a rounded inset pill ourselves for hover/press/selected so all
-            // three states share the same macOS-native pill look
-            {
-                let widgets = &mut ui.visuals_mut().widgets;
-                widgets.inactive.bg_stroke    = egui::Stroke::NONE;
-                widgets.hovered.bg_stroke     = egui::Stroke::NONE;
-                widgets.active.bg_stroke      = egui::Stroke::NONE;
-                widgets.hovered.expansion     = 0.0;
-                widgets.active.expansion      = 0.0;
-                widgets.inactive.weak_bg_fill = egui::Color32::TRANSPARENT;
-                widgets.hovered.weak_bg_fill  = egui::Color32::TRANSPARENT;
-                widgets.active.weak_bg_fill   = egui::Color32::TRANSPARENT;
-            }
-            ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
-
-            let selected_fill = selected_pill_fill(dark_mode);
             const SELECTED_INSET:    f32 = 2.0;
             const SELECTED_ROUNDING: f32 = 5.0;
 
@@ -642,33 +680,11 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
                 // Interact first: gives us hover/press/click without drawing
                 let seg_id = ui.id().with("seg").with(i).with(*text);
                 let resp = ui.interact(seg_rect, seg_id, egui::Sense::click());
-                // Same scroll-into-view nudge as `control_button`: see
-                // comment there.  Tab landing on an off-screen
-                // segment would otherwise appear to do nothing
-                if resp.gained_focus() {
-                    resp.scroll_to_me(None);
-                }
+                scroll_into_view_on_focus(&resp);
 
                 // Pill chrome (selected > pressed > hovered) drawn under text
-                let pill_fill: Option<egui::Color32> = if is_selected {
-                    Some(selected_fill)
-                } else if resp.is_pointer_button_down_on() {
-                    Some(if dark_mode {
-                        egui::Color32::from_white_alpha(36)
-                    } else {
-                        egui::Color32::from_black_alpha(30)
-                    })
-                } else if resp.hovered() {
-                    Some(if dark_mode {
-                        egui::Color32::from_white_alpha(22)
-                    } else {
-                        egui::Color32::from_black_alpha(18)
-                    })
-                } else {
-                    None
-                };
-                if let Some(fill) = pill_fill {
-                    let pill = seg_rect.shrink(SELECTED_INSET);
+                let pill = seg_rect.shrink(SELECTED_INSET);
+                if let Some(fill) = pill_fill(&resp, is_selected, dark_mode) {
                     ui.painter().rect_filled(pill, SELECTED_ROUNDING, fill);
                 }
 
@@ -681,22 +697,7 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
                 // segmented pickers stay legible without a hard
                 // border every time the user tabs through
                 if resp.has_focus() {
-                    let primary_color = if dark_mode {
-                        egui::Color32::WHITE
-                    } else {
-                        egui::Color32::BLACK
-                    };
-                    let pill = seg_rect.shrink(SELECTED_INSET);
-                    let with_alpha = |a: u8| egui::Color32::from_rgba_unmultiplied(
-                        primary_color.r(), primary_color.g(), primary_color.b(), a,
-                    );
-                    for (offset, alpha) in [(0.0_f32, 140_u8), (1.5_f32, 70_u8), (3.0_f32, 28_u8)] {
-                        ui.painter().rect_stroke(
-                            pill.expand(offset),
-                            SELECTED_ROUNDING + offset,
-                            egui::Stroke::new(1.0, with_alpha(alpha)),
-                        );
-                    }
+                    focus_halo(ui.painter(), pill, SELECTED_ROUNDING, dark_mode, PILL_HALO);
                 }
 
                 // Selected text flips to primary.  Unselected uses default text color
@@ -710,16 +711,13 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
                 // matching the segment width we measured for the picker
                 // column: `ui.put(rect, Button)` would re-allocate and
                 // grow `min_rect`, which we avoid in this row
-                let galley = ui.painter().layout_no_wrap(
-                    text.to_string(),
+                ui.painter().text(
+                    seg_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    *text,
                     font_id.clone(),
                     label_color,
                 );
-                let text_pos = egui::pos2(
-                    seg_rect.center().x - galley.size().x * 0.5,
-                    seg_rect.center().y - galley.size().y * 0.5,
-                );
-                ui.painter().galley(text_pos, galley, label_color);
 
                 if resp.clicked() {
                     *current = *variant;
@@ -730,7 +728,8 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
             // Explicitly allocate the outer rect so the parent's cursor
             // advances past picker_w.  Otherwise nothing has
             // reserved the horizontal space and the scope's min_rect
-            // wouldn't include the pickers (ui.put doesn't advance cursor)
+            // wouldn't include the pickers (`ui.interact` and the painter
+            // don't advance the cursor)
             let _ = ui.allocate_rect(outer_rect, egui::Sense::hover());
 
             // Rounded outline around the picker's outer bounds.  The
@@ -746,6 +745,9 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
                 SELECTED_ROUNDING + SELECTED_INSET,
                 egui::Stroke::new(1.0, stroke_color),
             );
+
+            #[cfg(test)]
+            test_hooks::record_seg_rects(seg_rects);
         });
     });
     changed
@@ -854,31 +856,10 @@ pub(super) fn preset_chips(
             ui.id().with("preset").with(preset.id),
             egui::Sense::click(),
         );
-        // Tab landing on a chip scrolled out of view would otherwise
-        // look like the key did nothing. Same nudge as `segmented_row`
-        if resp.gained_focus() {
-            resp.scroll_to_me(None);
-        }
+        scroll_into_view_on_focus(&resp);
 
-        let pill_fill: Option<egui::Color32> = if is_selected {
-            Some(selected_pill_fill(dark_mode))
-        } else if resp.is_pointer_button_down_on() {
-            Some(if dark_mode {
-                egui::Color32::from_white_alpha(36)
-            } else {
-                egui::Color32::from_black_alpha(30)
-            })
-        } else if resp.hovered() {
-            Some(if dark_mode {
-                egui::Color32::from_white_alpha(22)
-            } else {
-                egui::Color32::from_black_alpha(18)
-            })
-        } else {
-            None
-        };
         let pill = rect.shrink(INSET);
-        if let Some(fill) = pill_fill {
+        if let Some(fill) = pill_fill(&resp, is_selected, dark_mode) {
             ui.painter().rect_filled(pill, ROUNDING, fill);
         } else {
             // Unselected chips need a visible edge. The pickers get one
@@ -894,17 +875,7 @@ pub(super) fn preset_chips(
         }
 
         if resp.has_focus() {
-            let primary = if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK };
-            let with_alpha = |a: u8| egui::Color32::from_rgba_unmultiplied(
-                primary.r(), primary.g(), primary.b(), a,
-            );
-            for (offset, alpha) in [(0.0_f32, 140_u8), (1.5_f32, 70_u8), (3.0_f32, 28_u8)] {
-                ui.painter().rect_stroke(
-                    pill.expand(offset),
-                    ROUNDING + offset,
-                    egui::Stroke::new(1.0, with_alpha(alpha)),
-                );
-            }
+            focus_halo(ui.painter(), pill, ROUNDING, dark_mode, PILL_HALO);
         }
 
         let label_color = if is_selected {
@@ -912,12 +883,8 @@ pub(super) fn preset_chips(
         } else {
             ui.visuals().text_color()
         };
-        let galley = galleys[i].clone();
-        let text_pos = egui::pos2(
-            rect.center().x - galley.size().x * 0.5,
-            rect.center().y - galley.size().y * 0.5,
-        );
-        ui.painter().galley(text_pos, galley, label_color);
+        let text_pos = egui::Align2::CENTER_CENTER.anchor_size(rect.center(), galleys[i].size()).min;
+        ui.painter().galley(text_pos, galleys[i].clone(), label_color);
 
         // Space and Enter reach here too: egui 0.29 sets
         // `fake_primary_click` on any focused `Sense::click` response,
@@ -1094,12 +1061,23 @@ pub(super) fn stepper_row(
 
         // Numeric text field
         let displayed = scale.to_display(*value);
-        let max_disp  = max;
         let edit_id   = egui::Id::new(("stepper_buf", label));
         let focused   = ui.ctx().memory(|m| m.focused() == Some(edit_id));
         let mut buf: String = ui.data_mut(|d| {
             d.get_temp::<String>(edit_id).unwrap_or_else(|| format_num(displayed))
         });
+
+        // Every edit (typed, arrow key, button) lands here: clamp the
+        // displayed value into `[min, max]`, store it through `scale`
+        // and report whether the stored value moved
+        let commit = |disp: f64, stored: &mut f64| -> bool {
+            let mut disp = disp.max(min);
+            if let Some(m) = max { disp = disp.min(m); }
+            let v = scale.from_display(disp);
+            let moved = (v - *stored).abs() > f64::EPSILON;
+            if moved { *stored = v; }
+            moved
+        };
 
         let field_resp = ui.add_sized(
             egui::vec2(STEPPER_FIELD_W, ROW_H),
@@ -1107,21 +1085,10 @@ pub(super) fn stepper_row(
                 .id(edit_id)
                 .margin(egui::vec2(4.0, 2.0)),
         );
-        // Scroll into view when Tab moves focus to this field while
-        // it's off-screen: same pattern as `control_button` /
-        // segmented-picker segment focus handling
-        if field_resp.gained_focus() {
-            field_resp.scroll_to_me(None);
-        }
+        scroll_into_view_on_focus(&field_resp);
         if field_resp.changed() {
             if let Ok(parsed) = buf.trim().parse::<f64>() {
-                let mut disp = parsed.max(min);
-                if let Some(m) = max_disp { disp = disp.min(m); }
-                let v = scale.from_display(disp);
-                if (v - *value).abs() > f64::EPSILON {
-                    *value  = v;
-                    changed = true;
-                }
+                changed |= commit(parsed, value);
             }
         }
 
@@ -1145,16 +1112,8 @@ pub(super) fn stepper_row(
                 }
             });
             if delta_steps != 0 {
-                let delta = step * delta_steps as f64;
-                let displayed = scale.to_display(*value);
-                let mut new_disp = (displayed + delta).max(min);
-                if let Some(m) = max_disp { new_disp = new_disp.min(m); }
-                let v = scale.from_display(new_disp);
-                if (v - *value).abs() > f64::EPSILON {
-                    *value = v;
-                    changed = true;
-                    arrow_stepped = true;
-                }
+                arrow_stepped = commit(scale.to_display(*value) + step * delta_steps as f64, value);
+                changed |= arrow_stepped;
             }
         }
 
@@ -1166,19 +1125,16 @@ pub(super) fn stepper_row(
         // visible bounds (otherwise `ROW_H`-sized stepper overhangs
         // the TextEdit's slightly-shorter visible rectangle)
         let field_rect = field_resp.rect;
-        let stepper_changed = stepper_buttons(
+        let button_delta = stepper_buttons(
             ui,
             field_rect,
             label,  // row_salt: makes interact IDs unique per stepper row
-            &scale.to_display(*value),
-            step, min, max_disp,
+            step,
         );
-        if let Some(new_disp) = stepper_changed {
-            let v = scale.from_display(new_disp);
-            if (v - *value).abs() > f64::EPSILON {
-                *value  = v;
-                changed = true;
-            }
+        if let Some(delta) = button_delta {
+            // The buttons stop at `f64::MAX` even with no `max`, so a
+            // click on a typed `inf` lands on the largest finite value
+            changed |= commit((scale.to_display(*value) + delta).min(f64::MAX), value);
         }
 
         // Canonicalise the buffer when the field isn't focused, or when the
@@ -1186,7 +1142,7 @@ pub(super) fn stepper_row(
         // prevents stale text hanging around after external state changes
         // (reset, cross-row effects) and keeps the on-screen text in
         // sync after an arrow nudge while focus remains on the field
-        if !focused || stepper_changed.is_some() || arrow_stepped {
+        if !focused || button_delta.is_some() || arrow_stepped {
             buf = format_num(scale.to_display(*value));
         }
         ui.data_mut(|d| d.insert_temp(edit_id, buf));
@@ -1201,20 +1157,19 @@ pub(super) fn stepper_row(
 /// the parent UI's `ROW_H` so the stepper's top and bottom edges align with
 /// the field's visible frame, never overhanging top or bottom
 ///
-/// Button widgets handle clicks and draw the chrome (fill + stroke +
-/// hover/press states).  Triangles are drawn geometrically with the painter
-/// because egui's default font (Ubuntu) doesn't include the ▲ U+25B2 /
-/// ▼ U+25BC glyphs.  They rendered as missing-glyph tofu boxes
+/// `ui.interact` handles clicks and `paint_stepper_chrome` draws the chrome
+/// (fill + stroke + hover/press states).  Triangles are drawn geometrically
+/// with the painter because egui's default font (Ubuntu) doesn't include
+/// the ▲ U+25B2 / ▼ U+25BC glyphs.  They rendered as missing-glyph tofu boxes
+///
+/// Returns the signed step (`step` or `-step`) when a half fires this
+/// frame.  Clamping is the caller's
 pub(super) fn stepper_buttons(
     ui:         &mut egui::Ui,
     field_rect: egui::Rect,
     row_salt:   &str,
-    value:      &f64,
     step:       f64,
-    min:        f64,
-    max:        Option<f64>,
 ) -> Option<f64> {
-    let max_v = max.unwrap_or(f64::MAX);
     let btn_w: f32 = 13.0;
     let total_h = field_rect.height();
 
@@ -1250,23 +1205,18 @@ pub(super) fn stepper_buttons(
     // every stepper in the window has a unique ID pair.  Using `ui.id()`
     // alone gave every stepper the same id because egui 0.29's default
     // UiBuilder has no id_salt, so sibling `ui.horizontal()` children of
-    // a given parent all share the parent's id.  That caused egui's
-    // click-tracking to silently drop every click because it couldn't
-    // disambiguate which stepper was hit
+    // a given parent all share one id, `parent.id.with("child")` (see
+    // `Ui::id`'s docs: only `Ui::unique_id` differs per sibling).  That
+    // caused egui's click-tracking to silently drop every click because
+    // it couldn't disambiguate which stepper was hit
     let row_id  = ui.id().with(row_salt);
     let up_resp = ui.interact(top_rect, row_id.with("stepper_up"), egui::Sense::click());
     let dn_resp = ui.interact(bot_rect, row_id.with("stepper_dn"), egui::Sense::click());
     #[cfg(test)]
     test_hooks::record_stepper_rects(top_rect, bot_rect);
 
-    // When Tab moves focus to a stepper half that's currently
-    // scrolled out of the settings ScrollArea's viewport, nudge
-    // the viewport just enough to bring it into view, same
-    // pattern as `control_button` / segmented-picker segment.
-    // `gained_focus()` is true only on the frame focus arrived
-    // so we don't re-scroll every subsequent frame
-    if up_resp.gained_focus() { up_resp.scroll_to_me(None); }
-    if dn_resp.gained_focus() { dn_resp.scroll_to_me(None); }
+    scroll_into_view_on_focus(&up_resp);
+    scroll_into_view_on_focus(&dn_resp);
 
     paint_stepper_chrome(ui, top_rect, StepperDir::Up,   up_resp.hovered(), up_resp.is_pointer_button_down_on());
     paint_stepper_chrome(ui, bot_rect, StepperDir::Down, dn_resp.hovered(), dn_resp.is_pointer_button_down_on());
@@ -1276,37 +1226,10 @@ pub(super) fn stepper_buttons(
     paint_triangle(ui, top_rect, StepperDir::Up,   tri_color);
     paint_triangle(ui, bot_rect, StepperDir::Down, tri_color);
 
-    // Keyboard-focus halo for the stepper halves.  The button rects
-    // here are tiny (~13×9 px) so the layered glow that works on
-    // the top-row control buttons reads too soft.  Bump the inner
-    // ring alpha to fully-opaque so even at glance distance the
-    // user can see which half of the stepper Tab landed on (and
-    // why pressing Tab three more times before hitting the next
-    // control is the expected behaviour: TextEdit -> ▲ -> ▼ -> next
-    // row).  Two stacked stroked rects with a brighter inner
-    // edge + a soft outer falloff
+    // Keyboard-focus halo for the stepper halves: see `STEPPER_HALO`
     let dark_mode = ui.visuals().dark_mode;
-    let halo_color = if dark_mode { egui::Color32::WHITE } else { egui::Color32::BLACK };
-    let with_alpha = |a: u8| egui::Color32::from_rgba_unmultiplied(
-        halo_color.r(), halo_color.g(), halo_color.b(), a,
-    );
-    let paint_halo = |rect: egui::Rect| {
-        // Inner crisp outline: opaque so the focused half is
-        // unambiguously highlighted even with the small footprint
-        for (offset, alpha, stroke_w) in [
-            (0.0_f32,  220_u8, 1.5_f32),
-            (1.5_f32,  120_u8, 1.0_f32),
-            (3.0_f32,   55_u8, 1.0_f32),
-        ] {
-            ui.painter().rect_stroke(
-                rect.expand(offset),
-                3.0 + offset,
-                egui::Stroke::new(stroke_w, with_alpha(alpha)),
-            );
-        }
-    };
-    if up_resp.has_focus() { paint_halo(top_rect); }
-    if dn_resp.has_focus() { paint_halo(bot_rect); }
+    if up_resp.has_focus() { focus_halo(ui.painter(), top_rect, 3.0, dark_mode, STEPPER_HALO); }
+    if dn_resp.has_focus() { focus_halo(ui.painter(), bot_rect, 3.0, dark_mode, STEPPER_HALO); }
 
     // Press-and-hold auto-repeat: matches macOS NSStepper / SwiftUI
     // Stepper.  A click fires once on press-down.  Holding the button past
@@ -1316,16 +1239,11 @@ pub(super) fn stepper_buttons(
     const INITIAL_DELAY:   Duration = Duration::from_millis(400);
     const REPEAT_INTERVAL: Duration = Duration::from_millis(75);
 
-    let up_step = step;
-    let dn_step = -step;
-    let mut new_val = None;
-    if let Some(delta) = stepper_hold_tick(ui, &up_resp, INITIAL_DELAY, REPEAT_INTERVAL, up_step) {
-        new_val = Some((*value + delta).clamp(min, max_v));
-    }
-    if let Some(delta) = stepper_hold_tick(ui, &dn_resp, INITIAL_DELAY, REPEAT_INTERVAL, dn_step) {
-        new_val = Some((*value + delta).clamp(min, max_v));
-    }
-    new_val
+    // Both halves tick every frame to keep their hold state current.
+    // If both fire in one frame, down wins
+    let up = stepper_hold_tick(ui, &up_resp, INITIAL_DELAY, REPEAT_INTERVAL, step);
+    let dn = stepper_hold_tick(ui, &dn_resp, INITIAL_DELAY, REPEAT_INTERVAL, -step);
+    dn.or(up)
 }
 
 /// State held in egui memory for one stepper half between frames.
@@ -1528,21 +1446,11 @@ pub(super) fn from_color32(c: egui::Color32) -> [f32; 4] {
     ]
 }
 
-/// Like from_color32 but forces alpha=1.0 (for inhale/exhale colors)
-pub(super) fn from_color32_opaque(c: egui::Color32) -> [f32; 4] {
-    [
-        c.r() as f32 / 255.0,
-        c.g() as f32 / 255.0,
-        c.b() as f32 / 255.0,
-        1.0,
-    ]
-}
-
 // ─── Test hooks ─────────────────────────────────────────────────────────
 //
-// A handful of test-only atomics and helpers so unit tests can observe
-// where stepper_buttons placed its interact rects during the
-// previous frame.  Used only under `#[cfg(test)]`
+// Test-only thread-locals so unit tests can read back where
+// stepper_buttons, segmented_row and preset_chips placed their interact
+// rects during the previous frame
 #[cfg(test)]
 pub(super) mod test_hooks {
     use std::cell::RefCell;
@@ -1558,21 +1466,23 @@ pub(super) mod test_hooks {
         LAST.with(|c| c.borrow_mut().take())
     }
 
-    // Unlike the stepper hook above, the chip hook is `cfg(test)`: it's
-    // written on every frame the chips are laid out, and a thread-local
-    // borrow plus a Vec clone per frame isn't worth paying for in a
-    // release build to support a test
-    #[cfg(test)]
     thread_local! {
         static CHIPS: RefCell<Option<Vec<egui::Rect>>> = const { RefCell::new(None) };
+        static SEGS:  RefCell<Option<Vec<egui::Rect>>> = const { RefCell::new(None) };
     }
 
-    #[cfg(test)]
+    pub fn record_seg_rects(rects: Vec<egui::Rect>) {
+        SEGS.with(|c| *c.borrow_mut() = Some(rects));
+    }
+
+    pub fn take_seg_rects() -> Option<Vec<egui::Rect>> {
+        SEGS.with(|c| c.borrow_mut().take())
+    }
+
     pub fn record_chip_rects(rects: Vec<egui::Rect>) {
         CHIPS.with(|c| *c.borrow_mut() = Some(rects));
     }
 
-    #[cfg(test)]
     pub fn take_chip_rects() -> Option<Vec<egui::Rect>> {
         CHIPS.with(|c| c.borrow_mut().take())
     }

@@ -21,14 +21,22 @@ fn main() {
         .join("swift").join("exhale").join("Assets.xcassets")
         .join("AppIcon.appiconset")
         .join("exhaleColorGradient512.png");
+    println!("cargo:rerun-if-changed={}", src_png.display());
+
+    let out_dir   = std::env::var("OUT_DIR").expect("OUT_DIR set by cargo");
+    let rgba_path = std::path::PathBuf::from(&out_dir).join("icon.rgba");
+
     if !src_png.exists() {
         println!("cargo:warning=icon source PNG not found at {}, skipping embed",
             src_png.display());
+        // `app_icon.rs` `include_bytes!`s this path unconditionally on
+        // every platform, so it has to exist even when there's nothing
+        // to embed: an empty file still compiles, and its length fails
+        // `window_icon()`'s size check, giving the platform default
+        // icon at runtime instead of a build failure
+        let _ = std::fs::write(&rgba_path, []);
         return;
     }
-    println!("cargo:rerun-if-changed={}", src_png.display());
-
-    let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR set by cargo");
 
     // ── All targets: pre-decode a 256×256 RGBA bitmap and emit raw
     // bytes to `OUT_DIR/icon.rgba`.  The runtime `include_bytes!`s
@@ -37,10 +45,13 @@ fn main() {
     // window the app creates.  Especially relevant on Linux where a
     // raw binary run from a terminal has no `.desktop` file installed
     // and the compositor otherwise falls back to a generic icon
-    let rgba_path = std::path::PathBuf::from(&out_dir).join("icon.rgba");
     if let Err(e) = png_to_rgba_256(&src_png, &rgba_path) {
         println!("cargo:warning=icon PNG -> RGBA conversion failed: {e}, \
                   binary windows will use the platform default icon");
+        // Same fallback as the missing-PNG path above: make sure the
+        // `include_bytes!` target exists even though the real
+        // conversion didn't produce one
+        let _ = std::fs::write(&rgba_path, []);
     }
 
     // ── Windows: also produce a multi-resolution .ico and embed it

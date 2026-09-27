@@ -76,8 +76,7 @@ pub(crate) fn single_instance_guard(_proxy: &EventLoopProxy<AppEvent>) -> Instan
             // future bring-to-front protocols, but don't rely on it: the
             // lock itself is the source of truth
             use std::io::Write;
-            let _ = file.try_clone()
-                .and_then(|mut f| f.write_all(format!("{}\n", std::process::id()).as_bytes()));
+            let _ = (&file).write_all(format!("{}\n", std::process::id()).as_bytes());
             InstanceGuard::First(file)
         }
         Ok(false) => {
@@ -149,69 +148,16 @@ fn instance_lock_path() -> Option<PathBuf> {
 /// `Ok(true)` on success, `Ok(false)` if another process holds
 /// the lock, `Err(_)` on any other failure
 fn try_lock_exclusive(file: &std::fs::File) -> std::io::Result<bool> {
-    #[cfg(unix)]
-    {
-        use std::os::fd::AsRawFd;
-        // `flock(2)` with `LOCK_EX | LOCK_NB`.  EWOULDBLOCK means
-        // another process holds the lock, which we treat here as
-        // the "secondary instance" signal by returning `Ok(false)`
-        // SAFETY: `file.as_raw_fd()` returns a valid file descriptor
-        // owned by `file` for the duration of this call (the borrow
-        // checker enforces it via the `&std::fs::File` argument).
-        // `flock` has no other safety requirements beyond the fd
-        // being a valid open file descriptor
-        let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-        if rc == 0 {
-            Ok(true)
-        } else {
-            let err = std::io::Error::last_os_error();
-            if err.raw_os_error() == Some(libc::EWOULDBLOCK) {
-                Ok(false)
-            } else {
-                Err(err)
-            }
-        }
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::io::AsRawHandle;
-        use windows_sys::Win32::Storage::FileSystem::{
-            LockFileEx, LOCKFILE_EXCLUSIVE_LOCK, LOCKFILE_FAIL_IMMEDIATELY,
-        };
-        use windows_sys::Win32::System::IO::OVERLAPPED;
-        // `LockFileEx` with `EXCLUSIVE | FAIL_IMMEDIATELY` is the
-        // Win32 equivalent.  ERROR_LOCK_VIOLATION (33) means held by
-        // another process
-        // SAFETY: `OVERLAPPED` is a plain POD struct documented as
-        // safe to zero-initialise: `Offset = 0` / `OffsetHigh = 0`
-        // is what we want for "lock byte 0".  Other fields
-        // (`hEvent` etc.) are unused in the FAIL_IMMEDIATELY path
-        let mut ovl: OVERLAPPED = unsafe { std::mem::zeroed() };
-        // SAFETY: `file.as_raw_handle()` returns a valid `HANDLE`
-        // owned by `file` for the duration of the call (borrow
-        // checker enforces it).  All other arguments are integer
-        // constants or a stack pointer to `ovl`.  `LockFileEx` has
-        // no Rust-level safety requirements beyond a valid handle
-        let ok = unsafe {
-            LockFileEx(
-                file.as_raw_handle() as _,
-                LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY,
-                0,
-                1, 0,  // lock one byte at offset 0: enough for advisory
-                &mut ovl,
-            )
-        };
-        if ok != 0 {
-            Ok(true)
-        } else {
-            let err = std::io::Error::last_os_error();
-            const ERROR_LOCK_VIOLATION: i32 = 33;
-            if err.raw_os_error() == Some(ERROR_LOCK_VIOLATION) {
-                Ok(false)
-            } else {
-                Err(err)
-            }
-        }
+    use std::fs::TryLockError;
+    // `File::try_lock` is `flock(2)` with `LOCK_EX | LOCK_NB` on Unix
+    // and `LockFileEx` with `EXCLUSIVE | FAIL_IMMEDIATELY` on
+    // Windows, mapping EWOULDBLOCK / ERROR_LOCK_VIOLATION to
+    // `WouldBlock`, which we treat here as the "secondary instance"
+    // signal by returning `Ok(false)`
+    match file.try_lock() {
+        Ok(())                        => Ok(true),
+        Err(TryLockError::WouldBlock) => Ok(false),
+        Err(TryLockError::Error(e))   => Err(e),
     }
 }
 
@@ -272,24 +218,19 @@ pub(crate) fn pick_log_path() -> PathBuf {
 /// file before delegating to the default hook.  Without this, panics
 /// only print to stderr and are lost when stderr isn't captured
 pub(crate) fn install_panic_logger(log_path: PathBuf) {
-    use std::sync::OnceLock;
-    static PATH: OnceLock<PathBuf> = OnceLock::new();
-    let _ = PATH.set(log_path);
     let prev = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        if let Some(path) = PATH.get() {
-            if let Ok(mut f) = std::fs::OpenOptions::new()
-                .append(true).create(true).open(path)
-            {
-                use std::io::Write;
-                let _ = writeln!(f, "\n=== PANIC ===");
-                let _ = writeln!(f, "{info}");
-                let _ = writeln!(
-                    f, "backtrace:\n{}",
-                    std::backtrace::Backtrace::force_capture(),
-                );
-                let _ = f.flush();
-            }
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .append(true).create(true).open(&log_path)
+        {
+            use std::io::Write;
+            let _ = writeln!(f, "\n=== PANIC ===");
+            let _ = writeln!(f, "{info}");
+            let _ = writeln!(
+                f, "backtrace:\n{}",
+                std::backtrace::Backtrace::force_capture(),
+            );
+            let _ = f.flush();
         }
         prev(info);
     }));

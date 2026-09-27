@@ -14,7 +14,3 @@ pollster    = { workspace = true }
 [dev-dependencies]
 libc        = "0.2"
 env_logger  = { workspace = true }
-
-[[example]]
-name = "cpu_bench"
-path = "examples/cpu_bench.rs"

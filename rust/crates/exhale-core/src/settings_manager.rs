@@ -18,8 +18,9 @@ use crate::settings::Settings;
 /// - Windows: `%APPDATA%\exhale\settings.toml`
 /// - Linux:   `~/.config/exhale/settings.toml`
 ///
-/// Writes are coalesced: a background thread waits 500 ms of silence before
-/// flushing to disk, matching UserDefaults coalescing behaviour
+/// Writes are coalesced: a background thread opens a fixed 500 ms window
+/// at the first dirty mark and flushes to disk when it closes, matching
+/// UserDefaults coalescing behaviour
 pub struct SettingsManager {
     pub settings: Arc<RwLock<Settings>>,
     config_path:  PathBuf,

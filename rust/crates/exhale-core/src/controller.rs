@@ -112,16 +112,6 @@ impl BreathingController {
         *self.state.lock_or_recover()
     }
 
-    /// Shared handle to the controller's state slot.  Cheap to clone.
-    /// The per-overlay render thread reads from this directly each
-    /// frame instead of round-tripping through the main event loop. The
-    /// controller writes to this before invoking `request_draw`,
-    /// so any thread woken by `request_draw` is guaranteed to observe
-    /// the latest state via the Mutex barrier
-    pub fn state_handle(&self) -> Arc<Mutex<Option<BreathingState>>> {
-        Arc::clone(&self.state)
-    }
-
     /// Restart the animation from inhale phase 0 on the next tick. Matches
     /// Swift `MetalBreathingController.start()` which always resets
     /// `cycleCount = 0` and `currentPhase = .inhale`
@@ -592,17 +582,8 @@ mod tests {
         settings.exhale_duration           = 4.0;
         settings.post_exhale_hold_duration = 4.0;
         let now = Instant::now();
-        let mut inner = Inner {
-            phase:           BreathingPhase::Inhale,
-            phase_start:     now,
-            phase_duration:  Duration::from_secs_f64(settings.inhale_duration),
-            cycle_count:     0,
-            current_drift:   1.0,
-            did_render_hold: false,
-            last_draw_time:  now,
-            last_drawn_phase: BreathingPhase::Inhale,
-            last_drawn_progress: -1.0,
-        };
+        let mut inner = fresh_inner_at(now, Duration::from_secs_f64(settings.inhale_duration));
+        inner.last_draw_time = now;
 
         advance_n_phases(&mut inner, 1, &settings);
         assert_eq!(inner.phase, BreathingPhase::HoldAfterInhale);
@@ -689,17 +670,9 @@ mod tests {
         settings.post_inhale_hold_duration = 1.0;
         settings.post_exhale_hold_duration = 1.0;
         let now = Instant::now();
-        let mut inner = Inner {
-            phase:           BreathingPhase::HoldAfterExhale,
-            phase_start:     now,
-            phase_duration:  Duration::from_millis(100),
-            cycle_count:     0,
-            current_drift:   1.0,
-            did_render_hold: false,
-            last_draw_time:  now,
-            last_drawn_phase: BreathingPhase::Inhale,
-            last_drawn_progress: -1.0,
-        };
+        let mut inner = fresh_inner_at(now, Duration::from_millis(100));
+        inner.phase           = BreathingPhase::HoldAfterExhale;
+        inner.last_draw_time  = now;
 
         // One full cycle advance (HoldAfterExhale -> Inhale)
         advance_n_phases(&mut inner, 1, &settings);
@@ -732,17 +705,9 @@ mod tests {
         settings.post_inhale_hold_duration = 1.0;
         settings.post_exhale_hold_duration = 1.0;
         let now = Instant::now();
-        let mut inner = Inner {
-            phase:           BreathingPhase::HoldAfterExhale,
-            phase_start:     now,
-            phase_duration:  Duration::from_millis(10),
-            cycle_count:     0,
-            current_drift:   1.0,
-            did_render_hold: false,
-            last_draw_time:  now,
-            last_drawn_phase: BreathingPhase::Inhale,
-            last_drawn_progress: -1.0,
-        };
+        let mut inner = fresh_inner_at(now, Duration::from_millis(10));
+        inner.phase           = BreathingPhase::HoldAfterExhale;
+        inner.last_draw_time  = now;
 
         // Far more cycles than any plausible session: drift is
         // unbounded by design, so this must hold arbitrarily far out. An
@@ -796,17 +761,8 @@ mod tests {
     fn progress_range_inhale() {
         let easing = EasingTable::default_ease_in_out();
         let now = Instant::now();
-        let inner = Inner {
-            phase:           BreathingPhase::Inhale,
-            phase_start:     now,
-            phase_duration:  Duration::from_secs(5),
-            cycle_count:     0,
-            current_drift:   1.0,
-            did_render_hold: false,
-            last_draw_time:  now,
-            last_drawn_phase: BreathingPhase::Inhale,
-            last_drawn_progress: -1.0,
-        };
+        let mut inner = fresh_inner_at(now, Duration::from_secs(5));
+        inner.last_draw_time = now;
         let state = compute_state_with_easing(&inner, &easing, AnimationMode::Sinusoidal, now);
         assert!((state.progress - 0.0).abs() < 0.01, "inhale starts at 0");
     }
@@ -815,17 +771,10 @@ mod tests {
     fn progress_range_exhale_starts_at_one() {
         let easing = EasingTable::default_ease_in_out();
         let now = Instant::now();
-        let inner = Inner {
-            phase:           BreathingPhase::Exhale,
-            phase_start:     now,
-            phase_duration:  Duration::from_secs(10),
-            cycle_count:     0,
-            current_drift:   1.0,
-            did_render_hold: false,
-            last_draw_time:  now,
-            last_drawn_phase: BreathingPhase::Exhale,
-            last_drawn_progress: -1.0,
-        };
+        let mut inner = fresh_inner_at(now, Duration::from_secs(10));
+        inner.phase            = BreathingPhase::Exhale;
+        inner.last_draw_time   = now;
+        inner.last_drawn_phase = BreathingPhase::Exhale;
         let state = compute_state_with_easing(&inner, &easing, AnimationMode::Sinusoidal, now);
         assert!((state.progress - 1.0).abs() < 0.01, "exhale starts at 1");
     }
@@ -834,17 +783,10 @@ mod tests {
     fn hold_after_inhale_progress_is_one() {
         let easing = EasingTable::default_ease_in_out();
         let now = Instant::now();
-        let inner = Inner {
-            phase:           BreathingPhase::HoldAfterInhale,
-            phase_start:     now,
-            phase_duration:  Duration::from_secs(4),
-            cycle_count:     0,
-            current_drift:   1.0,
-            did_render_hold: false,
-            last_draw_time:  now,
-            last_drawn_phase: BreathingPhase::HoldAfterInhale,
-            last_drawn_progress: -1.0,
-        };
+        let mut inner = fresh_inner_at(now, Duration::from_secs(4));
+        inner.phase            = BreathingPhase::HoldAfterInhale;
+        inner.last_draw_time   = now;
+        inner.last_drawn_phase = BreathingPhase::HoldAfterInhale;
         let state = compute_state_with_easing(&inner, &easing, AnimationMode::Sinusoidal, now);
         assert_eq!(state.progress, 1.0);
     }
@@ -927,7 +869,7 @@ mod tests {
             cycle_count:         0,
             current_drift:       1.0,
             did_render_hold:     false,
-            last_draw_time:      now - Duration::from_secs(1),
+            last_draw_time:      now.checked_sub(Duration::from_secs(1)).unwrap_or(now),
             last_drawn_phase:    BreathingPhase::Inhale,
             last_drawn_progress: -1.0,
         }

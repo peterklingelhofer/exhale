@@ -4,7 +4,7 @@
 /// `CubicBezierEaseInOut` from the Swift source.  The table is built once at
 /// startup (1024 samples) and queried with linear interpolation, identical to
 /// the Swift implementation
-pub struct EasingTable {
+pub(crate) struct EasingTable {
     samples: Box<[f32]>,
 }
 
@@ -40,15 +40,6 @@ impl EasingTable {
         let b = self.samples[lower + 1];
         (a + (b - a) * frac) as f64
     }
-
-    /// Number of samples in the table
-    pub fn len(&self) -> usize {
-        self.samples.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.samples.is_empty()
-    }
 }
 
 // ─── Newton-Raphson cubic-bezier solver ──────────────────────────────────────
@@ -73,7 +64,7 @@ fn cubic_derivative(t: f64, a1: f64, a2: f64) -> f64 {
 ///
 /// Uses Newton-Raphson to find `t'` such that `cubic_x(t') ≈ t`, then
 /// evaluates `cubic_y(t')`
-pub fn cubic_bezier_value(t: f64, x1: f64, y1: f64, x2: f64, y2: f64) -> f64 {
+fn cubic_bezier_value(t: f64, x1: f64, y1: f64, x2: f64, y2: f64) -> f64 {
     const EPSILON: f64 = 1e-6;
     let mut t_prime = t;
 
@@ -144,7 +135,7 @@ mod tests {
     #[test]
     fn sample_count() {
         let table = EasingTable::default_ease_in_out();
-        assert_eq!(table.len(), 1024);
+        assert_eq!(table.samples.len(), 1024);
     }
 
     // Known reference values for CSS cubic-bezier(0.42, 0, 0.58, 1) computed
