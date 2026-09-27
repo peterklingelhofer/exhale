@@ -743,7 +743,7 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
             ui.painter().rect_stroke(
                 outer_rect,
                 SELECTED_ROUNDING + SELECTED_INSET,
-                egui::Stroke::new(1.0, stroke_color),
+                egui::Stroke::new(1.0_f32, stroke_color),
             );
 
             #[cfg(test)]
@@ -870,7 +870,7 @@ pub(super) fn preset_chips(
             ui.painter().rect_stroke(
                 pill,
                 ROUNDING,
-                egui::Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color),
+                egui::Stroke::new(1.0_f32, ui.visuals().widgets.noninteractive.bg_stroke.color),
             );
         }
 

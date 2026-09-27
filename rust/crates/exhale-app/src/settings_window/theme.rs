@@ -118,7 +118,7 @@ pub(crate) fn visuals_for_theme(theme: Theme) -> egui::Visuals {
     // rest, matching the legibility we already get in dark mode and the
     // Swift `NSSegmentedControl` look
     if matches!(theme, Theme::Light) {
-        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_gray(180));
+        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0_f32, egui::Color32::from_gray(180));
     }
 
     // Round egui widget chrome (TextEdit, checkboxes, comboboxes) to match
@@ -145,7 +145,7 @@ pub(crate) fn visuals_for_theme(theme: Theme) -> egui::Visuals {
         let stepper_rest    = egui::Color32::from_rgb(78, 78, 80);
         let stepper_hover   = egui::Color32::from_rgb(96, 96, 98);
         let stepper_press   = egui::Color32::from_rgb(120, 120, 122);
-        let stepper_stroke  = egui::Stroke::new(1.0, egui::Color32::from_rgb(110, 110, 112));
+        let stepper_stroke  = egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(110, 110, 112));
         v.widgets.inactive.weak_bg_fill = stepper_rest;
         v.widgets.inactive.bg_stroke    = stepper_stroke;
         v.widgets.hovered.weak_bg_fill  = stepper_hover;
