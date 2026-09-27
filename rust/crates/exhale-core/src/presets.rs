@@ -34,7 +34,7 @@
 //! the wrong group, has been downgraded to tier E, or is marked as one
 //! the binary may not lean on
 
-use crate::settings::Settings;
+use crate::settings::{Settings, TIMING_EPS};
 
 /// One offered pattern. Four durations, a label describing them, and a
 /// corpus record that has to still hold up for the preset to ship
@@ -63,16 +63,16 @@ pub struct Preset {
 impl Preset {
     /// True when `settings` currently holds exactly this pattern
     ///
-    /// The epsilon is the one `SettingsDiff::from` uses on these same
-    /// four fields, because "this chip looks selected" and "changing
-    /// this field marks settings dirty" must agree, or a chip can
-    /// appear selected while a save is pending that will unselect it
-    pub fn matches(&self, settings: &Settings) -> bool {
-        const EPS: f64 = 1e-9;
-        (settings.inhale_duration - self.inhale).abs() < EPS
-            && (settings.post_inhale_hold_duration - self.post_inhale_hold).abs() < EPS
-            && (settings.exhale_duration - self.exhale).abs() < EPS
-            && (settings.post_exhale_hold_duration - self.post_exhale_hold).abs() < EPS
+    /// Compares with [`TIMING_EPS`], the same epsilon `SettingsDiff::from`
+    /// uses on these same four fields, because "this chip looks
+    /// selected" and "changing this field marks settings dirty" must
+    /// agree, or a chip can appear selected while a save is pending
+    /// that will unselect it
+    pub(crate) fn matches(&self, settings: &Settings) -> bool {
+        (settings.inhale_duration - self.inhale).abs() < TIMING_EPS
+            && (settings.post_inhale_hold_duration - self.post_inhale_hold).abs() < TIMING_EPS
+            && (settings.exhale_duration - self.exhale).abs() < TIMING_EPS
+            && (settings.post_exhale_hold_duration - self.post_exhale_hold).abs() < TIMING_EPS
     }
 
     /// Write this pattern's four durations into `settings`, leaving

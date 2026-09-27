@@ -94,19 +94,20 @@ pub(crate) fn visuals_for_theme(theme: Theme) -> egui::Visuals {
     };
     v.window_rounding = 10.0.into();
 
-    // Force full-contrast text that reads over the vibrancy-tinted cards in
+    // Force high-contrast text that reads over the vibrancy-tinted cards in
     // both modes.  egui's defaults (from_gray(140) dark / from_gray(60) light)
     // look washed-out against the translucent SectionCards, especially light
     // mode over hudWindow vibrancy, which is already near-white, so a dark
     // gray label reads as if someone turned the opacity down on the text.
-    // Match SwiftUI `.primary` (#FFFFFF on dark, #000000 on light)
-    let (fg_text, fg_subtle) = if matches!(theme, Theme::Dark) {
-        (egui::Color32::from_rgb(235, 235, 240), egui::Color32::from_rgb(235, 235, 240))
+    // Close to SwiftUI `.primary`: rgb(235,235,240) on dark, rgb(20,20,22)
+    // on light
+    let fg_text = if matches!(theme, Theme::Dark) {
+        egui::Color32::from_rgb(235, 235, 240)
     } else {
-        (egui::Color32::from_rgb(20, 20, 22),    egui::Color32::from_rgb(20, 20, 22))
+        egui::Color32::from_rgb(20, 20, 22)
     };
     v.override_text_color = Some(fg_text);
-    v.widgets.noninteractive.fg_stroke.color = fg_subtle;
+    v.widgets.noninteractive.fg_stroke.color = fg_text;
     v.widgets.inactive.fg_stroke.color       = fg_text;
     v.widgets.hovered.fg_stroke.color        = fg_text;
     v.widgets.active.fg_stroke.color         = fg_text;

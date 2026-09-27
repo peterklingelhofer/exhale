@@ -102,24 +102,7 @@ pub fn capture_placement(
     event_loop: &ActiveEventLoop,
     window:     &Window,
 ) -> WindowPlacement {
-    let outer = window.outer_position().unwrap_or(PhysicalPosition::new(0, 0));
-    let inner = window.inner_size();
-    // The settings window persists its height in logical points (so
-    // a 2x display doesn't re-apply scale on next launch).  This
-    // helper persists in physical pixels, which is fine for the
-    // animation window: the next launch's monitor will have the
-    // same physical pixel dimensions, and DPI-affected windows can
-    // override `width` / `height` via the placement they pass back
-    // through `set_*_window_placement`
-    let (x, y, screen) = current_monitor_offset(event_loop, &outer, &inner);
-
-    WindowPlacement {
-        x:      Some(x),
-        y:      Some(y),
-        width:  Some(inner.width),
-        height: Some(inner.height),
-        screen,
-    }
+    capture_placement_impl(event_loop, window, false)
 }
 
 /// Like [`capture_placement`] but writes height in logical points
@@ -130,19 +113,33 @@ pub fn capture_placement_logical_height(
     event_loop: &ActiveEventLoop,
     window:     &Window,
 ) -> WindowPlacement {
+    capture_placement_impl(event_loop, window, true)
+}
+
+/// Shared body for [`capture_placement`] / [`capture_placement_logical_height`]:
+/// the two differ only in whether height is persisted as physical
+/// pixels or converted to logical points first (and whether width is
+/// captured at all).  Physical pixels are fine for the animation
+/// window: the next launch's monitor will have the same physical
+/// pixel dimensions.  The settings window persists height in logical
+/// points instead so a 2x display doesn't re-apply scale on next launch
+fn capture_placement_impl(
+    event_loop:     &ActiveEventLoop,
+    window:         &Window,
+    logical_height: bool,
+) -> WindowPlacement {
     let outer = window.outer_position().unwrap_or(PhysicalPosition::new(0, 0));
     let inner = window.inner_size();
-    let scale = window.scale_factor();
-    let logical_h = (inner.height as f64 / scale).round() as u32;
     let (x, y, screen) = current_monitor_offset(event_loop, &outer, &inner);
 
-    WindowPlacement {
-        x:      Some(x),
-        y:      Some(y),
-        width:  None,
-        height: Some(logical_h),
-        screen,
-    }
+    let (width, height) = if logical_height {
+        let scale = window.scale_factor();
+        (None, Some((inner.height as f64 / scale).round() as u32))
+    } else {
+        (Some(inner.width), Some(inner.height))
+    };
+
+    WindowPlacement { x: Some(x), y: Some(y), width, height, screen }
 }
 
 /// Find the monitor the window's centre currently sits on, then

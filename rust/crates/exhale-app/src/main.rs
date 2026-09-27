@@ -29,7 +29,7 @@ use anyhow::Result;
 use exhale_core::{
     controller::BreathingController,
     poison::RwLockPoisonExt,
-    settings::Settings,
+    settings::{Settings, ShortcutAction},
     settings_manager::SettingsManager,
 };
 use exhale_render::GpuContext;
@@ -73,6 +73,20 @@ enum AppEvent {
     /// has no settings-window button to right-click
     BeginCapturingShortcut(exhale_core::settings::ShortcutAction),
     Quit,
+}
+
+/// The event a tray item or global hotkey sends for `action`.  The
+/// two sources agree on every action except Reset, which maps here to
+/// the tray's immediate `ResetDefaults`.  The hotkey dispatcher sends
+/// `ResetDefaultsWithConfirm` for Reset instead of calling this
+fn event_for(action: ShortcutAction) -> AppEvent {
+    match action {
+        ShortcutAction::Start       => AppEvent::StartAnimation,
+        ShortcutAction::Stop        => AppEvent::StopAnimation,
+        ShortcutAction::Reset       => AppEvent::ResetDefaults,
+        ShortcutAction::Quit        => AppEvent::Quit,
+        ShortcutAction::Preferences => AppEvent::ShowSettings,
+    }
 }
 
 // ─── App state ────────────────────────────────────────────────────────────────
@@ -237,43 +251,67 @@ impl App {
         }
     }
 
-    fn do_start(&mut self) {
+    /// Open the settings window if it's hidden (creating it if
+    /// necessary), hand it to `prepare` so the caller can put up its
+    /// card or overlay, then focus and redraw it so that content is on
+    /// screen.  Shared by the Reset hotkey and the tray's "Keyboard
+    /// Shortcuts ▶" rows
+    fn show_settings(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        prepare:    impl FnOnce(&mut SettingsWindow),
+    ) {
+        let visible = self.settings_win
+            .as_ref()
+            .and_then(|sw| sw.window.is_visible())
+            .unwrap_or(false);
+        if self.settings_win.is_none() || !visible {
+            self.toggle_settings(event_loop);
+        }
+        if let Some(sw) = &mut self.settings_win {
+            prepare(sw);
+            sw.window.focus_window();
+            sw.request_redraw();
+        }
+    }
+
+    /// Shared body of [`Self::do_start`] and [`Self::do_stop`]: set
+    /// `is_animating`, clear `is_paused`, reschedule auto-stop,
+    /// persist, sync the tray, then show or hide the windowed-mode
+    /// animation window.  Starting also restarts the controller
+    /// before the window comes back
+    fn set_animating(&mut self, on: bool) {
         let mut s = self.settings.write_or_recover();
-        s.is_animating = true;
+        s.is_animating = on;
         s.is_paused    = false;
         self.timers.reschedule_auto_stop(&s);
         self.settings_manager.mark_dirty();
         self.update_tray_state(&s);
         drop(s);
-        // Reset to inhale phase 0, matching Swift start() which always resets
-        // cycleCount=0 and currentPhase=.inhale before restarting the timer
-        if let Some(c) = &self.controller {
-            c.restart();
+        if on {
+            // Reset to inhale phase 0, matching Swift start() which always resets
+            // cycleCount=0 and currentPhase=.inhale before restarting the timer
+            if let Some(c) = &self.controller {
+                c.restart();
+            }
         }
-        // Windowed-mode (Wayland fallback): bring the animation
-        // window back if Stop had hidden it.  No-op on threaded
-        // fullscreen-overlay windows (they were never hidden)
+        // Windowed-mode (Wayland fallback): Start brings the animation
+        // window back if Stop had hidden it, and Stop hides it so Stop
+        // closes it from the user's perspective.  No-op on threaded
+        // fullscreen-overlay windows: they stay mapped, and after Stop
+        // they render the "stopped" clear frame `do_stop` forces
         for h in self.overlays.values() {
-            h.set_animation_visible(true);
+            h.set_animation_visible(on);
         }
+    }
+
+    fn do_start(&mut self) {
+        self.set_animating(true);
         self.request_settings_redraw();
     }
 
     fn do_stop(&mut self) {
-        let mut s = self.settings.write_or_recover();
-        s.is_animating = false;
-        s.is_paused    = false;
-        self.timers.reschedule_auto_stop(&s);
-        self.settings_manager.mark_dirty();
-        self.update_tray_state(&s);
-        drop(s);
-        // Windowed-mode (Wayland fallback): hide the animation
-        // window so Stop closes it from the user's
-        // perspective.  Threaded fullscreen overlays stay mapped
-        // and instead render the "stopped" clear frame below
-        for h in self.overlays.values() {
-            h.set_animation_visible(false);
-        }
+        self.set_animating(false);
         // Force one final render so the shader sees display_mode=STOPPED and
         // clears to transparent, matches Swift `window.backgroundColor = .clear`
         for h in self.overlays.values() { h.wake_render(); }
@@ -283,9 +321,9 @@ impl App {
     fn update_tray_state(&self, s: &exhale_core::settings::Settings) {
         if let Some(ids) = &self.tray_ids {
             // Start disabled while animating (matches Swift AppDelegate)
-            ids.start_item.set_enabled(!s.is_animating);
+            ids.top_item(ShortcutAction::Start).set_enabled(!s.is_animating);
             // Stop enabled when animating or paused (matches Swift AppDelegate)
-            ids.stop_item.set_enabled(s.is_animating || s.is_paused);
+            ids.top_item(ShortcutAction::Stop).set_enabled(s.is_animating || s.is_paused);
         }
     }
 
@@ -354,18 +392,7 @@ impl App {
     /// Enter / Space on either Cancel or Reset resolves it
     #[cfg(feature = "global-hotkeys")]
     fn do_reset_with_confirm(&mut self, event_loop: &ActiveEventLoop) {
-        let visible = self.settings_win
-            .as_ref()
-            .and_then(|sw| sw.window.is_visible())
-            .unwrap_or(false);
-        if self.settings_win.is_none() || !visible {
-            self.toggle_settings(event_loop);
-        }
-        if let Some(sw) = &mut self.settings_win {
-            sw.request_reset_confirmation();
-            sw.window.focus_window();
-            sw.request_redraw();
-        }
+        self.show_settings(event_loop, |sw| sw.request_reset_confirmation());
     }
 
     /// Unregister every currently-bound global hotkey and re-register
@@ -413,18 +440,7 @@ impl App {
     ) {
         // Ensure the settings window is open and frontmost so the
         // capture overlay it's about to draw is visible
-        let visible = self.settings_win
-            .as_ref()
-            .and_then(|sw| sw.window.is_visible())
-            .unwrap_or(false);
-        if self.settings_win.is_none() || !visible {
-            self.toggle_settings(event_loop);
-        }
-        if let Some(sw) = &mut self.settings_win {
-            sw.begin_capturing(action);
-            sw.window.focus_window();
-            sw.request_redraw();
-        }
+        self.show_settings(event_loop, |sw| sw.begin_capturing(action));
     }
 
     /// Re-assert topmost ordering at most once per second on Windows
@@ -1075,16 +1091,16 @@ impl ApplicationHandler<AppEvent> for App {
                 if let Some(action) = ids.kb_action_for(id) {
                     let _ = self.proxy.send_event(AppEvent::BeginCapturingShortcut(action));
                 }
-                else if id == &ids.preferences { let _ = self.proxy.send_event(AppEvent::ShowSettings); }
                 // Handled inline instead of through an `AppEvent`:
                 // opening a URL touches no app state, and
                 // `about_to_wait` already runs on the main thread,
                 // which is where `NSWorkspace` has to be called from
-                else if id == &ids.research { platform::open_url(tray::RESEARCH_URL); }
-                else if id == &ids.start  { let _ = self.proxy.send_event(AppEvent::StartAnimation); }
-                else if id == &ids.stop   { let _ = self.proxy.send_event(AppEvent::StopAnimation); }
-                else if id == &ids.reset  { let _ = self.proxy.send_event(AppEvent::ResetDefaults); }
-                else if id == &ids.quit   { let _ = self.proxy.send_event(AppEvent::Quit); }
+                else if id == ids.research.id() { platform::open_url(tray::RESEARCH_URL); }
+                // Reset included: the tray's Reset resets at once with
+                // no confirmation, which is what `event_for` returns
+                else if let Some(action) = ids.top_action_for(id) {
+                    let _ = self.proxy.send_event(event_for(action));
+                }
             }
         }
 
@@ -1137,17 +1153,17 @@ impl ApplicationHandler<AppEvent> for App {
                     log::debug!("global hotkey id={id} already dispatched this tick, coalescing");
                     continue;
                 }
-                let (app_event, label): (AppEvent, &str) =
-                         if Some(id) == ids.preferences { (AppEvent::ShowSettings,               "Show settings") }
-                    else if Some(id) == ids.start       { (AppEvent::StartAnimation,            "Start animation") }
-                    else if Some(id) == ids.stop        { (AppEvent::StopAnimation,             "Stop animation") }
-                    else if Some(id) == ids.reset       { (AppEvent::ResetDefaultsWithConfirm,  "Reset to defaults (confirm)") }
-                    else if Some(id) == ids.quit        { (AppEvent::Quit,                      "Quit") }
-                    else {
-                        log::debug!("global hotkey event with unrecognised id={id}");
-                        continue;
-                    };
-                log::debug!("global hotkey fired: {label} (id={id})");
+                let Some(action) = ids.action_for(id) else {
+                    log::debug!("global hotkey event with unrecognised id={id}");
+                    continue;
+                };
+                // Reset is the one action the hotkey routes differently
+                // from the tray: it raises the confirmation card first
+                let app_event = match action {
+                    ShortcutAction::Reset => AppEvent::ResetDefaultsWithConfirm,
+                    _                     => event_for(action),
+                };
+                log::debug!("global hotkey fired: {app_event:?} (id={id})");
                 let _ = self.proxy.send_event(app_event);
             }
         }

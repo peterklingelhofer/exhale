@@ -71,8 +71,8 @@ pub struct SettingsWindow {
     /// registrations with the updated `settings.keyboard_shortcuts`
     on_rebind_hotkeys:     Box<dyn Fn() + Send + Sync + 'static>,
     /// Tracks the OS appearance so egui visuals + the wgpu clear color stay
-    /// in sync with Light/Dark mode.  `None` means the platform doesn't
-    /// report a theme (some Linux desktops).  We default to Dark there
+    /// in sync with Light/Dark mode.  Stays Dark when the platform doesn't
+    /// report a theme (some Linux desktops)
     theme: Theme,
     /// Raw pointer to the NSVisualEffectView installed on macOS.  0 when
     /// not applicable (non-macOS, or EXHALE_DISABLE_VIBRANCY set).  When
@@ -80,8 +80,8 @@ pub struct SettingsWindow {
     /// with this pointer so the blur material/appearance follows the
     /// system's Light/Dark toggle
     vev_ptr: usize,
-    /// Lazy-loaded SF Symbol textures for the Start / Stop / Reset
-    /// buttons in dark and light themes.  None on non-macOS or when the
+    /// SF Symbol textures for the Start / Reset / Quit buttons in
+    /// dark and light themes.  None on non-macOS or when the
     /// rasteriser fails: callers fall back to Unicode glyphs
     icon_cache: IconCache,
     /// Last value passed to `set_max_inner_size` so we can no-op when
@@ -98,23 +98,22 @@ pub struct SettingsWindow {
 
 /// Which control-button icon a lookup is for.  `usize` index into
 /// [`IconCache::handles`]: keep the variants in the same order as
-/// the array, accessors index by `kind as usize`
+/// the array, [`IconCache::get`] indexes by `kind as usize`
 #[derive(Clone, Copy)]
 enum IconKind {
     Play  = 0,
-    Stop  = 1,
-    Reset = 2,
-    Quit  = 3,
+    Reset = 1,
+    Quit  = 2,
 }
 
-const ICON_KIND_COUNT: usize = 4;
+const ICON_KIND_COUNT: usize = 3;
 
 /// Holds the texture handles for each control-button icon × theme.
-/// Loads both themes up-front (cheap: 8 × ~32×32 RGBA = ~32 KB) so
+/// Loads both themes up-front (cheap: 6 × ~32×32 RGBA = ~24 KB) so
 /// the theme toggle doesn't have to re-rasterise on first paint
 ///
-/// Storage is a flat 2-D array `[IconKind; 2]` (dark first, then
-/// light) with a single indexed lookup.  The SF Symbol name table
+/// Storage is a flat 2-D array `[IconKind; 2]` (light first, then
+/// dark) with a single indexed lookup.  The SF Symbol name table
 /// lives in [`IconCache::load`] so adding a new icon is a one-line
 /// enum variant plus one row in the table
 struct IconCache {
@@ -137,7 +136,6 @@ impl IconCache {
         // (U+25B6, U+25A0, U+21BA, U+00D7) at the call site
         const NAMES: [&str; ICON_KIND_COUNT] = [
             "play.circle.fill",
-            "stop.circle.fill",
             "arrow.counterclockwise.circle.fill",
             "power.circle.fill",
         ];
@@ -153,11 +151,6 @@ impl IconCache {
     fn get(&self, kind: IconKind, dark: bool) -> Option<&egui::TextureHandle> {
         self.handles[kind as usize][dark as usize].as_ref()
     }
-
-    fn play (&self, dark: bool) -> Option<&egui::TextureHandle> { self.get(IconKind::Play,  dark) }
-    fn stop (&self, dark: bool) -> Option<&egui::TextureHandle> { self.get(IconKind::Stop,  dark) }
-    fn reset(&self, dark: bool) -> Option<&egui::TextureHandle> { self.get(IconKind::Reset, dark) }
-    fn quit (&self, dark: bool) -> Option<&egui::TextureHandle> { self.get(IconKind::Quit,  dark) }
 }
 
 // Window-placement helpers (clamp, apply, capture) live in
@@ -167,17 +160,11 @@ impl IconCache {
 // the same monitor-rearrangement edge cases
 
 /// Rasterise an SF Symbol via AppKit, upload as an egui texture.
-/// 16 pt matches Swift's `Image(systemName:).imageScale(.medium)`
-/// next to a 12 pt label, the slot size [`widgets::control_button`]
-/// allocates for the whole `.circle.fill` icon.  Returns `None`
-/// off-macOS or if the symbol isn't found
+/// Rasterised at 13 pt, the ring diameter [`widgets::control_button`]
+/// paints (`icon_w = 13.0`), so egui never has to downsample the
+/// texture into its slot.  Returns `None` off-macOS or if the symbol
+/// isn't found
 fn load_sf_icon(ctx: &egui::Context, name: &str, dark_mode: bool) -> Option<egui::TextureHandle> {
-    // Rasterise at 13 pt to match the reduced ring diameter set in
-    // `widgets::control_button` (`icon_w = 13.0`).  Pre-fix this
-    // was 16.0 alongside the 16 pt ring.  With the smaller ring egui
-    // would have to downsample 32-pixel-at-2× textures into a
-    // 13-pt paint slot, costing a touch of sharpness for no
-    // benefit
     let (bytes, w, h) = platform::render_sf_symbol(name, 13.0, dark_mode)?;
     let image = egui::ColorImage::from_rgba_unmultiplied(
         [w as usize, h as usize],
@@ -360,22 +347,7 @@ impl SettingsWindow {
         };
         surface.configure(&device, &config);
 
-        // Install the NSVisualEffectView with a theme-appropriate material
-        // so the Dark-mode vibrancy uses a neutral blend (underWindowBackground)
-        // that doesn't lighten dark backdrops, while Light mode uses hudWindow
-        // for a visibly translucent blur over bright desktops
         let initial_theme = window.theme().unwrap_or(Theme::Dark);
-        // RAII guard so the backdrop NSWindow is released even if some
-        // future code between here and `Self { ... }` adds a fallible
-        // operation.  `install_settings_vibrancy` hands us a +1 retain
-        // count as a raw `usize`.  If we don't `take()` the guard into
-        // `Self.vev_ptr`, the guard's `Drop` calls `uninstall_...` and
-        // balances the retain.  Without this guard, a future `?` after
-        // the vibrancy install would silently leak one NSWindow per
-        // SettingsWindow creation failure
-        let vev_guard = BackdropGuard(platform::install_settings_vibrancy(
-            &window, matches!(initial_theme, Theme::Dark),
-        ));
 
         let egui_ctx = egui::Context::default();
 
@@ -414,15 +386,19 @@ impl SettingsWindow {
         let egui_renderer = egui_wgpu::Renderer::new(&device, format, None, 1, false);
 
         // Pre-rasterise SF Symbol icons for both themes: cheap one-shot
-        // cost (~6 small RGBA blobs uploaded as textures) so the theme
+        // cost (6 small RGBA blobs uploaded as textures) so the theme
         // toggle doesn't have to lock-focus into AppKit on the hot path
         let icon_cache = IconCache::load(&egui_ctx);
 
-        // Take ownership of the backdrop pointer from the RAII guard.
-        // If we reach this line, `Self` is being constructed and the
-        // guard's drop will be skipped.  `vev_ptr` lives on with the
-        // window and is balanced by `Drop for SettingsWindow`
-        let vev_ptr = vev_guard.take();
+        // Install the NSVisualEffectView with a theme-appropriate material
+        // so the Dark-mode vibrancy uses a neutral blend (underWindowBackground)
+        // that doesn't lighten dark backdrops, while Light mode uses hudWindow
+        // for a visibly translucent blur over bright desktops.  Last on
+        // purpose: the returned +1-retained backdrop goes straight into
+        // `Self`, whose `Drop` releases it, with no fallible step between
+        let vev_ptr = platform::install_settings_vibrancy(
+            &window, matches!(initial_theme, Theme::Dark),
+        );
 
         Ok(Self {
             window, surface, config, egui_ctx, egui_state, egui_renderer,
@@ -716,34 +692,6 @@ impl Drop for SettingsWindow {
     }
 }
 
-/// RAII guard for a backdrop NSWindow pointer returned by
-/// [`platform::install_settings_vibrancy`].  Releases the +1 retain
-/// count via `uninstall_settings_vibrancy` if dropped without being
-/// `take()`-en.  Used inside [`SettingsWindow::new`] to make
-/// construction failure exception-safe: once `Self` is assembled,
-/// the long-lived `Drop for SettingsWindow` impl takes over and this
-/// guard is consumed
-struct BackdropGuard(usize);
-
-impl BackdropGuard {
-    /// Surrender ownership.  Caller is responsible for the eventual
-    /// `uninstall_settings_vibrancy` call
-    fn take(mut self) -> usize {
-        let ptr = self.0;
-        self.0 = 0;       // Defuse so `Drop` no-ops
-        std::mem::forget(self); // Skip Drop entirely, no double-release
-        ptr
-    }
-}
-
-impl Drop for BackdropGuard {
-    fn drop(&mut self) {
-        if self.0 != 0 {
-            platform::uninstall_settings_vibrancy(self.0);
-        }
-    }
-}
-
 // ─── Settings UI ─────────────────────────────────────────────────────────────
 //
 // Layout mirrors the Swift SettingsView:
@@ -753,8 +701,6 @@ impl Drop for BackdropGuard {
 //   • Randomization: 4 jitter sliders + drift
 //   • Timers: reminder + auto-stop
 
-/// Returns the natural (fully-expanded) content height in logical points so
-/// the caller can clamp the window's max size.
 /// Attach the right-click "Change Shortcut…" / "Reset to Default"
 /// menu to a control-button `Response`.  Lives next to the buttons
 /// instead of inside [`control_button`] because tooltip help text is
@@ -809,6 +755,54 @@ fn shortcut_tooltip_line(
     }
 }
 
+// Segmented-picker options, one table per picker.  Each table feeds
+// both its `segmented_row` and `uniform_picker_column_width`, so the
+// measured column always matches the labels drawn
+
+const SHAPE_OPTIONS: &[(&str, AnimationShape)] = &[
+    ("Rectangle", AnimationShape::Rectangle),
+    ("Circle",    AnimationShape::Circle),
+    ("Full",      AnimationShape::Fullscreen),
+];
+/// Order matches Swift's enum declaration (Inner, Off, On) so
+/// segmented-picker placement is identical to the macOS app
+const GRADIENT_OPTIONS: &[(&str, ColorFillGradient)] = &[
+    ("Inner", ColorFillGradient::Inner),
+    ("Off",   ColorFillGradient::Off),
+    ("On",    ColorFillGradient::On),
+];
+/// Labels use Swift's enum raw values
+const ANIMATION_OPTIONS: &[(&str, AnimationMode)] = &[
+    ("Linear",     AnimationMode::Linear),
+    ("Sinusoidal", AnimationMode::Sinusoidal),
+];
+/// Order matches Swift's enum declaration (Gradient, Stark, Off) so the
+/// default (Gradient) sits first
+const RIPPLE_OPTIONS: &[(&str, HoldRippleMode)] = &[
+    ("Gradient", HoldRippleMode::Gradient),
+    ("Stark",    HoldRippleMode::Stark),
+    ("Off",      HoldRippleMode::Off),
+];
+const VISIBILITY_OPTIONS: &[(&str, AppVisibility)] = &[
+    ("Top Bar", AppVisibility::TopBarOnly),
+    ("Dock",    AppVisibility::DockOnly),
+    ("Both",    AppVisibility::Both),
+];
+
+/// Gap between the Controls-row buttons, and between the two reset
+/// confirmation buttons under them
+const CONTROL_GAP: f32 = 8.0;
+
+/// Width of one of four equal slots across `avail` with `CONTROL_GAP`
+/// between them.  The Controls row and the reset confirmation both use
+/// it, so each confirmation button lines up with a button above it
+fn control_slot_width(avail: f32) -> f32 {
+    const SLOTS: f32 = 4.0;
+    ((avail - CONTROL_GAP * (SLOTS - 1.0)) / SLOTS).floor().max(1.0)
+}
+
+/// Returns the natural (fully-expanded) content height in logical points so
+/// the caller can clamp the window's max size
 #[allow(clippy::too_many_arguments)]
 fn settings_ui(
     ctx:                    &egui::Context,
@@ -890,11 +884,11 @@ fn settings_ui(
             // or text length, and the column only extends as far left as
             // the widest picker requires
             let picker_column_w = uniform_picker_column_width(ui, &[
-                &["Rectangle", "Circle", "Full"],
-                &["Inner", "Off", "On"],
-                &["Linear", "Sinusoidal"],
-                &["Gradient", "Stark", "Off"],
-                &["Top Bar", "Dock", "Both"],
+                option_labels(SHAPE_OPTIONS),
+                option_labels(GRADIENT_OPTIONS),
+                option_labels(ANIMATION_OPTIONS),
+                option_labels(RIPPLE_OPTIONS),
+                option_labels(VISIBILITY_OPTIONS),
             ]);
 
             // ── Controls (no header, matches Swift's top SectionCard) ───────
@@ -906,14 +900,8 @@ fn settings_ui(
             // the same as paused for the purposes of stopping renders
             section(ui, "", |ui| {
                 ui.horizontal(|ui| {
-                    const BUTTON_SPACING: f32 = 8.0;
-                    ui.spacing_mut().item_spacing.x = BUTTON_SPACING;
-                    let n_buttons = 4.0_f32;
-                    let avail = ui.available_width();
-                    let btn_w = ((avail - BUTTON_SPACING * (n_buttons - 1.0))
-                                 / n_buttons)
-                                .floor()
-                                .max(1.0);
+                    ui.spacing_mut().item_spacing.x = CONTROL_GAP;
+                    let btn_w = control_slot_width(ui.available_width());
 
                     let dark = ui.visuals().dark_mode;
 
@@ -950,7 +938,7 @@ fn settings_ui(
                         // macOS keeps using Apple's `play.circle.fill`
                         // because the triangle flag yields to the
                         // texture path when one is available
-                        "\u{25B6}", icons.play(dark),
+                        "\u{25B6}", icons.get(IconKind::Play, dark),
                         None, 0.0, false, true,
                         "Start",
                         &start_help,
@@ -967,11 +955,10 @@ fn settings_ui(
 
                     let stop_resp = control_button(
                         ui, btn_w,
-                        // `icon` and `icon_texture` are both ignored
-                        // when `draw_inner_square: true`: we paint a
-                        // primitive square instead.  Pass placeholders
-                        // for documentation continuity
-                        "\u{25A0}", icons.stop(dark),
+                        // `draw_inner_square: true` paints a primitive
+                        // square, so `icon` is only a placeholder and
+                        // there's no SF Symbol texture to pass
+                        "\u{25A0}", None,
                         None, 0.0, true, false,
                         "Stop",
                         &stop_help,
@@ -988,7 +975,7 @@ fn settings_ui(
 
                     let reset_resp = control_button(
                         ui, btn_w,
-                        "\u{21BA}", icons.reset(dark),
+                        "\u{21BA}", icons.get(IconKind::Reset, dark),
                         // U+21BA ANTICLOCKWISE OPEN CIRCLE ARROW lives
                         // in the Arrows block, and Segoe UI draws it
                         // taller than the Geometric Shapes glyphs
@@ -1057,7 +1044,7 @@ fn settings_ui(
                         // Geometric Shapes glyphs.  Bump it ~50% so
                         // `×` lands at the same visible height as the
                         // other three icons inside the 16 pt circle
-                        "\u{00D7}", icons.quit(dark),
+                        "\u{00D7}", icons.get(IconKind::Quit, dark),
                         // `×` lives at the math-axis (below the
                         // em-centre) instead of the em-centre where
                         // Geometric Shapes glyphs sit, so even when
@@ -1134,25 +1121,19 @@ fn settings_ui(
                     // under the warning text instead of left-
                     // aligned and unevenly sized (Cancel's longer
                     // glyph string would otherwise auto-grow it
-                    // wider than Reset).  Per-button width comes
-                    // from the same `(avail - spacing * (n-1)) / n`
-                    // formula the top row uses with n=4, so each
-                    // confirmation button lines up with one
-                    // of the Start / Stop / Reset / Quit slots
-                    // above it.  The pair sits centred in the row
-                    // via explicit left padding
-                    const BTN_GAP:  f32 = 8.0;
-                    const BTN_H:    f32 = ROW_H;
-                    const TOP_ROW_N: f32 = 4.0;
-                    let avail = ui.available_width();
-                    let btn_w = ((avail - BTN_GAP * (TOP_ROW_N - 1.0))
-                                 / TOP_ROW_N)
-                                .floor()
-                                .max(1.0);
-                    let pair_w   = btn_w * 2.0 + BTN_GAP;
+                    // wider than Reset).  Per-button width is
+                    // `control_slot_width`, the same four-slot split
+                    // the top row uses, so each confirmation button
+                    // lines up with one of the Start / Stop / Reset /
+                    // Quit slots above it.  The pair sits centred in
+                    // the row via explicit left padding
+                    const BTN_H: f32 = ROW_H;
+                    let avail    = ui.available_width();
+                    let btn_w    = control_slot_width(avail);
+                    let pair_w   = btn_w * 2.0 + CONTROL_GAP;
                     let left_pad = ((avail - pair_w) * 0.5).max(0.0);
                     ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = BTN_GAP;
+                        ui.spacing_mut().item_spacing.x = CONTROL_GAP;
                         if left_pad > 0.0 {
                             ui.add_space(left_pad);
                         }
@@ -1211,67 +1192,35 @@ fn settings_ui(
             // ── Appearance ───────────────────────────────────────────────────
             section(ui, "Appearance", |ui| {
                 // Inhale color: no alpha (Swift: supportsOpacity: false)
-                labeled_row(ui, "Inhale Color", |ui| {
-                    let mut c = to_color32(settings.inhale_color);
-                    let resp = egui::color_picker::color_edit_button_srgba(
-                        ui, &mut c, egui::color_picker::Alpha::Opaque,
-                    );
-                    // Scroll the picker into view when Tab moves
-                    // focus to it from above/below the viewport.
-                    // egui's stock color button doesn't auto-scroll
-                    // on its own, so an off-screen color row would
-                    // silently swallow a Tab press otherwise
-                    if resp.gained_focus() {
-                        resp.scroll_to_me(None);
-                    }
-                    if resp.changed() {
-                        settings.inhale_color = from_color32_opaque(c);
-                        dirty = true;
-                    }
-                }).on_hover_text("Choose the color for the inhale phase.");
+                if color_row(
+                    ui, "Inhale Color", "Choose the color for the inhale phase.",
+                    &mut settings.inhale_color, egui::color_picker::Alpha::Opaque,
+                ) { dirty = true; }
 
                 // Exhale color: no alpha (Swift: supportsOpacity: false)
-                labeled_row(ui, "Exhale Color", |ui| {
-                    let mut c = to_color32(settings.exhale_color);
-                    let resp = egui::color_picker::color_edit_button_srgba(
-                        ui, &mut c, egui::color_picker::Alpha::Opaque,
-                    );
-                    if resp.gained_focus() {
-                        resp.scroll_to_me(None);
-                    }
-                    if resp.changed() {
-                        settings.exhale_color = from_color32_opaque(c);
-                        dirty = true;
-                    }
-                }).on_hover_text("Choose the color for the exhale phase.");
+                if color_row(
+                    ui, "Exhale Color", "Choose the color for the exhale phase.",
+                    &mut settings.exhale_color, egui::color_picker::Alpha::Opaque,
+                ) { dirty = true; }
 
-                // Background color (with alpha), disabled for Fullscreen (matches Swift)
-                labeled_row(ui, "Background Color", |ui| {
-                    // Background color is only visually meaningful when
-                    // `shape != Fullscreen`, but we render
-                    // the picker enabled regardless.  Wrapping it in
-                    // `add_enabled_ui(false, ...)` made egui call
-                    // `surrender_focus` on the disabled widget every
-                    // time Tab landed there.  Focus was lost mid-cycle
-                    // and the next Tab wrapped back to the first
-                    // focusable widget (Start button), so users with
-                    // `shape = Fullscreen` saw Tab go button-button-
-                    // button-button-Inhale-Exhale-Background-Start
-                    // instead of continuing through Overlay Opacity
-                    // and the rest of the panel.  The tooltip below
-                    // tells the user when the setting has no effect
-                    let mut c = to_color32(settings.background_color);
-                    let resp = egui::color_picker::color_edit_button_srgba(
-                        ui, &mut c, egui::color_picker::Alpha::OnlyBlend,
-                    );
-                    if resp.gained_focus() {
-                        resp.scroll_to_me(None);
-                    }
-                    if resp.changed() {
-                        settings.background_color = from_color32(c);
-                        dirty = true;
-                    }
-                }).on_hover_text("Choose the background color. No effect when Shape is Fullscreen.");
+                // Background color (with alpha).  Only visually meaningful
+                // when `shape != Fullscreen`, but we render the picker
+                // enabled regardless.  Wrapping it in
+                // `add_enabled_ui(false, ...)` made egui call
+                // `surrender_focus` on the disabled widget every
+                // time Tab landed there.  Focus was lost mid-cycle
+                // and the next Tab wrapped back to the first
+                // focusable widget (Start button), so users with
+                // `shape = Fullscreen` saw Tab go button-button-
+                // button-button-Inhale-Exhale-Background-Start
+                // instead of continuing through Overlay Opacity
+                // and the rest of the panel.  The tooltip tells the
+                // user when the setting has no effect
+                if color_row(
+                    ui, "Background Color",
+                    "Choose the background color. No effect when Shape is Fullscreen.",
+                    &mut settings.background_color, egui::color_picker::Alpha::OnlyBlend,
+                ) { dirty = true; }
 
                 // Overlay opacity: Swift stores 0.0..1.0, displays 0..100 %.
                 // Wrap with an f64 shim because ValueScale::Percent operates
@@ -1291,72 +1240,42 @@ fn settings_ui(
                 if segmented_row(
                     ui, "Shape",
                     "Shape of the animation: Fullscreen, Rectangle, or Circle.",
-                    true, picker_column_w,
+                    picker_column_w,
                     &mut settings.shape,
-                    &[
-                        ("Rectangle", AnimationShape::Rectangle),
-                        ("Circle",    AnimationShape::Circle),
-                        ("Full",      AnimationShape::Fullscreen),
-                    ],
+                    SHAPE_OPTIONS,
                 ) { dirty = true; }
 
-                // Gradient: order matches Swift's enum declaration (Inner, Off, On)
-                // so segmented-picker placement is identical to the macOS app.
-                // Gradient picker stays focusable regardless of shape.
-                // Passing `enabled = false` to `segmented_row` triggers
-                // egui's disabled-widget `surrender_focus` path, which
-                // broke Tab navigation downstream (see Background Color
-                // comment above).  The tooltip "(No effect when Shape is
-                // Fullscreen)" tells the user when the setting is inert
                 if segmented_row(
                     ui, "Gradient",
                     "Gradient color effect. No effect when Shape is Fullscreen.",
-                    true, picker_column_w,
+                    picker_column_w,
                     &mut settings.color_fill_gradient,
-                    &[
-                        ("Inner", ColorFillGradient::Inner),
-                        ("Off",   ColorFillGradient::Off),
-                        ("On",    ColorFillGradient::On),
-                    ],
+                    GRADIENT_OPTIONS,
                 ) { dirty = true; }
 
-                // Animation mode: labels use Swift's enum raw values
                 if segmented_row(
                     ui, "Animation",
                     "Sinusoidal eases in/out naturally. Linear is constant speed.",
-                    true, picker_column_w,
+                    picker_column_w,
                     &mut settings.animation_mode,
-                    &[
-                        ("Linear",     AnimationMode::Linear),
-                        ("Sinusoidal", AnimationMode::Sinusoidal),
-                    ],
+                    ANIMATION_OPTIONS,
                 ) { dirty = true; }
 
-                // Hold ripple: order matches Swift's enum declaration
-                // (Gradient, Stark, Off) so the default (Gradient) sits first
                 if segmented_row(
                     ui, "Hold Ripple",
                     "Hold phase ripple: Gradient (smooth glow), Stark (solid edge), or Off.",
-                    true, picker_column_w,
+                    picker_column_w,
                     &mut settings.hold_ripple_mode,
-                    &[
-                        ("Gradient", HoldRippleMode::Gradient),
-                        ("Stark",    HoldRippleMode::Stark),
-                        ("Off",      HoldRippleMode::Off),
-                    ],
+                    RIPPLE_OPTIONS,
                 ) { dirty = true; }
 
                 // App visibility (macOS concept, show on all platforms for settings parity)
                 if segmented_row(
                     ui, "Show In",
                     "Where exhale appears: Top Bar, Dock, or Both.",
-                    true, picker_column_w,
+                    picker_column_w,
                     &mut settings.app_visibility,
-                    &[
-                        ("Top Bar", AppVisibility::TopBarOnly),
-                        ("Dock",    AppVisibility::DockOnly),
-                        ("Both",    AppVisibility::Both),
-                    ],
+                    VISIBILITY_OPTIONS,
                 ) { dirty = true; }
             });
 
@@ -1545,20 +1464,8 @@ fn settings_ui(
         on_rebind_hotkeys();
     }
 
-    // Reset confirmation is now rendered inline inside the
-    // Controls section above (see the `if *pending_reset` block)
-    // instead of a floating `egui::Window` popup, matches
-    // the user request to integrate the confirmation into the
-    // settings UI instead of spawning a separate window
-
     content_height
 }
-
-// ─── UI helpers ───────────────────────────────────────────────────────────────
-
-// Swift's SectionCard: 10 px rounded rect, 1 px stroke at `Color.primary.opacity(0.06)`,
-// fill at `Color(NSColor.controlBackgroundColor).opacity(0.55)`, 12 px internal padding.
-// Header (when present) is 10 pt uppercase `.secondary` with 0.8 pt letter-spacing
 
 // ─── Tests ───────────────────────────────────────────────────────────────
 //
@@ -1869,10 +1776,30 @@ mod tests {
         assert_eq!(settings.randomized_timing_exhale, 0.25);
     }
 
+    #[test]
+    fn clicking_a_segment_selects_it() {
+        const OPTIONS: &[(&str, u8)] = &[("One", 1), ("Two", 2), ("Three", 3)];
+        let ctx = Context::default();
+        let mut value = 1_u8;
+        let frame = |raw_in: RawInput, value: &mut u8| {
+            let mut changed = false;
+            let _ = ctx.run(raw_in, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    changed = segmented_row(ui, "Pick", "help", 180.0, value, OPTIONS);
+                });
+            });
+            changed
+        };
 
+        // Warm-up frame registers the segment rects, then click the second
+        let _ = frame(blank_input(), &mut value);
+        let rects = super::widgets::test_hooks::take_seg_rects()
+            .expect("segmented_row should record its rects every frame");
+        let changed = frame(click_input(rects[1].center()), &mut value);
 
-
-
+        assert!(changed, "clicking a segment should report a change");
+        assert_eq!(value, 2);
+    }
 
     #[test]
     fn stepper_up_increments() {

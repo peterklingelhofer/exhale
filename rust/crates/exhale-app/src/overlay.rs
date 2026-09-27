@@ -295,7 +295,6 @@ impl OverlayHandle {
             .spawn(move || {
                 render_thread_loop(
                     msg_rx, &mut renderer, state, settings, max_circle_scale,
-                    alpha_capable,
                 );
             })
             .map_err(|e| anyhow::anyhow!(
@@ -559,19 +558,12 @@ impl Drop for OverlayHandle {
             if let Some(h) = thread.take() {
                 let thread_name = h.thread().name().unwrap_or("exhale-overlay-?").to_string();
                 // Surface a panic in the render thread instead of
-                // silently swallowing it
-                match h.join() {
-                    Ok(()) => {}
-                    Err(payload) => {
-                        let msg = if let Some(s) = payload.downcast_ref::<&'static str>() {
-                            (*s).to_string()
-                        } else if let Some(s) = payload.downcast_ref::<String>() {
-                            s.clone()
-                        } else {
-                            "<non-string panic payload>".to_string()
-                        };
-                        log::error!("render thread `{thread_name}` panicked: {msg}");
-                    }
+                // silently swallowing it.  The panic hook (see
+                // `bootstrap::install_panic_logger`) plus the default
+                // hook already logged the message and backtrace at
+                // panic time, so this only flags that it happened
+                if h.join().is_err() {
+                    log::error!("render thread `{thread_name}` panicked, see the panic entry above for details");
                 }
             }
         }
@@ -590,7 +582,6 @@ fn render_thread_loop(
     state:            Arc<Mutex<Option<BreathingState>>>,
     settings:         Arc<RwLock<Settings>>,
     max_circle_scale: f32,
-    alpha_capable:    bool,
 ) {
     #[allow(clippy::while_let_loop)]
     loop {
@@ -646,10 +637,6 @@ fn render_thread_loop(
                 log::error!("overlay render: {e}");
             }
         }
-        // `alpha_capable` is still passed in because callers further
-        // down may grow uses for it.  Mark it `unused` to keep the
-        // compiler quiet without breaking the public signature
-        let _ = alpha_capable;
     }
 }
 

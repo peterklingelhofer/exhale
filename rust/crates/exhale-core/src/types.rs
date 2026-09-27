@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Breathing animation shape shown on the overlay
+#[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AnimationShape {
@@ -15,6 +16,7 @@ pub enum AnimationShape {
 /// Color fill / gradient style applied to the animated shape
 ///
 /// Shader encoding: Off=0, Inner=1, On=2
+#[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ColorFillGradient {
@@ -29,6 +31,7 @@ pub enum ColorFillGradient {
 /// Style of the perimeter glow shown during hold phases
 ///
 /// Shader encoding: Off=0, Stark=1, Gradient=2
+#[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HoldRippleMode {
@@ -63,6 +66,7 @@ pub enum AppVisibility {
 /// The four phases of a single breath cycle
 ///
 /// Shader phase encoding: Inhale=0, HoldAfterInhale=1, Exhale=2, HoldAfterExhale=3
+#[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BreathingPhase {
     Inhale,
@@ -74,47 +78,30 @@ pub enum BreathingPhase {
 impl BreathingPhase {
     /// Integer encoding sent to the fragment shader
     pub fn shader_value(self) -> u32 {
-        match self {
-            Self::Inhale         => 0,
-            Self::HoldAfterInhale => 1,
-            Self::Exhale         => 2,
-            Self::HoldAfterExhale => 3,
-        }
+        self as u32
     }
 
     /// Returns true for the two hold phases
-    pub fn is_hold(self) -> bool {
+    pub(crate) fn is_hold(self) -> bool {
         matches!(self, Self::HoldAfterInhale | Self::HoldAfterExhale)
     }
 }
 
 impl AnimationShape {
     pub fn shader_value(self) -> u32 {
-        match self {
-            Self::Fullscreen => 0,
-            Self::Rectangle  => 1,
-            Self::Circle     => 2,
-        }
+        self as u32
     }
 }
 
 impl ColorFillGradient {
     pub fn shader_value(self) -> u32 {
-        match self {
-            Self::Off   => 0,
-            Self::Inner => 1,
-            Self::On    => 2,
-        }
+        self as u32
     }
 }
 
 impl HoldRippleMode {
     pub fn shader_value(self) -> u32 {
-        match self {
-            Self::Off      => 0,
-            Self::Stark    => 1,
-            Self::Gradient => 2,
-        }
+        self as u32
     }
 }
 

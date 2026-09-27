@@ -1,9 +1,9 @@
 // overlay.wgsl: full port of OverlayShaders.metal
 //
-// Uniform struct layout (112 bytes). WGSL auto-pads 12 bytes between
+// Uniform struct layout (112 bytes). WGSL auto-pads 8 bytes between
 // ripple_enabled and background_color so that background_color sits at
 // offset 64 (vec4<f32> alignment = 16).  The Rust OverlayUniforms struct
-// adds the same 12 bytes as explicit _pad0/1/2 fields so both sides
+// adds the same 8 bytes as explicit _pad1/_pad2 fields so both sides
 // agree
 
 struct OverlayUniforms {
@@ -123,7 +123,7 @@ fn ripple_color() -> vec4<f32> {
 
 /// Gradient mode: Off=0, Inner=1, On=2
 
-fn gradient_circle(base: vec4<f32>, pixel: vec2<f32>, _bg: vec4<f32>) -> vec4<f32> {
+fn gradient_circle(base: vec4<f32>, pixel: vec2<f32>) -> vec4<f32> {
     let center   = u.viewport_size * 0.5;
     let min_dim  = min(u.viewport_size.x, u.viewport_size.y);
     let prog_sq  = u.progress * u.progress;
@@ -147,7 +147,7 @@ fn gradient_circle(base: vec4<f32>, pixel: vec2<f32>, _bg: vec4<f32>) -> vec4<f3
     return vec4<f32>(base.rgb, base.a * t);
 }
 
-fn gradient_rectangle(base: vec4<f32>, pixel: vec2<f32>, rect_h: f32, _bg: vec4<f32>) -> vec4<f32> {
+fn gradient_rectangle(base: vec4<f32>, pixel: vec2<f32>, rect_h: f32) -> vec4<f32> {
     let y01 = clamp01(pixel.y / max(rect_h, 1.0));
 
     // Both modes fade the base color's alpha instead of lerping toward bg's
@@ -344,7 +344,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             // Inside shape: apply overlay_opacity via apply_premultiplied
             var sc = pc;
             if u.gradient_mode != 0u {
-                sc = gradient_rectangle(pc, pixel, rect_h, bg);
+                sc = gradient_rectangle(pc, pixel, rect_h);
             }
             if do_ripple {
                 // Swift band alpha = 0.8, trail = 0.25. screen_edge_ripple returns
@@ -370,7 +370,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // ── Circle (shape == 2) ───────────────────────────────────────────────────
     var sc = pc;
     if u.gradient_mode != 0u {
-        sc = gradient_circle(pc, pixel, bg);
+        sc = gradient_circle(pc, pixel);
     }
 
     let center    = u.viewport_size * 0.5;

@@ -15,13 +15,12 @@ resolver = "2"
 winit = { path = "../vendor/winit" }
 
 [profile.release]
-# Cross-crate dead-code elimination. Without this, winit's unused
-# `Window::set_blur` is retained and pulls in its `extern "C"`
-# declaration of the private `_CGSSetWindowBackgroundBlurRadius`,
-# which Apple's App Store review flags as a non-public API and
-# rejects the submission. LTO=true (fat) strips unreachable fns
-# across the whole crate graph and removes the symbol. Build time
-# ~2-3x longer for release, binary slightly smaller
+# LTO, one codegen unit, and symbol stripping: smaller binary and better
+# cross-crate inlining. These don't remove winit's private-API blur symbol
+# (see the vendored winit patch above): that call site is gated on a
+# runtime field, so the symbol survives LTO's dead-code elimination on its
+# own. The vendored stub is what removes it. Build time ~2-3x
+# longer for release
 lto         = true
 codegen-units = 1
 strip       = "symbols"
@@ -49,3 +48,4 @@ egui-wgpu   = { version = "0.29", features = ["winit"] }
 tray-icon     = "0.19"
 global-hotkey = "0.6"
 notify-rust   = "4"
+directories   = "5"

@@ -15,7 +15,7 @@
 //! in weeks, so a claim compiled into it can't be withdrawn at the
 //! speed the evidence can change. See `docs/CITATIONS.md`
 
-use crate::settings::Settings;
+use crate::settings::{Settings, TIMING_EPS};
 
 /// Slowest rate with direct experimental support, in breaths per minute
 ///
@@ -24,13 +24,13 @@ use crate::settings::Settings;
 /// run: a fact about the experiment, separate from a recommendation
 /// or a safe range. Outside it means untested here, which is
 /// different from tested and found wanting. Gaps ledger item 2
-pub const TESTED_MIN_BPM: f64 = 5.0;
+pub(crate) const TESTED_MIN_BPM: f64 = 5.0;
 /// Fastest rate with direct experimental support. See [`TESTED_MIN_BPM`]
-pub const TESTED_MAX_BPM: f64 = 7.0;
+pub(crate) const TESTED_MAX_BPM: f64 = 7.0;
 
 /// Where a rate sits relative to the directly tested range
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Coverage {
+pub(crate) enum Coverage {
     Slower,
     Inside,
     Faster,
@@ -42,7 +42,7 @@ impl Coverage {
     /// Classifying the raw value lets the panel print "5.0 breaths a
     /// minute" directly above "slower than any of them" for a true rate
     /// of 4.96, which reads as a bug
-    pub fn of_displayed(bpm: f64) -> Self {
+    pub(crate) fn of_displayed(bpm: f64) -> Self {
         if bpm < TESTED_MIN_BPM {
             Self::Slower
         } else if bpm > TESTED_MAX_BPM {
@@ -109,7 +109,7 @@ fn grouped(n: u64) -> String {
 ///
 /// It's a repeat rate: the same `k` also takes the cycle from `2c`
 /// to `4c`
-pub fn breaths_to_double(settings: &Settings) -> Option<f64> {
+pub(crate) fn breaths_to_double(settings: &Settings) -> Option<f64> {
     if settings.cycle_secs() <= 0.0 || settings.drift <= 1.0 {
         return None;
     }
@@ -135,13 +135,13 @@ pub fn readout_lines(settings: &Settings) -> Vec<String> {
         format_secs(settings.cycle_secs()),
     )];
 
-    let projected = settings
+    let projected_raw = settings
         .drift_is_active()
         .then(|| settings.breaths_per_min_after(PROJECTION_MINUTES))
-        .flatten()
-        .map(round_bpm);
+        .flatten();
+    let projected = projected_raw.map(round_bpm);
 
-    if projected.is_some() {
+    if let Some(raw) = projected_raw {
         // The projection is given in seconds. "About 1.3 a minute after an
         // hour" is arithmetically correct and unreadable: nobody holds a
         // mental picture of 1.3 breaths a minute, whereas everybody can
@@ -160,7 +160,7 @@ pub fn readout_lines(settings: &Settings) -> Vec<String> {
         }
 
         let now  = settings.cycle_secs();
-        let then = 60.0 / settings.breaths_per_min_after(PROJECTION_MINUTES).unwrap_or(f64::MAX);
+        let then = 60.0 / raw;
         // Suppress the second clause when an hour doesn't move the
         // number a person could read off the screen. At 0.001 % a 15 s
         // cycle reaches 15.04 s, and "after an hour the cycle is 15 s,
@@ -212,7 +212,7 @@ fn coverage_line(now: f64, projected: Option<f64>) -> String {
 /// steppers move in whole seconds, so "15 s" is the normal case and "15.5 s"
 /// only shows up for a typed value
 fn format_secs(secs: f64) -> String {
-    if (secs - secs.round()).abs() < 1e-9 {
+    if (secs - secs.round()).abs() < TIMING_EPS {
         format!("{secs:.0} s")
     } else {
         format!("{secs:.1} s")
