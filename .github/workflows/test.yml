@@ -8,13 +8,6 @@ on:
 
 jobs:
   build-and-test:
-    # Skip on the `rust-multiplatform` PR: that branch is the Rust
-    # port replacing the Swift app, so its commits aren't expected
-    # to keep the Swift test suite green.  The Swift PerformanceTests
-    # are also CPU-noise-sensitive enough that gating the Rust PR on
-    # them produces false negatives.  Re-enabled automatically once
-    # the branch is merged (no PR-source matches this name anymore)
-    if: github.head_ref != 'rust-multiplatform' && github.ref != 'refs/heads/rust-multiplatform'
     runs-on: macos-15
     defaults:
       run:
@@ -85,27 +78,52 @@ jobs:
       - name: Check generated citations are current
         run: python3 scripts/generate-citations.py --check
 
-  # 8,400 lines of Rust currently have no compile gate anywhere in CI: the
-  # release and dev-build workflows only ever run `cargo build --release`, and
-  # there's no `cargo test` / `check` / `clippy` job. `exhale-core` is the
-  # cheap half to cover, since it has no wgpu, winit or GTK dependency and so
-  # needs no system packages. It's also where a generated presets table would
-  # land if the research-panel work proceeds, and a checked-in generated .rs
-  # that nothing compiles is a silent time bomb
+  # `exhale-core` has no wgpu, winit or GTK dependency, so it checks and tests
+  # on a plain Linux runner in under a minute
   core-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
 
-      - name: cargo check
+      - name: cargo clippy
         working-directory: rust
-        run: cargo check -p exhale-core --all-targets
+        run: cargo clippy --locked -p exhale-core --all-targets -- -D warnings
 
       - name: cargo test
         working-directory: rust
-        run: cargo test -p exhale-core
+        run: cargo test --locked -p exhale-core
+
+  # The other two crates need a windowing stack to compile, and macOS is the
+  # one runner that has it without system packages. This is the only place
+  # `exhale-app`'s tests run in CI. The `--no-default-features` check is the
+  # Mac App Store build, which drops global hotkeys
+  app-check:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: cargo clippy
+        working-directory: rust
+        run: cargo clippy --locked -p exhale-render -p exhale-app --all-targets -- -D warnings
+
+      - name: cargo test
+        working-directory: rust
+        run: cargo test --locked -p exhale-render -p exhale-app
+
+      - name: cargo check (App Store feature set)
+        working-directory: rust
+        run: cargo check --locked -p exhale-app --no-default-features
