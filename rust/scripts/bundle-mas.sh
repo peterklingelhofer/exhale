@@ -109,7 +109,7 @@ fi
 
 # ── 1. Rust targets ──────────────────────────────────────────────────────────
 log "ensuring rustup targets..."
-rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null
+(cd "$RUST_ROOT" && rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null)
 
 # ── 2. Build universal binary (MAS = --no-default-features) ──────────────────
 log "cargo build --release --no-default-features × (arm64, x86_64)"

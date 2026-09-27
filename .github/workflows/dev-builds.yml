@@ -33,8 +33,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install Rust toolchain (stable + ARM64 target)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain (pinned, with the ARM64 target)
+        uses: ./.github/actions/rust-toolchain
         with:
           targets: aarch64-pc-windows-msvc
 
@@ -76,8 +76,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install Rust toolchain (stable)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain (pinned)
+        uses: ./.github/actions/rust-toolchain
 
       # Same dependency set as local Linux dev: gtk + wayland + xkbcommon
       # for winit, xdo for global-hotkey, ssl for HTTP-using crates,
@@ -113,8 +113,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install Rust toolchain (stable)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain (pinned)
+        uses: ./.github/actions/rust-toolchain
 
       - name: System deps
         run: |

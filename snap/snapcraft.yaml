@@ -100,12 +100,13 @@ parts:
     override-build: |
       set -euo pipefail
 
-      # Install a pinned stable rustup toolchain into the build container.
+      # Install rustup into the build container. The first cargo call in
+      # rust/ then fetches the toolchain rust/rust-toolchain.toml pins.
       # snapcraft's build hosts don't ship rust. This mirrors what
       # `.github/workflows/release.yml` does for the Linux snap job
       if ! command -v cargo >/dev/null 2>&1; then
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-          | sh -s -- -y --default-toolchain stable --profile minimal
+          | sh -s -- -y --default-toolchain none --profile minimal
       fi
       # shellcheck disable=SC1090
       . "${HOME}/.cargo/env"

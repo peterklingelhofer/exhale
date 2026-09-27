@@ -48,7 +48,7 @@ done
 
 # ── 1. Build the Rust binary ─────────────────────────────────────────────────
 log "cargo build --release --no-default-features --target x86_64-unknown-linux-gnu"
-rustup target add x86_64-unknown-linux-gnu >/dev/null
+(cd "$RUST_ROOT" && rustup target add x86_64-unknown-linux-gnu >/dev/null)
 (cd "$RUST_ROOT" && \
     cargo build --release --no-default-features -p exhale-app \
         --target x86_64-unknown-linux-gnu)
