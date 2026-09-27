@@ -1703,7 +1703,7 @@ use super::*;
             let (bytes, _, _) = render_sf_symbol("play.circle.fill", 24.0, false)
                 .expect("rasterise");
             // At least one pixel must have non-zero alpha: otherwise nothing was drawn
-            let any_drawn = bytes.chunks_exact(4).any(|px| px[3] != 0);
+            let any_drawn = bytes.as_chunks::<4>().0.iter().any(|px| px[3] != 0);
             assert!(any_drawn,
                 "rasterised buffer is fully transparent: the symbol wasn't drawn");
         }
