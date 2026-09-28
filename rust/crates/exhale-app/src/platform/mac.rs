@@ -912,6 +912,23 @@ use super::*;
         );
     }
 
+    /// `[NSBundle mainBundle]` always returns an object, bundled or not,
+    /// but `bundleIdentifier` is only set when the process has an
+    /// `Info.plist`.  `cargo run` and the bare `target/debug/exhale`
+    /// binary fall in the unbundled case, where touching
+    /// `UNUserNotificationCenter` aborts the process
+    pub fn running_in_app_bundle() -> bool {
+        use objc2::runtime::AnyObject;
+        use objc2::{class, msg_send};
+
+        unsafe {
+            let bundle: *mut AnyObject = msg_send![class!(NSBundle), mainBundle];
+            if bundle.is_null() { return false; }
+            let ident: *mut AnyObject = msg_send![bundle, bundleIdentifier];
+            !ident.is_null()
+        }
+    }
+
     /// `.alert` + `.sound` authorization request.  Matches Swift AppDelegate
     /// `requestNotificationPermission()`
     pub fn request_notification_permission() {
@@ -923,11 +940,27 @@ use super::*;
         // `AnyClass::get` (returns `Option`) instead of `class!()` which
         // would panic if `UserNotifications.framework` isn't linked
         // (typical for a non-bundled `cargo test` binary)
-        let Some(cls) = AnyClass::get(c"UNUserNotificationCenter") else { return; };
+        let Some(cls) = AnyClass::get(c"UNUserNotificationCenter") else {
+            log::warn!("notification permission: UserNotifications framework not linked");
+            return;
+        };
+
+        // SAFETY: `currentNotificationCenter` raises
+        // `NSInternalInconsistencyException` ("bundleProxyForCurrentProcess
+        // is nil") and aborts the process when we're not running from a
+        // bundled .app, which is the case for `cargo run` and the bare
+        // debug binary.  Bail out before calling it
+        if !running_in_app_bundle() {
+            log::warn!("notification permission: not running from an app bundle");
+            return;
+        }
 
         unsafe {
             let center: *mut AnyObject = msg_send![cls, currentNotificationCenter];
-            if center.is_null() { return; }
+            if center.is_null() {
+                log::warn!("notification permission: currentNotificationCenter returned nil");
+                return;
+            }
 
             let options = UN_AUTH_ALERT_AND_SOUND;
             // Closure signature matches Apple's `void (^)(BOOL, NSError*)`.
@@ -1768,11 +1801,21 @@ use super::*;
         }
 
         #[test]
-        #[ignore = "needs UserNotifications.framework (bundled app), run manually"]
+        fn running_in_app_bundle_false_in_test_binary() {
+            // `cargo test` produces a bare executable with no
+            // `Info.plist`, so this must be false.  It's the guard that
+            // keeps `request_notification_permission` from touching
+            // `UNUserNotificationCenter` and aborting the test process
+            assert!(!running_in_app_bundle());
+        }
+
+        #[test]
         fn request_notification_permission_does_not_panic() {
-            // In a non-bundled test process the system will silently
-            // deny / drop the request.  This confirms the objc
-            // dispatch doesn't crash on the way out
+            // The test binary isn't a bundled .app, so
+            // `running_in_app_bundle` is false and the function returns
+            // before touching `UNUserNotificationCenter`.  That's the
+            // guard that stops `currentNotificationCenter` from raising
+            // `NSInternalInconsistencyException` and aborting the process
             request_notification_permission();
         }
     }

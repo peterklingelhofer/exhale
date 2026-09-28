@@ -122,6 +122,13 @@ fn send_reminder_other() {
     }
 }
 
+// Force-link `UserNotifications.framework`.  Below we look up `UN*`
+// classes by name through `AnyClass` / `msg_send!`, so without a
+// reference to the crate here rustc drops it from the build and the
+// framework's classes never register with the runtime
+#[cfg(target_os = "macos")]
+use objc2_user_notifications as _;
+
 /// Deliver a local notification via `UNUserNotificationCenter`
 ///
 /// Mirrors the Swift AppDelegate's `sendReminderNotification()`: builds a
@@ -140,20 +147,37 @@ fn send_reminder_macos() {
     use objc2::msg_send;
     use objc2::runtime::{AnyClass, AnyObject};
 
-    // SAFETY: framework class lookups are fallible.  Skip silently
-    // when `UserNotifications.framework` isn't linked (e.g. in a
-    // bare `cargo test` binary).  Production app bundle has it
+    // SAFETY: framework class lookups are fallible.  Warn and skip when
+    // `UserNotifications.framework` isn't linked.  Shouldn't happen now
+    // that the crate is referenced above, kept as a defensive fallback
     let (Some(unc_cls), Some(content_cls), Some(sound_cls), Some(req_cls)) = (
         AnyClass::get(c"UNUserNotificationCenter"),
         AnyClass::get(c"UNMutableNotificationContent"),
         AnyClass::get(c"UNNotificationSound"),
         AnyClass::get(c"UNNotificationRequest"),
-    ) else { return; };
+    ) else {
+        log::warn!("notification: UserNotifications framework not linked, dropping reminder");
+        return;
+    };
+
+    // SAFETY: `currentNotificationCenter` raises
+    // `NSInternalInconsistencyException` ("bundleProxyForCurrentProcess is
+    // nil") and aborts the process when we're not running from a bundled
+    // .app, which is the case for `cargo run` and the bare debug binary.
+    // Bail out before calling it.  Logged at info here since it repeats
+    // on every reminder while running unbundled during development
+    if !crate::platform::running_in_app_bundle() {
+        log::info!("notification: not running from an app bundle, dropping reminder");
+        return;
+    }
 
     unsafe {
         let content: *mut AnyObject = msg_send![content_cls, alloc];
         let content: *mut AnyObject = msg_send![content, init];
-        if content.is_null() { return; }
+        if content.is_null() {
+            log::warn!("notification: UNMutableNotificationContent init returned nil");
+            return;
+        }
 
         let ns_string = objc2::class!(NSString);
         // C-string literals via `c"..."` are guaranteed nul-terminated
@@ -191,6 +215,8 @@ fn send_reminder_macos() {
                 addNotificationRequest: request,
                 withCompletionHandler:  &*block,
             ];
+        } else {
+            log::warn!("notification: center or request unavailable, dropping reminder");
         }
 
         // Balance the +1 retain from `[UNMutableNotificationContent alloc] init]`.
