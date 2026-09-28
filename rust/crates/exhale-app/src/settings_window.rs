@@ -433,6 +433,12 @@ impl SettingsWindow {
         (response.consumed, response.repaint)
     }
 
+    /// Whether the window is on screen.  Wayland reports no visibility
+    /// and winit can't hide a window there, so an unknown state means shown
+    pub fn is_shown(&self) -> bool {
+        self.window.is_visible().unwrap_or(true)
+    }
+
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
         if size.width == 0 || size.height == 0 { return; }
         self.config.width  = size.width;

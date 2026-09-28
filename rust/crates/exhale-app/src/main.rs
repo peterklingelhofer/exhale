@@ -204,7 +204,7 @@ impl App {
 
     fn toggle_settings(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(sw) = &self.settings_win {
-            if sw.window.is_visible().unwrap_or(true) {
+            if sw.is_shown() {
                 sw.window.set_visible(false);
                 return;
             }
@@ -263,8 +263,7 @@ impl App {
     ) {
         let visible = self.settings_win
             .as_ref()
-            .and_then(|sw| sw.window.is_visible())
-            .unwrap_or(false);
+            .is_some_and(|sw| sw.is_shown());
         if self.settings_win.is_none() || !visible {
             self.toggle_settings(event_loop);
         }
@@ -473,7 +472,7 @@ impl App {
         // window, the entire reassert is a no-op and we can skip the
         // SetWindowPos calls that would otherwise flicker the frame
         let expected_top: Option<&Window> = self.settings_win.as_ref()
-            .filter(|sw| sw.window.is_visible().unwrap_or(false))
+            .filter(|sw| sw.is_shown())
             .map(|sw| sw.window.as_ref())
             .or_else(|| self.overlays.values().next().map(|h| h.window.as_ref()));
         if let Some(top) = expected_top {
@@ -486,7 +485,7 @@ impl App {
             platform::reassert_overlay_topmost(&handle.window);
         }
         if let Some(sw) = &self.settings_win {
-            if sw.window.is_visible().unwrap_or(false) {
+            if sw.is_shown() {
                 platform::reassert_overlay_topmost(&sw.window);
             }
         }
@@ -498,7 +497,7 @@ impl App {
     /// per-tick redraw loop
     fn request_settings_redraw(&mut self) {
         if let Some(sw) = &self.settings_win {
-            if sw.window.is_visible().unwrap_or(false) {
+            if sw.is_shown() {
                 sw.request_redraw();
                 // The next RedrawRequested will overwrite this with egui's
                 // fresh repaint_delay, but zero the deadline so about_to_wait
@@ -1192,7 +1191,7 @@ impl ApplicationHandler<AppEvent> for App {
         if let Some(deadline) = self.next_settings_repaint {
             if Instant::now() >= deadline {
                 if let Some(sw) = &self.settings_win {
-                    if sw.window.is_visible().unwrap_or(false) {
+                    if sw.is_shown() {
                         sw.request_redraw();
                     }
                 }
