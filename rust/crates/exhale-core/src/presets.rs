@@ -1,10 +1,10 @@
 //! The breathing patterns the settings window offers as one click
 //!
-//! Five entries, hand-written, in `exhale-core` rather than in the UI
-//! crate for the same reason [`crate::pacing`] is: CI compiles and
-//! tests this crate and doesn't compile `exhale-app`
+//! The five entries are hand-written and live in `exhale-core`, away
+//! from the UI crate, for the same reason [`crate::pacing`] does: CI
+//! compiles and tests this crate and doesn't compile `exhale-app`
 //!
-//! **A preset sets the four durations and nothing else,** leaving drift
+//! A preset sets the four durations and nothing else, leaving drift
 //! and the randomisation sliders untouched. Clicking one can therefore
 //! never discard a value the user tuned by hand, which is the property
 //! that lets selection be *derived* by comparing four numbers instead
@@ -14,8 +14,8 @@
 //! drift does to the rate, so nothing about the resulting pace goes
 //! unsaid
 //!
-//! **Labels name the pattern, never the rate.** A chip reading "6 a
-//! minute" would be a claim about which rate is worth choosing; a chip
+//! Labels name the pattern and leave the rate out. A chip reading "6 a
+//! minute" would be a claim about which rate is worth choosing. A chip
 //! reading "5/0/5/0" is a description of what the four steppers below
 //! it are about to say, in their own order: inhale, post-inhale hold,
 //! exhale, post-exhale hold. It's the notation the README already
@@ -25,29 +25,30 @@
 //! live by [`crate::pacing::readout_lines`] for whichever pattern is
 //! active. That's why no preset carries its own evidentiary caption: the
 //! panel already volunteers "slower than any of them" the instant box
-//! breathing is selected, for every pattern rather than only the ones
-//! someone remembered to annotate
+//! breathing is selected, and it covers every pattern without anyone
+//! having to remember to annotate it
 //!
-//! `citekey` is provenance. It never reaches the screen. It exists so
+//! `citekey` is provenance and never reaches the screen. It exists so
 //! `scripts/generate-citations.py` can refuse to build when a shipped
-//! preset points at a record that has been retracted, downgraded to
-//! tier E, or marked as one the binary may not lean on
+//! preset points at a record that's missing from the corpus, sits in
+//! the wrong group, has been downgraded to tier E, or is marked as one
+//! the binary may not lean on
 
-use crate::settings::Settings;
+use crate::settings::{Settings, TIMING_EPS};
 
 /// One offered pattern. Four durations, a label describing them, and a
 /// corpus record that has to still hold up for the preset to ship
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Preset {
-    /// Stable identifier. Not shown; used by tests and by any future
+    /// Stable identifier. Not shown, used by tests and by any future
     /// telemetry-free bookkeeping. Never renamed casually, because a
     /// rename is invisible in the UI and silent in the diff
     pub id: &'static str,
-    /// What the chip says. Describes the pattern, never the rate
+    /// What the chip says. Describes the pattern and leaves the rate out
     pub label: &'static str,
-    /// A name or a fact about identity, never about effect. `None`
-    /// when the pattern has nothing to add that the readout below
-    /// doesn't already say better
+    /// A name or a fact about identity that says nothing about effect.
+    /// `None` when the pattern has nothing to add that the readout
+    /// below doesn't already say better
     pub note: Option<&'static str>,
     pub inhale: f64,
     pub post_inhale_hold: f64,
@@ -62,22 +63,20 @@ pub struct Preset {
 impl Preset {
     /// True when `settings` currently holds exactly this pattern
     ///
-    /// The epsilon is the one `SettingsDiff::from` uses on these same
-    /// four fields. Sharing it's deliberate: "this chip looks
+    /// Compares with [`TIMING_EPS`], the same epsilon `SettingsDiff::from`
+    /// uses on these same four fields, because "this chip looks
     /// selected" and "changing this field marks settings dirty" must
     /// agree, or a chip can appear selected while a save is pending
     /// that will unselect it
-    pub fn matches(&self, settings: &Settings) -> bool {
-        const EPS: f64 = 1e-9;
-        (settings.inhale_duration - self.inhale).abs() < EPS
-            && (settings.post_inhale_hold_duration - self.post_inhale_hold).abs() < EPS
-            && (settings.exhale_duration - self.exhale).abs() < EPS
-            && (settings.post_exhale_hold_duration - self.post_exhale_hold).abs() < EPS
+    pub(crate) fn matches(&self, settings: &Settings) -> bool {
+        (settings.inhale_duration - self.inhale).abs() < TIMING_EPS
+            && (settings.post_inhale_hold_duration - self.post_inhale_hold).abs() < TIMING_EPS
+            && (settings.exhale_duration - self.exhale).abs() < TIMING_EPS
+            && (settings.post_exhale_hold_duration - self.post_exhale_hold).abs() < TIMING_EPS
     }
 
     /// Write this pattern's four durations into `settings`, leaving
-    /// every other field alone. See the module comment for why the
-    /// omission is the point
+    /// every other field alone. See the module comment for the reason
     pub fn apply(&self, settings: &mut Settings) {
         settings.inhale_duration = self.inhale;
         settings.post_inhale_hold_duration = self.post_inhale_hold;
@@ -88,14 +87,13 @@ impl Preset {
 
 /// The offered set, in display order
 ///
-/// Ordered gentlest-first by the standard the corpus actually
-/// supports, which is the tested range rather than apparent
-/// simplicity. The two patterns that fall outside it come last and are
-/// still offered: `4 / 4 / 4 / 4` because people arrive looking for it
-/// by name, and `5 s in, 10 s out` because it's what exhale has
-/// shipped for years and removing it from the list would not remove it
-/// from anybody's installed configuration. A list that quietly omitted
-/// its own default would be the least honest version of this feature
+/// Ordered gentlest-first by the standard the corpus supports, which
+/// is the tested range. The two patterns that fall outside it come
+/// last and are still offered: `4 / 4 / 4 / 4` because people arrive
+/// looking for it by name, and `5 s in, 10 s out` because it's what
+/// exhale has shipped for years and removing it from the list wouldn't
+/// remove it from anybody's installed configuration. A list that
+/// quietly omitted its own default would mislead
 pub const PRESETS: &[Preset] = &[
     Preset {
         id: "even-5",
@@ -144,8 +142,8 @@ pub const PRESETS: &[Preset] = &[
     Preset {
         // Kept in the list because it was the default before 5/0/5/0 and
         // is still what every existing settings.toml holds. Removing it
-        // from the offered set would not remove it from anyone's machine,
-        // it would just make their own configuration unnameable
+        // from the offered set wouldn't remove it from anyone's machine
+        // and would make their own configuration unnameable
         id: "long-exhale-5-10",
         label: "5/0/10/0",
         note: None,
@@ -159,10 +157,9 @@ pub const PRESETS: &[Preset] = &[
 
 /// Index of the preset the current settings match, if any
 ///
-/// `None` is a first-class answer and renders as no chip selected. There's
-/// deliberately no "Custom" chip to fall back on: a chip that can't be
-/// clicked to any effect is still a Tab stop, and this window already
-/// documents that hazard twice
+/// `None` renders as no chip selected. There's no "Custom" chip to fall
+/// back on: a chip that can't be clicked to any effect is still a Tab
+/// stop, and this window already documents that hazard twice
 pub fn selected(settings: &Settings) -> Option<usize> {
     PRESETS.iter().position(|p| p.matches(settings))
 }
@@ -283,10 +280,10 @@ mod tests {
     fn every_preset_names_a_corpus_entry() {
         // The Rust half of the gate. The other half lives in
         // `scripts/generate-citations.py`, which resolves these
-        // against the corpus and rejects a retracted, tier-E or
-        // non-in-app-citable record. This side only proves the field
+        // against the corpus and rejects a missing, wrong-group, tier-E
+        // or non-in-app-citable record. This side only proves the field
         // is populated and plausibly shaped, so a typo'd empty string
-        // fails here rather than being silently skipped there
+        // fails here before it can be silently skipped there
         for p in PRESETS {
             assert!(!p.citekey.is_empty(), "{} has no citekey", p.id);
             assert!(
@@ -302,7 +299,7 @@ mod tests {
         // support, and neither hides it: selecting either makes the
         // readout say so. This test is the link between the two
         // modules, so deleting the coverage line from `pacing` fails
-        // here rather than quietly making the chip list a
+        // here before it can quietly turn the chip list into a
         // recommendation
         for (id, expect_in_band) in [
             ("even-5", true),

@@ -1,0 +1,6 @@
+# Pins the toolchain every build uses, here and in CI, so a lint that lands
+# in a new stable shows up in both places on the same day. Bump it on purpose
+[toolchain]
+channel    = "1.98.1"
+profile    = "minimal"
+components = ["clippy"]

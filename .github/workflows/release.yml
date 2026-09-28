@@ -3,15 +3,15 @@
 #
 # Fires on any `v*` tag push (e.g. `git tag v2.0.8 && git push --tags`) and
 # on manual `workflow_dispatch`.  Each platform job builds, packages, and
-# uploads its artefact; the `release` job gathers them and attaches them to
+# uploads its artefact. The `release` job gathers them and attaches them to
 # a GitHub Release
 #
-# Store submission (Mac App Store / Microsoft Store / Snap Store) is NOT
+# Store submission (Mac App Store / Microsoft Store / Snap Store) isn't
 # automated here: those require interactive secret setup (Apple App-Store-
 # Connect API key, Partner Center MSIX submission).  Snap Store upload is
 # manual: see the linux-snap job below for the one-line multipass command
 #
-# Secrets referenced (all optional; jobs gracefully degrade if missing):
+# Secrets referenced (all optional: jobs gracefully degrade if missing):
 #   MACOS_APP_IDENT_P12       base64 of the Mac App Distribution .p12
 #   MACOS_APP_IDENT_PASSWORD  password for the p12
 #   MACOS_INSTALLER_P12       base64 of the Mac Installer Distribution .p12
@@ -34,11 +34,11 @@ on:
         required: false
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
-  # Do NOT set `RUSTFLAGS: -D warnings` here: third-party macro crates
+  # Don't set `RUSTFLAGS: -D warnings` here: third-party macro crates
   # (e.g. `objc`) emit check-cfg warnings that we can't suppress from our
   # side, and escalating those to errors breaks the macOS / Linux builds
 
@@ -58,9 +58,15 @@ jobs:
 
       - id: version
         shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
-            V="${{ inputs.version }}"
+          if [[ -n "$INPUT_VERSION" ]]; then
+            if [[ ! "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "error: inputs.version '$INPUT_VERSION' must look like X.Y.Z (e.g. 2.0.8)" >&2
+              exit 1
+            fi
+            V="$INPUT_VERSION"
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             V="${GITHUB_REF#refs/tags/v}"
           else
@@ -68,7 +74,7 @@ jobs:
           fi
           # BUILD = commit count + 10000. Apple requires CFBundleVersion to
           # be monotonically increasing across all uploads, so derive from
-          # commit count (always growing) rather than VERSION (would collide
+          # commit count (always growing) instead of VERSION (would collide
           # on every resubmission). See rust/scripts/release.sh for context
           BUILD="$(( $(git rev-list --count HEAD) + 10000 ))"
           echo "version=$V"                  >> "$GITHUB_OUTPUT"
@@ -89,7 +95,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/rust-toolchain
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
@@ -102,7 +108,7 @@ jobs:
         # bundle-mas.sh wraps codesign + productbuild in `gtimeout` so a
         # hang in Apple's TSA or installer-cert chain validation fails the
         # job in minutes instead of eating an hour-plus of runner time.
-        # gtimeout ships with GNU coreutils; macOS doesn't include it by default
+        # gtimeout ships with GNU coreutils. macOS doesn't include it by default
         run: brew install coreutils
 
       - name: Import signing identities
@@ -130,16 +136,16 @@ jobs:
 
           # Apple Worldwide Developer Relations CA intermediates. codesign
           # passes the chain validation on its own, but productbuild --sign
-          # walks the chain more strictly; on a fresh CI keychain (no Xcode-
+          # walks the chain more strictly. On a fresh CI keychain (no Xcode-
           # installed intermediates) it blocks indefinitely. Apple distribution
           # certs issued in different eras chain via different WWDR generations
-          # (G3 -> ~2024, G6 current as of 2026); import all generations so the
+          # (G3 -> ~2024, G6 current as of 2026). Import all generations so the
           # cert's actual issuer is present regardless of when it was issued
           for cer in \
               AppleWWDRCAG3.cer AppleWWDRCAG4.cer AppleWWDRCAG6.cer \
               AppleIncRootCertificate.cer AppleRootCA-G3.cer; do
-              # `|| true` so a future-dropped cert URL doesn't fail the job;
-              # only the cert that matches our installer's chain matters
+              # `|| true` so a future-dropped cert URL doesn't fail the job.
+              # Only the cert that matches our installer's chain matters
               curl -fsSL "https://www.apple.com/certificateauthority/$cer" \
                   -o "$RUNNER_TEMP/$cer" \
                   && security import "$RUNNER_TEMP/$cer" -k "$KC" -T /usr/bin/productbuild 2>/dev/null \
@@ -154,13 +160,13 @@ jobs:
           DRY_RUN: ${{ env.HAS_MAC_CERTS == 'true' && '0' || '1' }}
           # SKIP_PKG: bundle-mas.sh produces a signed .app but skips both
           # productbuild and zip.  Productbuild deterministically hangs on
-          # the runners (see DEPLOYMENT.md "CI caveat"); zipping the Apple-
+          # the runners (see DEPLOYMENT.md "CI caveat"). Zipping the Apple-
           # Distribution-signed .app produces a binary that launchd refuses
           # to spawn outside the App Store (the embedded provisioning
           # profile + sandbox entitlements only validate via MAS delivery).
           # Net: there's no shippable macOS artifact from CI today. The
           # actual MAS submission is built locally and uploaded via
-          # Transporter; this job's only purpose is verifying the macOS
+          # Transporter. This job's only purpose is verifying the macOS
           # build still compiles + signs cleanly on tag push
           SKIP_PKG: '1'
         run: |
@@ -175,7 +181,7 @@ jobs:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/rust-toolchain
         with:
           targets: x86_64-unknown-linux-gnu
 
@@ -232,7 +238,7 @@ jobs:
   # Upload is MANUAL: every snapcraft path we tried (snap @ latest/7.x/8.x,
   # snapcore/action-publish, `pip install snapcraft`, direct curl REST API)
   # crashed with the same `018h` byte in the discharge macaroon. CI builds
-  # the .snap as an artifact; download it and run on a local Multipass VM:
+  # the .snap as an artifact. Download it and run on a local Multipass VM:
   #
   #   gh run download <run-id> -n linux-snap-<VERSION>
   #   multipass transfer exhale-app_<VERSION>_amd64.snap snap-creds:/tmp/
@@ -253,7 +259,7 @@ jobs:
           # Pre-install what the `gnome` extension would otherwise fetch
           # mid-build.  Previous destructive-mode attempts died with a
           # bare "Error installing snap" when snapcraft tried to install
-          # these itself; pre-staging sidesteps that
+          # these itself. Pre-staging sidesteps that
           sudo snap install core22
           sudo snap install gnome-42-2204
           sudo snap install gtk-common-themes
@@ -291,7 +297,7 @@ jobs:
       HAS_WIN_CERT: ${{ secrets.WINDOWS_CERT_PFX != '' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/rust-toolchain
         with:
           targets: x86_64-pc-windows-msvc
 
@@ -337,6 +343,8 @@ jobs:
     needs: [prepare, macos, linux-direct, linux-snap, windows]
     if:    startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v5
         with:

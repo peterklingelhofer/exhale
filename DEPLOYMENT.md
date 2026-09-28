@@ -1,6 +1,6 @@
 # Deployment
 
-How to ship a new exhale release to the three stores plus the GitHub Releases page. Each section is independent. Run them in any order; nothing depends on anything else cross-platform.
+How to ship a new exhale release to the three stores plus the GitHub Releases page. Each section is independent. Run them in any order. Nothing depends on anything else cross-platform.
 
 ## At a glance
 
@@ -67,7 +67,7 @@ rust/scripts/bundle-mas.sh
 VERSION=2.0.20 BUILD=2020 rust/scripts/bundle-mas.sh
 ```
 
-What it does (read the source for line-by-line; [bundle-mas.sh](rust/scripts/bundle-mas.sh)):
+What it does (read the source for line-by-line: [bundle-mas.sh](rust/scripts/bundle-mas.sh)):
 
 1. Builds the Rust binary `--release --no-default-features` for both `aarch64-apple-darwin` and `x86_64-apple-darwin`, `lipo`'d into a universal binary. The `--no-default-features` build drops the global-hotkey crate since the Carbon hotkey API is sandbox-prohibited
 2. Generates `AppIcon.icns` from [swift/exhale/Assets.xcassets/AppIcon.appiconset/exhaleColorGradient1024.png](swift/exhale/Assets.xcassets/AppIcon.appiconset/exhaleColorGradient1024.png) (the canonical 1024 master shared with the Swift project)
@@ -92,7 +92,7 @@ codesign --verify --deep --strict --verbose=2 rust/target/mas/exhale.app
 codesign -d --entitlements - rust/target/mas/exhale.app
 ```
 
-**Do NOT try `sudo installer -pkg … -target /` on an MAS-signed `.pkg`.** The 3rd-Party-Mac-Developer-Installer signature + embedded provisioning profile only validate when the package is delivered through the Mac App Store / TestFlight pipeline. `installer(8)` claims success and writes a `pkgutil` receipt, but macOS silently refuses to drop the `.app` into `/Applications`, so the install looks broken when nothing is actually wrong. For sandbox / runtime verification, run the unsigned `cargo run --no-default-features` build directly (no sandbox), or wait for TestFlight after Transporter upload (real sandbox + real delivery).
+**Don't try `sudo installer -pkg ... -target /` on an MAS-signed `.pkg`.** The 3rd-Party-Mac-Developer-Installer signature + embedded provisioning profile only validate when the package is delivered through the Mac App Store / TestFlight pipeline. `installer(8)` claims success and writes a `pkgutil` receipt, but macOS silently refuses to drop the `.app` into `/Applications`, so the install looks broken when nothing is wrong. For sandbox / runtime verification, run the unsigned `cargo run --no-default-features` build directly (no sandbox), or wait for TestFlight after Transporter upload (real sandbox + real delivery).
 
 If a TestFlight install crashes immediately but `cargo run` was fine, the sandbox is biting. Look in `~/Library/Logs/DiagnosticReports/exhale*.crash` for `deny(1) file-read-data` or similar.
 
@@ -104,7 +104,7 @@ If a TestFlight install crashes immediately but `cargo run` was fine, the sandbo
 open -a Transporter rust/target/mas/exhale.pkg
 ```
 
-Sign in with the Apple ID on the developer account, click **Deliver**. Apple validates the signature, sandbox, icon set, and entitlements server-side; you get an email within ~15 minutes with either "Processed by App Store Connect" or a list of validation failures.
+Sign in with the Apple ID on the developer account, click **Deliver**. Apple validates the signature, sandbox, icon set, and entitlements server-side. You get an email within ~15 minutes with either "Processed by App Store Connect" or a list of validation failures.
 
 **Scripted alternative:** `xcrun iTMSTransporter`. The older `xcrun altool --upload-app` was removed in Xcode 15, so it's no longer an option. `xcrun notarytool` is for non-Store notarization and isn't used for MAS submissions. If you want CI to upload automatically, plumb iTMSTransporter (or the App Store Connect REST API with a JWT) in a new step on the `macos` job in [release.yml](.github/workflows/release.yml).
 
@@ -126,11 +126,11 @@ App Store Connect -> exhale -> macOS App -> Prepare for Submission:
 3. Confirm pricing (free), age rating, availability
 4. Add for Review -> Submit to App Review
 
-Typical SLA is 24–48 hours. First-time submissions can take 1–3 days.
+Typical SLA is 24 to 48 hours. First-time submissions can take 1 to 3 days.
 
 Common rejection reasons for exhale specifically:
 - **App Store Connect agreements unsigned.** First-time-each-year hurdle. Check Agreements, Tax, and Banking before submitting
-- **Reviewer "can't find the UI".** Add a note in App Review Information: "App runs in the menu bar; click the ring icon for Preferences."
+- **Reviewer "can't find the UI".** Add a note in App Review Information: "App runs in the menu bar. Click the ring icon for Preferences."
 - **Sandbox violations.** Almost always a new entitlement we added without updating [bundle-mas.sh](rust/scripts/bundle-mas.sh#L196-L207)
 
 ### Update cycle
@@ -138,7 +138,7 @@ Common rejection reasons for exhale specifically:
 For every subsequent release:
 
 1. Bump `version` in `rust/crates/exhale-app/Cargo.toml` (or run `rust/scripts/release.sh X.Y.Z`)
-2. `VERSION=… rust/scripts/bundle-mas.sh` **locally** (see CI caveat)
+2. `VERSION=... rust/scripts/bundle-mas.sh` **locally** (see CI caveat)
 3. Upload via Transporter
 4. App Store Connect -> new version -> pick the build -> release notes -> submit
 
@@ -203,7 +203,7 @@ The script ([bundle-msix.ps1](rust/scripts/bundle-msix.ps1)) builds the binary `
 
 For Microsoft Store submissions, code signing is **optional** because Partner Center re-signs the submitted MSIX with the Store's own certificate. The script's `-CertPath` / `-CertPassword` flags are only needed for:
 
-- Sideload installation (`Add-AppxPackage -Path …` without going through the Store)
+- Sideload installation (`Add-AppxPackage -Path ...` without going through the Store)
 - CI smoke tests
 
 To self-sign for sideload testing:
@@ -221,11 +221,11 @@ rust\scripts\bundle-msix.ps1 `
 3. Validate (Partner Center checks signature, manifest, asset sizes server-side)
 4. Submit for certification
 
-Microsoft cert review is usually faster than Apple: most updates clear in 6–12 hours.
+Microsoft cert review is usually faster than Apple: most updates clear in 6 to 12 hours.
 
 ### Standalone `.exe`
 
-`cargo build --release -p exhale-app` from the `rust/` dir produces a fully self-contained `target/release/exhale.exe`. This is what the GitHub Release attaches (no MSIX wrapping). Users get a "publisher unknown" SmartScreen warning since the standalone exe isn't code-signed; the warning is bypassable via "More info -> Run anyway" but is the cost of not buying a Windows code-signing cert (~$200–400/year). The Store MSIX is the no-warning install path.
+`cargo build --release -p exhale-app` from the `rust/` dir produces a fully self-contained `target/release/exhale.exe`. This is what the GitHub Release attaches (no MSIX wrapping). Users get a "publisher unknown" SmartScreen warning since the standalone exe isn't code-signed. The warning is bypassable via "More info -> Run anyway" but is the cost of not buying a Windows code-signing cert (~$200-400/year). The Store MSIX is the no-warning install path.
 
 ---
 

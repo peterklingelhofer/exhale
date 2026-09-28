@@ -24,7 +24,7 @@ use exhale_core::{
 /// |     44 |    4 | circle_gradient_scale|
 /// |     48 |    4 | ripple_enabled       |
 /// |     52 |    4 | display_mode         | 0=normal 1=paused 2=stopped
-/// |  56–63 |    8 | explicit padding     | ← aligns vec4 at offset 64
+/// |  56-63 |    8 | explicit padding     | aligns vec4 at offset 64
 /// |     64 |   16 | background_color     |
 /// |     80 |   16 | inhale_color         |
 /// |     96 |   16 | exhale_color         |
@@ -66,7 +66,7 @@ pub mod display_mode {
 impl OverlayUniforms {
     /// Build a uniform buffer from the current breathing state and user settings
     ///
-    /// `max_circle_scale` is passed in (rather than derived from the viewport)
+    /// `max_circle_scale` is passed in (instead of derived from the viewport)
     /// so all monitors can share the primary-monitor scale, matching Swift's
     /// `getMaxCircleScale()` which snapshots `NSScreen.main` once at onAppear
     pub fn from_state(

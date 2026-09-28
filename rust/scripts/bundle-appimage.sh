@@ -6,7 +6,7 @@
 #   exhale-${VERSION}-x86_64.AppImage: single-file portable Linux app
 #
 # Requirements
-#   - Linux host (appimagetool is Linux-only; macOS users should let CI run this)
+#   - Linux host (appimagetool is Linux-only. macOS users should let CI run this)
 #   - Rust toolchain with `x86_64-unknown-linux-gnu` target
 #   - System libraries listed in snapcraft.yaml (libx11-dev, libxkbcommon-dev,
 #     libwayland-dev, libglib2.0-dev, libgtk-3-dev, libayatana-appindicator3-dev,
@@ -33,8 +33,8 @@ PKG_DIR="$RUST_ROOT/packaging/linux/appimage"
 OUT_DIR="$RUST_ROOT/target/appimage"
 APPDIR="$OUT_DIR/exhale.AppDir"
 TOOL_DIR="$OUT_DIR/bin"
-# Named after the release asset, not `appimagetool`: that name holds the old
-# AppImageKit build in existing checkouts, which must not be reused
+# Named after the release asset. Existing checkouts hold the old AppImageKit
+# build under the plain `appimagetool` name, which must not be reused
 APPIMAGETOOL="$TOOL_DIR/appimagetool-x86_64.AppImage"
 
 VERSION="${VERSION:-2.0.23}"
@@ -46,7 +46,7 @@ die() { printf '\033[1;31m[appimage] error:\033[0m %s\n' "$*" >&2; exit 1; }
 
 case "$(uname -s)" in
     Linux*) ;;
-    *) die "appimagetool requires Linux; run this via GitHub Actions or a Linux VM." ;;
+    *) die "appimagetool requires Linux. Run this via GitHub Actions or a Linux VM." ;;
 esac
 
 for t in cargo rustup patchelf; do
@@ -55,7 +55,7 @@ done
 
 # ── 1. Build the Rust binary ─────────────────────────────────────────────────
 log "cargo build --release --no-default-features --target x86_64-unknown-linux-gnu"
-rustup target add x86_64-unknown-linux-gnu >/dev/null
+(cd "$RUST_ROOT" && rustup target add x86_64-unknown-linux-gnu >/dev/null)
 (cd "$RUST_ROOT" && \
     cargo build --release --no-default-features -p exhale-app \
         --target x86_64-unknown-linux-gnu)
@@ -66,7 +66,7 @@ BIN_PATH="$RUST_ROOT/target/x86_64-unknown-linux-gnu/release/exhale"
 # ── 2. Fetch appimagetool if needed ──────────────────────────────────────────
 mkdir -p "$TOOL_DIR"
 if [[ ! -x "$APPIMAGETOOL" ]]; then
-    log "downloading appimagetool…"
+    log "downloading appimagetool..."
     curl -fsSL -o "$APPIMAGETOOL" \
         "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
     chmod +x "$APPIMAGETOOL"

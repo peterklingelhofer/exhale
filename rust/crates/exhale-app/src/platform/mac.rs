@@ -1,4 +1,4 @@
-//! macOS implementation of the platform layer; see the parent
+//! macOS implementation of the platform layer.  See the parent
 //! `platform` module for the public API surface and cross-platform
 //! stubs
 
@@ -6,7 +6,7 @@ use super::*;
 
 
     // ─── AppKit constants: named here so the call sites read like the
-    //     Apple docs rather than as bare ints
+    //     Apple docs instead of as bare ints
 
     /// `NSScreenSaverWindowLevel`: overlay floats just below the
     /// screensaver layer, above fullscreen apps.  Matches Swift's
@@ -19,10 +19,14 @@ use super::*;
     /// would normally hide behind a window at this level, so
     /// [`register_menu_tracking_observer`] raises any
     /// `NSPopUpMenuWindowLevel` window above settings while it's
-    /// tracking: modifying the menu's own NSWindow rather than the
+    /// tracking: modifying the menu's own NSWindow instead of the
     /// settings NSWindow, which keeps NSMenu from interpreting the
     /// reorder as a focus-loss and cancelling tracking
     const NS_WINDOW_LEVEL_SETTINGS:      NSWindowLevel = 1001;
+    /// Popup menus and the About panel sit one level above settings
+    /// so neither opens behind it.  [`register_menu_tracking_observer`]
+    /// lifts popup-menu windows here while they're tracking
+    const NS_WINDOW_LEVEL_POPUP:         NSWindowLevel = 1002;
 
     /// `NSVisualEffectMaterial.popover` (6): neutral dark blur, used
     /// behind the settings panel in Dark mode
@@ -31,7 +35,7 @@ use super::*;
     /// subtle tint, used in Light mode
     const VEV_MATERIAL_HUD_WINDOW:       i64 = 8;
     /// `NSVisualEffectBlendingMode.behindWindow` (0): composite the
-    /// blur against whatever is behind the VEV's window; `withinWindow`
+    /// blur against whatever is behind the VEV's window.  `withinWindow`
     /// mode would blur sibling content inside its own window instead
     const VEV_BLENDING_BEHIND_WINDOW:    i64 = 0;
     /// `NSVisualEffectState.active` (1): always render the full blur
@@ -70,8 +74,8 @@ use super::*;
         use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
         // `window_handle()` is fallible: a closed/destroyed window
-        // during cleanup returns `Err(HandleError::Unavailable)`;
-        // treat that as "no NSWindow available" rather than panicking,
+        // during cleanup returns `Err(HandleError::Unavailable)`.
+        // Treat that as "no NSWindow available" instead of panicking,
         // so platform helpers called from shutdown paths degrade
         // gracefully
         let handle = window.window_handle().ok()?;
@@ -102,9 +106,9 @@ use super::*;
         // compositor renders the shadow along the visible-alpha boundaries
         // of our transparent overlay (i.e. wherever the breathing shape
         // fades into transparency), which shows up as a thin grey line at
-        // the top + bottom of the rectangle / outer edge of the circle;
-        // pre-Tahoe this default shadow was effectively invisible on a
-        // borderless transparent window; the new compositor is more
+        // the top + bottom of the rectangle / outer edge of the circle.
+        // Pre-Tahoe this default shadow was effectively invisible on a
+        // borderless transparent window.  The new compositor is more
         // aggressive about painting it. Same fix as the settings backdrop
         // window uses (`install_settings_vibrancy`)
         ns_win.setHasShadow(false);
@@ -126,10 +130,75 @@ use super::*;
         register_menu_tracking_observer();
     }
 
+    /// Define a runtime NSObject subclass called `name`, add `methods`
+    /// to it as (selector, implementation, type encoding) triples,
+    /// register it, then `alloc` / `init` one instance and leak it.
+    /// `ExhaleMenuTracker`, `ExhaleMenuHandler` and `ExhaleAEHandler`
+    /// are all built here.  Each caller keeps the instance for the life
+    /// of the process because whatever it hands the instance to holds
+    /// it weakly or by bare pointer.  Returns `None`, after a warn line,
+    /// when the class pair or the instance can't be created
+    ///
+    /// Adding methods to a class WE created, distinct from any system
+    /// class, is the canonical, App-Store-safe pattern for
+    /// runtime-defined objc classes: nothing here swizzles a system
+    /// class, which keeps Mac App Store review happy.  `Box::leak`
+    /// would be wrong for the leak: this is an Obj-C object owned by
+    /// the runtime, unlike a Rust heap allocation
+    ///
+    /// SAFETY: callers uphold these invariants:
+    ///   * run at most once per `name`, which each caller's `Once`
+    ///     guarantees: no double-allocation of the class pair (which
+    ///     would `objc_registerClassPair` a duplicate name)
+    ///   * every `Imp` is an `extern "C" fn` whose signature matches its
+    ///     encoding once prepended with the implicit `(self, _cmd, ...)`
+    ///     receiver/selector args that every Obj-C method takes
+    unsafe fn leak_handler(
+        name:    &std::ffi::CStr,
+        methods: &[(objc2::runtime::Sel, objc2::runtime::Imp, &std::ffi::CStr)],
+    ) -> Option<*mut objc2::runtime::AnyObject> {
+        use objc2::msg_send;
+        use objc2::runtime::AnyObject;
+
+        let label = name.to_string_lossy();
+        // `super_cls` is `objc2::class!(NSObject)`, a statically-valid
+        // Class pointer: `objc_allocateClassPair` accepts any valid
+        // Class as the superclass
+        let super_cls = objc2::class!(NSObject);
+        let new_cls = objc2::ffi::objc_allocateClassPair(
+            (super_cls as *const _) as *const _,
+            name.as_ptr(),
+            0,
+        );
+        if new_cls.is_null() {
+            // Class with this name already exists: a second call, which
+            // the caller's `Once` already guards against, but we're
+            // defensive
+            log::warn!("{label}: objc_allocateClassPair returned null");
+            return None;
+        }
+
+        for &(sel, imp, types) in methods {
+            let added = objc2::ffi::class_addMethod(new_cls as *mut _, sel, imp, types.as_ptr());
+            if !added.as_bool() {
+                log::warn!("{label}: class_addMethod returned NO for {sel}");
+            }
+        }
+        objc2::ffi::objc_registerClassPair(new_cls as *mut _);
+
+        let instance: *mut AnyObject = msg_send![new_cls, alloc];
+        let instance: *mut AnyObject = msg_send![instance, init];
+        if instance.is_null() {
+            log::warn!("{label}: failed to alloc an instance");
+            return None;
+        }
+        Some(instance)
+    }
+
     /// Idempotently install an `ExhaleMenuTracker` observer that
     /// hoists every popup-menu window above the settings window the
-    /// moment it begins tracking.  Modifies the MENU's own NSWindow
-    /// rather than the settings NSWindow: mutating settings
+    /// moment it begins tracking.  Modifies the menu's own NSWindow
+    /// instead of the settings NSWindow: mutating settings
     /// mid-tracking caused NSMenu to interpret the resulting
     /// window-order event as a focus loss and immediately cancel
     /// tracking ("menu needs three clicks to stick" regression),
@@ -145,11 +214,11 @@ use super::*;
         /// anything below the overlay (level 1000) up to 1002, past
         /// the settings window at 1001.  Status-bar popup menus on
         /// macOS don't necessarily open at the nominal
-        /// `NSPopUpMenuWindowLevel` (101); some AppKit revisions
+        /// `NSPopUpMenuWindowLevel` (101).  Some AppKit revisions
         /// route them through a different NSCarbonMenuWindow
         /// instance whose level depends on the status item's owning
-        /// menu bar.  A precise `level == 101` filter missed those;
-        /// broad sweep matches the menu regardless of which level
+        /// menu bar.  A precise `level == 101` filter missed those.
+        /// A broad sweep matches the menu regardless of which level
         /// AppKit chose, while still leaving our own windows
         /// (overlay 1000, settings 1001, reset alert / about panel
         /// 1002) untouched
@@ -167,7 +236,7 @@ use super::*;
                 if win.is_null() { continue; }
                 let visible: bool = msg_send![win, isVisible];
                 if !visible { continue; }
-                let level: i64 = msg_send![win, level];
+                let level: NSWindowLevel = msg_send![win, level];
 
                 // Diagnostic: identify the window's class name via
                 // the documented `class_getName(Class)` runtime
@@ -191,11 +260,11 @@ use super::*;
                 log::debug!("menu tracker: visible NSWindow class={cls_str} level={level}");
 
                 // Skip our own windows: overlay (1000), settings
-                // (1001), reset alert / about panel (1002);
-                // anything else that's visible and below 1000 is a
+                // (1001), reset alert / about panel (1002).
+                // Anything else that's visible and below 1000 is a
                 // popup of some flavour: promote it
-                if level < 1000 {
-                    let _: () = msg_send![win, setLevel: 1002_i64];
+                if level < NS_WINDOW_LEVEL_SCREEN_SAVER {
+                    let _: () = msg_send![win, setLevel: NS_WINDOW_LEVEL_POPUP];
                     raised += 1;
                 }
             }
@@ -213,22 +282,6 @@ use super::*;
 
         static INIT: Once = Once::new();
         INIT.call_once(|| unsafe {
-            // Allocate `ExhaleMenuTracker` NSObject subclass: same
-            // pattern as `ExhaleAEHandler` (dock reopen) and
-            // `ExhaleMenuHandler` (about-panel options), avoiding
-            // any swizzle of system classes for MAS-review safety
-            let super_cls = objc2::class!(NSObject);
-            let name = c"ExhaleMenuTracker";
-            let new_cls = objc2::ffi::objc_allocateClassPair(
-                (super_cls as *const _) as *const _,
-                name.as_ptr(),
-                0,
-            );
-            if new_cls.is_null() {
-                log::warn!("menu tracker: objc_allocateClassPair returned null");
-                return;
-            }
-
             // Type encoding `v@:@` = void return, (self, _cmd,
             // NSNotification* notif).  AppKit's notification payload
             // would let us inspect the specific NSMenu, but we
@@ -236,18 +289,13 @@ use super::*;
             // same level-promotion treatment
             let begin_sel = objc2::sel!(menuDidBeginTracking:);
             let begin_imp: objc2::runtime::Imp = std::mem::transmute(handle_menu_begin as *const ());
-            objc2::ffi::class_addMethod(new_cls as *mut _, begin_sel, begin_imp, c"v@:@".as_ptr());
-            objc2::ffi::objc_registerClassPair(new_cls as *mut _);
 
             // Leak the instance: NSNotificationCenter retains
             // observers weakly, so a Rust-side drop here would mean
             // a dead observer on the next menu open
-            let instance: *mut AnyObject = msg_send![new_cls, alloc];
-            let instance: *mut AnyObject = msg_send![instance, init];
-            if instance.is_null() {
-                log::warn!("menu tracker: failed to alloc ExhaleMenuTracker");
+            let Some(instance) = leak_handler(c"ExhaleMenuTracker", &[(begin_sel, begin_imp, c"v@:@")]) else {
                 return;
-            }
+            };
 
             let Some(nc_cls) = objc2::runtime::AnyClass::get(c"NSNotificationCenter") else {
                 log::warn!("menu tracker: NSNotificationCenter class not found");
@@ -265,7 +313,7 @@ use super::*;
             // all get the same treatment
             //
             // No corresponding end-tracking observer: the menu's
-            // NSWindow is OS-managed; AppKit destroys or recycles
+            // NSWindow is OS-managed.  AppKit destroys or recycles
             // it on close, so there's nothing to restore
             let begin_name = NSString::from_str("NSMenuDidBeginTrackingNotification");
             let _: () = msg_send![
@@ -279,10 +327,10 @@ use super::*;
     }
 
     /// Reconstruct a `Retained<NSWindow>` from a backdrop pointer the
-    /// caller stashed via [`install_settings_vibrancy`] as a `usize`;
-    /// returns `None` for the zero sentinel (no backdrop was
+    /// caller stashed via [`install_settings_vibrancy`] as a `usize`.
+    /// Returns `None` for the zero sentinel (no backdrop was
     /// installed, env-disabled blur path) or if the runtime says the
-    /// pointer can't be retained (rare; would mean the object was
+    /// pointer can't be retained (rare: would mean the object was
     /// somehow already released)
     ///
     /// SAFETY: relies on the invariant that the only producer of these
@@ -302,10 +350,10 @@ use super::*;
         // owns the `usize` in `vev_ptr` and zeros it in `Drop`
         // before the parent NSWindow itself releases, so any
         // non-zero pointer reaching this line is guaranteed to
-        // still point at a valid retained NSWindow;
+        // still point at a valid retained NSWindow.
         // `Retained::retain` adds a +1 to that retain count, and
         // dropping the returned `Retained` later releases it.  The
-        // cast `usize -> *mut NSWindow` is just a numeric
+        // cast `usize -> *mut NSWindow` is a numeric
         // round-trip: `usize` is the same width as `*mut _` on
         // every macOS target we support
         unsafe { objc2::rc::Retained::retain(backdrop_ptr as *mut objc2_app_kit::NSWindow) }
@@ -317,19 +365,12 @@ use super::*;
     /// than before.  `backdrop_ptr` is the NSWindow* returned by
     /// `install_settings_vibrancy`
     pub fn update_settings_vibrancy(backdrop_ptr: usize, dark_mode: bool) {
-        use objc2::msg_send;
         use objc2::runtime::AnyObject;
-        use objc2_app_kit::NSAppearance;
-        use objc2_foundation::NSString;
         let Some(backdrop) = backdrop_from_ptr(backdrop_ptr) else { return; };
         let Some(vev)      = backdrop.contentView() else { return; };
 
-        // Material choice is identical in both themes today (Swift
-        // parity uses `.hudWindow` for both dark and light).  The
-        // appearance + theme-aware material lookup happens via the
-        // raw `setMaterial:` dispatch below using the int-coded
-        // `VEV_MATERIAL_*` constants: split dark/light there if
-        // future tweaks need divergent materials
+        // `apply_vev_theme` picks the material for the theme (popover
+        // in dark, hudWindow in light) and pins the appearance
 
         unsafe {
             // NSVisualEffectView lives in the AppKit binding crate but
@@ -339,27 +380,48 @@ use super::*;
             // through the raw object pointer (typed AppKit method
             // lookups don't include this selector on NSView)
             let vev_obj: *const AnyObject = &*vev as *const _ as *const AnyObject;
-            let mat_raw: i64 = if dark_mode { VEV_MATERIAL_POPOVER } else { VEV_MATERIAL_HUD_WINDOW };
-            let _: () = msg_send![vev_obj, setMaterial: mat_raw];
+            apply_vev_theme(vev_obj, dark_mode);
+        }
+    }
 
-            let appearance_name = if dark_mode {
-                NSString::from_str("NSAppearanceNameDarkAqua")
-            } else {
-                NSString::from_str("NSAppearanceNameAqua")
-            };
-            if let Some(appearance) = NSAppearance::appearanceNamed(&appearance_name) {
-                // `setAppearance:` comes from the NSAppearanceCustomization
-                // informal protocol; objc2-app-kit doesn't surface it on
-                // NSView's generated bindings, so dispatch through the
-                // raw object
-                let _: () = msg_send![vev_obj, setAppearance: &*appearance];
-            }
+    /// Set the backdrop NSVisualEffectView's per-theme material and pin
+    /// its appearance to match.  Shared by [`install_settings_vibrancy`]
+    /// and [`update_settings_vibrancy`]
+    ///
+    /// SAFETY: `vev_obj` must point at a live NSVisualEffectView, the
+    /// only class the `setMaterial:` selector exists on
+    unsafe fn apply_vev_theme(vev_obj: *const objc2::runtime::AnyObject, dark_mode: bool) {
+        use objc2::msg_send;
+        use objc2_app_kit::NSAppearance;
+        use objc2_foundation::NSString;
+
+        // Per-theme material:
+        //   Dark -> popover   (6): neutral, translucent blur
+        //   Light -> hudWindow (8): strong blur + subtle tint
+        let material: i64 = if dark_mode { VEV_MATERIAL_POPOVER } else { VEV_MATERIAL_HUD_WINDOW };
+        let _: () = msg_send![vev_obj, setMaterial: material];
+
+        // Pin appearance explicitly: blocks AppKit's appearance
+        // propagation through tracking-area / cursor-rect walkers
+        // that can crash when they hit layer setups they weren't
+        // built to walk
+        let appearance_name = if dark_mode {
+            NSString::from_str("NSAppearanceNameDarkAqua")
+        } else {
+            NSString::from_str("NSAppearanceNameAqua")
+        };
+        if let Some(appearance) = NSAppearance::appearanceNamed(&appearance_name) {
+            // `setAppearance:` comes from the NSAppearanceCustomization
+            // informal protocol.  objc2-app-kit doesn't surface it on
+            // NSView's generated bindings, so dispatch through the
+            // raw object
+            let _: () = msg_send![vev_obj, setAppearance: &*appearance];
         }
     }
 
     /// Keep the backdrop NSWindow's frame in lockstep with its parent
     /// (the settings window).  macOS auto-tracks position for child
-    /// windows via `addChildWindow:ordered:`, but NOT size: we call this
+    /// windows via `addChildWindow:ordered:`, but not size: we call this
     /// on every `WindowEvent::Resized` to copy the parent's frame over
     pub fn sync_settings_backdrop_frame(backdrop_ptr: usize) {
         let Some(backdrop) = backdrop_from_ptr(backdrop_ptr) else { return; };
@@ -388,17 +450,17 @@ use super::*;
     ///   • call `sync_settings_backdrop_frame(ptr)` on resize (position
     ///     auto-tracks via child-window, but size doesn't)
     ///
-    /// Opt-out: set `EXHALE_DISABLE_BLUR=1` to skip the backdrop window;
-    /// the window then uses the wgpu tinted-translucent look from
+    /// Opt-out: set `EXHALE_DISABLE_BLUR=1` to skip the backdrop window.
+    /// The window then uses the wgpu tinted-translucent look from
     /// `clear_color_for_theme` alone
     pub fn install_settings_vibrancy(window: &Window, dark_mode: bool) -> usize {
         use objc2::msg_send;
         use objc2::runtime::AnyObject;
         use objc2_app_kit::{
-            NSAppearance, NSBackingStoreType, NSColor, NSView, NSVisualEffectView,
+            NSBackingStoreType, NSColor, NSView, NSVisualEffectView,
             NSWindow, NSWindowCollectionBehavior, NSWindowOrderingMode, NSWindowStyleMask,
         };
-        use objc2_foundation::{MainThreadMarker, NSPoint, NSRect, NSString};
+        use objc2_foundation::{MainThreadMarker, NSPoint, NSRect};
         use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
         if std::env::var_os("EXHALE_DISABLE_BLUR").is_some() {
@@ -443,7 +505,7 @@ use super::*;
 
             // Use the settings window's current screen-space frame so the
             // backdrop starts out exactly overlapping.  AppKit then keeps
-            // position locked via addChildWindow; we lock size from Rust
+            // position locked via addChildWindow.  We lock size from Rust
             let frame: NSRect = ns_win.frame();
 
             // NSBackingStoreBuffered, NSWindowStyleMaskBorderless
@@ -478,8 +540,8 @@ use super::*;
                     | NSWindowCollectionBehavior::FullScreenAuxiliary,
             );
 
-            // NSVisualEffectView filling the backdrop's contentView;
-            // material + blending + state mirror the old in-window install,
+            // NSVisualEffectView filling the backdrop's contentView.
+            // Material + blending + state mirror the old in-window install,
             // except now it composites AppKit-natively against the desktop
             // behind the backdrop window
             let content_bounds = NSRect {
@@ -491,39 +553,22 @@ use super::*;
                 NSVisualEffectView::initWithFrame(alloc, content_bounds)
             };
 
-            // Per-theme material:
-            //   Dark -> popover   (6): neutral, translucent blur
-            //   Light -> hudWindow (8): strong blur + subtle tint
+            // Per-theme material and pinned appearance, the same pair
+            // `update_settings_vibrancy` reapplies on a theme change
             let vev_obj: *const AnyObject = &*vev as *const _ as *const AnyObject;
-            let material: i64 = if dark_mode { VEV_MATERIAL_POPOVER } else { VEV_MATERIAL_HUD_WINDOW };
-            let _: () = msg_send![vev_obj, setMaterial:        material];
+            apply_vev_theme(vev_obj, dark_mode);
             let _: () = msg_send![vev_obj, setBlendingMode:    VEV_BLENDING_BEHIND_WINDOW];
             // State must be `active` (1): the backdrop is an
             // `ignoresMouseEvents` + borderless child window, so it can
-            // never become key; under `followsWindowActiveState` (0)
-            // the VEV would render its INACTIVE (flat desaturated)
+            // never become key.  Under `followsWindowActiveState` (0)
+            // the VEV would render its `inactive` (flat desaturated)
             // appearance permanently,
             // painting a solid grey under the transparent settings
-            // window above and looking identical to an opaque window;
+            // window above and looking identical to an opaque window.
             // CPU cost of always-active is bounded because the VEV
             // only covers the settings window's ~360x880 pt area
             let _: () = msg_send![vev_obj, setState:           VEV_STATE_ACTIVE];
             let _: () = msg_send![vev_obj, setAutoresizingMask: VEV_AUTORESIZE_WIDTH_HEIGHT];
-
-            // Pin appearance explicitly: blocks AppKit's appearance
-            // propagation through tracking-area / cursor-rect walkers
-            // that can crash when they hit layer setups they weren't
-            // built to walk
-            let appearance_name = if dark_mode {
-                NSString::from_str("NSAppearanceNameDarkAqua")
-            } else {
-                NSString::from_str("NSAppearanceNameAqua")
-            };
-            if let Some(appearance) = NSAppearance::appearanceNamed(&appearance_name) {
-                // `setAppearance:` lives on the NSAppearanceCustomization
-                // informal protocol; NSView's generated bindings don't surface it
-                let _: () = msg_send![vev_obj, setAppearance: &*appearance];
-            }
 
             // `setContentView:` typed binding accepts NSView (VEV is a subclass)
             let vev_as_view: &NSView = &vev;
@@ -557,9 +602,9 @@ use super::*;
             // NSWindowOrderingMode::Below = -1: order the backdrop just
             // under the settings window.  AppKit docs: "When invoked, if
             // the child window isn't visible, this method shows it as
-            // part of its ordering logic."; so no separate orderFront
-            // call needed, and adding one before `addChildWindow` could
-            // briefly put the backdrop IN FRONT of the settings window,
+            // part of its ordering logic."  No separate orderFront call
+            // is needed, and adding one before `addChildWindow` could
+            // briefly put the backdrop in front of the settings window,
             // which would occlude the egui content until the next
             // ordering pass
             ns_win.addChildWindow_ordered(&backdrop, NSWindowOrderingMode::Below);
@@ -574,7 +619,7 @@ use super::*;
             // as a raw `usize`.  Paired with `uninstall_settings_vibrancy`
             // which reconstructs via `Retained::from_raw` to drop the
             // refcount.  The raw `usize` ABI keeps the update / sync
-            // helpers binary-stable; converting all three to a typed
+            // helpers binary-stable.  Converting all three to a typed
             // handle is a follow-up
             objc2::rc::Retained::into_raw(backdrop) as usize
         }
@@ -593,7 +638,7 @@ use super::*;
 
         // SAFETY: caller passes back exactly the pointer
         // `install_settings_vibrancy` returned, which is a +1-retained
-        // NSWindow created with `init…`.  Reconstructing the Retained
+        // NSWindow created with `init...`.  Reconstructing the Retained
         // and letting it drop releases that refcount
         let backdrop: objc2::rc::Retained<NSWindow> = unsafe {
             objc2::rc::Retained::from_raw(backdrop_ptr as *mut NSWindow)
@@ -614,16 +659,16 @@ use super::*;
     /// texture.  Returns `(rgba_bytes, width_px, height_px)` on success
     /// or `None` if the symbol isn't found / rasterisation fails
     ///
-    /// The bytes are interleaved RGBA, **non-premultiplied** alpha, 8
+    /// The bytes are interleaved RGBA, non-premultiplied alpha, 8
     /// bits per channel: egui's `ColorImage::from_rgba_unmultiplied`
     /// can ingest them directly.  Drawing happens at 2× scale relative
-    /// to `point_size` so the texture stays crisp on Retina displays;
-    /// at egui-paint time the image is sized back down to its point
+    /// to `point_size` so the texture stays crisp on Retina displays.
+    /// At egui-paint time the image is sized back down to its point
     /// dimensions, and the GPU sampler handles the downsample
     ///
     /// `dark_mode` controls the tint colour: white in dark, black in
-    /// light, matching `Color.primary` from SwiftUI's ControlButton;
-    /// we tint by drawing the symbol into a graphics context with
+    /// light, matching `Color.primary` from SwiftUI's ControlButton.
+    /// We tint by drawing the symbol into a graphics context with
     /// default `sourceOver`, then filling the same rect with the tint
     /// colour using `sourceAtop` so only the alpha-non-zero pixels of
     /// the symbol get coloured in
@@ -654,7 +699,7 @@ use super::*;
             if image.is_null() { return None; }
 
             // [NSImageSymbolConfiguration configurationWithPointSize:weight:scale:]
-            // weight = NSFontWeightRegular (0.0) ; scale = NSImageSymbolScaleMedium (2)
+            // weight = NSFontWeightRegular (0.0), scale = NSImageSymbolScaleMedium (2)
             let config_cls: &AnyClass = AnyClass::get(c"NSImageSymbolConfiguration")?;
             let config: *mut AnyObject = msg_send![
                 config_cls,
@@ -672,14 +717,14 @@ use super::*;
             // hierarchical rendering by default (primary layer at full
             // opacity + secondary layer at ~45% opacity drawn on top),
             // which composites into a near-solid disk after our
-            // `SourceAtop` tint pass and hides the inner glyph cutout;
+            // `SourceAtop` tint pass and hides the inner glyph cutout.
             // `setTemplate:` is macOS 10.6+ so no runtime check is
-            // needed; the resulting NSImage matches what SwiftUI's
+            // needed.  The resulting NSImage matches what SwiftUI's
             // `Image(systemName:)` with no explicit rendering mode
             // produces for the same symbol
             let _: () = msg_send![image, setTemplate: true];
 
-            // Render at 2x for Retina; egui downsamples at sample time
+            // Render at 2x for Retina.  egui downsamples at sample time
             let size: NSSize = msg_send![image, size];
             const SCALE: f64 = 2.0;
             let pixel_w = ((size.width  * SCALE).ceil() as u32).max(1);
@@ -758,10 +803,10 @@ use super::*;
             let total = (pixel_w * pixel_h * 4) as usize;
             let bytes = std::slice::from_raw_parts(bitmap_data, total).to_vec();
 
-            // Release the +1 retain we acquired via `alloc/init…`;
+            // Release the +1 retain we acquired via `alloc/init...`.
             // `graphicsContextWithBitmapImageRep:` only borrowed `rep`
-            // for the duration of `saveGraphicsState`…`restoreGraphicsState`;
-            // by the time we copy the bitmap bytes the GC is done with
+            // for the duration of `saveGraphicsState`...`restoreGraphicsState`.
+            // By the time we copy the bitmap bytes the GC is done with
             // it and the rep can drop.  Without this `release` each
             // call leaked one `NSBitmapImageRep` (~16 KB at 24 pt @ 2×),
             // accumulating as the user opened the settings window
@@ -829,9 +874,9 @@ use super::*;
         image
     }
 
-    /// Fallback setup used when `EXHALE_DISABLE_BLUR=1`.  Just makes the
+    /// Fallback setup used when `EXHALE_DISABLE_BLUR=1`.  This makes the
     /// settings window transparent so the wgpu tinted clear colour is
-    /// visible; no vibrancy, no child window.  Returns 0 so all the
+    /// visible: no vibrancy, no child window.  Returns 0 so all the
     /// vibrancy update/resize hooks are no-ops
     fn setup_transparent_settings_window(window: &Window) -> usize {
         use objc2_app_kit::NSColor;
@@ -885,8 +930,8 @@ use super::*;
             if center.is_null() { return; }
 
             let options = UN_AUTH_ALERT_AND_SOUND;
-            // Closure signature matches Apple's `void (^)(BOOL, NSError*)`;
-            // we don't surface the result anywhere; the user can retry
+            // Closure signature matches Apple's `void (^)(BOOL, NSError*)`.
+            // We don't surface the result anywhere.  The user can retry
             // via the system's permission UI if they denied
             let block = StackBlock::new(
                 |_granted: objc2::runtime::Bool, _err: *mut AnyObject| {},
@@ -929,13 +974,13 @@ use super::*;
     /// About-panel content is sourced from the bundle's `Info.plist`
     /// via the standard `orderFrontStandardAboutPanel:` selector:
     /// `CFBundleShortVersionString` / `CFBundleVersion` /
-    /// `NSHumanReadableCopyright` populate the panel automatically;
-    /// we deliberately avoid attaching a custom
+    /// `NSHumanReadableCopyright` populate the panel automatically.
+    /// We avoid attaching a custom
     /// `exhale_orderFrontAboutPanel:` via `class_addMethod` on the
     /// NSApp delegate because adding methods to system classes can
     /// trip Mac App Store static-analysis flags during review
     ///
-    /// Safe to call multiple times; replaces the existing main menu
+    /// Safe to call multiple times.  Replaces the existing main menu
     /// each call.  Called once from app startup
     pub fn install_main_menu() {
         use objc2::msg_send;
@@ -956,7 +1001,6 @@ use super::*;
             .ok()
             .and_then(|p| p.file_stem().map(|s| s.to_string_lossy().into_owned()))
             .unwrap_or_else(|| "exhale".to_string());
-        let app_name_ns = NSString::from_str(&app_name);
 
         // SAFETY: NSMenu / NSMenuItem constructors are documented to be
         // main-thread-only.  We're on main per the MainThreadMarker above
@@ -991,8 +1035,8 @@ use super::*;
             apple_menu.addItem(&about);
 
             // Directly under About, which is where a macOS app puts the
-            // things that describe itself rather than operate on
-            // anything.  The tray menu carries the same item; this is
+            // things that describe itself instead of operating on
+            // anything.  The tray menu carries the same item.  This is
             // the one a keyboard or VoiceOver user reaches without
             // knowing the tray exists, and NSMenu items are exposed to
             // the accessibility tree even though nothing inside the
@@ -1021,7 +1065,7 @@ use super::*;
             let services_menu = NSMenu::new(mtm);
             services_item.setSubmenu(Some(&services_menu));
             apple_menu.addItem(&services_item);
-            // `setServicesMenu:` is on NSApplication; objc2-app-kit
+            // `setServicesMenu:` is on NSApplication.  objc2-app-kit
             // exposes it as a typed method
             app.setServicesMenu(Some(&services_menu));
             apple_menu.addItem(&NSMenuItem::separatorItem(mtm));
@@ -1072,37 +1116,28 @@ use super::*;
             let edit_menu_title = NSString::from_str("Edit");
             let edit_menu = NSMenu::initWithTitle(mtm.alloc::<NSMenu>(), &edit_menu_title);
 
-            let mk = |title: &str, action: &str, key: &str| -> Retained<NSMenuItem> {
-                // SAFETY: each selector below is a documented standard
-                // first-responder action; the objc runtime routes it
-                // through the first responder chain at click time
-                let sel = match action {
-                    "undo:"           => sel!(undo:),
-                    "redo:"           => sel!(redo:),
-                    "cut:"            => sel!(cut:),
-                    "copy:"           => sel!(copy:),
-                    "paste:"          => sel!(paste:),
-                    "selectAll:"      => sel!(selectAll:),
-                    _ => unreachable!(),
-                };
+            // SAFETY: each selector passed to `mk` below is a documented
+            // standard first-responder action.  The objc runtime routes
+            // it through the first responder chain at click time
+            let mk = |title: &str, action: objc2::runtime::Sel, key: &str| -> Retained<NSMenuItem> {
                 NSMenuItem::initWithTitle_action_keyEquivalent(
                     mtm.alloc::<NSMenuItem>(),
                     &NSString::from_str(title),
-                    Some(sel),
+                    Some(action),
                     &NSString::from_str(key),
                 )
             };
 
-            edit_menu.addItem(&mk("Undo",       "undo:",      "z"));
+            edit_menu.addItem(&mk("Undo",       sel!(undo:),      "z"));
             // Shift+Cmd-Z for Redo.  Mask: NSEventModifierFlags.shift = 1<<17 = 131072
-            let redo = mk("Redo", "redo:", "z");
+            let redo = mk("Redo", sel!(redo:), "z");
             let _: () = msg_send![&redo, setKeyEquivalentModifierMask: (131_072_u64 | 1_048_576_u64)];
             edit_menu.addItem(&redo);
             edit_menu.addItem(&NSMenuItem::separatorItem(mtm));
-            edit_menu.addItem(&mk("Cut",        "cut:",       "x"));
-            edit_menu.addItem(&mk("Copy",       "copy:",      "c"));
-            edit_menu.addItem(&mk("Paste",      "paste:",     "v"));
-            edit_menu.addItem(&mk("Select All", "selectAll:", "a"));
+            edit_menu.addItem(&mk("Cut",        sel!(cut:),       "x"));
+            edit_menu.addItem(&mk("Copy",       sel!(copy:),      "c"));
+            edit_menu.addItem(&mk("Paste",      sel!(paste:),     "v"));
+            edit_menu.addItem(&mk("Select All", sel!(selectAll:), "a"));
 
             edit_item.setSubmenu(Some(&edit_menu));
             edit_item.setTitle(&edit_menu_title);
@@ -1146,7 +1181,7 @@ use super::*;
             app.setWindowsMenu(Some(&window_menu));
 
             // ── Help menu ──────────────────────────────────────────────
-            // Standard macOS app gets a Help menu in the menu bar;
+            // Standard macOS app gets a Help menu in the menu bar.
             // AppKit auto-routes the menu-bar search field through this
             // menu, so users hitting Cmd-? get the system Help search
             let help_item = NSMenuItem::new(mtm);
@@ -1180,11 +1215,6 @@ use super::*;
             // happiest when we don't touch the runtime metaclass for
             // built-in classes
             app.setMainMenu(Some(&main_menu));
-            // Tell AppKit which menu is the Services menu so the
-            // Services submenu auto-populates.  Already set above; this
-            // is the standalone hint that pairs with the parent menu's
-            // app_name title resolution
-            let _ = app_name_ns;
         }
     }
 
@@ -1192,8 +1222,8 @@ use super::*;
     /// existing NSApplication delegate so `DOCK_REOPEN` is set when the user
     /// clicks the Dock icon while the app is already running
     ///
-    /// Bring an already-running `exhale` instance to the foreground;
-    /// called from `single_instance_guard` when the file-lock acquire
+    /// Bring an already-running `exhale` instance to the foreground.
+    /// Called from `single_instance_guard` when the file-lock acquire
     /// fails (i.e. another instance owns the lock)
     ///
     /// Uses `NSRunningApplication.runningApplicationsWithBundleIdentifier:`
@@ -1214,7 +1244,7 @@ use super::*;
         // Match the CFBundleIdentifier used in `scripts/bundle-mas.sh`
         // and the Swift app's Info.plist.  When running as a raw
         // binary (no .app bundle) `NSRunningApplication` won't find a
-        // match; that's fine, the function silently no-ops
+        // match.  That's fine, the function silently no-ops
         let bundle_id = NSString::from_str("peterklingelhofer.exhale");
         unsafe {
             let cls = objc2::class!(NSRunningApplication);
@@ -1251,7 +1281,7 @@ use super::*;
     // passing an explicit options dictionary keyed by the
     // documented `NSAboutPanelOption*` constants (their underlying
     // NSString values are literally the suffix after the prefix: `"ApplicationName"`,
-    // `"ApplicationVersion"`, …).  The version
+    // `"ApplicationVersion"`, ...).  The version
     // string comes from `env!("CARGO_PKG_VERSION")` so it tracks
     // `Cargo.toml` at compile time without any runtime plist lookup
     static MENU_HANDLER: std::sync::atomic::AtomicPtr<objc2::runtime::AnyObject> =
@@ -1259,7 +1289,7 @@ use super::*;
 
     /// Return the leaked `ExhaleMenuHandler` instance set up by
     /// [`ensure_menu_handler_registered`].  Returns `None` only when
-    /// the class registration step failed (extremely unlikely; would
+    /// the class registration step failed (extremely unlikely: would
     /// imply objc runtime allocation failure)
     pub(super) fn menu_handler_instance() -> Option<&'static objc2::runtime::AnyObject> {
         let p = MENU_HANDLER.load(std::sync::atomic::Ordering::Acquire);
@@ -1286,8 +1316,8 @@ use super::*;
         use std::sync::Once;
 
         // The actual menu-item action: assembles an options
-        // dictionary and forwards to AppKit's standard about panel;
-        // signature follows objc method dispatch: (self, _cmd, sender)
+        // dictionary and forwards to AppKit's standard about panel.
+        // Signature follows objc method dispatch: (self, _cmd, sender)
         extern "C" fn show_about(
             _this:   &AnyObject,
             _cmd:    objc2::runtime::Sel,
@@ -1333,13 +1363,13 @@ use super::*;
                 let _: () = msg_send![app, orderFrontStandardAboutPanelWithOptions: dict];
                 let _: () = msg_send![dict, release];
                 // After AppKit shows the panel, hoist its window to
-                // settings-window-plus-one so it can't get covered;
-                // the about panel is owned by AppKit; we look it up
+                // settings-window-plus-one so it can't get covered.
+                // The about panel is owned by AppKit.  We look it up
                 // via its shared key window because the app just
                 // activated and brought it to the foreground
                 let win: *mut AnyObject = msg_send![app, keyWindow];
                 if !win.is_null() {
-                    let _: () = msg_send![win, setLevel: 1002_i64];
+                    let _: () = msg_send![win, setLevel: NS_WINDOW_LEVEL_POPUP];
                     let _: () = msg_send![win, makeKeyAndOrderFront: std::ptr::null::<AnyObject>()];
                 }
             }
@@ -1351,7 +1381,7 @@ use super::*;
         //
         // Sends the URL through `super::open_url`, so the macOS menu bar
         // and the tray menu go through one `https://`-only allowlist
-        // rather than two
+        // instead of two
         extern "C" fn show_research(
             _this:   &AnyObject,
             _cmd:    objc2::runtime::Sel,
@@ -1362,65 +1392,33 @@ use super::*;
 
         static INIT: Once = Once::new();
         INIT.call_once(|| unsafe {
-            // 1. Allocate a new NSObject subclass.  Naming matches
-            //    the existing AppleEvent handler pattern in
-            //    `register_reopen_handler` for consistency
-            let super_cls = objc2::class!(NSObject);
-            let name      = c"ExhaleMenuHandler";
-            let new_cls   = objc2::ffi::objc_allocateClassPair(
-                (super_cls as *const _) as *const _,
-                name.as_ptr(),
-                0,
-            );
-            if new_cls.is_null() {
-                log::warn!("menu handler: objc_allocateClassPair returned null");
-                return;
-            }
-
-            // 2. Add `exhaleShowAbout:`; type encoding `v@:@` = void
-            //    return, (self, _cmd, NSObject* sender).  AppKit
-            //    passes the menu item as `sender` per the standard
-            //    target/action protocol
-            let sel    = objc2::sel!(exhaleShowAbout:);
-            let imp: objc2::runtime::Imp = std::mem::transmute(show_about as *const ());
-            let added  = objc2::ffi::class_addMethod(
-                new_cls as *mut _, sel, imp, c"v@:@".as_ptr(),
-            );
-            if !added.as_bool() {
-                log::warn!("menu handler: class_addMethod returned NO");
-            }
-
-            // Same encoding, same target/action protocol, for the
-            // Research item alongside About
-            let research_sel = objc2::sel!(exhaleShowResearch:);
+            let about_imp: objc2::runtime::Imp = std::mem::transmute(show_about as *const ());
             let research_imp: objc2::runtime::Imp =
                 std::mem::transmute(show_research as *const ());
-            let research_added = objc2::ffi::class_addMethod(
-                new_cls as *mut _, research_sel, research_imp, c"v@:@".as_ptr(),
-            );
-            if !research_added.as_bool() {
-                log::warn!("menu handler: class_addMethod returned NO for research");
-            }
 
-            objc2::ffi::objc_registerClassPair(new_cls as *mut _);
-
-            // 3. Allocate one instance; leak it for the app's
-            //    lifetime (menu-item target+action stores the target
-            //    as a weak reference, so this leak is load-bearing: a
-            //    dropped instance would mean a dead "About"
-            //    selector and the menu item would silently no-op)
-            let instance: *mut AnyObject = msg_send![new_cls, alloc];
-            let instance: *mut AnyObject = msg_send![instance, init];
-            if instance.is_null() {
-                log::warn!("menu handler: failed to alloc ExhaleMenuHandler");
+            // Leak one instance for the app's lifetime (menu-item
+            // target+action stores the target as a weak reference, so
+            // this leak is load-bearing: a dropped instance would mean
+            // a dead "About" selector and the menu item would silently
+            // no-op)
+            let Some(instance) = leak_handler(c"ExhaleMenuHandler", &[
+                // `exhaleShowAbout:`.  Type encoding `v@:@` = void
+                // return, (self, _cmd, NSObject* sender).  AppKit passes
+                // the menu item as `sender` per the standard
+                // target/action protocol
+                (objc2::sel!(exhaleShowAbout:),    about_imp,    c"v@:@"),
+                // Same encoding, same target/action protocol, for the
+                // Research item alongside About
+                (objc2::sel!(exhaleShowResearch:), research_imp, c"v@:@"),
+            ]) else {
                 return;
-            }
+            };
             MENU_HANDLER.store(instance, std::sync::atomic::Ordering::Release);
         });
     }
 
-    /// Register a Dock-reopen handler **without swizzling winit's
-    /// NSApplicationDelegate**.  Previous rounds attached
+    /// Register a Dock-reopen handler without swizzling winit's
+    /// NSApplicationDelegate.  Previous rounds attached
     /// `applicationShouldHandleReopen:hasVisibleWindows:` to whatever
     /// class winit's delegate happened to be via `class_addMethod`,
     /// which is technically public Obj-C runtime API but is the kind
@@ -1434,7 +1432,7 @@ use super::*;
     ///      runtime (`objc_allocateClassPair`, which adds to our own
     ///      namespace, doesn't touch any system class)
     ///   2. Add an `aevtReopen:withReplyEvent:` method to it
-    ///   3. Allocate one instance; leak it so it lives forever
+    ///   3. Allocate one instance, leak it so it lives forever
     ///   4. Register that instance with `NSAppleEventManager` for
     ///      the `kCoreEventClass / kAEReopenApplication` event
     ///
@@ -1446,7 +1444,6 @@ use super::*;
     pub fn register_reopen_handler() {
         use objc2::msg_send;
         use objc2::runtime::AnyObject;
-        
         use std::sync::atomic::Ordering;
         use std::sync::Once;
 
@@ -1460,19 +1457,17 @@ use super::*;
         }
 
         // SAFETY: this entire `Once`-guarded block uses raw objc2
-        // runtime FFI to build, register, and instantiate a brand-new
-        // class `ExhaleAEHandler`.  Each unsafe operation is justified
-        // inline by the surrounding comment.  Aggregate invariants:
+        // runtime FFI, through `leak_handler`, to build, register,
+        // and instantiate a brand-new class `ExhaleAEHandler`.  Each
+        // unsafe operation is justified inline by the surrounding
+        // comment, here or in `leak_handler`.  Aggregate invariants:
         //   * `INIT: Once` guarantees the block runs exactly once per
         //     process: no double-allocation of the class pair (which
         //     would `objc_registerClassPair` a duplicate name)
-        //   * `super_cls` is `objc2::class!(NSObject)`, a statically-
-        //     valid Class pointer: `objc_allocateClassPair` accepts
-        //     any valid Class as the superclass
         //   * `handle_reopen` matches the AppKit-documented signature
         //     `void (^)(NSAppleEventDescriptor*, NSAppleEventDescriptor*)`
-        //     when prepended with the implicit `(self, _cmd, …)`
-        //     receiver/selector args that every Obj-C method takes;
+        //     when prepended with the implicit `(self, _cmd, ...)`
+        //     receiver/selector args that every Obj-C method takes.
         //     `transmute(fn ptr -> Imp)` is layout-compatible because
         //     both are `unsafe extern "C" fn` pointers
         //   * The `Retained::into_raw`-equivalent leak at the end is
@@ -1481,56 +1476,23 @@ use super::*;
         //     registration
         static INIT: Once = Once::new();
         INIT.call_once(|| unsafe {
-            // 1. Create our own NSObject subclass.  Adding methods to
-            //    a class WE created, distinct from any system class,
-            //    is the canonical, App-Store-safe pattern for
-            //    runtime-defined objc classes
-            let super_cls = objc2::class!(NSObject);
-            let name = c"ExhaleAEHandler";
-            let new_cls = objc2::ffi::objc_allocateClassPair(
-                (super_cls as *const _) as *const _,
-                name.as_ptr(),
-                0,
-            );
-            if new_cls.is_null() {
-                // Class with this name already exists: re-entrant
-                // call (only happens if `register_reopen_handler` is
-                // called twice, which `Once` already guards against,
-                // but we're defensive)
-                log::warn!("register_reopen_handler: objc_allocateClassPair returned null");
-                return;
-            }
-
-            // 2. Add the AppleEvent handler method.  Type encoding
-            //    `v@:@@` = void return, (self, _cmd, NSAppleEventDescriptor*, NSAppleEventDescriptor*);
-            //    `c"…"` is a compile-time-nul-terminated C string so
-            //    there's no runtime `CString::new` allocation or
-            //    interior-NUL panic risk
-            let sel    = objc2::sel!(aevtReopen:withReplyEvent:);
+            // The AppleEvent handler method.  Type encoding `v@:@@` =
+            // void return, (self, _cmd, NSAppleEventDescriptor*,
+            // NSAppleEventDescriptor*).  `c"..."` is a
+            // compile-time-nul-terminated C string so there's no
+            // runtime `CString::new` allocation or interior-NUL panic
+            // risk
+            let sel = objc2::sel!(aevtReopen:withReplyEvent:);
             let imp: objc2::runtime::Imp = std::mem::transmute(handle_reopen as *const ());
-            let added  = objc2::ffi::class_addMethod(
-                new_cls as *mut _, sel, imp, c"v@:@@".as_ptr(),
-            );
-            if !added.as_bool() {
-                log::warn!("register_reopen_handler: class_addMethod returned NO");
-            }
-            objc2::ffi::objc_registerClassPair(new_cls as *mut _);
-
-            // 3. Allocate one instance; leak it for the app's lifetime
-            //    (Box::leak would be wrong here: this is an Obj-C
-            //    object owned by the runtime, unlike a Rust heap allocation)
-            let instance: *mut AnyObject = msg_send![new_cls, alloc];
-            let instance: *mut AnyObject = msg_send![instance, init];
-            if instance.is_null() {
-                log::warn!("register_reopen_handler: failed to alloc ExhaleAEHandler");
+            let Some(instance) = leak_handler(c"ExhaleAEHandler", &[(sel, imp, c"v@:@@")]) else {
                 return;
-            }
+            };
 
-            // 4. Register with NSAppleEventManager.  The four-char-code
-            //    constants are `'aevt'` (kCoreEventClass) and `'rapp'`
-            //    (kAEReopenApplication) packed big-endian.  Use u32
-            //    bit-shift to spell them out without
-            //    target-endianness ambiguity
+            // Register with NSAppleEventManager.  The four-char-code
+            // constants are `'aevt'` (kCoreEventClass) and `'rapp'`
+            // (kAEReopenApplication) packed big-endian.  Use u32
+            // bit-shift to spell them out without
+            // target-endianness ambiguity
             const K_CORE_EVENT_CLASS:      u32 =
                   (b'a' as u32) << 24 | (b'e' as u32) << 16
                 | (b'v' as u32) <<  8 |  b't' as u32;
@@ -1560,7 +1522,7 @@ use super::*;
     }
 
     /// Toggle the macOS activation policy:
-    ///   DockOnly / Both -> regular (Dock icon shown; tray still works because
+    ///   DockOnly / Both -> regular (Dock icon shown, tray still works because
     ///                     NSStatusItem is independent of activation policy)
     ///   TopBarOnly -> accessory (menu-bar only, no Dock)
     pub fn apply_app_visibility(vis: AppVisibility, _settings: Option<&Window>) {
@@ -1588,12 +1550,12 @@ use super::*;
     /// `NSWorkspace` and `NSURL` are public, unentitled APIs, so this
     /// works unchanged inside the App Sandbox: `bundle-mas.sh` ships
     /// only app-sandbox + user-selected read-only and needs no new
-    /// entitlement for it.  Reached via `class!` + `msg_send!` rather
-    /// than the typed `objc2-app-kit` bindings so no new cargo
+    /// entitlement for it.  Reached via `class!` + `msg_send!` instead
+    /// of the typed `objc2-app-kit` bindings so no new cargo
     /// feature is needed, matching [`activate_running_exhale`] above
     ///
-    /// `URLWithString:` returns nil for a string AppKit can't parse;
-    /// we null-check rather than passing nil into `openURL:`
+    /// `URLWithString:` returns nil for a string AppKit can't parse.
+    /// We null-check instead of passing nil into `openURL:`
     pub(super) fn open_url_impl(url: &str) {
         use objc2::msg_send;
         use objc2::runtime::AnyObject;
@@ -1622,17 +1584,17 @@ use super::*;
     //   - `render_sf_symbol`: pure data function, easy to check
     //     dimensions / pixel non-zero-ness / dark-vs-light variance
     //   - `apply_app_visibility`: round-trips through the global
-    //     `NSApp.activationPolicy`; the test reads back through an
-    //     INDEPENDENT objc path so a regression in either direction
+    //     `NSApp.activationPolicy`.  The test reads back through an
+    //     independent objc path so a regression in either direction
     //     surfaces
     //   - `register_reopen_handler`, `request_notification_permission`:
-    //     smoke tests (just that they don't panic in a non-bundled
+    //     smoke tests (only that they don't panic in a non-bundled
     //     `cargo test` process)
     //
     // The window-mutating functions (`setup_overlay_window`,
     // `install_settings_vibrancy`, etc.) need a real winit `Window`
     // which requires an event loop, unavailable inside the rust test
-    // harness, so they're intentionally NOT covered here.  Smoke
+    // harness, so they're intentionally not covered here.  Smoke
     // verification of those falls to launching the app and clicking
     // around
     #[cfg(test)]
@@ -1642,7 +1604,7 @@ use super::*;
         use std::sync::Once;
 
         /// Initialise `NSApplication` once per test process.  Some
-        /// AppKit APIs (notably `imageWithSystemSymbolName:` and the
+        /// AppKit APIs (such as `imageWithSystemSymbolName:` and the
         /// `NSBitmapImageRep` graphics-context pipeline used by
         /// `render_sf_symbol`) silently return nil if AppKit hasn't
         /// been bootstrapped via `[NSApplication sharedApplication]`
@@ -1662,10 +1624,10 @@ use super::*;
             });
         }
 
-        /// Read `NSApp.activationPolicy` directly via raw objc2 dispatch;
-        /// this is the verification-side counterpart to
-        /// `apply_app_visibility`'s setter: kept separate (and
-        /// deliberately using the lower-level runtime API rather than
+        /// Read `NSApp.activationPolicy` directly via raw objc2 dispatch.
+        /// This is the verification-side counterpart to
+        /// `apply_app_visibility`'s setter: kept separate (using
+        /// the lower-level runtime API instead of
         /// the typed `NSApplicationActivationPolicy` enum) so a
         /// regression in either path produces a mismatched int and
         /// the test fails loudly
@@ -1682,7 +1644,7 @@ use super::*;
         // The behavior tests below need
         // `NSGraphicsContext.graphicsContextWithBitmapImageRep:` to
         // succeed, which it does in the production app-bundled process
-        // but NOT in a bare `cargo test` binary (AppKit's graphics
+        // but not in a bare `cargo test` binary (AppKit's graphics
         // stack needs an app-bundle / run-loop context that the rust
         // test harness doesn't provide).  They're marked `#[ignore]`
         // so they don't fail CI, but can be run via `cargo test --
@@ -1690,7 +1652,7 @@ use super::*;
         // `render_unknown_symbol_returns_none` test below works in
         // either environment because both return None
         #[test]
-        #[ignore = "needs AppKit graphics-context (bundled app); run manually"]
+        #[ignore = "needs AppKit graphics-context (bundled app), run manually"]
         fn render_known_symbol_returns_data() {
             ensure_nsapp_initialised();
             let out = render_sf_symbol("play.circle.fill", 13.0, false);
@@ -1709,7 +1671,7 @@ use super::*;
         }
 
         #[test]
-        #[ignore = "needs AppKit graphics-context (bundled app); run manually"]
+        #[ignore = "needs AppKit graphics-context (bundled app), run manually"]
         fn dark_and_light_modes_produce_different_pixels() {
             let dark  = render_sf_symbol("play.circle.fill", 13.0, true)
                 .expect("dark render");
@@ -1722,7 +1684,7 @@ use super::*;
         }
 
         #[test]
-        #[ignore = "needs AppKit graphics-context (bundled app); run manually"]
+        #[ignore = "needs AppKit graphics-context (bundled app), run manually"]
         fn larger_point_size_produces_larger_buffer() {
             let small = render_sf_symbol("play.circle.fill", 12.0, false)
                 .expect("small render");
@@ -1736,20 +1698,20 @@ use super::*;
         }
 
         #[test]
-        #[ignore = "needs AppKit graphics-context (bundled app); run manually"]
+        #[ignore = "needs AppKit graphics-context (bundled app), run manually"]
         fn drawn_pixels_are_non_zero() {
             let (bytes, _, _) = render_sf_symbol("play.circle.fill", 24.0, false)
                 .expect("rasterise");
             // At least one pixel must have non-zero alpha: otherwise nothing was drawn
-            let any_drawn = bytes.chunks_exact(4).any(|px| px[3] != 0);
+            let any_drawn = bytes.as_chunks::<4>().0.iter().any(|px| px[3] != 0);
             assert!(any_drawn,
-                "rasterised buffer is fully transparent: the symbol wasn't actually drawn");
+                "rasterised buffer is fully transparent: the symbol wasn't drawn");
         }
 
         #[test]
-        #[ignore = "needs AppKit graphics-context (bundled app); run manually"]
+        #[ignore = "needs AppKit graphics-context (bundled app), run manually"]
         fn point_size_scaling_is_at_least_pixel_dense() {
-            // Buffer is rendered at 2× point size (Retina); allow tiny SF
+            // Buffer is rendered at 2× point size (Retina).  Allow tiny SF
             // Symbol bounding-box padding above the bare point dimension
             let (_, w, _) = render_sf_symbol("play.circle.fill", 20.0, false)
                 .expect("rasterise");
@@ -1798,22 +1760,19 @@ use super::*;
 
         #[test]
         fn register_reopen_handler_does_not_panic() {
-            // Without a delegate (no winit event loop running in the
-            // test harness), the function should bail out via its
-            // `delegate.is_null()` early return.  Idempotent: calling
-            // a second time should also be a no-op because
-            // `class_addMethod` is a no-op if the selector already
-            // exists on the class
+            // The `Once` guard has to make the second call skip the
+            // class registration: allocating the `ExhaleAEHandler`
+            // class pair twice would fail. Two calls, no panic
             register_reopen_handler();
             register_reopen_handler();
         }
 
         #[test]
-        #[ignore = "needs UserNotifications.framework (bundled app); run manually"]
+        #[ignore = "needs UserNotifications.framework (bundled app), run manually"]
         fn request_notification_permission_does_not_panic() {
             // In a non-bundled test process the system will silently
-            // deny / drop the request; we just want to confirm the
-            // objc dispatch doesn't crash on the way out
+            // deny / drop the request.  This confirms the objc
+            // dispatch doesn't crash on the way out
             request_notification_permission();
         }
     }

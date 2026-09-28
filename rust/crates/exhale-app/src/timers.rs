@@ -34,7 +34,7 @@ impl Timers {
     }
 
     /// Earliest time the event loop must wake to service a pending
-    /// timer; returned to `about_to_wait` so it can configure
+    /// timer.  Returned to `about_to_wait` so it can configure
     /// `ControlFlow::WaitUntil`: without this the loop would sleep
     /// forever on idle and miss auto-stop / reminder firings now that
     /// the old per-tick redraw loop no longer wakes it every frame
@@ -122,7 +122,7 @@ fn send_reminder_other() {
 ///
 /// Requires the bundle to be code-signed and to have been granted
 /// `.alert | .sound` authorization (see
-/// `platform::request_notification_permission`); in an unsigned
+/// `platform::request_notification_permission`).  In an unsigned
 /// `cargo run` build the center silently drops the request, which
 /// doesn't affect development
 #[cfg(target_os = "macos")]
@@ -131,7 +131,7 @@ fn send_reminder_macos() {
     use objc2::msg_send;
     use objc2::runtime::{AnyClass, AnyObject};
 
-    // SAFETY: framework class lookups are fallible; skip silently
+    // SAFETY: framework class lookups are fallible.  Skip silently
     // when `UserNotifications.framework` isn't linked (e.g. in a
     // bare `cargo test` binary).  Production app bundle has it
     let (Some(unc_cls), Some(content_cls), Some(sound_cls), Some(req_cls)) = (
@@ -147,7 +147,7 @@ fn send_reminder_macos() {
         if content.is_null() { return; }
 
         let ns_string = objc2::class!(NSString);
-        // C-string literals via `c"…"` are guaranteed nul-terminated
+        // C-string literals via `c"..."` are guaranteed nul-terminated
         // at compile time, no runtime `CString::new(...).unwrap()`,
         // no allocation per reminder fire
         let title:  *mut AnyObject = msg_send![ns_string, stringWithUTF8String: c"exhale".as_ptr()];
@@ -184,8 +184,8 @@ fn send_reminder_macos() {
             ];
         }
 
-        // Balance the +1 retain from `[UNMutableNotificationContent alloc] init]`;
-        // `requestWithIdentifier:…` retains `content` internally, and the
+        // Balance the +1 retain from `[UNMutableNotificationContent alloc] init]`.
+        // `requestWithIdentifier:...` retains `content` internally, and the
         // request / sound / strings / uuid are autoreleased convenience
         // returns that we don't own
         let _: () = msg_send![content, release];
@@ -231,7 +231,7 @@ mod tests {
         t.reschedule_auto_stop(&settings_with(2.0, 0.0, true));
         let deadline = t.auto_stop_deadline.expect("deadline set");
         let dt = deadline.duration_since(before);
-        // 2 minutes = 120s; allow ±100ms for clock noise
+        // 2 minutes = 120s.  Allow ±100ms for clock noise
         assert!(dt >= Duration::from_secs_f64(119.9));
         assert!(dt <= Duration::from_secs_f64(120.1));
     }

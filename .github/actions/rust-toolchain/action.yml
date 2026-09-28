@@ -1,0 +1,23 @@
+name: Rust toolchain
+description: Installs the toolchain rust/rust-toolchain.toml pins, so CI and local builds agree
+
+inputs:
+  targets:
+    description: Extra targets to add, comma separated
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - id: pin
+      shell: bash
+      run: echo "channel=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+
+    # `@master` is the documented way to pass an explicit version. Installing
+    # the pinned name up front means rustup finds it already present when
+    # cargo runs inside rust/ and reads the same file
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ steps.pin.outputs.channel }}
+        components: clippy
+        targets: ${{ inputs.targets }}

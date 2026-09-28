@@ -8,7 +8,7 @@ final class MetalOverlayView: NSView {
 
     init(frame: CGRect, settingsModel: SettingsModel) {
         guard let device = MTLCreateSystemDefaultDevice() else {
-            fatalError("Metal is not supported on this Mac")
+            fatalError("Metal isn't supported on this Mac")
         }
 
         metalView = MTKView(frame: .zero, device: device)

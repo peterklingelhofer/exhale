@@ -6,4 +6,3 @@ pub mod uniforms;
 pub use gpu_context::GpuContext;
 pub use headless::HeadlessRenderer;
 pub use renderer::OverlayRenderer;
-pub use uniforms::OverlayUniforms;

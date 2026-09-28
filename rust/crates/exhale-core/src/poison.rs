@@ -16,52 +16,47 @@
 //!
 //! These helpers take the inner value either way: on `Ok` the normal
 //! guard, on `Err` the wrapped guard via `PoisonError::into_inner`.  A
-//! warning is logged the first time a given lock is observed poisoned
-//! so it's not silently swallowed
-use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+//! warning is logged every time a poisoned lock is recovered, so it's
+//! not silently swallowed
+use std::sync::{Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+
+/// Return the guard either way. On `Err` (the lock was poisoned by a
+/// panic in another thread holding it), log a warning naming `what`
+/// and continue with the wrapped guard
+fn recover<G>(what: &str, r: Result<G, PoisonError<G>>) -> G {
+    match r {
+        Ok(g)  => g,
+        Err(p) => {
+            log::warn!("{what}: recovering with the wrapped value");
+            p.into_inner()
+        }
+    }
+}
 
 pub trait RwLockPoisonExt<T> {
-    /// Read-acquire; on poison, log once and continue with the wrapped guard
+    /// Read-acquire. On poison, log once and continue with the wrapped guard
     fn read_or_recover(&self) -> RwLockReadGuard<'_, T>;
-    /// Write-acquire; on poison, log once and continue with the wrapped guard
+    /// Write-acquire. On poison, log once and continue with the wrapped guard
     fn write_or_recover(&self) -> RwLockWriteGuard<'_, T>;
 }
 
 impl<T> RwLockPoisonExt<T> for RwLock<T> {
     fn read_or_recover(&self) -> RwLockReadGuard<'_, T> {
-        match self.read() {
-            Ok(g)  => g,
-            Err(p) => {
-                log::warn!("RwLock poisoned (read): recovering with the wrapped value");
-                p.into_inner()
-            }
-        }
+        recover("RwLock poisoned (read)", self.read())
     }
     fn write_or_recover(&self) -> RwLockWriteGuard<'_, T> {
-        match self.write() {
-            Ok(g)  => g,
-            Err(p) => {
-                log::warn!("RwLock poisoned (write): recovering with the wrapped value");
-                p.into_inner()
-            }
-        }
+        recover("RwLock poisoned (write)", self.write())
     }
 }
 
 pub trait MutexPoisonExt<T> {
-    /// Lock; on poison, log once and continue with the wrapped guard
+    /// Lock. On poison, log once and continue with the wrapped guard
     fn lock_or_recover(&self) -> MutexGuard<'_, T>;
 }
 
 impl<T> MutexPoisonExt<T> for Mutex<T> {
     fn lock_or_recover(&self) -> MutexGuard<'_, T> {
-        match self.lock() {
-            Ok(g)  => g,
-            Err(p) => {
-                log::warn!("Mutex poisoned: recovering with the wrapped value");
-                p.into_inner()
-            }
-        }
+        recover("Mutex poisoned", self.lock())
     }
 }
 
@@ -79,7 +74,7 @@ mod tests {
             let _g = l2.write().unwrap();
             panic!("intentional poison");
         }).join();
-        // Now the lock is poisoned.  `.unwrap()` would panic; ours recovers
+        // Now the lock is poisoned.  `.unwrap()` would panic. Ours recovers
         let v = *lock.read_or_recover();
         assert_eq!(v, 7);
         *lock.write_or_recover() = 9;

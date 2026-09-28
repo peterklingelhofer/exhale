@@ -1,6 +1,7 @@
-# Pre-release dev builds for the Rust port: runs on every push to the
-# `rust-multiplatform` branch (and `main`) and uploads unsigned,
-# unpackaged binaries for Windows and Linux as workflow artifacts
+# Pre-release dev builds for the Rust port: runs on every push to `main`
+# and on pull requests into it, and uploads unsigned, unpackaged binaries
+# for Windows and Linux as workflow artifacts on the push runs (PR runs
+# build-only, to catch breakage before merge without piling up artifacts)
 #
 # Lets a developer grab a fresh `exhale.exe` / Linux binary without
 # setting up the full local toolchain on the target platform, most
@@ -10,14 +11,17 @@
 # Complements `release.yml`:
 #   - `release.yml` fires on `v*` tags, signs/packages everything as
 #     MSIX / .pkg / .deb / .snap / .AppImage for store submission.
-#   - This workflow fires every push, skips signing/packaging, dumps
-#     the raw release binary for direct execution / manual sideloading
+#   - This workflow fires on every push and pull request, skips signing/
+#     packaging, dumps the raw release binary for direct execution /
+#     manual sideloading
 
 name: Dev Builds
 
 on:
   push:
-    branches: [rust-multiplatform, main]
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -29,8 +33,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install Rust toolchain (stable + ARM64 target)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain (pinned, with the ARM64 target)
+        uses: ./.github/actions/rust-toolchain
         with:
           targets: aarch64-pc-windows-msvc
 
@@ -44,6 +48,7 @@ jobs:
         run: cargo build --release -p exhale-app
 
       - name: Upload x64 artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v5
         with:
           name: exhale-windows-x64
@@ -52,14 +57,14 @@ jobs:
       # ARM64 cross-compile: `windows-2025` ships with the ARM64
       # MSVC build tools as part of the default VS 2022 install, so
       # this should "just work."  Marked continue-on-error in case the
-      # runner image regresses on that; x64 stays available either way
+      # runner image regresses on that. x64 stays available either way
       - name: Build (ARM64)
         working-directory: rust
         run: cargo build --release -p exhale-app --target aarch64-pc-windows-msvc
         continue-on-error: true
 
       - name: Upload ARM64 artifact
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v5
         with:
           name: exhale-windows-arm64
@@ -71,13 +76,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install Rust toolchain (stable)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain (pinned)
+        uses: ./.github/actions/rust-toolchain
 
-      # Same dependency set documented in docs/TESTING.md for local
-      # Linux dev: gtk + wayland + xkbcommon for winit, xdo for
-      # global-hotkey, ssl for HTTP-using crates, appindicator for
-      # tray-icon's Linux backend
+      # Same dependency set as local Linux dev: gtk + wayland + xkbcommon
+      # for winit, xdo for global-hotkey, ssl for HTTP-using crates,
+      # appindicator for tray-icon's Linux backend
       - name: System deps
         run: |
           sudo apt-get update
@@ -95,6 +99,7 @@ jobs:
         run: cargo build --release -p exhale-app
 
       - name: Upload artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v5
         with:
           name: exhale-linux-x64
@@ -102,15 +107,14 @@ jobs:
 
   # Native ARM64 Linux build: runs on GitHub's free `ubuntu-22.04-arm`
   # runner so we don't need cross-compilation gymnastics for the system
-  # dependencies (gtk3, wayland, etc.).  Targets the Ubuntu ARM64
-  # desktop VM used in docs/TESTING.md
+  # dependencies (gtk3, wayland, etc.)
   linux-arm64:
     runs-on: ubuntu-22.04-arm
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install Rust toolchain (stable)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain (pinned)
+        uses: ./.github/actions/rust-toolchain
 
       - name: System deps
         run: |
@@ -129,6 +133,7 @@ jobs:
         run: cargo build --release -p exhale-app
 
       - name: Upload artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v5
         with:
           name: exhale-linux-arm64
