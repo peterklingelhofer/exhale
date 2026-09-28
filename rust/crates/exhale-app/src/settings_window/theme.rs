@@ -14,13 +14,14 @@ use winit::window::Theme;
 use crate::platform;
 
 /// Corner radius used for egui widget chrome (TextEdit, comboboxes,
-/// etc.) inside the settings window.  Hand-painted widgets (stepper,
-/// segmented picker, control button) draw their own rounding via
+/// control buttons, etc.) inside the settings window.  Hand-painted
+/// widgets (stepper, segmented picker) draw their own rounding via
 /// `painter.rect_*` and pass their own constants.  They aren't
 /// affected by this value.  Kept here (not in the parent module's
 /// layout constants) so [`visuals_for_theme`] can be tested in
-/// isolation
-const TEXT_EDIT_RADIUS: f32 = 5.0;
+/// isolation.  `pub(super)` so the control button's focus halo in
+/// `widgets` can stay concentric with the same radius
+pub(super) const TEXT_EDIT_RADIUS: f32 = 5.0;
 
 /// Load the OS-native UI font and register it as the default proportional
 /// font on the egui context.  Each platform's system-preferences app uses a
