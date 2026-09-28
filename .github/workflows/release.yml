@@ -50,6 +50,12 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       build:   ${{ steps.version.outputs.build }}
     steps:
+      # Full history: BUILD below counts every commit on HEAD, which a
+      # shallow checkout would report as 1
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
       - id: version
         shell: bash
         run: |
