@@ -14,9 +14,9 @@ The overlay is a translucent always-on-top window that gently expands on inhale 
 
 Every claim above is sourced, alongside a ledger of what the research doesn't support, at https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md
 
-Every action (Start, Stop, Reset, Quit, Preferences) is rebindable to a global keyboard shortcut. Fully keyboard-navigable Preferences panel. Runs as a menu-bar / system-tray app; the overlay itself is click-through so it never interrupts whatever you're doing.
+Every action (Start, Stop, Reset, Quit, Preferences) is rebindable to a global keyboard shortcut. The Preferences panel is fully keyboard-navigable. exhale runs as a menu-bar / system-tray app, and the overlay itself is click-through so it never interrupts whatever you're doing.
 
-Take breaks if intense feelings arise; don't overdo it.
+Take breaks if intense feelings arise, and don't overdo it.
 
 ---
 Disclaimer: The information and guidance provided by this app are intended for general informational purposes only and aren't medical advice. The creator isn't a medical professional. Always seek the advice of a qualified healthcare provider with any questions about your health, and don't disregard or delay professional medical advice because of this app. Use is at your own risk.
@@ -36,7 +36,7 @@ breathing, mindfulness, focus, breath, reminder, meditation, productivity, calm,
 
 ## What's new in this version
 
-Per-release, so it's **not** pinned here. Take it from the release notes for the tag being
+Per-release, so it's not pinned here. Take it from the release notes for the tag being
 submitted. The v2.0.21 text, kept as a shape reference:
 
 ```
@@ -85,5 +85,6 @@ https://github.com/peterklingelhofer/exhale/blob/main/PRIVACY.md
 Every answer for exhale is **No**: violence, sexual content, controlled substances, gambling,
 in-app purchases, user-generated content. Result should come back everyone-friendly
 (ESRB "Everyone" / PEGI 3 / USK 0). The questionnaire also asks whether the app contains medical or
-treatment information; the answer is no, since the binary carries no health claims and no
-disclaimer, only a wordless overlay and four numeric sliders.
+treatment information. The answer is no, since the binary carries no health claims and no
+disclaimer. It shows an overlay, timing controls and a readout of the breathing rate, and its
+Research item opens the corpus page.

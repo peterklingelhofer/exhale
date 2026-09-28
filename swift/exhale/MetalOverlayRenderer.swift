@@ -180,7 +180,7 @@ final class MetalOverlayRenderer: NSObject, MTKViewDelegate {
 
         encoder.setRenderPipelineState(pipelineState)
 
-        // Vertex shader does not require uniforms
+        // Vertex shader doesn't require uniforms
         encoder.setFragmentBuffer(uniformBuffer, offset: 0, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use bytemuck::cast_slice;
+use bytemuck::{cast_slice, Zeroable};
 use exhale_core::{controller::BreathingState, settings::Settings};
 use log::{debug, warn};
 use wgpu::util::DeviceExt;
@@ -50,8 +50,8 @@ impl OverlayRenderer {
             .context("overlay per-window device")?;
 
         // Re-use the shared adapter to query surface caps.  Adapters
-        // are stateless, caps depend on the (adapter, surface) pair,
-        // not the device, so this is correct
+        // are stateless, caps depend only on the (adapter, surface) pair,
+        // so this is correct
         let surface_caps   = surface.get_capabilities(&gpu.adapter);
 
         let surface_format = prefer_format(&surface_caps);
@@ -106,7 +106,7 @@ impl OverlayRenderer {
             Ok(t)  => t,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
                 self.surface.configure(&self.device, &self.config);
-                warn!("overlay surface lost; reconfigured");
+                warn!("overlay surface lost, reconfigured");
                 return Ok(());
             }
             Err(e) => return Err(e).context("overlay get_current_texture"),
@@ -145,10 +145,6 @@ impl OverlayRenderer {
         output.present();
         Ok(())
     }
-
-    pub fn width(&self)  -> u32 { self.config.width }
-    pub fn height(&self) -> u32 { self.config.height }
-    pub fn surface_format(&self) -> wgpu::TextureFormat { self.config.format }
 
     /// `true` when the swap chain advertises a per-pixel-alpha mode
     /// (`PreMultiplied`, `PostMultiplied`, or `Inherit`).  `false` when
@@ -285,8 +281,19 @@ fn pick_alpha_mode(caps: &wgpu::SurfaceCapabilities) -> wgpu::CompositeAlphaMode
     caps.alpha_modes.first().copied().unwrap_or(M::Opaque)
 }
 
-// ─── Zeroed helper ────────────────────────────────────────────────────────────
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
-impl OverlayUniforms {
-    pub(crate) fn zeroed() -> Self { bytemuck::Zeroable::zeroed() }
+#[cfg(test)]
+mod tests {
+    use wgpu::naga::valid::{Capabilities, ValidationFlags, Validator};
+
+    // CPU-only: parses and validates the WGSL, no GPU device needed
+    #[test]
+    fn overlay_shader_is_valid_wgsl() {
+        let module = wgpu::naga::front::wgsl::parse_str(super::SHADER_SRC)
+            .expect("overlay.wgsl parses");
+        Validator::new(ValidationFlags::all(), Capabilities::empty())
+            .validate(&module)
+            .expect("overlay.wgsl validates");
+    }
 }

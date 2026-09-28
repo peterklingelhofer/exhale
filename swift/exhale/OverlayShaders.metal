@@ -139,7 +139,7 @@ static inline float4 applyGradientRectangle(
 //   Segment 2: side edge         (bottom-corner -> top-corner) length H
 //   Segment 3: top edge half     (top-corner -> top-center)   length W/2
 //   Half-perimeter = W + H
-// Both left and right halves are mirrored (same param).
+// Both left and right halves are mirrored (same param)
 static inline float screenEdgeRipple(float2 pixel, float2 viewportSize, float holdTime, uint phase) {
     float W = viewportSize.x;
     float H = viewportSize.y;
@@ -161,9 +161,9 @@ static inline float screenEdgeRipple(float2 pixel, float2 viewportSize, float ho
     // Determine which half of the screen (left or right) for symmetry
     bool rightHalf = pixel.x >= W * 0.5f;
 
-    // Use aspect-ratio-adjusted diagonals for robust sector detection.
+    // Use aspect-ratio-adjusted diagonals for reliable sector detection.
     // This maps each pixel to its nearest perimeter segment without
-    // fragile float equality checks at corners.
+    // fragile float equality checks at corners
     float nx = (pixel.x - W * 0.5f) / max(W * 0.5f, 1.0f);  // -1 to 1
     float ny = (pixel.y - H * 0.5f) / max(H * 0.5f, 1.0f);  // -1 to 1
 
@@ -247,7 +247,7 @@ fragment float4 overlayFragment(
     if (u.shape == 1u) {
         float height = max(u.viewportSize.y, 1.0f);
 
-        // FIX: do not clamp to 1.0 when rectangleScale is > 1 (Gradient On uses 2x)
+        // FIX: don't clamp to 1.0 when rectangleScale is > 1 (Gradient On uses 2x)
         float scaleLimit = max(u.rectangleScale, 1.0f);
         float scaledProgress = clamp(u.progress * scaleLimit, 0.0f, scaleLimit);
 

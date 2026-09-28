@@ -2,7 +2,7 @@ name: exhale-app
 title: exhale
 base: core22
 version: '2.0.23'
-summary: A full-screen breathing overlay for mindful breathing.
+summary: A translucent breathing overlay for mindful breathing.
 description: |
   A minimal cross-platform breathing overlay, a friendly indicator and
   reminder to take full, deep breaths while looking at screens. Demanding
@@ -30,11 +30,11 @@ description: |
   - Fully tunable inhale / hold / exhale / hold cadence
   - Customisable colours, shapes (fullscreen, circle, or rectangle), and
     opacity
-  - Runs from the system tray: start/stop animation, pause, reset to
-    defaults, open preferences
+  - Runs from the system tray: start/stop animation, reset to defaults,
+    open preferences, quit
   - Optional reminder notifications
 
-  Take breaks if intense feelings arise; don't overdo it.
+  Take breaks if intense feelings arise, and don't overdo it.
 
   Disclaimer: The information and guidance provided by this app are for
   general informational purposes only and aren't medical advice. The creator
@@ -65,14 +65,14 @@ apps:
 
 parts:
   # The `rust` plugin can build workspace members directly, but we lean on
-  # `override-build` so the invocation mirrors `cargo-deb` / CI exactly and
-  # so we can pin to `--no-default-features` (global-hotkeys off: matches
-  # the Mac App Store policy; snap confinement wouldn't grant global-hotkey
-  # access anyway)
+  # `override-build` so the invocation mirrors `cargo-deb` / CI and so we
+  # can pin to `--no-default-features` (global-hotkeys off, which matches
+  # the Mac App Store policy, and snap confinement wouldn't grant
+  # global-hotkey access anyway)
   exhale:
     plugin: nil
     # snapcraft.yaml lives at snap/snapcraft.yaml so the project dir is the
-    # repo root; source the whole tree so `override-build` can `cd rust`
+    # repo root. Source the whole tree so `override-build` can `cd rust`
     source: .
     source-type: local
     build-packages:
@@ -100,12 +100,13 @@ parts:
     override-build: |
       set -euo pipefail
 
-      # Install a pinned stable rustup toolchain into the build container.
-      # snapcraft's build hosts don't ship rust; this mirrors what
+      # Install rustup into the build container. The first cargo call in
+      # rust/ then fetches the toolchain rust/rust-toolchain.toml pins.
+      # snapcraft's build hosts don't ship rust. This mirrors what
       # `.github/workflows/release.yml` does for the Linux snap job
       if ! command -v cargo >/dev/null 2>&1; then
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-          | sh -s -- -y --default-toolchain stable --profile minimal
+          | sh -s -- -y --default-toolchain none --profile minimal
       fi
       # shellcheck disable=SC1090
       . "${HOME}/.cargo/env"

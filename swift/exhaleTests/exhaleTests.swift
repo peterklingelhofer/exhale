@@ -400,7 +400,7 @@ class MetalBreathingControllerTests: XCTestCase {
         controller.start()
 
         let state = controller.getCurrentState()
-        // Just started, progress should be very low
+        // Just started, progress should be low
         XCTAssertLessThan(state.progress, 0.1)
 
         controller.stop()
@@ -430,7 +430,7 @@ class MetalBreathingControllerTests: XCTestCase {
         let controller = MetalBreathingController(settingsModel: model)
         controller.startIfNeeded()
 
-        // Should be running; verify by getting state
+        // Should be running: verify by getting state
         let state = controller.getCurrentState()
         XCTAssertNotNil(state)
 
@@ -549,10 +549,10 @@ class EnumTests: XCTestCase {
 // MARK: - Regression: Gradient background opacity leak
 
 class GradientBackgroundOpacityTests: XCTestCase {
-    /// Regression test: when background color is 0% opacity, the gradient should NOT
+    /// Regression test: when background color is 0% opacity, the gradient shouldn't
     /// use cachedBackgroundColorWithoutAlpha (which has alpha forced to 1), because
     /// that causes a visible dark outline in gradient On mode.
-    /// The fix uses settingsModel.backgroundColor directly (preserves actual alpha).
+    /// The fix uses settingsModel.backgroundColor directly (preserves actual alpha)
     func testClearBackgroundWithoutAlphaHasFullAlpha() {
         let model = SettingsModel()
         model.backgroundColor = Color.clear
@@ -566,14 +566,14 @@ class GradientBackgroundOpacityTests: XCTestCase {
     }
 
     /// When background is transparent, using it in the gradient should produce
-    /// colors that fade to transparent, not to opaque black.
+    /// colors that fade to transparent instead of opaque black
     func testTransparentBackgroundFloat4HasZeroAlpha() {
         let bgColor = Color.clear
         let f4 = bgColor.toFloat4Cached()
         XCTAssertEqual(f4.w, 0.0, accuracy: 0.02, "Clear background should have alpha=0 in float4 form")
     }
 
-    /// When background has visible opacity, the gradient should fade to that color.
+    /// When background has visible opacity, the gradient should fade to that color
     func testOpaqueBackgroundFloat4HasFullAlpha() {
         let bgColor = Color(red: 0.5, green: 0.5, blue: 0.5) // fully opaque
         let f4 = bgColor.toFloat4Cached()
@@ -637,11 +637,11 @@ class SameColorFullscreenTests: XCTestCase {
     }
 }
 
-// MARK: - OverlayUniforms Layout Tests (Swift ↔ Metal struct parity)
+// MARK: - OverlayUniforms Layout Tests (Swift <-> Metal struct parity)
 
 class OverlayUniformsLayoutTests: XCTestCase {
     /// If this test fails, the Swift struct no longer matches the Metal shader struct.
-    /// Any field added/removed/reordered in one must be mirrored in the other.
+    /// Any field added/removed/reordered in one must be mirrored in the other
     func testStructStrideMatchesMetalLayout() {
         // Metal struct layout (with float4 requiring 16-byte alignment):
         //   float2 (8) + float (4) + float (4) = 16
@@ -769,7 +769,7 @@ class EasingTableTests: XCTestCase {
     }
 
     func testEasingTableSize() {
-        // Controller uses 1024 samples; verify table generation doesn't crash or truncate
+        // Controller uses 1024 samples: verify table generation doesn't crash or truncate
         let table = (0..<1024).map { i -> Float in
             let t = Double(i) / 1023.0
             return Float(CubicBezierEaseInOut.getValue(t: t, x1: 0.42, y1: 0.0, x2: 0.58, y2: 1.0))
@@ -861,7 +861,7 @@ class SettingsEdgeCaseTests: XCTestCase {
 
     func testColorMatchingWithSystemColors() {
         // SwiftUI named colors (Color.red, Color.blue) may use different color spaces
-        // than Color(red:green:blue:). Verify inhaleAndExhaleColorsMatch handles this.
+        // than Color(red:green:blue:). Verify inhaleAndExhaleColorsMatch handles this
         model.inhaleColor = Color.red
         model.exhaleColor = Color.blue
         XCTAssertFalse(model.inhaleAndExhaleColorsMatch)
@@ -1084,7 +1084,7 @@ class WindowLevelTests: XCTestCase {
 
 class OverlayWindowConfigTests: XCTestCase {
     /// Verifies the overlay window level is high enough to appear over fullscreen apps.
-    /// CGWindowLevelForKey(.screenSaverWindow) is above .mainMenu, .floating, and .modalPanel.
+    /// CGWindowLevelForKey(.screenSaverWindow) is above .mainMenu, .floating, and .modalPanel
     func testOverlayLevelAboveFullscreenApps() {
         let overlayLevel = AppDelegate.overlayWindowLevel.rawValue
         let mainMenuLevel = Int(CGWindowLevelForKey(.mainMenuWindow))
@@ -1110,7 +1110,7 @@ class OverlayWindowConfigTests: XCTestCase {
 class SingleInstanceTests: XCTestCase {
     func testDistributedNotificationNameIsStable() {
         // The notification name must remain stable across versions so that
-        // a new launch can communicate with an existing running instance.
+        // a new launch can communicate with an existing running instance
         let name = Notification.Name("exhale.showSettings")
         XCTAssertEqual(name.rawValue, "exhale.showSettings")
     }
@@ -1300,7 +1300,7 @@ class TimerInteractionTests: XCTestCase {
 
 /// These tests ensure cached (non-@Published) color properties stay in sync with
 /// their @Published counterparts. Reading @Published properties every animation frame
-/// causes SwiftUI observation overhead and CPU regression. The cached variants avoid this.
+/// causes SwiftUI observation overhead and CPU regression. The cached variants avoid this
 class CacheConsistencyTests: XCTestCase {
     var model: SettingsModel!
 
@@ -1393,7 +1393,7 @@ class CacheConsistencyTests: XCTestCase {
 // MARK: - Performance Tests
 
 /// Performance benchmarks for the animation hot path. These use XCTest's measure()
-/// to track execution time and detect regressions in per-frame computation cost.
+/// to track execution time and detect regressions in per-frame computation cost
 class PerformanceTests: XCTestCase {
     var model: SettingsModel!
 
@@ -1404,7 +1404,7 @@ class PerformanceTests: XCTestCase {
     }
 
     /// Measures the cost of reading cached properties (the hot path during animation).
-    /// This should be significantly faster than reading @Published properties.
+    /// This should be significantly faster than reading @Published properties
     func testCachedPropertyReadPerformance() {
         measure {
             for _ in 0..<10_000 {
@@ -1418,7 +1418,7 @@ class PerformanceTests: XCTestCase {
     }
 
     /// Measures the cost of reading @Published properties for comparison.
-    /// If this is not meaningfully slower than the cached version, caching is unnecessary.
+    /// If this isn't meaningfully slower than the cached version, caching is unnecessary
     func testPublishedPropertyReadPerformance() {
         measure {
             for _ in 0..<10_000 {
@@ -1430,7 +1430,7 @@ class PerformanceTests: XCTestCase {
         }
     }
 
-    /// Simulates the per-frame color selection logic in colorTransitionFill.
+    /// Simulates the per-frame color selection logic in colorTransitionFill
     func testColorTransitionSelectionPerformance() {
         model.shape = .circle
         model.colorFillGradient = .on
@@ -1447,8 +1447,7 @@ class PerformanceTests: XCTestCase {
     }
 
     /// Measures the cost of Color.alphaComponent() and Color.withoutAlpha() extensions,
-    /// which involve CGColor/NSColor conversions. These should only run on color change,
-    /// not per-frame.
+    /// which involve CGColor/NSColor conversions. These should only run on color change
     func testColorConversionPerformance() {
         let color = Color(red: 0.5, green: 0.3, blue: 0.8, opacity: 0.6)
         measure {
@@ -1461,7 +1460,7 @@ class PerformanceTests: XCTestCase {
 
     /// Measures CPU usage during a simulated animation loop.
     /// Creates an actual ContentView with SettingsModel, runs the animation for a fixed
-    /// duration, and checks that process CPU stays within acceptable bounds.
+    /// duration, and checks that process CPU stays within acceptable bounds
     func testAnimationCPUUsage_RectangleGradientOn() throws {
         measureCPU(shape: .rectangle, gradient: .on)
     }
@@ -1488,7 +1487,7 @@ class PerformanceTests: XCTestCase {
 
     /// Helper: measures the CPU cost of the animation by comparing CPU with animation ON
     /// vs animation OFF (baseline). This isolates the actual animation cost from XCTest
-    /// and RunLoop overhead, making the test reliable regardless of test runner load.
+    /// and RunLoop overhead, making the test reliable regardless of test runner load
     private func measureCPU(shape: AnimationShape, gradient: ColorFillGradient, holdRipple: HoldRippleMode = .off, holdDuration: TimeInterval = 0, file: StaticString = #file, line: UInt = #line) {
         let model = SettingsModel()
         model.resetToDefaults()
@@ -1577,13 +1576,13 @@ class PerformanceTests: XCTestCase {
         //   ripple:    avg ≤ 2.4%, peak ≤ 3.5%
         //
         // Detect CI via multiple env vars.  Plain `xcodebuild test`
-        // does NOT propagate the shell's `CI=true` to the spawned
-        // xctest process; the workflow forwards it via Xcode's
+        // doesn't propagate the shell's `CI=true` to the spawned
+        // xctest process. The workflow forwards it via Xcode's
         // documented `TEST_RUNNER_<NAME>` build-setting pass-through
         // (see `.github/workflows/test.yml`).  Reading both the
         // forwarded names and the runner-set ones gives multiple
         // independent signals so a single missed propagation
-        // doesn't false-fail the test.
+        // doesn't false-fail the test
         let env = ProcessInfo.processInfo.environment
         let isCI = env["CI"] != nil
             || env["GITHUB_ACTIONS"] != nil
@@ -1595,7 +1594,7 @@ class PerformanceTests: XCTestCase {
         // to (12/10 ripple, 10/8 no-ripple), which leaves headroom for
         // thermal throttling and other-app interference on dev
         // machines without losing regression sensitivity.  Real
-        // regressions land >2x over these numbers anyway.
+        // regressions land >2x over these numbers anyway
         let peakThreshold: Double = isCI ? (hasRipple ? 15.0 : 12.0) : (hasRipple ? 12.0 : 10.0)
         let avgThreshold: Double  = isCI ? (hasRipple ? 10.0 :  8.0) : (hasRipple ? 10.0 :  8.0)
 
@@ -1605,7 +1604,7 @@ class PerformanceTests: XCTestCase {
         // CI (no ripple):     peak < 12%, avg < 8%.
         // CI (ripple):        peak < 15%, avg < 10%.
         // Circle gradient is inherently noisier than rectangle because its RadialGradient
-        // endRadius changes every frame, making it more sensitive to system load variance.
+        // endRadius changes every frame, making it more sensitive to system load variance
         XCTAssertLessThan(peakDelta, peakThreshold,
             "\(label) peak animation CPU \(String(format: "%.1f", peakDelta))% exceeded \(String(format: "%.0f", peakThreshold))%; delta: [\(deltaStr)]",
             file: file, line: line

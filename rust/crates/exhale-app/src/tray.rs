@@ -1,7 +1,7 @@
 use anyhow::Result;
 use exhale_core::{KeyboardShortcuts, ShortcutAction};
 use tray_icon::{
-    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu},
     TrayIcon, TrayIconBuilder,
 };
 
@@ -13,12 +13,12 @@ use tray_icon::{
 /// `scripts/generate-citations.py` validates that this URL still points
 /// into the corpus, and that any anchor it carries still names a heading
 ///
-/// Pinned to `main` rather than a release tag on purpose.  A binary
+/// Pinned to `main` instead of a release tag.  A binary
 /// stays installed long after its tag stops being the current state
 /// of the evidence, and a retraction has to reach the people running
-/// old builds.  A moved anchor is a CI failure; a stale claim isn't
+/// old builds.  A moved anchor is a CI failure, but a stale claim isn't
 ///
-/// Points at `docs/citations.html` rather than the file itself.  That
+/// Points at `docs/citations.html` instead of the file itself.  That
 /// page fetches `docs/CITATIONS.md` from `main` at load, so it stays
 /// as current as the blob view did, but a reader who followed a menu
 /// item called "Research" arrives at a document instead of at a code
@@ -26,7 +26,7 @@ use tray_icon::{
 pub const RESEARCH_URL: &str = "https://peterklingelhofer.github.io/exhale/citations.html";
 
 /// Named next to the URL because the wording and the destination are one
-/// decision: a plain label pointing at the whole corpus, rather than a
+/// decision: a plain label pointing at the whole corpus, instead of a
 /// claim-shaped label pointing at a supporting entry.  Shared with the
 /// macOS app menu, which shows the same item, so the two can never
 /// disagree
@@ -34,66 +34,60 @@ pub const RESEARCH_LABEL: &str = "Research";
 
 // ─── Menu item IDs ────────────────────────────────────────────────────────────
 
+/// Every action a shortcut can bind, in the order the "Keyboard
+/// Shortcuts ▶" submenu lists them.  `hotkeys::register_hotkeys`
+/// registers them in this order too
+pub const ACTIONS: [ShortcutAction; 5] = [
+    ShortcutAction::Start,
+    ShortcutAction::Stop,
+    ShortcutAction::Reset,
+    ShortcutAction::Quit,
+    ShortcutAction::Preferences,
+];
+
 pub struct TrayMenuIds {
-    pub preferences: tray_icon::menu::MenuId,
-    pub research:    tray_icon::menu::MenuId,
-    pub start:       tray_icon::menu::MenuId,
-    pub stop:        tray_icon::menu::MenuId,
-    pub reset:       tray_icon::menu::MenuId,
-    pub quit:        tray_icon::menu::MenuId,
-    // Handles for dynamic enable/disable
-    pub start_item:  MenuItem,
-    pub stop_item:   MenuItem,
     // Top-level item handles whose labels include the current
     // keybinding: kept here so the rebind path can `set_text` them
     // when the user changes a shortcut, instead of rebuilding the
-    // whole tray
-    pub preferences_item: MenuItem,
+    // whole tray.  The Start and Stop entries are also the handles
+    // for dynamic enable/disable
+    top:          [(ShortcutAction, MenuItem); 5],
     // No binding is embedded in this one's label, so `refresh_labels`
-    // never touches it; the handle is kept only so the menu owns it
-    // for as long as the tray lives
-    pub research_item:    MenuItem,
-    pub reset_item:       MenuItem,
-    pub quit_item:        MenuItem,
+    // never touches it
+    pub research: MenuItem,
     // ── "Keyboard Shortcuts ▶" submenu ────────────────────────────────────────
     //
     // Each entry both displays the action's current binding (label
     // text via `set_text` on rebind) and acts as a click target that
-    // opens the settings window in capture mode for that action;
-    // storing the handles here lets us update labels in place without
-    // a tray rebuild. The handles themselves are only `set_text`'d by
-    // `refresh_labels`, which only runs from the hotkey-rebind path
-    // (feature-gated). MAS build keeps the fields populated so the
-    // constructor stays one shape; lint silenced on that build
-    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
-    pub kb_start_item:       MenuItem,
-    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
-    pub kb_stop_item:        MenuItem,
-    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
-    pub kb_reset_item:       MenuItem,
-    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
-    pub kb_quit_item:        MenuItem,
-    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
-    pub kb_preferences_item: MenuItem,
-    pub kb_start:       tray_icon::menu::MenuId,
-    pub kb_stop:        tray_icon::menu::MenuId,
-    pub kb_reset:       tray_icon::menu::MenuId,
-    pub kb_quit:        tray_icon::menu::MenuId,
-    pub kb_preferences: tray_icon::menu::MenuId,
+    // opens the settings window in capture mode for that action.
+    // Storing the handles here lets us update labels in place without
+    // a tray rebuild
+    kb:           [(ShortcutAction, MenuItem); 5],
 }
 
 impl TrayMenuIds {
     /// Match a clicked tray-menu item id back to the
-    /// [`ShortcutAction`] whose binding the user wants to change;
-    /// returns `None` for items that aren't part of the
+    /// [`ShortcutAction`] whose binding the user wants to change.
+    /// Returns `None` for items that aren't part of the
     /// "Keyboard Shortcuts ▶" submenu
-    pub fn kb_action_for(&self, id: &tray_icon::menu::MenuId) -> Option<ShortcutAction> {
-        if id == &self.kb_start       { Some(ShortcutAction::Start) }
-        else if id == &self.kb_stop   { Some(ShortcutAction::Stop) }
-        else if id == &self.kb_reset  { Some(ShortcutAction::Reset) }
-        else if id == &self.kb_quit   { Some(ShortcutAction::Quit) }
-        else if id == &self.kb_preferences { Some(ShortcutAction::Preferences) }
-        else { None }
+    pub fn kb_action_for(&self, id: &MenuId) -> Option<ShortcutAction> {
+        action_for(&self.kb, id)
+    }
+
+    /// Match a clicked tray-menu item id back to the top-level item's
+    /// [`ShortcutAction`].  Returns `None` for Research and for the
+    /// "Keyboard Shortcuts ▶" submenu rows
+    pub fn top_action_for(&self, id: &MenuId) -> Option<ShortcutAction> {
+        action_for(&self.top, id)
+    }
+
+    /// The top-level item for `action`.  `top` is built from
+    /// [`ACTIONS`], so every action has one
+    pub fn top_item(&self, action: ShortcutAction) -> &MenuItem {
+        let (_, item) = self.top.iter()
+            .find(|(a, _)| *a == action)
+            .expect("`top` holds an item for every action");
+        item
     }
 
     /// Refresh every label that embeds a keyboard-shortcut binding
@@ -102,27 +96,35 @@ impl TrayMenuIds {
     /// without a full tray rebuild (which would flash the tray icon)
     #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
     pub fn refresh_labels(&self, shortcuts: &KeyboardShortcuts) {
-        self.preferences_item.set_text(top_level_label("Preferences",       shortcuts.get(ShortcutAction::Preferences)));
-        self.start_item.set_text(      top_level_label("Start Animation",   shortcuts.get(ShortcutAction::Start)));
-        self.stop_item.set_text(       top_level_label("Stop Animation",    shortcuts.get(ShortcutAction::Stop)));
-        self.reset_item.set_text(      top_level_label("Reset to Defaults", shortcuts.get(ShortcutAction::Reset)));
-        self.quit_item.set_text(       top_level_label("Quit exhale",       shortcuts.get(ShortcutAction::Quit)));
-
-        self.kb_start_item.set_text(       submenu_label(ShortcutAction::Start,       shortcuts));
-        self.kb_stop_item.set_text(        submenu_label(ShortcutAction::Stop,        shortcuts));
-        self.kb_reset_item.set_text(       submenu_label(ShortcutAction::Reset,       shortcuts));
-        self.kb_quit_item.set_text(        submenu_label(ShortcutAction::Quit,        shortcuts));
-        self.kb_preferences_item.set_text( submenu_label(ShortcutAction::Preferences, shortcuts));
+        for (action, item) in &self.top { item.set_text(top_level_label(*action, shortcuts)); }
+        for (action, item) in &self.kb  { item.set_text(submenu_label(*action, shortcuts)); }
     }
+}
+
+/// The action whose item in `items` carries `id`
+fn action_for(items: &[(ShortcutAction, MenuItem)], id: &MenuId) -> Option<ShortcutAction> {
+    items.iter().find(|(_, item)| item.id() == id).map(|&(action, _)| action)
 }
 
 /// Format a top-level menu item's label.  Embeds the current
 /// binding in parentheses so the user can read it without opening
-/// the submenu; reads "Preferences" when the slot is unbound
-fn top_level_label(base: &str, sc: Option<&exhale_core::KeyboardShortcut>) -> String {
-    match sc {
+/// the submenu.  Reads "Preferences" when the slot is unbound
+fn top_level_label(action: ShortcutAction, shortcuts: &KeyboardShortcuts) -> String {
+    let base = top_label(action);
+    match shortcuts.get(action) {
         Some(sc) => format!("{base}  ({})", sc.display()),
         None     => base.to_string(),
+    }
+}
+
+/// A top-level item's text, before `top_level_label` appends the binding
+fn top_label(action: ShortcutAction) -> &'static str {
+    match action {
+        ShortcutAction::Start       => "Start Animation",
+        ShortcutAction::Stop        => "Stop Animation",
+        ShortcutAction::Reset       => "Reset to Defaults",
+        ShortcutAction::Quit        => "Quit exhale",
+        ShortcutAction::Preferences => "Preferences",
     }
 }
 
@@ -141,7 +143,7 @@ fn submenu_label(action: ShortcutAction, shortcuts: &KeyboardShortcuts) -> Strin
 /// (must stay alive) and the menu item IDs so the caller can match
 /// incoming `MenuEvent`s
 ///
-/// `shortcuts` is the current snapshot of user keybindings; labels
+/// `shortcuts` is the current snapshot of user keybindings.  Labels
 /// embed each action's binding so the user can see at a glance what's
 /// bound to what without leaving the menu.  Pass the same struct back
 /// to [`TrayMenuIds::refresh_labels`] when bindings change to keep
@@ -151,13 +153,13 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
     {
         if !appindicator_available() {
             anyhow::bail!(
-                "neither libayatana-appindicator3 nor libappindicator3 could be loaded; \
-                 running without a tray icon"
+                "neither libayatana-appindicator3 nor libappindicator3 could be loaded, \
+                 so exhale runs without a tray icon"
             );
         }
     }
 
-    // Propagate icon-construction failures via `?` rather than
+    // Propagate icon-construction failures via `?` instead of
     // panicking: callers (`App::sync_tray_to_visibility`) already
     // log + continue when `build_tray` returns `Err`, so a bad
     // RGBA buffer or platform limitation degrades gracefully to
@@ -169,73 +171,43 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
     let icon = make_icon()?;
 
     // No `Accelerator::new(...)` on any item.  Reasons:
-    //   1. Bindings are user-customisable now; a static accelerator
+    //   1. Bindings are user-customisable now.  A static accelerator
     //      label would lie when the user reassigns a shortcut
     //   2. On macOS, an `Accelerator` becomes the NSMenuItem's
-    //      `keyEquivalent`, which fires WHILE the menu is open.  The
+    //      `keyEquivalent`, which fires while the menu is open.  The
     //      same key press also queues in the global-hotkey channel,
     //      so closing the menu plays the action a second time: a
     //      double-trigger bug
     // Embed the binding in the label text instead so it stays correct
     // and avoids the dual-dispatch hazard
-    let prefs_item = MenuItem::new(top_level_label("Preferences",       shortcuts.get(ShortcutAction::Preferences)), true, None);
-    let start_item = MenuItem::new(top_level_label("Start Animation",   shortcuts.get(ShortcutAction::Start)),       true, None);
-    let stop_item  = MenuItem::new(top_level_label("Stop Animation",    shortcuts.get(ShortcutAction::Stop)),        true, None);
-    let reset_item = MenuItem::new(top_level_label("Reset to Defaults", shortcuts.get(ShortcutAction::Reset)),       true, None);
-    let research_item = MenuItem::new(RESEARCH_LABEL, true, None);
-    let quit_item  = MenuItem::new(top_level_label("Quit exhale",       shortcuts.get(ShortcutAction::Quit)),        true, None);
+    let top = ACTIONS.map(|action| (action, MenuItem::new(top_level_label(action, shortcuts), true, None)));
+    let research = MenuItem::new(RESEARCH_LABEL, true, None);
 
     // ── Keyboard Shortcuts submenu ────────────────────────────────────────────
-    let kb_start       = MenuItem::new(submenu_label(ShortcutAction::Start,       shortcuts), true, None);
-    let kb_stop        = MenuItem::new(submenu_label(ShortcutAction::Stop,        shortcuts), true, None);
-    let kb_reset       = MenuItem::new(submenu_label(ShortcutAction::Reset,       shortcuts), true, None);
-    let kb_quit        = MenuItem::new(submenu_label(ShortcutAction::Quit,        shortcuts), true, None);
-    let kb_preferences = MenuItem::new(submenu_label(ShortcutAction::Preferences, shortcuts), true, None);
+    let kb = ACTIONS.map(|action| (action, MenuItem::new(submenu_label(action, shortcuts), true, None)));
 
     let kb_submenu = Submenu::new("Keyboard Shortcuts", true);
-    kb_submenu.append(&kb_start)?;
-    kb_submenu.append(&kb_stop)?;
-    kb_submenu.append(&kb_reset)?;
-    kb_submenu.append(&kb_quit)?;
-    kb_submenu.append(&PredefinedMenuItem::separator())?;
-    kb_submenu.append(&kb_preferences)?;
+    for (action, item) in &kb {
+        // Preferences sits below a separator, apart from the other four
+        if *action == ShortcutAction::Preferences {
+            kb_submenu.append(&PredefinedMenuItem::separator())?;
+        }
+        kb_submenu.append(item)?;
+    }
 
-    let ids = TrayMenuIds {
-        preferences: prefs_item.id().clone(),
-        research:    research_item.id().clone(),
-        start:       start_item.id().clone(),
-        stop:        stop_item.id().clone(),
-        reset:       reset_item.id().clone(),
-        quit:        quit_item.id().clone(),
-        kb_start:       kb_start.id().clone(),
-        kb_stop:        kb_stop.id().clone(),
-        kb_reset:       kb_reset.id().clone(),
-        kb_quit:        kb_quit.id().clone(),
-        kb_preferences: kb_preferences.id().clone(),
-        start_item,
-        stop_item,
-        preferences_item:    prefs_item,
-        research_item,
-        reset_item,
-        quit_item,
-        kb_start_item:       kb_start,
-        kb_stop_item:        kb_stop,
-        kb_reset_item:       kb_reset,
-        kb_quit_item:        kb_quit,
-        kb_preferences_item: kb_preferences,
-    };
+    let ids = TrayMenuIds { top, research, kb };
 
     let menu = Menu::new();
-    menu.append(&ids.preferences_item)?;
-    menu.append(&ids.research_item)?;
+    menu.append(ids.top_item(ShortcutAction::Preferences))?;
+    menu.append(&ids.research)?;
     menu.append(&PredefinedMenuItem::separator())?;
-    menu.append(&ids.start_item)?;
-    menu.append(&ids.stop_item)?;
-    menu.append(&ids.reset_item)?;
+    menu.append(ids.top_item(ShortcutAction::Start))?;
+    menu.append(ids.top_item(ShortcutAction::Stop))?;
+    menu.append(ids.top_item(ShortcutAction::Reset))?;
     menu.append(&PredefinedMenuItem::separator())?;
     menu.append(&kb_submenu)?;
     menu.append(&PredefinedMenuItem::separator())?;
-    menu.append(&ids.quit_item)?;
+    menu.append(ids.top_item(ShortcutAction::Quit))?;
 
     let tray = TrayIconBuilder::new()
         .with_icon(icon)
@@ -258,7 +230,7 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
 /// `build_tray` never sees the failure and the whole app exits.  Probing
 /// the same names first turns a system without the library (minimal
 /// desktops, AppImageHub's test machine) into "no tray icon" instead.
-/// The probe runs once; a handle that loads is left open, and the
+/// The probe runs once. A handle that loads is left open, and the
 /// crate's own dlopen reuses it
 #[cfg(all(unix, not(target_os = "macos")))]
 fn appindicator_available() -> bool {
@@ -307,7 +279,7 @@ fn make_icon() -> Result<tray_icon::Icon> {
             let aa_inner = (d - inner).clamp(0.0, 1.0);
             let alpha = (aa_outer.min(aa_inner) * 255.0) as u8;
             // White RGB so template-image tinting on macOS and plain display
-            // on Windows/Linux both come out legible; alpha carries the shape
+            // on Windows/Linux both come out legible.  Alpha carries the shape
             [0xFF, 0xFF, 0xFF, alpha]
         }))
         .collect();

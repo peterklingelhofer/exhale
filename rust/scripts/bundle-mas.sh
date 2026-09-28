@@ -14,11 +14,11 @@
 #     automatically on first run
 #   - Two signing identities in the login keychain (from Apple Developer
 # -> "Certificates, IDs & Profiles")
-#         "Apple Distribution: …"                    : signs the .app
-#         "3rd Party Mac Developer Installer: …"     : signs the .pkg
+#         "Apple Distribution: ..."                    : signs the .app
+#         "3rd Party Mac Developer Installer: ..."     : signs the .pkg
 #     Check with: `security find-identity -v -p basic`
-#     ("Apple Distribution" is the modern unified iOS+macOS App Store cert;
-#      the legacy "3rd Party Mac Developer Application" still works but
+#     ("Apple Distribution" is the modern unified iOS+macOS App Store cert.
+#      The legacy "3rd Party Mac Developer Application" still works but
 #      Apple no longer issues it, select "Apple Distribution" in the
 #      portal when creating new certs.)
 #   - A Mac App Store provisioning profile for bundle ID
@@ -33,14 +33,14 @@
 #       rust/scripts/bundle-mas.sh                       # override profile
 #
 # Environment overrides
-#   APP_IDENT       default: "Apple Distribution: …VZCHHV7VNW…"
-#   INSTALLER_IDENT default: "3rd Party Mac Developer Installer: …VZCHHV7VNW…"
+#   APP_IDENT       default: "Apple Distribution: ...VZCHHV7VNW..."
+#   INSTALLER_IDENT default: "3rd Party Mac Developer Installer: ...VZCHHV7VNW..."
 #   VERSION         default: cargo version from Cargo.toml (bumped manually)
 #   BUILD           default: 10000 + git commit count (monotonic across all
-#                            uploads to MAS; survives resubmissions)
+#                            uploads to MAS: survives resubmissions)
 #   PROVISION_PROFILE default: rust/signing/exhale.provisionprofile
-#   DRY_RUN=1       skip identity checks, profile requirement, and signing;
-#                   emit an unsigned exhale.app for local validation. Useful
+#   DRY_RUN=1       skip identity checks, profile requirement, and signing.
+#                   Emit an unsigned exhale.app for local validation. Useful
 #                   before the MAS distribution certs are installed
 
 set -euo pipefail
@@ -69,14 +69,12 @@ APP_IDENT="${APP_IDENT:-Apple Distribution: Peter Klingelhofer ($TEAM_ID)}"
 INSTALLER_IDENT="${INSTALLER_IDENT:-3rd Party Mac Developer Installer: Peter Klingelhofer ($TEAM_ID)}"
 PROVISION_PROFILE="${PROVISION_PROFILE:-$RUST_ROOT/signing/exhale.provisionprofile}"
 
-# Read version from crate Cargo.toml unless overridden.  The crate currently
-# reads 0.1.0, so users will almost always want to override, but we match the
-# Swift 2.0.7 -> 2.0.8 expectation by default so a fresh run produces a
-# submission one higher than the current MAS listing
+# Version of the build unless overridden.  `release.sh` rewrites this line
+# in step with the crate's Cargo.toml on every tag
 VERSION="${VERSION:-2.0.23}"
 # CFBundleVersion. Apple requires this to be monotonically increasing
 # across all uploads (rejected ones count too), so derive from git commit
-# count rather than VERSION, see release.sh for the full story
+# count instead of VERSION, see release.sh for the full story
 BUILD="${BUILD:-$(( $(git -C "$REPO_ROOT" rev-list --count HEAD 2>/dev/null || echo 0) + 10000 ))}"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -93,7 +91,7 @@ DRY_RUN="${DRY_RUN:-0}"
 # OCSP / CRL revocation check on an unreachable endpoint that the codesign
 # code path doesn't trigger). Local devs leave it off so they keep getting a
 # `.pkg` for Transporter. App Store submissions go through Transporter from a
-# local build anyway; the CI artifact is just for the GitHub Release page
+# local build anyway. The CI artifact is just for the GitHub Release page
 SKIP_PKG="${SKIP_PKG:-0}"
 
 [[ -f "$MASTER_ICON" ]] || die "master icon missing: $MASTER_ICON"
@@ -110,8 +108,8 @@ else
 fi
 
 # ── 1. Rust targets ──────────────────────────────────────────────────────────
-log "ensuring rustup targets…"
-rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null
+log "ensuring rustup targets..."
+(cd "$RUST_ROOT" && rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null)
 
 # ── 2. Build universal binary (MAS = --no-default-features) ──────────────────
 log "cargo build --release --no-default-features × (arm64, x86_64)"
@@ -127,13 +125,13 @@ BIN_X86="$RUST_ROOT/target/x86_64-apple-darwin/release/$EXECUTABLE"
 [[ -x "$BIN_X86" ]] || die "x86_64 binary missing: $BIN_X86"
 
 # ── 3. Build .icns from the 1024 master ──────────────────────────────────────
-log "building AppIcon.icns from 1024 master…"
+log "building AppIcon.icns from 1024 master..."
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
 ICONSET="$BUILD_DIR/AppIcon.iconset"
 mkdir -p "$ICONSET"
-# iconutil expects these exact names; each pair is (N×N, N×N@2x = 2N)
+# iconutil expects these exact names: each pair is (N×N, N×N@2x = 2N)
 for pair in "16:32" "32:64" "128:256" "256:512" "512:1024"; do
     one="${pair%:*}"; two="${pair#*:}"
     sips -z "$one" "$one" "$MASTER_ICON" --out "$ICONSET/icon_${one}x${one}.png"     >/dev/null
@@ -142,7 +140,7 @@ done
 iconutil -c icns "$ICONSET" -o "$BUILD_DIR/AppIcon.icns"
 
 # ── 4. Assemble .app bundle ──────────────────────────────────────────────────
-log "assembling $APP_NAME.app…"
+log "assembling $APP_NAME.app..."
 rm -rf "$APP_BUNDLE"
 CONTENTS="$APP_BUNDLE/Contents"
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
@@ -154,7 +152,7 @@ chmod +x "$CONTENTS/MacOS/$EXECUTABLE"
 # Icon
 cp "$BUILD_DIR/AppIcon.icns" "$CONTENTS/Resources/AppIcon.icns"
 
-# Info.plist.  Use plutil to emit a canonical binary plist; Apple accepts both
+# Info.plist.  Use plutil to emit a canonical binary plist. Apple accepts both
 # XML and binary, but binary avoids whitespace diffs between runs
 cat > "$CONTENTS/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -184,26 +182,34 @@ cat > "$CONTENTS/Info.plist" <<PLIST
 PLIST
 plutil -lint "$CONTENTS/Info.plist" >/dev/null || die "Info.plist failed plutil lint"
 
-# Entitlements: mirror the Swift app exactly (sandbox + user-selected
+# Entitlements: mirror the Swift app (sandbox + user-selected
 # read-only).  No network, no camera, no hotkey entitlement (we ship the
 # MAS build with `--no-default-features`, which drops the hotkey crate)
 #
-# `application-identifier` + `team-identifier` MUST be present in the
+# `application-identifier` + `team-identifier` must be present in the
 # binary's code signature and must match the embedded provisioning profile
 # exactly, or App Store Connect rejects with error 90886.  Derive both
 # from the profile itself so renames/team-changes propagate automatically. Use
 # PlistBuddy instead of `plutil -extract`: plutil's key-path syntax
 # uses `.` as the separator, which collides with the dotted key names
 # (`com.apple.application-identifier` etc.) that the entitlements plist
-# actually uses.  PlistBuddy uses `:` and handles the real key names
+# uses.  PlistBuddy uses `:` and handles the real key names
 PROF_PLIST=$(mktemp)
 trap 'rm -f "$PROF_PLIST"' EXIT
-security cms -D -i "$PROVISION_PROFILE" > "$PROF_PLIST" \
-    || die "could not decode $PROVISION_PROFILE"
-APP_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "$PROF_PLIST") \
-    || die "could not read application-identifier from $PROVISION_PROFILE"
-TEAM_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.team-identifier" "$PROF_PLIST") \
-    || die "could not read team-identifier from $PROVISION_PROFILE"
+if [[ "$DRY_RUN" != "1" ]]; then
+    security cms -D -i "$PROVISION_PROFILE" > "$PROF_PLIST" \
+        || die "couldn't decode $PROVISION_PROFILE"
+    APP_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "$PROF_PLIST") \
+        || die "couldn't read application-identifier from $PROVISION_PROFILE"
+    TEAM_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.team-identifier" "$PROF_PLIST") \
+        || die "couldn't read team-identifier from $PROVISION_PROFILE"
+else
+    # No real profile to decode under DRY_RUN. Derive the same values a
+    # real MAS profile would carry, from the constants above, so the
+    # entitlements plist below still gets sensible (if unsigned) identifiers
+    APP_IDENTIFIER="$TEAM_ID.$BUNDLE_ID"
+    TEAM_IDENTIFIER="$TEAM_ID"
+fi
 
 cat > "$BUILD_DIR/exhale.entitlements" <<ENT
 <?xml version="1.0" encoding="UTF-8"?>
@@ -233,19 +239,19 @@ fi
 # ── 5. Sign the .app ─────────────────────────────────────────────────────────
 #
 # `codesign --timestamp` reaches out to Apple's RFC 3161 TSA
-# (timestamp.apple.com); `productbuild --sign` walks the installer cert
+# (timestamp.apple.com). `productbuild --sign` walks the installer cert
 # chain and on a fresh keychain without WWDR can hang fetching the
 # intermediate. Neither tool has a default client-side timeout, so
 # when either back-end flakes the step blocks indefinitely. We wrap
 # both in `gtimeout` (GNU coreutils) on macOS to bound the wait and
 # retry on the timeout-specific exit code 124. CI installs coreutils
-# explicitly; locally, install via `brew install coreutils` or the
+# explicitly. Locally, install via `brew install coreutils` or the
 # script will run without timeout protection (and warn once at top)
 if   command -v gtimeout >/dev/null 2>&1; then TIMEOUT_BIN="gtimeout"
 elif command -v timeout  >/dev/null 2>&1; then TIMEOUT_BIN="timeout"
 else
     TIMEOUT_BIN=""
-    log "warning: gtimeout/timeout not found; signing steps will run without"
+    log "warning: gtimeout/timeout not found. Signing steps will run without"
     log "         timeout protection. Install via 'brew install coreutils'"
     log "         if you want bounded retries on TSA / cert-chain hangs"
 fi
@@ -253,14 +259,14 @@ fi
 # Retry $@ up to 3 times, each attempt bounded by $secs.  Distinguishes
 # "command timed out" (exit 124 from gtimeout) from "command failed"
 # (any other non-zero exit). Captures the wrapped command's exit code
-# directly into rc instead of via `if … ; then return 0; fi; rc=$?`
+# directly into rc instead of via `if ... ; then return 0; fi; rc=$?`
 # (which is a notorious bash trap: $? after `if` with no else returns
 # 0 when the test failed, masking the real exit code)
 retry_signing() {
     local name="$1" secs="$2"; shift 2
     local attempt rc
     for attempt in 1 2 3; do
-        log "$name (attempt $attempt, ${secs}s timeout)…"
+        log "$name (attempt $attempt, ${secs}s timeout)..."
         # Append `|| rc=$?` so errexit (set -e) doesn't bail before we can
         # inspect the return code. Without this, a 124 from gtimeout exits
         # the whole script instead of letting us retry
@@ -278,7 +284,7 @@ retry_signing() {
         fi
         die "$name failed with exit $rc (not a timeout)"
     done
-    die "$name still timing out after 3 attempts; check Apple TSA / keychain"
+    die "$name still timing out after 3 attempts: check Apple TSA / keychain"
 }
 
 if [[ "$DRY_RUN" != "1" ]]; then
@@ -301,11 +307,11 @@ if [[ "$DRY_RUN" != "1" ]]; then
     else
         # SKIP_PKG=1 (CI only): stop after codesign. No .pkg, no .zip. An
         # Apple-Distribution-signed .app zipped and downloaded directly
-        # can't launch on a user's Mac; the embedded provisioning profile
+        # can't launch on a user's Mac. The embedded provisioning profile
         # + sandbox entitlements only validate when the package is delivered
-        # via the App Store. So shipping a CI-produced .zip just creates a
+        # via the App Store. So shipping a CI-produced .zip creates a
         # broken download. Mac users go through the App Store badge in the
-        # README / GitHub Release notes; this job exists for build smoke-
+        # README / GitHub Release notes. This job exists for build smoke-
         # testing only
         log "SKIP_PKG=1: codesign passed, skipping productbuild and zip"
     fi
@@ -316,7 +322,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
     log "DRY_RUN complete: unsigned bundle ready for local validation"
     printf '\n  %s\n\n' "$APP_BUNDLE"
     echo "to test the unsigned bundle:  open \"$APP_BUNDLE\""
-    echo "(Gatekeeper will warn on first launch; right-click -> Open to bypass)"
+    echo "(Gatekeeper will warn on first launch: right-click -> Open to bypass)"
 else
     log "success"
     if [[ "$SKIP_PKG" != "1" ]]; then
@@ -324,10 +330,10 @@ else
         echo "next steps:"
         echo "  1. Upload to App Store Connect via Transporter.app:"
         echo "       open -a Transporter \"$OUT_PKG\""
-        echo "     (xcrun altool was removed in Xcode 15; use Transporter,"
+        echo "     (xcrun altool was removed in Xcode 15. Use Transporter,"
         echo "      xcrun iTMSTransporter, or the App Store Connect REST API.)"
         echo "  2. After processing, test in real sandbox via TestFlight."
-        echo "     (Do not 'sudo installer -pkg …' an MAS-signed .pkg locally:"
+        echo "     (Don't 'sudo installer -pkg ...' an MAS-signed .pkg locally:"
         echo "      macOS silently refuses to write the .app since the embedded"
         echo "      provisioning profile is only valid via the App Store /"
         echo "      TestFlight delivery path. Receipt registers anyway, making"

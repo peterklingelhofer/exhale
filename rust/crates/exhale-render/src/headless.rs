@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use bytemuck::cast_slice;
 use exhale_core::{controller::BreathingState, settings::Settings};
 
@@ -10,14 +10,16 @@ use crate::{gpu_context::GpuContext, renderer::build_pipeline, uniforms::Overlay
 ///
 /// Used by the CPU benchmark to measure render cost without the presentation
 /// path (swapchain acquire + present + compositor work).  The pipeline mirrors
-/// [`crate::OverlayRenderer`] exactly so the work-per-frame is comparable
+/// [`crate::OverlayRenderer`] so the work-per-frame is comparable
 pub struct HeadlessRenderer {
-    gpu:            Arc<GpuContext>,
+    /// Own isolated device + queue, minted from the shared `GpuContext`'s
+    /// adapter. See `GpuContext::new_render_device` for the rationale
+    device:         Arc<wgpu::Device>,
+    queue:          Arc<wgpu::Queue>,
     /// Owned to keep the render target alive: `view` borrows it internally
     #[allow(dead_code)]
     texture:        wgpu::Texture,
     view:           wgpu::TextureView,
-    format:         wgpu::TextureFormat,
     width:          u32,
     height:         u32,
     pipeline:       wgpu::RenderPipeline,
@@ -30,7 +32,9 @@ impl HeadlessRenderer {
         // Match the format used by the real overlay on macOS/Windows
         let format = wgpu::TextureFormat::Bgra8Unorm;
 
-        let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
+        let (device, queue) = gpu.new_render_device().context("headless per-window device")?;
+
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
             label:           Some("headless-overlay-target"),
             size:            wgpu::Extent3d { width: width.max(1), height: height.max(1), depth_or_array_layers: 1 },
             mip_level_count: 1,
@@ -41,9 +45,9 @@ impl HeadlessRenderer {
             view_formats:    &[],
         });
         let view = texture.create_view(&Default::default());
-        let (pipeline, uniform_buffer, bind_group) = build_pipeline(&gpu.device, format)?;
+        let (pipeline, uniform_buffer, bind_group) = build_pipeline(&device, format)?;
 
-        Ok(Self { gpu, texture, view, format, width, height, pipeline, uniform_buffer, bind_group })
+        Ok(Self { device, queue, texture, view, width, height, pipeline, uniform_buffer, bind_group })
     }
 
     pub fn render(
@@ -55,9 +59,9 @@ impl HeadlessRenderer {
         let uniforms = OverlayUniforms::from_state(
             state, settings, self.width, self.height, max_circle_scale,
         );
-        self.gpu.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(&[uniforms]));
+        self.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(&[uniforms]));
 
-        let mut enc = self.gpu.device.create_command_encoder(
+        let mut enc = self.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor { label: Some("headless-frame") }
         );
         {
@@ -79,12 +83,8 @@ impl HeadlessRenderer {
             pass.set_bind_group(0, &self.bind_group, &[]);
             pass.draw(0..3, 0..1);
         }
-        self.gpu.queue.submit(std::iter::once(enc.finish()));
+        self.queue.submit(std::iter::once(enc.finish()));
         // No present: the texture is the render target
         Ok(())
     }
-
-    pub fn width(&self)  -> u32 { self.width }
-    pub fn height(&self) -> u32 { self.height }
-    pub fn format(&self) -> wgpu::TextureFormat { self.format }
 }

@@ -14,7 +14,7 @@
 //! the title-bar app icon if shown) matches
 //!
 //! macOS ignores window icons (`NSWindow` doesn't have a per-window
-//! icon concept); the Dock / Cmd-Tab icon comes from the .app
+//! icon concept). The Dock / Cmd-Tab icon comes from the .app
 //! bundle's `Info.plist` + `.icns` instead.  Calling
 //! `WindowAttributes::with_window_icon` on macOS is a no-op that
 //! succeeds silently
@@ -25,8 +25,8 @@ const ICON_H: u32 = 256;
 
 /// Build a winit `Icon` from the embedded RGBA bytes.  Returns `None`
 /// only if the build script failed to produce a valid 256×256 buffer
-/// (e.g. the source PNG was missing or unreadable); the binary still
-/// runs in that case, the windows just fall back to the platform's
+/// (e.g. the source PNG was missing or unreadable). The binary still
+/// runs in that case: the windows fall back to the platform's
 /// default icon
 pub(crate) fn window_icon() -> Option<winit::window::Icon> {
     if ICON_RGBA.len() != (ICON_W * ICON_H * 4) as usize {

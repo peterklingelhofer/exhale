@@ -75,7 +75,7 @@ extension Shape {
 
 // Traces half the screen perimeter: bottom-center -> corner -> side -> top-center.
 // Used for the hold-phase ripple effect. `rightSide: true` goes clockwise (right),
-// `rightSide: false` goes counter-clockwise (left).
+// `rightSide: false` goes counter-clockwise (left)
 struct HalfPerimeterShape: Shape {
     let rightSide: Bool
 
@@ -119,7 +119,7 @@ struct ContentView: View {
                     Color.clear.edgesIgnoringSafeArea(.all)
                 } else {
                     if settingsModel.isPaused {
-                        // Tint mode: keep the screen tinted using ONLY the configured overlay opacity
+                        // Tint mode: keep the screen tinted using only the configured overlay opacity
                         settingsModel.cachedBackgroundColorWithoutAlpha
                             .edgesIgnoringSafeArea(.all)
                             .opacity(settingsModel.overlayOpacity)
@@ -195,8 +195,8 @@ struct ContentView: View {
                             let bandTo    = isExhale ? min(1, holdProgress + 0.12) : holdProgress
 
                             // When blurred, use a wider stroke so the glow is visible after
-                            // the blur spreads it. The blur softens ALL edges: inner (toward
-                            // center), and leading/trailing (along the perimeter).
+                            // the blur spreads it. The blur softens all edges: inner (toward
+                            // center), and leading/trailing (along the perimeter)
                             let strokeWidth = useGradient ? borderUnit * 3 : borderUnit * 2
                             let blurRadius = useGradient ? borderUnit * 2 : 0 as CGFloat
 
