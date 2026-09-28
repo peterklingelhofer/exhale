@@ -50,11 +50,10 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       build:   ${{ steps.version.outputs.build }}
     steps:
+      # Full history: BUILD below counts every commit on HEAD, which a
+      # shallow checkout would report as 1
       - uses: actions/checkout@v5
         with:
-          # Full history: BUILD below counts commits, and a depth-1 checkout
-          # would count only the one it has, breaking the monotonic build
-          # number
           fetch-depth: 0
 
       - id: version
@@ -71,7 +70,7 @@ jobs:
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             V="${GITHUB_REF#refs/tags/v}"
           else
-            V="2.0.22"
+            V="2.0.23"
           fi
           # BUILD = commit count + 10000. Apple requires CFBundleVersion to
           # be monotonically increasing across all uploads, so derive from
@@ -190,6 +189,8 @@ jobs:
         with:
           workspaces: rust
 
+      # libxkbcommon-x11-0 and patchelf are for the AppImage, which bundles
+      # libxkbcommon-x11 and points its binary at the bundled libraries
       - name: System deps
         run: |
           sudo apt-get update
@@ -200,7 +201,8 @@ jobs:
             libayatana-appindicator3-dev \
             libvulkan-dev \
             libxdo-dev \
-            fuse libfuse2
+            libxkbcommon-x11-0 \
+            patchelf
 
       - name: Install cargo-deb
         run: cargo install cargo-deb --locked
