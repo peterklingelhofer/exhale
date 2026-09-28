@@ -1277,16 +1277,43 @@ fn main() -> Result<()> {
              sctk_adwaita=error",
         ),
     );
-    if let Ok(file) = std::fs::OpenOptions::new()
-        .create(true).write(true).truncate(true)
-        .open(&log_path)
-    {
+    // Open without truncating: a second launch runs this same open while
+    // the first instance is still writing, and truncating would zero the
+    // file under it.  The truncation happens below, once
+    // `single_instance_guard` says this process owns the lock.
+    // `log_file_reset` is a second handle kept for `set_len`, since `file`
+    // moves into the logger
+    let log_file = std::fs::OpenOptions::new()
+        .create(true).append(true)
+        .open(&log_path);
+    let log_file_reset = log_file.as_ref().ok().and_then(|f| f.try_clone().ok());
+    if let Ok(file) = log_file {
         builder.target(env_logger::Target::Pipe(
             Box::new(TeeLogWriter { file }),
         ));
     }
     builder.init();
     install_panic_logger(log_path.clone());
+
+    // Run the instance guard before anything else stands up real app
+    // state: a second launch needs to find out it's a duplicate and
+    // exit before it starts the settings-writer thread or builds the
+    // event loop, which is what creates the NSApplication on macOS
+    let guard = single_instance_guard();
+
+    // Start this run's log fresh once the lock is ours.  A `Secondary`
+    // launch leaves the running instance's log intact, apart from the
+    // guard's one line about it
+    if !matches!(guard, InstanceGuard::Secondary) {
+        if let Some(f) = &log_file_reset {
+            let _ = f.set_len(0);
+        }
+    }
+    let _instance_guard = match guard {
+        InstanceGuard::First(g)    => Some(g),
+        InstanceGuard::Secondary   => return Ok(()),
+        InstanceGuard::Unavailable => None,
+    };
     info!("logging to {}", log_path.display());
 
     // Linux: initialise GTK before anything in the tray-icon path runs.
@@ -1307,12 +1334,6 @@ fn main() -> Result<()> {
 
     let event_loop = EventLoop::<AppEvent>::with_user_event().build()?;
     let proxy      = event_loop.create_proxy();
-
-    let _instance_guard = match single_instance_guard(&proxy) {
-        InstanceGuard::First(g)    => Some(g),
-        InstanceGuard::Secondary   => return Ok(()),
-        InstanceGuard::Unavailable => None,
-    };
 
     let mut app = App::new(proxy, settings_manager);
     event_loop.run_app(&mut app)?;
