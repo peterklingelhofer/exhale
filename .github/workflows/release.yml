@@ -177,6 +177,8 @@ jobs:
         with:
           workspaces: rust
 
+      # libxkbcommon-x11-0 and patchelf are for the AppImage, which bundles
+      # libxkbcommon-x11 and points its binary at the bundled libraries
       - name: System deps
         run: |
           sudo apt-get update
@@ -187,7 +189,8 @@ jobs:
             libayatana-appindicator3-dev \
             libvulkan-dev \
             libxdo-dev \
-            fuse libfuse2
+            libxkbcommon-x11-0 \
+            patchelf
 
       - name: Install cargo-deb
         run: cargo install cargo-deb --locked
