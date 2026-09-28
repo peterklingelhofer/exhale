@@ -50,6 +50,12 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       build:   ${{ steps.version.outputs.build }}
     steps:
+      # Full history: BUILD below counts every commit on HEAD, which a
+      # shallow checkout would report as 1
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
       - id: version
         shell: bash
         run: |
@@ -177,6 +183,8 @@ jobs:
         with:
           workspaces: rust
 
+      # libxkbcommon-x11-0 and patchelf are for the AppImage, which bundles
+      # libxkbcommon-x11 and points its binary at the bundled libraries
       - name: System deps
         run: |
           sudo apt-get update
@@ -187,7 +195,8 @@ jobs:
             libayatana-appindicator3-dev \
             libvulkan-dev \
             libxdo-dev \
-            fuse libfuse2
+            libxkbcommon-x11-0 \
+            patchelf
 
       - name: Install cargo-deb
         run: cargo install cargo-deb --locked
