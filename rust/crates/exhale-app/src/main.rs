@@ -100,6 +100,10 @@ struct App {
     settings:         Arc<RwLock<Settings>>,
     settings_manager: Arc<SettingsManager>,
 
+    // First fatal GPU or window failure in `resumed()`, which exits the
+    // loop to unwind.  `main` returns it so the process exits non-zero
+    fatal: Option<anyhow::Error>,
+
     // GPU context: shared across all renderers
     gpu: Option<Arc<GpuContext>>,
 
@@ -182,6 +186,7 @@ impl App {
             proxy,
             settings,
             settings_manager,
+            fatal:            None,
             gpu:              None,
             overlays:         HashMap::new(),
             frame_senders:    None,
@@ -636,15 +641,30 @@ impl ApplicationHandler<AppEvent> for App {
             .with_inner_size(winit::dpi::PhysicalSize::new(1u32, 1u32));
         let bootstrap_win = match event_loop.create_window(bootstrap_attrs) {
             Ok(w) => Arc::new(w),
-            Err(e) => { error!("bootstrap window: {e}"); event_loop.exit(); return; }
+            Err(e) => {
+                error!("bootstrap window: {e}");
+                self.fatal = Some(anyhow::anyhow!("bootstrap window: {e}"));
+                event_loop.exit();
+                return;
+            }
         };
         let bootstrap_surface = match instance.create_surface(Arc::clone(&bootstrap_win)) {
             Ok(s) => s,
-            Err(e) => { error!("bootstrap surface: {e}"); event_loop.exit(); return; }
+            Err(e) => {
+                error!("bootstrap surface: {e}");
+                self.fatal = Some(anyhow::anyhow!("bootstrap surface: {e}"));
+                event_loop.exit();
+                return;
+            }
         };
         let gpu = match GpuContext::new_for_surface(instance, &bootstrap_surface) {
             Ok(g) => g,
-            Err(e) => { error!("GPU init: {e}"); event_loop.exit(); return; }
+            Err(e) => {
+                error!("GPU init: {e}");
+                self.fatal = Some(e.context("GPU init"));
+                event_loop.exit();
+                return;
+            }
         };
         drop(bootstrap_surface);
         drop(bootstrap_win);
@@ -689,6 +709,7 @@ impl ApplicationHandler<AppEvent> for App {
         );
         if handles.is_empty() {
             error!("no overlay windows created");
+            self.fatal = Some(anyhow::anyhow!("no overlay windows created"));
             event_loop.exit();
             return;
         }
@@ -1328,5 +1349,7 @@ fn main() -> Result<()> {
 
     let mut app = App::new(proxy, settings_manager);
     event_loop.run_app(&mut app)?;
-    Ok(())
+    // A fatal failure in `resumed()` exits the loop the way a quit does,
+    // so hand it back here for a non-zero exit status
+    app.fatal.map_or(Ok(()), Err)
 }
