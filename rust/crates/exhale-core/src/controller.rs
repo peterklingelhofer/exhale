@@ -230,13 +230,24 @@ fn run_controller(
     }
 }
 
+/// Clamp a phase length to 0.1 s .. 86_400 s (one day) before it reaches
+/// `Duration::from_secs_f64`, which panics on inf, NaN or anything past
+/// `Duration::MAX`. `.max(0.1)` runs first, and `f64::max` returns the
+/// non-NaN operand, so NaN floors to 0.1 s same as any other non-positive
+/// input. `f64::clamp` reads tidier but hands a NaN input straight back
+/// out, which `Duration::from_secs_f64` panics on all the same
+#[allow(clippy::manual_clamp)]
+fn phase_secs(secs: f64) -> f64 {
+    secs.max(0.1).min(86_400.0)
+}
+
 fn fresh_inner(now: Instant, inhale_dur: f64) -> Inner {
     // A zero-length inhale takes zero time, so the first tick finds the
     // phase already over and advances to whatever the user did configure
     let phase_duration = if inhale_dur <= 0.0 {
         Duration::ZERO
     } else {
-        Duration::from_secs_f64(inhale_dur.max(0.1))
+        Duration::from_secs_f64(phase_secs(inhale_dur))
     };
     Inner {
         phase:               BreathingPhase::Inhale,
@@ -527,7 +538,7 @@ fn phase_duration_for(
     if base <= 0.0 {
         return Duration::ZERO;
     }
-    Duration::from_secs_f64((jitter(base, fraction) * current_drift).max(0.1))
+    Duration::from_secs_f64(phase_secs(jitter(base, fraction) * current_drift))
 }
 
 /// Perturb `base` by up to ±`fraction` of itself
@@ -852,6 +863,42 @@ mod tests {
             0.0, 0.0, 0.0, 0.0,
         );
         assert_eq!(zero, Duration::ZERO);
+    }
+
+    #[test]
+    fn phase_secs_clamps_non_finite_and_huge_inputs() {
+        // `Duration::from_secs_f64` panics on inf, NaN or anything past
+        // `Duration::MAX`, so every input reaching it has to land inside
+        // 0.1 s .. 86_400 s first
+        assert_eq!(phase_secs(f64::INFINITY), 86_400.0);
+        assert_eq!(phase_secs(f64::NAN), 0.1);
+        assert_eq!(phase_secs(1e30), 86_400.0);
+    }
+
+    #[test]
+    fn non_finite_and_huge_inhale_durations_do_not_panic() {
+        // A hand-edited or generated settings.toml can hold `inf`, `nan`
+        // or `1e30` for a duration. Both call sites that turn a duration
+        // into a `Duration` have to survive all three
+        let cases = [
+            (f64::INFINITY, Duration::from_secs(86_400)),
+            (f64::NAN,       Duration::from_millis(100)),
+            (1e30,           Duration::from_secs(86_400)),
+        ];
+        for (dur, expected) in cases {
+            assert_eq!(
+                fresh_inner(Instant::now(), dur).phase_duration, expected,
+                "fresh_inner({dur})"
+            );
+
+            let via_phase_duration_for = phase_duration_for(
+                BreathingPhase::Inhale,
+                1.0,
+                dur, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0,
+            );
+            assert_eq!(via_phase_duration_for, expected, "phase_duration_for({dur})");
+        }
     }
 
     // ── tick() cadence / hysteresis tests ─────────────────────────────────
