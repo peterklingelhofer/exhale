@@ -37,7 +37,7 @@ TOOL_DIR="$OUT_DIR/bin"
 # AppImageKit build in existing checkouts, which must not be reused
 APPIMAGETOOL="$TOOL_DIR/appimagetool-x86_64.AppImage"
 
-VERSION="${VERSION:-2.0.22}"
+VERSION="${VERSION:-2.0.23}"
 OUT_APPIMAGE="$OUT_DIR/exhale-${VERSION}-x86_64.AppImage"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
