@@ -1,7 +1,7 @@
 name: exhale-app
 title: exhale
 base: core22
-version: '2.0.22'
+version: '2.0.23'
 summary: A translucent breathing overlay for mindful breathing.
 description: |
   A minimal cross-platform breathing overlay, a friendly indicator and

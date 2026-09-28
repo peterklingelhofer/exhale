@@ -297,11 +297,16 @@ cargo deb --no-build -p exhale-app
 # -> rust/target/debian/exhale-app_<VERSION>_amd64.deb
 
 # AppImage (Linux only, appimagetool is x86_64-Linux)
+sudo apt-get install -y patchelf libxkbcommon-x11-0   # plus the snapcraft.yaml build deps and libxdo-dev
 rust/scripts/bundle-appimage.sh
 # -> rust/target/appimage/exhale-<VERSION>-x86_64.AppImage
 ```
 
 On macOS, the AppImage step has to run via CI or a Linux VM. The `linux-direct` CI job handles both artifacts on every `v*` tag.
+
+The AppImage takes glibc, GTK 3, X11 and the GPU drivers from the host and bundles the libraries a desktop may lack: libxdo, the tray library (libayatana-appindicator3 and what it loads) and libxkbcommon-x11 with its matching libxkbcommon. [bundle-appimage.sh](rust/scripts/bundle-appimage.sh) lists them and explains each. It's packed with [AppImage/appimagetool](https://github.com/AppImage/appimagetool), whose runtime is static, so users don't need libfuse2, which Ubuntu 22.04 and later don't install by default.
+
+[AppImageHub](https://appimage.github.io) lists the AppImage from the latest GitHub release. Its test runs it on GitHub's Ubuntu 22.04 runner with a virtual display and fails if exhale doesn't open a window. exhale 2.0.21 failed it because that AppImage bundled no libraries and the runner lacks some of them. The test only reruns when a maintainer closes and reopens the listing's pull request, so after a release that fixes a failure, ask for a retest there.
 
 ---
 
