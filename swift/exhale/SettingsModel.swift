@@ -49,7 +49,7 @@ class SettingsModel: ObservableObject {
 
     // Scheduling-only properties: not @Published because they don't affect what's
     // rendered per-frame. Removing @Published prevents overlay ContentViews from
-    // re-rendering when the user adjusts timing in settings.
+    // re-rendering when the user adjusts timing in settings
     var inhaleDuration: TimeInterval {
         didSet { defaults.set(inhaleDuration, forKey: "inhaleDuration") }
     }
@@ -98,14 +98,14 @@ class SettingsModel: ObservableObject {
         }
     }
 
-    /// Reminder notification interval in minutes. 0 = off.
+    /// Reminder notification interval in minutes. 0 = off
     @Published var reminderIntervalMinutes: Double {
         didSet {
             defaults.set(reminderIntervalMinutes, forKey: "reminderIntervalMinutes")
         }
     }
 
-    /// Auto-stop timer in minutes. 0 = off. Stops animation after this duration.
+    /// Auto-stop timer in minutes. 0 = off. Stops animation after this duration
     @Published var autoStopMinutes: Double {
         didSet {
             defaults.set(autoStopMinutes, forKey: "autoStopMinutes")
@@ -147,7 +147,7 @@ class SettingsModel: ObservableObject {
     /// Fires once when the animation should reset. Using a PassthroughSubject instead
     /// of @Published Bool prevents the double objectWillChange fire that @Published causes
     /// (true then false), which was forcing all overlay ContentViews to re-render twice
-    /// per settings change.
+    /// per settings change
     let resetAnimationSignal = PassthroughSubject<Void, Never>()
     @Published var isPaused: Bool = false
 

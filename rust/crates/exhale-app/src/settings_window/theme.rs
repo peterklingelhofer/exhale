@@ -16,7 +16,7 @@ use crate::platform;
 /// Corner radius used for egui widget chrome (TextEdit, comboboxes,
 /// etc.) inside the settings window.  Hand-painted widgets (stepper,
 /// segmented picker, control button) draw their own rounding via
-/// `painter.rect_*` and pass their own constants; they aren't
+/// `painter.rect_*` and pass their own constants.  They aren't
 /// affected by this value.  Kept here (not in the parent module's
 /// layout constants) so [`visuals_for_theme`] can be tested in
 /// isolation
@@ -25,15 +25,15 @@ const TEXT_EDIT_RADIUS: f32 = 5.0;
 /// Load the OS-native UI font and register it as the default proportional
 /// font on the egui context.  Each platform's system-preferences app uses a
 /// specific typeface (SF Pro on macOS, Segoe UI on Windows, Ubuntu/Cantarell
-/// on common Linux desktops); matching that here makes our settings window
+/// on common Linux desktops).  Matching that here makes our settings window
 /// read as a native part of the OS instead of egui's default Ubuntu fallback
 ///
-/// System fonts are NOT redistributed: we read the font file the OS ships
-/// with, exactly like every native app does (NSFont on macOS, GDI on
-/// Windows, fontconfig on Linux).  No licensing concern
+/// System fonts aren't redistributed: we read the font file the OS ships
+/// with, like every native app does (NSFont on macOS, GDI on
+/// Windows, fontconfig on Linux), so there's no licensing concern
 ///
 /// If no candidate path exists on the current machine, we silently keep
-/// egui's default font: the window still works, it just doesn't blend in
+/// egui's default font: the window still works but doesn't blend in
 /// quite as well
 pub(crate) fn install_system_ui_font(ctx: &egui::Context) {
     #[cfg(target_os = "macos")]
@@ -65,7 +65,7 @@ pub(crate) fn install_system_ui_font(ctx: &egui::Context) {
     let Some((path, data)) = candidates.iter().find_map(|p| {
         std::fs::read(p).ok().map(|d| (*p, d))
     }) else {
-        log::info!("install_system_ui_font: no candidate font readable; keeping egui default");
+        log::info!("install_system_ui_font: no candidate font readable, keeping egui default");
         return;
     };
     log::info!("install_system_ui_font: using {path}");
@@ -94,19 +94,20 @@ pub(crate) fn visuals_for_theme(theme: Theme) -> egui::Visuals {
     };
     v.window_rounding = 10.0.into();
 
-    // Force full-contrast text that reads over the vibrancy-tinted cards in
+    // Force high-contrast text that reads over the vibrancy-tinted cards in
     // both modes.  egui's defaults (from_gray(140) dark / from_gray(60) light)
     // look washed-out against the translucent SectionCards, especially light
     // mode over hudWindow vibrancy, which is already near-white, so a dark
-    // gray label reads as if someone turned the opacity down on the text;
-    // match SwiftUI `.primary` (#FFFFFF on dark, #000000 on light)
-    let (fg_text, fg_subtle) = if matches!(theme, Theme::Dark) {
-        (egui::Color32::from_rgb(235, 235, 240), egui::Color32::from_rgb(235, 235, 240))
+    // gray label reads as if someone turned the opacity down on the text.
+    // Close to SwiftUI `.primary`: rgb(235,235,240) on dark, rgb(20,20,22)
+    // on light
+    let fg_text = if matches!(theme, Theme::Dark) {
+        egui::Color32::from_rgb(235, 235, 240)
     } else {
-        (egui::Color32::from_rgb(20, 20, 22),    egui::Color32::from_rgb(20, 20, 22))
+        egui::Color32::from_rgb(20, 20, 22)
     };
     v.override_text_color = Some(fg_text);
-    v.widgets.noninteractive.fg_stroke.color = fg_subtle;
+    v.widgets.noninteractive.fg_stroke.color = fg_text;
     v.widgets.inactive.fg_stroke.color       = fg_text;
     v.widgets.hovered.fg_stroke.color        = fg_text;
     v.widgets.active.fg_stroke.color         = fg_text;
@@ -117,7 +118,7 @@ pub(crate) fn visuals_for_theme(theme: Theme) -> egui::Visuals {
     // rest, matching the legibility we already get in dark mode and the
     // Swift `NSSegmentedControl` look
     if matches!(theme, Theme::Light) {
-        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_gray(180));
+        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0_f32, egui::Color32::from_gray(180));
     }
 
     // Round egui widget chrome (TextEdit, checkboxes, comboboxes) to match
@@ -134,9 +135,9 @@ pub(crate) fn visuals_for_theme(theme: Theme) -> egui::Visuals {
     // (`extreme_bg_color` ≈ rgb(10,10,10), `widgets.inactive.weak_bg_fill`
     // ≈ rgb(60,60,60)) which sits darker than the card behind and
     // disappears against it.  AppKit's `NSTextField` and `NSStepper`
-    // are noticeably LIGHTER than the surrounding controlBackground in
+    // are noticeably lighter than the surrounding controlBackground in
     // dark mode: they read as raised input affordances.  Match that
-    // by lifting both fills several steps in dark mode; light mode's
+    // by lifting both fills several steps in dark mode.  Light mode's
     // defaults are already correct
     if matches!(theme, Theme::Dark) {
         v.extreme_bg_color = egui::Color32::from_rgb(58, 58, 60);
@@ -144,7 +145,7 @@ pub(crate) fn visuals_for_theme(theme: Theme) -> egui::Visuals {
         let stepper_rest    = egui::Color32::from_rgb(78, 78, 80);
         let stepper_hover   = egui::Color32::from_rgb(96, 96, 98);
         let stepper_press   = egui::Color32::from_rgb(120, 120, 122);
-        let stepper_stroke  = egui::Stroke::new(1.0, egui::Color32::from_rgb(110, 110, 112));
+        let stepper_stroke  = egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(110, 110, 112));
         v.widgets.inactive.weak_bg_fill = stepper_rest;
         v.widgets.inactive.bg_stroke    = stepper_stroke;
         v.widgets.hovered.weak_bg_fill  = stepper_hover;
@@ -170,7 +171,7 @@ pub(crate) fn theme_preference(theme: Theme) -> ThemePreference {
 ///
 /// When `platform::is_blur_active()` is true, the OS is providing a blur
 /// behind the window (macOS VEV child-window, Windows DWM acrylic, KDE
-/// blur-behind region); we clear at alpha 0 so wgpu doesn't paint
+/// blur-behind region).  We clear at alpha 0 so wgpu doesn't paint
 /// anything where egui hasn't drawn, letting the OS blur show through
 ///
 /// When blur isn't active (older Windows, GNOME, opt-out via
@@ -202,7 +203,7 @@ mod tests {
     fn visuals_dark_uses_high_contrast_text() {
         let v = visuals_for_theme(Theme::Dark);
         let c = v.override_text_color.expect("text color override set in dark mode");
-        // RGB > 200 = near-white; we use rgb(235,235,240)
+        // RGB > 200 = near-white: we use rgb(235,235,240)
         assert!(c.r() >= 200 && c.g() >= 200 && c.b() >= 200,
             "dark-mode text should be near-white, got {c:?}");
     }

@@ -45,7 +45,7 @@ $OutDir     = Join-Path $RustRoot "target\msix"
 $StageDir   = Join-Path $OutDir "stage"
 $OutMsix    = Join-Path $OutDir "exhale.msix"
 
-$BundleId   = "PeterKlingelhofer.exhale"   # MUST match <Identity Name> in manifest
+$BundleId   = "PeterKlingelhofer.exhale"   # must match <Identity Name> in manifest
 $Target     = "x86_64-pc-windows-msvc"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -110,12 +110,12 @@ $ManifestDst = Join-Path $StageDir "AppxManifest.xml"
 # manifest with "Incorrect xml declaration syntax" on Line 1 Col 14
 $manifestText = [System.IO.File]::ReadAllText($ManifestSrc)
 # Coerce any pre-release suffix (e.g. "2.0.8-rc.1") down to the numeric
-# triple MSIX requires; D must be 0 (Microsoft Store rule)
+# triple MSIX requires. D must be 0 (Microsoft Store rule)
 $numericVersion = ($Version -split '-')[0]
-# Case-sensitive replace (-creplace) so we only hit the <Identity Version="…">
+# Case-sensitive replace (-creplace) so we only hit the <Identity Version="...">
 # attribute and leave the lowercase XML declaration `<?xml version="1.0"?>`
 # untouched.  Negative-lookbehind `(?<!\w)` prevents matching inside
-# `MinVersion="…"` or `MaxVersionTested="…"` on the TargetDeviceFamily,
+# `MinVersion="..."` or `MaxVersionTested="..."` on the TargetDeviceFamily,
 # otherwise Partner Center rejects the MSIX with "targets Windows MinVersion
 # <= 10.0.17134.0" because MinVersion got clobbered to the app version
 $manifestText = $manifestText -creplace '(?<!\w)Version="[^"]+"', "Version=`"$numericVersion.0`""
@@ -152,7 +152,7 @@ if ($DryRun) {
     }
 } else {
     Write-Log "no -CertPath supplied: MSIX is unsigned"
-    Write-Log "Microsoft Store will re-sign on submission; for sideload testing"
+    Write-Log "Microsoft Store will re-sign on submission. For sideload testing,"
     Write-Log "pass -CertPath + -CertPassword with a self-signed PFX."
 }
 

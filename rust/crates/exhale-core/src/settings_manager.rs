@@ -18,8 +18,9 @@ use crate::settings::Settings;
 /// - Windows: `%APPDATA%\exhale\settings.toml`
 /// - Linux:   `~/.config/exhale/settings.toml`
 ///
-/// Writes are coalesced: a background thread waits 500 ms of silence before
-/// flushing to disk, matching UserDefaults coalescing behaviour
+/// Writes are coalesced: a background thread opens a fixed 500 ms window
+/// at the first dirty mark and flushes to disk when it closes, matching
+/// UserDefaults coalescing behaviour
 pub struct SettingsManager {
     pub settings: Arc<RwLock<Settings>>,
     config_path:  PathBuf,
@@ -56,7 +57,7 @@ impl SettingsManager {
         })
     }
 
-    /// Mark settings as dirty; will be flushed within ~500 ms
+    /// Mark settings as dirty. Will be flushed within ~500 ms
     pub fn mark_dirty(&self) {
         let _ = self.dirty_tx.send(());
     }
@@ -71,7 +72,7 @@ impl SettingsManager {
     pub fn flush_sync(&self) -> Result<()> {
         let s = self.settings.read_or_recover().clone();
         // Cloning before persisting means the lock is released for the
-        // duration of the (potentially slow) disk write; readers and
+        // duration of the (potentially slow) disk write. Readers and
         // writers from other threads aren't blocked on I/O
         save_settings(&s, &self.config_path)
     }
@@ -93,16 +94,16 @@ fn load_or_default(path: &PathBuf) -> Settings {
         Ok(contents) => match toml::from_str::<Settings>(&contents) {
             Ok(s)  => { info!("loaded settings from {}", path.display()); s }
             Err(e) => {
-                warn!("failed to parse {}: {e}; using defaults", path.display());
+                warn!("failed to parse {}: {e}, using defaults", path.display());
                 Settings::default()
             }
         },
         Err(_) => {
-            info!("no settings file at {}; using defaults", path.display());
+            info!("no settings file at {}, using defaults", path.display());
             Settings::default()
         }
     };
-    // Always start animating on launch; never restore a stopped or
+    // Always start animating on launch, never restore a stopped or
     // paused state. Matches Swift SettingsModel.init() which hardcodes
     // isAnimating = true and never loads isAnimating/isPaused back
     // from UserDefaults
@@ -128,7 +129,7 @@ fn write_back_loop(
     path:     PathBuf,
     rx:       std::sync::mpsc::Receiver<()>,
 ) {
-    // Drain the channel with a 500 ms timeout; flush once there are no more
+    // Drain the channel with a 500 ms timeout, flush once there are no more
     // events for that window (coalescing)
     loop {
         match rx.recv() {

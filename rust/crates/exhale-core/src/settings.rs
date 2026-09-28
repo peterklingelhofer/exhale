@@ -6,8 +6,10 @@ use crate::types::{
 
 /// All user-configurable settings for the exhale app
 ///
-/// Matches the Swift `SettingsModel` exactly in field names and default
-/// values. Stored as TOML in the platform config directory
+/// Mirrors the Swift `SettingsModel`'s field names. The default breathing
+/// durations and drift differ: 5 / 0 / 5 / 0 with drift off here, and
+/// 5 / 0 / 10 / 0 with 1 % drift in Swift. Stored as TOML in the platform
+/// config directory
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
     // ── Appearance ────────────────────────────────────────────────────────────
@@ -18,7 +20,7 @@ pub struct Settings {
     /// Linear RGBA of the background tint. Alpha controls background opacity
     pub background_color: [f32; 4],
 
-    /// Master opacity of the overlay (0.0–1.0)
+    /// Master opacity of the overlay (0.0 to 1.0)
     pub overlay_opacity: f32,
 
     pub shape: AnimationShape,
@@ -36,12 +38,11 @@ pub struct Settings {
     /// Per-cycle duration multiplier. 1.01 = each cycle 1 % longer (drift)
     ///
     /// Defaults to 1.0 (off). Pranayama's graded extension is the reason this
-    /// exists and it's a reasonable thing to turn on, but it should not be
+    /// exists and it's a reasonable thing to turn on, but it shouldn't be
     /// imposed: heart-rate-variability amplitude peaks at 4.5-6.5 breaths a
-    /// minute rather than rising without limit, and exhale's default cadence
-    /// already sits below that band, so drifting slower from cycle one moves
-    /// every new user further from the studied range. When it IS on, the
-    /// compounding is bounded by [`crate::controller::DRIFT_MAX_CYCLE_SECS`]
+    /// minute, and drifting slower from the 6-a-minute default moves every new
+    /// user toward the bottom of that band and then below the rates studied
+    /// directly
     pub drift: f64,
 
     // ── Randomisation (± fraction of each phase, shown as a percent) ──────────
@@ -66,38 +67,29 @@ pub struct Settings {
     // Stored as an offset relative to a named monitor (matching Swift's
     // per-screen persistence in AppDelegate.windowDidMove).  When the saved
     // monitor is no longer connected we clamp the position to whichever
-    // monitor still has visible real estate rather than restoring to
+    // monitor still has visible real estate instead of restoring it to
     // off-screen coordinates.  Both windows use the same shape, see
     // [`WindowPlacement`] / [`Settings::settings_window_placement`] /
     // [`Settings::animation_window_placement`]
     //
-    // The settings window has a fixed width; only its height is
+    // The settings window has a fixed width, so only its height is
     // persisted (`settings_window_width` doesn't exist).  The animation
     // window persists both dimensions because the user can resize it
     // freely
-    #[serde(default)]
     pub settings_window_x: Option<i32>,
-    #[serde(default)]
     pub settings_window_y: Option<i32>,
-    #[serde(default)]
     pub settings_window_height: Option<u32>,
-    #[serde(default)]
     pub settings_window_screen: Option<String>,
 
-    #[serde(default)]
     pub animation_window_x: Option<i32>,
-    #[serde(default)]
     pub animation_window_y: Option<i32>,
-    #[serde(default)]
     pub animation_window_width: Option<u32>,
-    #[serde(default)]
     pub animation_window_height: Option<u32>,
-    #[serde(default)]
     pub animation_window_screen: Option<String>,
 
     // ── User-customisable global hotkeys ─────────────────────────────────────
     /// Per-action global keyboard shortcuts.  Users right-click the
-    /// matching button in the settings window to change one;
+    /// matching button in the settings window to change one.
     /// "Reset to Defaults" restores every shortcut to its
     /// [`KeyboardShortcuts::default`] value.  Stored at the bottom of
     /// the file with `#[serde(default)]` so older `settings.toml`
@@ -138,17 +130,13 @@ impl KeyboardShortcut {
         Self { modifiers, code: code.into() }
     }
 
-    pub fn ctrl_shift(code: impl Into<String>) -> Self {
-        Self::new(KBD_MOD_CTRL | KBD_MOD_SHIFT, code)
-    }
-
     pub fn has_ctrl(&self)  -> bool { self.modifiers & KBD_MOD_CTRL  != 0 }
     pub fn has_shift(&self) -> bool { self.modifiers & KBD_MOD_SHIFT != 0 }
     pub fn has_alt(&self)   -> bool { self.modifiers & KBD_MOD_ALT   != 0 }
     pub fn has_meta(&self)  -> bool { self.modifiers & KBD_MOD_META  != 0 }
 
     /// Human-readable rendering for tooltips and capture prompts. macOS
-    /// users see the standard glyph triad (`⌃⇧⌥⌘`); other platforms get
+    /// users see the standard glyph triad (`⌃⇧⌥⌘`). Other platforms get
     /// textual `Ctrl+Shift+...` so the string remains legible in any
     /// font.  The trailing key strips the `Key` / `Digit` prefixes that
     /// come from `keyboard_types::Code`'s variant names
@@ -203,43 +191,29 @@ fn human_key(code: &str) -> String {
 /// a binding (Ctrl+Shift+, which is the conventional "open
 /// preferences" combo across desktop platforms).  Every other
 /// action defaults to `None` so we ship without any global hotkey
-/// that could silently conflict with the user's other apps; users
+/// that could silently conflict with the user's other apps.  Users
 /// opt into bindings via right-click -> Change Shortcut on the
 /// matching settings-window button.  Avoids the long support tail
-/// of "Ctrl+Shift+A doesn't work on my mac" reports: anything we
-/// pre-register is anything we'd have to justify
+/// of "Ctrl+Shift+A doesn't work on my mac" reports, since we'd have
+/// to justify every hotkey we pre-register
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct KeyboardShortcuts {
-    #[serde(default = "KeyboardShortcuts::default_start")]
     pub start:       Option<KeyboardShortcut>,
-    #[serde(default = "KeyboardShortcuts::default_stop")]
     pub stop:        Option<KeyboardShortcut>,
-    #[serde(default = "KeyboardShortcuts::default_reset")]
     pub reset:       Option<KeyboardShortcut>,
-    #[serde(default = "KeyboardShortcuts::default_quit")]
     pub quit:        Option<KeyboardShortcut>,
-    #[serde(default = "KeyboardShortcuts::default_preferences")]
     pub preferences: Option<KeyboardShortcut>,
-}
-
-impl KeyboardShortcuts {
-    pub fn default_start()       -> Option<KeyboardShortcut> { None }
-    pub fn default_stop()        -> Option<KeyboardShortcut> { None }
-    pub fn default_reset()       -> Option<KeyboardShortcut> { None }
-    pub fn default_quit()        -> Option<KeyboardShortcut> { None }
-    pub fn default_preferences() -> Option<KeyboardShortcut> {
-        Some(KeyboardShortcut::ctrl_shift("Comma"))
-    }
 }
 
 impl Default for KeyboardShortcuts {
     fn default() -> Self {
         Self {
-            start:       Self::default_start(),
-            stop:        Self::default_stop(),
-            reset:       Self::default_reset(),
-            quit:        Self::default_quit(),
-            preferences: Self::default_preferences(),
+            start:       None,
+            stop:        None,
+            reset:       None,
+            quit:        None,
+            preferences: Some(KeyboardShortcut::new(KBD_MOD_CTRL | KBD_MOD_SHIFT, "Comma")),
         }
     }
 }
@@ -290,14 +264,7 @@ impl KeyboardShortcuts {
     }
 
     pub fn reset_to_default(&mut self, action: ShortcutAction) {
-        let default = match action {
-            ShortcutAction::Start       => Self::default_start(),
-            ShortcutAction::Stop        => Self::default_stop(),
-            ShortcutAction::Reset       => Self::default_reset(),
-            ShortcutAction::Quit        => Self::default_quit(),
-            ShortcutAction::Preferences => Self::default_preferences(),
-        };
-        self.set(action, default);
+        self.set(action, Self::default().get(action).cloned());
     }
 }
 
@@ -330,8 +297,8 @@ impl Default for Settings {
             color_fill_gradient: ColorFillGradient::On,
             animation_mode:      AnimationMode::Sinusoidal,
             hold_ripple_mode:    HoldRippleMode::Gradient,
-            // Show both the menu-bar / tray icon AND the Dock / taskbar
-            // entry by default; users new to the app are more likely to
+            // Show both the menu-bar / tray icon and the Dock / taskbar
+            // entry by default. Users new to the app are more likely to
             // notice it in the Dock, and discovering the tray-only mode
             // via Preferences once is easy
             app_visibility:      AppVisibility::Both,
@@ -348,7 +315,7 @@ impl Default for Settings {
             //
             // These fields carry no `#[serde(default)]`, so a settings.toml that
             // predates this change keeps every value it already has. The move
-            // reaches fresh installs and Reset to Defaults, and nobody else
+            // reaches only fresh installs and Reset to Defaults
             inhale_duration:           5.0,
             post_inhale_hold_duration: 0.0,
             exhale_duration:           5.0,
@@ -429,11 +396,16 @@ impl Settings {
     }
 }
 
+/// Epsilon for comparing timing values (seconds, and the 0.0-1.0 drift
+/// / jitter sliders): well below anything a user could perceive or
+/// type, so two floats within it read as unchanged
+pub(crate) const TIMING_EPS: f64 = 1e-9;
+
 /// Categorised diff between two `Settings` snapshots.  Adding a new
 /// setting is a one-line edit to the relevant `*_changed` computation
-/// here rather than coordinated edits across `main.rs`
+/// here, with no coordinated edits across `main.rs`
 ///
-/// All `*_changed` fields are inclusive: they're `true` whenever ANY
+/// All `*_changed` fields are inclusive: they're `true` whenever any
 /// field in their category differs.  Categories match the downstream
 /// actions
 ///
@@ -474,15 +446,15 @@ impl SettingsDiff {
             || after.background_color    != before.background_color
             || (after.overlay_opacity - before.overlay_opacity).abs() > 1e-4;
         let timing_changed =
-            (after.inhale_duration                       - before.inhale_duration).abs()           > 1e-9
-         || (after.post_inhale_hold_duration             - before.post_inhale_hold_duration).abs() > 1e-9
-         || (after.exhale_duration                       - before.exhale_duration).abs()           > 1e-9
-         || (after.post_exhale_hold_duration             - before.post_exhale_hold_duration).abs() > 1e-9
-         || (after.drift                                 - before.drift).abs()                     > 1e-9
-         || (after.randomized_timing_inhale              - before.randomized_timing_inhale).abs()              > 1e-9
-         || (after.randomized_timing_post_inhale_hold    - before.randomized_timing_post_inhale_hold).abs()    > 1e-9
-         || (after.randomized_timing_exhale              - before.randomized_timing_exhale).abs()              > 1e-9
-         || (after.randomized_timing_post_exhale_hold    - before.randomized_timing_post_exhale_hold).abs()    > 1e-9
+            (after.inhale_duration                       - before.inhale_duration).abs()           > TIMING_EPS
+         || (after.post_inhale_hold_duration             - before.post_inhale_hold_duration).abs() > TIMING_EPS
+         || (after.exhale_duration                       - before.exhale_duration).abs()           > TIMING_EPS
+         || (after.post_exhale_hold_duration             - before.post_exhale_hold_duration).abs() > TIMING_EPS
+         || (after.drift                                 - before.drift).abs()                     > TIMING_EPS
+         || (after.randomized_timing_inhale              - before.randomized_timing_inhale).abs()              > TIMING_EPS
+         || (after.randomized_timing_post_inhale_hold    - before.randomized_timing_post_inhale_hold).abs()    > TIMING_EPS
+         || (after.randomized_timing_exhale              - before.randomized_timing_exhale).abs()              > TIMING_EPS
+         || (after.randomized_timing_post_exhale_hold    - before.randomized_timing_post_exhale_hold).abs()    > TIMING_EPS
          || after.hold_ripple_mode  != before.hold_ripple_mode;
 
         Self {
@@ -493,8 +465,8 @@ impl SettingsDiff {
             new_visibility:     after.app_visibility,
             visual_changed,
             timing_changed,
-            auto_stop_changed:  (after.auto_stop_minutes        - before.auto_stop_minutes).abs()        > 1e-9,
-            reminder_changed:   (after.reminder_interval_minutes - before.reminder_interval_minutes).abs() > 1e-9,
+            auto_stop_changed:  (after.auto_stop_minutes        - before.auto_stop_minutes).abs()        > TIMING_EPS,
+            reminder_changed:   (after.reminder_interval_minutes - before.reminder_interval_minutes).abs() > TIMING_EPS,
         }
     }
 
@@ -520,35 +492,27 @@ impl Settings {
     /// window placement.  Single source of truth for the Reset button,
     /// the Reset confirmation dialog, and the global-hotkey reset path
     pub fn reset_preserving_runtime_state(&mut self) {
-        let was_animating  = self.is_animating;
-        let was_paused     = self.is_paused;
-        let win_x          = self.settings_window_x;
-        let win_y          = self.settings_window_y;
-        let win_h          = self.settings_window_height;
-        let win_screen     = self.settings_window_screen.take();
+        let was_animating = self.is_animating;
+        let was_paused    = self.is_paused;
+        let win_placement = self.settings_window_placement();
         *self = Settings::default();
-        self.is_animating            = was_animating;
-        self.is_paused               = was_paused;
-        self.settings_window_x       = win_x;
-        self.settings_window_y       = win_y;
-        self.settings_window_height  = win_h;
-        self.settings_window_screen  = win_screen;
+        self.is_animating = was_animating;
+        self.is_paused    = was_paused;
+        self.set_settings_window_placement(win_placement);
     }
 
     // ── Derived pacing arithmetic ────────────────────────────────────────
     //
     // These exist so the settings window can state what the current
-    // configuration actually does without storing a number that can go
-    // stale. Nothing here is a claim about the literature; it's
-    // division. That distinction is the reason the app can say it at
-    // all: an arithmetic statement can't be retracted, so it carries
-    // none of the review risk that a health claim in a store-reviewed
-    // binary would
+    // configuration does without storing a number that can go stale.
+    // Everything here is division and makes no claim about the
+    // literature, which is the reason the app can say it: an arithmetic
+    // statement can't be retracted, so it carries none of the review
+    // risk that a health claim in a store-reviewed binary would
     //
-    // Deliberately computed from live `Settings` rather than attached
-    // to a preset. A rate cached alongside a preset is wrong the
-    // moment the user nudges one stepper, and wrong from the first
-    // cycle whenever `drift` is on
+    // Computed from live `Settings` because a rate cached alongside a
+    // preset is wrong the moment the user nudges one stepper, and wrong
+    // from the first cycle whenever `drift` is on
 
     /// Seconds in one full breath cycle at the current settings,
     /// before any drift is applied
@@ -556,7 +520,7 @@ impl Settings {
     /// Ignores the randomisation sliders: they perturb individual
     /// phases around these values without changing the mean, so the
     /// jittered long-run rate is the same number with more variance
-    pub fn cycle_secs(&self) -> f64 {
+    pub(crate) fn cycle_secs(&self) -> f64 {
         self.inhale_duration
             + self.post_inhale_hold_duration
             + self.exhale_duration
@@ -566,8 +530,8 @@ impl Settings {
     /// Breaths per minute at the start of a session
     ///
     /// `None` when all four phases are zero, which isn't a rate of
-    /// anything. Callers render nothing rather than an infinity
-    pub fn breaths_per_min(&self) -> Option<f64> {
+    /// anything. Callers render nothing, so no infinity is shown
+    pub(crate) fn breaths_per_min(&self) -> Option<f64> {
         let cycle = self.cycle_secs();
         (cycle > 0.0).then(|| 60.0 / cycle)
     }
@@ -587,16 +551,15 @@ impl Settings {
     /// D = c + 60 · minutes · (d − 1)
     /// ```
     ///
-    /// The compounding is real; its *effect on elapsed wall time* is
-    /// simply linear. `d == 1` falls out as `D == c` with no special
-    /// case
+    /// The compounding is real, but its *effect on elapsed wall time*
+    /// is linear. `d == 1` falls out as `D == c` with no special case
     ///
     /// `None` when the cycle is zero-length, and also when a drift
     /// below 1.0 has shortened the projected cycle to nothing. Drift
     /// can't be set below 1.0 through the UI, but a hand-edited
     /// settings file can, and a negative rate isn't a thing to show
     /// a user
-    pub fn breaths_per_min_after(&self, minutes: f64) -> Option<f64> {
+    pub(crate) fn breaths_per_min_after(&self, minutes: f64) -> Option<f64> {
         let cycle = self.cycle_secs();
         if cycle <= 0.0 {
             return None;
@@ -607,26 +570,20 @@ impl Settings {
 
     /// True when `drift` is doing anything at all
     ///
-    /// Uses the same `1e-9` epsilon `SettingsDiff::from` uses on this
-    /// field, so "the UI shows a drift line" and "a drift change marks
-    /// settings dirty" can never disagree
-    pub fn drift_is_active(&self) -> bool {
-        (self.drift - 1.0).abs() > 1e-9
+    /// Uses [`TIMING_EPS`], the same epsilon `SettingsDiff::from` uses
+    /// on this field, so "the UI shows a drift line" and "a drift
+    /// change marks settings dirty" can never disagree
+    pub(crate) fn drift_is_active(&self) -> bool {
+        (self.drift - 1.0).abs() > TIMING_EPS
     }
 
     /// Returns true when inhale and exhale colors are perceptually
     /// identical, used to skip unnecessary redraws in the fullscreen shape
-    pub fn inhale_exhale_colors_match(&self) -> bool {
+    pub(crate) fn inhale_exhale_colors_match(&self) -> bool {
         self.inhale_color
             .iter()
             .zip(self.exhale_color.iter())
             .all(|(a, b)| (a - b).abs() < 0.001)
-    }
-
-    /// Background colour stripped of its own alpha, used as the shape background
-    pub fn background_color_rgb(&self) -> [f32; 4] {
-        let [r, g, b, _a] = self.background_color;
-        [r, g, b, 1.0]
     }
 
     /// The alpha component of background_color, clamped to overlay_opacity
@@ -677,13 +634,58 @@ mod tests {
     }
 
     #[test]
+    fn window_placement_is_none_when_absent_from_the_file() {
+        // No `#[serde(default)]` is needed on an `Option` field: serde
+        // derive already deserialises a missing key as `None`. The
+        // default serialisation omits every `None` field, so round-
+        // tripping it exercises that path
+        let original = Settings::default();
+        let toml_str = toml::to_string(&original).expect("serialise");
+        assert!(
+            !toml_str.contains("_window_"),
+            "default serialisation should omit unset window fields: {toml_str}"
+        );
+        let s: Settings = toml::from_str(&toml_str).expect("deserialise");
+        assert_eq!(s.settings_window_x, None);
+        assert_eq!(s.settings_window_y, None);
+        assert_eq!(s.settings_window_height, None);
+        assert_eq!(s.settings_window_screen, None);
+        assert_eq!(s.animation_window_x, None);
+        assert_eq!(s.animation_window_y, None);
+        assert_eq!(s.animation_window_width, None);
+        assert_eq!(s.animation_window_height, None);
+        assert_eq!(s.animation_window_screen, None);
+    }
+
+    #[test]
+    fn a_shortcuts_table_naming_only_start_defaults_the_other_four() {
+        // The struct-level `#[serde(default)]` builds the whole default
+        // `KeyboardShortcuts` first and then patches only the keys the
+        // table names, so the other four keep their defaults
+        #[derive(serde::Deserialize)]
+        struct Wrapper { keyboard_shortcuts: KeyboardShortcuts }
+        let toml = r#"
+            [keyboard_shortcuts]
+            start = { modifiers = 1, code = "KeyA" }
+        "#;
+        let w: Wrapper = toml::from_str(toml).expect("deserialise");
+        let ks = w.keyboard_shortcuts;
+        let defaults = KeyboardShortcuts::default();
+        assert_eq!(ks.start, Some(KeyboardShortcut::new(KBD_MOD_CTRL, "KeyA")));
+        assert_eq!(ks.stop, defaults.stop);
+        assert_eq!(ks.reset, defaults.reset);
+        assert_eq!(ks.quit, defaults.quit);
+        assert_eq!(ks.preferences, defaults.preferences);
+    }
+
+    #[test]
     fn shipped_default_is_six_breaths_a_minute() {
         let s = Settings::default();
         assert_eq!(s.cycle_secs(), 10.0);
         assert!((s.breaths_per_min().unwrap() - 6.0).abs() < 1e-9);
-        // Pinned deliberately. Six a minute is inside the 5-to-7 band
+        // Six a minute is inside the 5-to-7 band
         // `you2023-respiratory-frequency` tested and is the rate that
-        // won `marchant2025-square-478-six`; gaps ledger item 2
+        // won `marchant2025-square-478-six`. Gaps ledger item 2
         // rests on this number, so moving it means moving that entry
         assert!(!s.drift_is_active());
     }
@@ -718,8 +720,8 @@ mod tests {
         // The closed form in `breaths_per_min_after` replaces a loop
         // with a line. This is the loop, kept as the oracle: walk
         // real cycles, each `drift` times the last, until the clock
-        // passes the target, and compare the cycle actually in
-        // progress against what the formula predicted
+        // passes the target, and compare the cycle in progress
+        // against what the formula predicted
         for &drift in &[1.0, 1.0001, 1.001, 1.01] {
             for &minutes in &[1.0, 10.0, 60.0, 300.0] {
                 let mut s = Settings::default();
@@ -757,8 +759,8 @@ mod tests {
     fn one_step_of_drift_is_gentle_and_one_percent_is_not() {
         // The stepper's smallest increment. Gaps ledger item 6 turns
         // on this contrast: at 1 % the breath doubles inside a
-        // sitting, at 0.1 % it takes most of a working day. Both are
-        // allowed; the app just has to be able to say which is which
+        // sitting, at 0.1 % it takes about 2.8 hours. Both are
+        // allowed, and the app only has to be able to say which is which.
         // From the 10 s default: 0.1 % reaches 13.6 s after an hour,
         // still a pace someone would sit through
         let mut gentle = Settings::default();
@@ -823,6 +825,28 @@ mod tests {
         assert!((s.background_opacity() - 0.25).abs() < 1e-6);
     }
 
+    #[test]
+    fn reset_preserving_runtime_state_keeps_exactly_six_fields() {
+        let mut s = Settings::default();
+        s.settings_window_x      = Some(10);
+        s.settings_window_y      = Some(20);
+        s.settings_window_height = Some(30);
+        s.settings_window_screen = Some("Left".to_string());
+        s.is_animating           = false;
+        s.is_paused              = true;
+        s.exhale_duration        = 42.0; // unrelated: must not survive
+
+        s.reset_preserving_runtime_state();
+
+        assert_eq!(s.settings_window_x, Some(10));
+        assert_eq!(s.settings_window_y, Some(20));
+        assert_eq!(s.settings_window_height, Some(30));
+        assert_eq!(s.settings_window_screen, Some("Left".to_string()));
+        assert!(!s.is_animating);
+        assert!(s.is_paused);
+        assert_eq!(s.exhale_duration, Settings::default().exhale_duration);
+    }
+
     // ── SettingsDiff ────────────────────────────────────────────────
 
     #[test]
@@ -848,7 +872,7 @@ mod tests {
         let d = SettingsDiff::from(&before, &after);
         assert!(d.animating_started);
         assert!(d.animating_changed);
-        // Stopping should not register as `started`
+        // Stopping shouldn't register as `started`
         let d_rev = SettingsDiff::from(&after, &before);
         assert!(!d_rev.animating_started);
         assert!(d_rev.animating_changed);

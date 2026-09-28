@@ -66,8 +66,8 @@
   }
   .skip:focus { left: 0; }
 
-  /* The deep-linked heading is focused to move the reading position,
-     not because it's a control.  A full-width ring across a section
+  /* The deep-linked heading is focused to move the reading position.
+     It isn't a control.  A full-width ring across a section
      title reads as an error state to a reader who didn't put it
      there, and the heading isn't reachable by Tab, so the scroll
      itself is the indication */
@@ -117,7 +117,7 @@
   }
   @media (min-width: 62rem) {
     .layout { grid-template-columns: 16.5rem minmax(0, 1fr); }
-    /* Placed explicitly rather than by source order.  The contents
+    /* Placed explicitly.  The contents
        aside starts `hidden`, and under auto-placement that dropped the
        article into the 16.5rem rail: it laid out several screens
        taller, so the load-time jump to an anchor clamped to the bottom
@@ -271,7 +271,7 @@
 
   <div class="content">
     <div class="status" id="status" role="status" aria-live="polite">
-      <p>Loading the citation corpus from the repository&hellip;</p>
+      <p>Loading the citation corpus from the repository...</p>
     </div>
 
     <main id="doc"></main>
@@ -290,7 +290,7 @@
       Rendered live from
       <a href="https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md"><code>docs/CITATIONS.md</code></a>
       on the <code>main</code> branch, so a correction or a retraction reaches this page without a
-      release. exhale is a breathing overlay; it isn't a medical device, and nothing here is medical advice.
+      release. exhale is a breathing overlay. It isn't a medical device, and nothing here is medical advice.
     </p>
   </div>
 </div>
@@ -309,7 +309,7 @@
   var RAW = "https://raw.githubusercontent.com/peterklingelhofer/exhale/main/docs/CITATIONS.md";
   var BLOB = REPO + "/blob/main/docs/CITATIONS.md";
   // Relative links in the markdown are written against docs/, so resolve them
-  // against the blob view of that directory rather than against this page
+  // against the blob view of that directory
   var LINK_BASE = REPO + "/blob/main/docs/";
 
   var doc = document.getElementById("doc");
@@ -317,9 +317,9 @@
 
   /**
    * GitHub's heading-anchor rule, kept byte-for-byte in step with
-   * `slugify()` in scripts/generate-citations.py. The tray menu's deep
-   * link into the gaps ledger is validated against that function, so a
-   * divergence here silently strands every shipped binary.
+   * `slugify()` in scripts/generate-citations.py. Links into this page
+   * are built with that rule, so a divergence here breaks them without
+   * an error
    */
   function slugify(text) {
     return text.trim().toLowerCase().replace(/[^\p{L}\p{N} _-]/gu, "").replace(/ /g, "-");
@@ -391,9 +391,8 @@
     });
     document.getElementById("toc").hidden = false;
 
-    // Reading the last heading above the masthead rather than watching
-    // an intersection band.  A band leaves whatever it saw last marked
-    // current once nothing is inside it, which is every position where
+    // Reads the last heading above the masthead.  An intersection band
+    // leaves whatever it saw last marked current once nothing is inside it, which is every position where
     // one section fills more than the band: the top of the document
     // included
     var links = {};
@@ -424,7 +423,7 @@
   }
 
   // The browser resolved the hash before the document existed, so the
-  // load-time jump is ours to make, and it jumps rather than animating
+  // load-time jump is ours to make, and it jumps with no animation
   // across thirty thousand pixels.  On a later hashchange the browser
   // has already scrolled, and repeating it here would cancel the smooth
   // scroll the reader asked for by clicking a contents link

@@ -1,4 +1,4 @@
-//! Linux (X11) implementation of the platform layer; see the parent
+//! Linux (X11) implementation of the platform layer.  See the parent
 //! `platform` module for the public API surface and cross-platform
 //! stubs
 
@@ -8,7 +8,7 @@ use super::*;
     use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
     // x11-dl's `x11_link!` macro generates a type named `Xlib` in every
     // module it's invoked in (including `xfixes`), so the Xfixes handle's
-    // real type is `x11_dl::xfixes::Xlib`; the intuitively-named
+    // real type is `x11_dl::xfixes::Xlib`.  The intuitively-named
     // `x11_dl::xfixes::Xfixes` doesn't exist.  Alias it for readability
     use x11_dl::{xfixes::Xlib as Xfixes, xlib::{Display, Xlib, XClientMessageEvent, XEvent, ClientMessage}};
 
@@ -27,11 +27,11 @@ use super::*;
         }
 
         fn atom(&self, name: &[u8]) -> x11_dl::xlib::Atom {
-            // Every call site below passes a `b"_NET_WM_STATE…"`
-            // byte-string literal; none contain interior NULs.  If a
+            // Every call site below passes a `b"_NET_WM_STATE..."`
+            // byte-string literal.  None contain interior NULs.  If a
             // future caller passes user input here, `CString::new`
             // returning `Err` would yield `Atom(0)` (the X11 sentinel
-            // for "no such atom") rather than panicking, same as
+            // for "no such atom") instead of panicking, same as
             // any other lookup miss
             let Ok(c) = CString::new(name) else { return 0; };
             unsafe { (self.xlib.XInternAtom)(self.display, c.as_ptr(), 0) }
@@ -109,7 +109,7 @@ use super::*;
         // force our window into the work-area rectangle, leaving a
         // visible gap where the dock sits, even when we requested
         // monitor-spanning geometry from winit.  `_NET_WM_STATE_ABOVE`
-        // (kept below) is for stacking against other normal windows;
+        // (kept below) is for stacking against other normal windows.
         // FULLSCREEN is for covering struts / panels
         x.set_wm_state(b"_NET_WM_STATE_FULLSCREEN",   true);
         x.set_wm_state(b"_NET_WM_STATE_ABOVE",        true);
@@ -138,7 +138,7 @@ use super::*;
         x.set_wm_state(b"_NET_WM_STATE_ABOVE", true);
     }
 
-    /// No-op on Linux: the settings window is OPAQUE on every Linux DE;
+    /// No-op on Linux: the settings window is opaque on every Linux DE.
     /// KDE/KWin's `_KDE_NET_WM_BLUR_BEHIND_REGION` would give a frosted
     /// settings window on Plasma but produces the same compositing
     /// regressions seen on Windows DWM acrylic (overlay stacking above
@@ -189,9 +189,9 @@ use super::*;
     /// confinement.  The URL goes through `Command::arg`, bypassing
     /// the shell entirely, so it's never word-split or expanded
     ///
-    /// We `spawn` rather than `status` so a browser cold-start can't
+    /// We `spawn` instead of `status` so a browser cold-start can't
     /// stall the event loop.  That leaves the child unreaped until
-    /// exhale exits; `xdg-open` returns almost immediately after
+    /// exhale exits.  `xdg-open` returns almost immediately after
     /// handing off, and this only runs on an explicit menu click, so
     /// the zombie count is bounded by how many times the user clicks
     pub(super) fn open_url_impl(url: &str) {

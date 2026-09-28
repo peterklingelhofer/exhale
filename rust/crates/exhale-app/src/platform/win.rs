@@ -1,4 +1,4 @@
-//! Windows implementation of the platform layer; see the parent
+//! Windows implementation of the platform layer.  See the parent
 //! `platform` module for the public API surface and cross-platform
 //! stubs
 
@@ -46,8 +46,8 @@ use super::*;
             // flags are required:
             //   - `WS_EX_LAYERED` makes the window composite per-pixel
             //     alpha through DWM so the breath animation is
-            //     actually VISIBLE.  Without it, a transparent
-            //     window is just an invisible window: the wgpu
+            //     visible.  Without it, a transparent
+            //     window is an invisible window: the wgpu
             //     surface paints but the user sees nothing
             //     (regression observed when LAYERED was removed in
             //     pursuit of better click-through)
@@ -57,7 +57,7 @@ use super::*;
             //     editor, etc.).  Without it the user can see the
             //     breath animation but can't click anything behind
             // winit's `with_transparent(true)` already sets LAYERED
-            // up via `DwmEnableBlurBehindWindow`; we re-assert it
+            // up via `DwmEnableBlurBehindWindow`.  We re-assert it
             // here as a no-op-on-success defensive measure
             let ex = GetWindowLongPtrW(h, GWL_EXSTYLE) as isize;
             let new_ex = ex
@@ -97,9 +97,9 @@ use super::*;
                 (final_ex & WS_EX_TOPMOST)     != 0,
             );
         }
-        // NOTE: do NOT call `window.set_cursor_hittest(false)` here;
+        // NOTE: don't call `window.set_cursor_hittest(false)` here.
         // winit's implementation reads its own internal `WindowFlags`
-        // bitset (which does NOT track `WS_EX_LAYERED`), computes a
+        // bitset (which doesn't track `WS_EX_LAYERED`), computes a
         // new EX-style word from that bitset alone, and writes it
         // back via `SetWindowLongPtrW`.  That overwrite drops the
         // `WS_EX_LAYERED` bit we just set above and the window goes
@@ -108,15 +108,15 @@ use super::*;
         // sufficient for hit-test transparency on its own
     }
 
-    /// Re-bump the overlay HWND to the front of the topmost z-band;
+    /// Re-bump the overlay HWND to the front of the topmost z-band.
     /// Windows orders topmost windows by activation, so a newly-opened
     /// app, even one without `WS_EX_TOPMOST`, can land above our
     /// overlay if the user activates it (the OS treats activation as a
-    /// foreground promotion).  Calling `SetWindowPos(HWND_TOPMOST, …)`
+    /// foreground promotion).  Calling `SetWindowPos(HWND_TOPMOST, ...)`
     /// with `SWP_NOACTIVATE` re-asserts overlay topmost without
     /// stealing focus from whatever the user is currently working in
     ///
-    /// We don't reset window styles or geometry, just the z-order
+    /// We don't reset window styles or geometry, only the z-order
     /// position, so the call is cheap (a few microseconds) and safe
     /// to invoke on a regular cadence from the overlay render loop
     pub fn reassert_overlay_topmost(window: &Window) {
@@ -128,8 +128,8 @@ use super::*;
         }
     }
 
-    /// Returns `true` when no window sits above `window` in z-order;
-    /// used by the per-second topmost-reassert path to skip the full
+    /// Returns `true` when no window sits above `window` in z-order.
+    /// Used by the per-second topmost-reassert path to skip the full
     /// `SetWindowPos` round-trip when our window is already on top: the
     /// call is technically a no-op in that case, but Windows still
     /// fires `WM_WINDOWPOSCHANGED`, which DWM composites as a brief
@@ -142,18 +142,18 @@ use super::*;
         if h.is_null() { return true; }
         // SAFETY: `h` is a valid HWND just retrieved from winit.  `GetWindow`
         // is a read-only kernel lookup with no thread-affinity or invariant
-        // requirements; returning NULL is the documented "nothing above"
+        // requirements.  Returning NULL is the documented "nothing above"
         // signal which we surface as `true`
         unsafe { GetWindow(h, GW_HWNDPREV).is_null() }
     }
 
     pub fn setup_settings_window(window: &Window) {
-        // Mark the settings window topmost so it can rise ABOVE the
+        // Mark the settings window topmost so it can rise above the
         // breathing overlay (which is also `WS_EX_TOPMOST`).  Windows
         // doesn't expose explicit z-bands like macOS's window levels, so
         // both windows share the topmost band and the most-recently-
         // activated one wins: when the user opens preferences, the
-        // settings window comes to front; when the overlay later starts
+        // settings window comes to front.  When the overlay later starts
         // animating, settings stays interactable until the user clicks
         // away from it.  Without `WS_EX_TOPMOST`, the settings window
         // would render permanently behind the topmost overlay's
@@ -173,23 +173,23 @@ use super::*;
     }
 
     /// Set the settings-window title bar to dark mode when the OS is in
-    /// dark appearance.  We deliberately do NOT install the DWM acrylic
+    /// dark appearance.  We don't install the DWM acrylic
     /// backdrop (`DWMWA_SYSTEMBACKDROP_TYPE`) here even though it would
-    /// produce a frosted-glass settings window; every attempt at that
+    /// produce a frosted-glass settings window.  Every attempt at that
     /// path on Windows produced two visible regressions:
     ///
     ///   1. The breath overlay composited above the settings window's
     ///      DWM-translucent client area in the z-stack, so the
-    ///      animation rendered IN FRONT of the controls (and at
+    ///      animation rendered in front of the controls (and at
     ///      opacity = 1 hid them entirely with no way to recover)
     ///   2. Mouse hover over the acrylic settings window triggered
     ///      a per-cursor-move recomposition of the whole DWM acrylic
     ///      stack, producing severe overlay-animation lag
     ///
-    /// The dark-titlebar attribute is independent of compositing, it
-    /// just changes the non-client area's tint, so we keep that.  The
+    /// The dark-titlebar attribute is independent of compositing: it
+    /// changes only the non-client area's tint, so we keep that.  The
     /// `BLUR_ACTIVE` flag stays `false`, which makes the egui render
-    /// path paint the settings window OPAQUELY (clear colour =
+    /// path paint the settings window opaquely (clear colour =
     /// themed panel, panel fill = themed panel), avoiding both
     /// regressions above
     pub fn install_settings_vibrancy(window: &Window, dark_mode: bool) -> usize {
@@ -197,20 +197,20 @@ use super::*;
         if h.is_null() { return 0; }
         apply_dark_titlebar(h, dark_mode);
         // Return the HWND so the theme-change path can re-apply the
-        // dark-titlebar attribute via `update_settings_vibrancy`;
+        // dark-titlebar attribute via `update_settings_vibrancy`.
         // `BLUR_ACTIVE` stays false -> opaque rendering everywhere
         h as usize
     }
 
     /// On Windows the only theme-dependent property is the title bar
-    /// dark-mode flag: re-apply it when the OS appearance changes;
+    /// dark-mode flag: re-apply it when the OS appearance changes.
     /// `handle` is the HWND returned by `install_settings_vibrancy`
     pub fn update_settings_vibrancy(handle: usize, dark_mode: bool) {
         if handle == 0 { return; }
         apply_dark_titlebar(handle as HWND, dark_mode);
     }
 
-    /// Set the dark-mode title-bar attribute on `h` via DWM;
+    /// Set the dark-mode title-bar attribute on `h` via DWM.
     /// `DWMWA_USE_IMMERSIVE_DARK_MODE` is silently ignored ("feature
     /// not present" error) on Win10 builds older than 1809, so this
     /// is no-op-safe on earlier OSes
