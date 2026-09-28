@@ -1087,7 +1087,9 @@ pub(super) fn stepper_row(
         );
         scroll_into_view_on_focus(&field_resp);
         if field_resp.changed() {
-            if let Ok(parsed) = buf.trim().parse::<f64>() {
+            // `f64::parse` accepts "inf" and "NaN", and a stepper with no
+            // max would store an infinity, so keep finite values only
+            if let Some(parsed) = buf.trim().parse::<f64>().ok().filter(|v| v.is_finite()) {
                 changed |= commit(parsed, value);
             }
         }
