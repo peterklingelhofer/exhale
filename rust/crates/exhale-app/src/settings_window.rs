@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 
 use theme::{
     clear_color_for_theme, install_system_ui_font, theme_preference,
-    visuals_for_theme,
+    visuals_for_theme, PANEL_FILL_DARK, PANEL_FILL_LIGHT,
 };
 // Star import is intentional: `settings_ui` references ~12 widget
 // helpers and half a dozen layout constants, and the widget submodule
@@ -857,9 +857,9 @@ fn settings_ui(
     let panel_fill = if platform::is_blur_active() {
         egui::Color32::TRANSPARENT
     } else if ctx.style().visuals.dark_mode {
-        egui::Color32::from_rgb(24, 24, 28)
+        PANEL_FILL_DARK
     } else {
-        egui::Color32::from_rgb(240, 240, 242)
+        PANEL_FILL_LIGHT
     };
     egui::CentralPanel::default()
         .frame(egui::Frame::none()
