@@ -6,6 +6,8 @@
 //! the parent `settings_window` module
 use std::time::{Duration, Instant};
 
+use super::theme::TEXT_EDIT_RADIUS;
+
 pub(super) fn section(ui: &mut egui::Ui, header: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
     let dark_mode = ui.visuals().dark_mode;
 
@@ -190,7 +192,7 @@ pub(super) fn control_button(
     // hard outline, matching the user's "subtle drop shadow glow"
     // request
     if response.has_focus() {
-        focus_halo(&painter, rect, BUTTON_RADIUS, dark_mode, BUTTON_HALO);
+        focus_halo(&painter, rect, TEXT_EDIT_RADIUS, dark_mode, BUTTON_HALO);
     }
 
     // Pressed state: Swift uses `.opacity(0.7)` + `.scaleEffect(0.97)`.  Scale
@@ -353,7 +355,6 @@ pub(super) fn control_button(
 //   section gap      (10) -> sectionSpacing
 //   row gap          (8) -> rowSpacing
 //   card radius      (10) -> RoundedRectangle(cornerRadius: 10, style: .continuous)
-//   button radius    (7) -> ControlButton's RoundedRectangle(cornerRadius: 7)
 //   stepper field    (56) -> CombinedStepperTextField TextField .frame(width: 56)
 // Label column width.  Trade-off: shorter keeps the segmented pickers
 // (Rectangle/Circle/Full, Gradient/Stark/Off, etc.) from wrapping their
@@ -370,9 +371,9 @@ pub(super) const CARD_PAD:         f32 = 12.0;
 pub(super) const SECTION_GAP:      f32 = 10.0;
 pub(super) const ROW_GAP:          f32 = 8.0;
 pub(super) const CARD_RADIUS:      f32 = 10.0;
-pub(super) const BUTTON_RADIUS:    f32 = 7.0;
-// (`TEXT_EDIT_RADIUS` lives in the `theme` submodule: it's used by
-// `visuals_for_theme` and nothing else, no reason to expose it here)
+// Control buttons are stock `egui::Button` chrome, so their corner radius
+// is `theme::TEXT_EDIT_RADIUS`, and `control_button`'s focus halo reads
+// that same constant to stay concentric
 pub(super) const STEPPER_FIELD_W:  f32 = 56.0;
 
 /// Translucent `SectionCard` fill, composited over the platform
