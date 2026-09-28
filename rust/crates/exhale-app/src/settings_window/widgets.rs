@@ -1494,6 +1494,7 @@ pub(super) mod test_hooks {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::theme::{PANEL_FILL_DARK, PANEL_FILL_LIGHT};
 
     fn round_trip(scale: ValueScale, stored: f64) {
         let displayed = scale.to_display(stored);
@@ -1576,12 +1577,13 @@ mod tests {
     #[test]
     fn chip_text_meets_wcag_aa_on_the_backdrop_the_app_controls() {
         // With blur unavailable (older Windows, GNOME, EXHALE_DISABLE_BLUR)
-        // the window is opaque and `clear_color_for_theme` picks the
-        // backdrop, so this is a contrast floor exhale can
-        // promise instead of one that depends on the wallpaper
+        // the window is opaque and `clear_color_for_theme` clears to the
+        // same `PANEL_FILL_*` constants the panel paints, so this is a
+        // contrast floor exhale can promise instead of one that depends
+        // on the wallpaper
         for (dark_mode, clear) in [
-            (true,  egui::Color32::from_gray((0.12 * 255.0) as u8)),
-            (false, egui::Color32::from_gray((0.96 * 255.0) as u8)),
+            (true,  PANEL_FILL_DARK),
+            (false, PANEL_FILL_LIGHT),
         ] {
             let card = over(card_fill(dark_mode), clear);
             let body = if dark_mode {
