@@ -527,6 +527,12 @@ impl SettingsWindow {
                 self.surface.configure(&self.device, &self.config);
                 return Ok(std::time::Duration::MAX);
             }
+            Err(wgpu::SurfaceError::Timeout) => {
+                // `Timeout` is transient and needs no reconfigure.  Skip
+                // this frame and retry on the next one
+                log::debug!("settings get_current_texture: timeout, retrying next frame");
+                return Ok(std::time::Duration::from_millis(16));
+            }
             Err(e) => return Err(e).context("settings get_current_texture"),
         };
 
