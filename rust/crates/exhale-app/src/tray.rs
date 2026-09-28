@@ -153,8 +153,8 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
     {
         if !appindicator_available() {
             anyhow::bail!(
-                "neither libayatana-appindicator3 nor libappindicator3 could be loaded; \
-                 running without a tray icon"
+                "neither libayatana-appindicator3 nor libappindicator3 could be loaded, \
+                 so exhale runs without a tray icon"
             );
         }
     }
@@ -230,7 +230,7 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
 /// `build_tray` never sees the failure and the whole app exits.  Probing
 /// the same names first turns a system without the library (minimal
 /// desktops, AppImageHub's test machine) into "no tray icon" instead.
-/// The probe runs once; a handle that loads is left open, and the
+/// The probe runs once. A handle that loads is left open, and the
 /// crate's own dlopen reuses it
 #[cfg(all(unix, not(target_os = "macos")))]
 fn appindicator_available() -> bool {

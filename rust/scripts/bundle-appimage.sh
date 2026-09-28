@@ -33,8 +33,8 @@ PKG_DIR="$RUST_ROOT/packaging/linux/appimage"
 OUT_DIR="$RUST_ROOT/target/appimage"
 APPDIR="$OUT_DIR/exhale.AppDir"
 TOOL_DIR="$OUT_DIR/bin"
-# Named after the release asset, not `appimagetool`: that name holds the old
-# AppImageKit build in existing checkouts, which must not be reused
+# Named after the release asset. Existing checkouts hold the old AppImageKit
+# build under the plain `appimagetool` name, which must not be reused
 APPIMAGETOOL="$TOOL_DIR/appimagetool-x86_64.AppImage"
 
 VERSION="${VERSION:-2.0.23}"
