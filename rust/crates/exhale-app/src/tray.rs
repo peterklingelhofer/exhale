@@ -147,6 +147,16 @@ fn submenu_label(action: ShortcutAction, shortcuts: &KeyboardShortcuts) -> Strin
 /// to [`TrayMenuIds::refresh_labels`] when bindings change to keep
 /// the menu in sync
 pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuIds)> {
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if !appindicator_available() {
+            anyhow::bail!(
+                "neither libayatana-appindicator3 nor libappindicator3 could be loaded; \
+                 running without a tray icon"
+            );
+        }
+    }
+
     // Propagate icon-construction failures via `?` rather than
     // panicking: callers (`App::sync_tray_to_visibility`) already
     // log + continue when `build_tray` returns `Err`, so a bad
@@ -239,6 +249,37 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
         .build()?;
 
     Ok((tray, ids))
+}
+
+/// Whether the library `tray-icon` needs on Linux can be loaded
+///
+/// `libappindicator-sys` dlopens it the first time a tray icon is built
+/// and panics when none of its candidates load, so the `Result` from
+/// `build_tray` never sees the failure and the whole app exits.  Probing
+/// the same names first turns a system without the library (minimal
+/// desktops, AppImageHub's test machine) into "no tray icon" instead.
+/// The probe runs once; a handle that loads is left open, and the
+/// crate's own dlopen reuses it
+#[cfg(all(unix, not(target_os = "macos")))]
+fn appindicator_available() -> bool {
+    use std::ffi::CStr;
+    use std::sync::OnceLock;
+
+    // Same names, same order as `libappindicator-sys` 0.9
+    const CANDIDATES: [&CStr; 4] = [
+        c"libayatana-appindicator3.so.1",
+        c"libappindicator3.so.1",
+        c"libayatana-appindicator3.so",
+        c"libappindicator3.so",
+    ];
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        CANDIDATES.iter().any(|name| {
+            // SAFETY: `name` is a NUL-terminated C string literal, and
+            // dlopen has no other preconditions
+            !unsafe { libc::dlopen(name.as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL) }.is_null()
+        })
+    })
 }
 
 /// Outlined-ring tray icon generated at runtime, matching the Swift
