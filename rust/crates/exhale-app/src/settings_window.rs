@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 
 use theme::{
     clear_color_for_theme, install_system_ui_font, theme_preference,
-    visuals_for_theme,
+    visuals_for_theme, PANEL_FILL_DARK, PANEL_FILL_LIGHT,
 };
 // Star import is intentional: `settings_ui` references ~12 widget
 // helpers and half a dozen layout constants, and the widget submodule
@@ -433,6 +433,12 @@ impl SettingsWindow {
         (response.consumed, response.repaint)
     }
 
+    /// Whether the window is on screen.  Wayland reports no visibility
+    /// and winit can't hide a window there, so an unknown state means shown
+    pub fn is_shown(&self) -> bool {
+        self.window.is_visible().unwrap_or(true)
+    }
+
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
         if size.width == 0 || size.height == 0 { return; }
         self.config.width  = size.width;
@@ -526,6 +532,12 @@ impl SettingsWindow {
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
                 self.surface.configure(&self.device, &self.config);
                 return Ok(std::time::Duration::MAX);
+            }
+            Err(wgpu::SurfaceError::Timeout) => {
+                // `Timeout` is transient and needs no reconfigure.  Skip
+                // this frame and retry on the next one
+                log::debug!("settings get_current_texture: timeout, retrying next frame");
+                return Ok(std::time::Duration::from_millis(16));
             }
             Err(e) => return Err(e).context("settings get_current_texture"),
         };
@@ -851,9 +863,9 @@ fn settings_ui(
     let panel_fill = if platform::is_blur_active() {
         egui::Color32::TRANSPARENT
     } else if ctx.style().visuals.dark_mode {
-        egui::Color32::from_rgb(24, 24, 28)
+        PANEL_FILL_DARK
     } else {
-        egui::Color32::from_rgb(240, 240, 242)
+        PANEL_FILL_LIGHT
     };
     egui::CentralPanel::default()
         .frame(egui::Frame::none()

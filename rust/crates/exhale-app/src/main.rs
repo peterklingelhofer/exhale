@@ -34,7 +34,7 @@ use exhale_core::{
 };
 use exhale_render::GpuContext;
 #[cfg(feature = "global-hotkeys")]
-use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager};
+use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use log::{error, info};
 use overlay::{FrameSender, OverlayHandle};
 use settings_window::SettingsWindow;
@@ -66,6 +66,10 @@ enum AppEvent {
     /// resets a per-action shortcut to its default
     #[cfg(feature = "global-hotkeys")]
     RebindHotkeys,
+    /// A global hotkey fired.  Forwarded by the handler `resumed()`
+    /// installs, which the X11 backend calls from its own thread
+    #[cfg(feature = "global-hotkeys")]
+    GlobalHotkey(GlobalHotKeyEvent),
     /// Open the settings window (creating it if necessary) and put
     /// it into shortcut-capture mode for the given action.  Fired
     /// from the tray menu's "Keyboard Shortcuts ▶" submenu so the
@@ -95,6 +99,10 @@ struct App {
     proxy:            EventLoopProxy<AppEvent>,
     settings:         Arc<RwLock<Settings>>,
     settings_manager: Arc<SettingsManager>,
+
+    // First fatal GPU or window failure in `resumed()`, which exits the
+    // loop to unwind.  `main` returns it so the process exits non-zero
+    fatal: Option<anyhow::Error>,
 
     // GPU context: shared across all renderers
     gpu: Option<Arc<GpuContext>>,
@@ -178,6 +186,7 @@ impl App {
             proxy,
             settings,
             settings_manager,
+            fatal:            None,
             gpu:              None,
             overlays:         HashMap::new(),
             frame_senders:    None,
@@ -204,7 +213,7 @@ impl App {
 
     fn toggle_settings(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(sw) = &self.settings_win {
-            if sw.window.is_visible().unwrap_or(true) {
+            if sw.is_shown() {
                 sw.window.set_visible(false);
                 return;
             }
@@ -263,8 +272,7 @@ impl App {
     ) {
         let visible = self.settings_win
             .as_ref()
-            .and_then(|sw| sw.window.is_visible())
-            .unwrap_or(false);
+            .is_some_and(|sw| sw.is_shown());
         if self.settings_win.is_none() || !visible {
             self.toggle_settings(event_loop);
         }
@@ -428,6 +436,46 @@ impl App {
         }
     }
 
+    /// Handle one global hotkey firing.  Reached via `user_event` from
+    /// the handler installed on `GlobalHotKeyEvent` in `resumed()`, so
+    /// this always runs on the main thread regardless of which thread
+    /// the platform backend fired the event from
+    #[cfg(feature = "global-hotkeys")]
+    fn dispatch_global_hotkey(&mut self, event: GlobalHotKeyEvent) {
+        // We only act on Pressed.  The matching Released event for the
+        // same key still arrives here and is dropped
+        if event.state != HotKeyState::Pressed {
+            return;
+        }
+        // Suppress action dispatch while the settings window is in
+        // shortcut-capture mode: otherwise pressing the user's
+        // currently-bound combo to "see what it does" or as part of
+        // rebinding would fire both the captured-key handler (which
+        // writes a new binding) and the existing global hotkey (which
+        // runs the old action)
+        let suppress = self.settings_win
+            .as_ref()
+            .is_some_and(|sw| sw.is_capturing_shortcut());
+        if suppress {
+            log::debug!("global hotkey id={} ignored: capture overlay active", event.id);
+            return;
+        }
+        let Some(ids) = &self.hotkey_ids else { return; };
+        let id = event.id;
+        let Some(action) = ids.action_for(id) else {
+            log::debug!("global hotkey event with unrecognised id={id}");
+            return;
+        };
+        // Reset is the one action the hotkey routes differently from
+        // the tray: it raises the confirmation card first
+        let app_event = match action {
+            ShortcutAction::Reset => AppEvent::ResetDefaultsWithConfirm,
+            _                     => event_for(action),
+        };
+        log::debug!("global hotkey fired: {app_event:?} (id={id})");
+        let _ = self.proxy.send_event(app_event);
+    }
+
     /// Open the settings window (creating it if necessary) and put
     /// it into shortcut-capture mode for `action`.  Used by the
     /// tray menu's "Keyboard Shortcuts ▶" submenu so the user can
@@ -473,7 +521,7 @@ impl App {
         // window, the entire reassert is a no-op and we can skip the
         // SetWindowPos calls that would otherwise flicker the frame
         let expected_top: Option<&Window> = self.settings_win.as_ref()
-            .filter(|sw| sw.window.is_visible().unwrap_or(false))
+            .filter(|sw| sw.is_shown())
             .map(|sw| sw.window.as_ref())
             .or_else(|| self.overlays.values().next().map(|h| h.window.as_ref()));
         if let Some(top) = expected_top {
@@ -486,7 +534,7 @@ impl App {
             platform::reassert_overlay_topmost(&handle.window);
         }
         if let Some(sw) = &self.settings_win {
-            if sw.window.is_visible().unwrap_or(false) {
+            if sw.is_shown() {
                 platform::reassert_overlay_topmost(&sw.window);
             }
         }
@@ -498,7 +546,7 @@ impl App {
     /// per-tick redraw loop
     fn request_settings_redraw(&mut self) {
         if let Some(sw) = &self.settings_win {
-            if sw.window.is_visible().unwrap_or(false) {
+            if sw.is_shown() {
                 sw.request_redraw();
                 // The next RedrawRequested will overwrite this with egui's
                 // fresh repaint_delay, but zero the deadline so about_to_wait
@@ -593,15 +641,30 @@ impl ApplicationHandler<AppEvent> for App {
             .with_inner_size(winit::dpi::PhysicalSize::new(1u32, 1u32));
         let bootstrap_win = match event_loop.create_window(bootstrap_attrs) {
             Ok(w) => Arc::new(w),
-            Err(e) => { error!("bootstrap window: {e}"); event_loop.exit(); return; }
+            Err(e) => {
+                error!("bootstrap window: {e}");
+                self.fatal = Some(anyhow::anyhow!("bootstrap window: {e}"));
+                event_loop.exit();
+                return;
+            }
         };
         let bootstrap_surface = match instance.create_surface(Arc::clone(&bootstrap_win)) {
             Ok(s) => s,
-            Err(e) => { error!("bootstrap surface: {e}"); event_loop.exit(); return; }
+            Err(e) => {
+                error!("bootstrap surface: {e}");
+                self.fatal = Some(anyhow::anyhow!("bootstrap surface: {e}"));
+                event_loop.exit();
+                return;
+            }
         };
         let gpu = match GpuContext::new_for_surface(instance, &bootstrap_surface) {
             Ok(g) => g,
-            Err(e) => { error!("GPU init: {e}"); event_loop.exit(); return; }
+            Err(e) => {
+                error!("GPU init: {e}");
+                self.fatal = Some(e.context("GPU init"));
+                event_loop.exit();
+                return;
+            }
         };
         drop(bootstrap_surface);
         drop(bootstrap_win);
@@ -646,6 +709,7 @@ impl ApplicationHandler<AppEvent> for App {
         );
         if handles.is_empty() {
             error!("no overlay windows created");
+            self.fatal = Some(anyhow::anyhow!("no overlay windows created"));
             event_loop.exit();
             return;
         }
@@ -706,6 +770,15 @@ impl ApplicationHandler<AppEvent> for App {
         #[cfg(feature = "global-hotkeys")]
         match GlobalHotKeyManager::new() {
             Ok(mgr) => {
+                // Forward presses through the proxy, which wakes the loop
+                // at once.  The X11 backend fires from its own thread, and
+                // nothing else would wake the loop until its next scheduled
+                // tick.  Set before any hotkey is registered, since the
+                // handler can only be installed before the first event
+                let proxy = self.proxy.clone();
+                GlobalHotKeyEvent::set_event_handler(Some(move |e| {
+                    let _ = proxy.send_event(AppEvent::GlobalHotkey(e));
+                }));
                 let shortcuts = self.settings.read_or_recover().keyboard_shortcuts.clone();
                 match hotkeys::register_hotkeys(&mgr, &shortcuts) {
                     Ok(ids) => { self.hotkey_ids = Some(ids); }
@@ -765,6 +838,8 @@ impl ApplicationHandler<AppEvent> for App {
             AppEvent::ResetDefaultsWithConfirm => self.do_reset_with_confirm(event_loop),
             #[cfg(feature = "global-hotkeys")]
             AppEvent::RebindHotkeys  => self.do_rebind_hotkeys(),
+            #[cfg(feature = "global-hotkeys")]
+            AppEvent::GlobalHotkey(e) => self.dispatch_global_hotkey(e),
             AppEvent::BeginCapturingShortcut(action) => self.do_begin_capturing_shortcut(event_loop, action),
             AppEvent::Quit => {
                 self.shutdown(event_loop);
@@ -1104,70 +1179,6 @@ impl ApplicationHandler<AppEvent> for App {
             }
         }
 
-        // Poll global hotkey events.  Drain the channel completely:
-        // pre-drain, the loop popped only one event per
-        // `about_to_wait` tick.  Since each hotkey press generates
-        // both a Pressed and Released event, and the loop's idle
-        // wake cadence is 2 s (monitor scan), a quick sequence of
-        // keypresses could pile up many events and the visible
-        // result was "the first hotkey works, later ones lag by
-        // seconds or never get processed if the loop kept finding
-        // other things to do."  Draining here turns that into
-        // batch dispatch on the next tick instead
-        //
-        // Within a single drain we also coalesce duplicate ids so
-        // mashing the same hotkey twice in the same tick only
-        // sends one UserEvent.  Without this, two rapid Ctrl+Shift+F
-        // presses queued two reset-confirm alerts: the user would
-        // dismiss the first and a second alert would immediately
-        // pop up.  Coalescing matches the Swift app's behaviour
-        // where rapid presses while a modal is up are no-ops
-        #[cfg(feature = "global-hotkeys")]
-        {
-            // Suppress action dispatch while the settings window is in
-            // shortcut-capture mode: otherwise pressing the user's
-            // currently-bound combo to "see what it does" or as part
-            // of rebinding would fire both the captured-key handler
-            // (which writes a new binding) and the existing global
-            // hotkey (which runs the old action).  Events still get
-            // drained so the channel stays empty on capture exit
-            let suppress = self.settings_win
-                .as_ref()
-                .is_some_and(|sw| sw.is_capturing_shortcut());
-            let mut sent_ids: std::collections::HashSet<u32> = std::collections::HashSet::new();
-            while let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
-                use global_hotkey::HotKeyState;
-                // We only act on Pressed.  Released events for the same
-                // hotkey still get drained here (no-op'd) so they
-                // don't queue up indefinitely
-                if event.state != HotKeyState::Pressed {
-                    continue;
-                }
-                if suppress {
-                    log::debug!("global hotkey id={} ignored: capture overlay active", event.id);
-                    continue;
-                }
-                let Some(ids) = &self.hotkey_ids else { continue; };
-                let id = event.id;
-                if !sent_ids.insert(id) {
-                    log::debug!("global hotkey id={id} already dispatched this tick, coalescing");
-                    continue;
-                }
-                let Some(action) = ids.action_for(id) else {
-                    log::debug!("global hotkey event with unrecognised id={id}");
-                    continue;
-                };
-                // Reset is the one action the hotkey routes differently
-                // from the tray: it raises the confirmation card first
-                let app_event = match action {
-                    ShortcutAction::Reset => AppEvent::ResetDefaultsWithConfirm,
-                    _                     => event_for(action),
-                };
-                log::debug!("global hotkey fired: {app_event:?} (id={id})");
-                let _ = self.proxy.send_event(app_event);
-            }
-        }
-
         // Tick timers
         let events = {
             let s = self.settings.read_or_recover();
@@ -1192,7 +1203,7 @@ impl ApplicationHandler<AppEvent> for App {
         if let Some(deadline) = self.next_settings_repaint {
             if Instant::now() >= deadline {
                 if let Some(sw) = &self.settings_win {
-                    if sw.window.is_visible().unwrap_or(false) {
+                    if sw.is_shown() {
                         sw.request_redraw();
                     }
                 }
@@ -1278,16 +1289,43 @@ fn main() -> Result<()> {
              sctk_adwaita=error",
         ),
     );
-    if let Ok(file) = std::fs::OpenOptions::new()
-        .create(true).write(true).truncate(true)
-        .open(&log_path)
-    {
+    // Open without truncating: a second launch runs this same open while
+    // the first instance is still writing, and truncating would zero the
+    // file under it.  The truncation happens below, once
+    // `single_instance_guard` says this process owns the lock.
+    // `log_file_reset` is a second handle kept for `set_len`, since `file`
+    // moves into the logger
+    let log_file = std::fs::OpenOptions::new()
+        .create(true).append(true)
+        .open(&log_path);
+    let log_file_reset = log_file.as_ref().ok().and_then(|f| f.try_clone().ok());
+    if let Ok(file) = log_file {
         builder.target(env_logger::Target::Pipe(
             Box::new(TeeLogWriter { file }),
         ));
     }
     builder.init();
     install_panic_logger(log_path.clone());
+
+    // Run the instance guard before anything else stands up real app
+    // state: a second launch needs to find out it's a duplicate and
+    // exit before it starts the settings-writer thread or builds the
+    // event loop, which is what creates the NSApplication on macOS
+    let guard = single_instance_guard();
+
+    // Start this run's log fresh once the lock is ours.  A `Secondary`
+    // launch leaves the running instance's log intact, apart from the
+    // guard's one line about it
+    if !matches!(guard, InstanceGuard::Secondary) {
+        if let Some(f) = &log_file_reset {
+            let _ = f.set_len(0);
+        }
+    }
+    let _instance_guard = match guard {
+        InstanceGuard::First(g)    => Some(g),
+        InstanceGuard::Secondary   => return Ok(()),
+        InstanceGuard::Unavailable => None,
+    };
     info!("logging to {}", log_path.display());
 
     // Linux: initialise GTK before anything in the tray-icon path runs.
@@ -1309,13 +1347,9 @@ fn main() -> Result<()> {
     let event_loop = EventLoop::<AppEvent>::with_user_event().build()?;
     let proxy      = event_loop.create_proxy();
 
-    let _instance_guard = match single_instance_guard(&proxy) {
-        InstanceGuard::First(g)    => Some(g),
-        InstanceGuard::Secondary   => return Ok(()),
-        InstanceGuard::Unavailable => None,
-    };
-
     let mut app = App::new(proxy, settings_manager);
     event_loop.run_app(&mut app)?;
-    Ok(())
+    // A fatal failure in `resumed()` exits the loop the way a quit does,
+    // so hand it back here for a non-zero exit status
+    app.fatal.map_or(Ok(()), Err)
 }
