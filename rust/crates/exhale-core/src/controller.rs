@@ -191,15 +191,15 @@ fn run_controller(
             next_wakeup = Instant::now();
         }
 
-        let (should_draw, next_interval) = tick(
+        let (snap, next_interval) = tick(
             &mut inner,
             &settings,
             &easing,
         );
 
-        if should_draw {
-            // Write state snapshot before requesting draw so renderer sees it
-            let snap = compute_state(&inner);
+        // Publish the state `tick` computed with the user's `anim_mode` before
+        // requesting the draw, so the renderer sees it
+        if let Some(snap) = snap {
             *state_out.lock_or_recover() = Some(snap);
             (request_draw)();
         }
@@ -230,13 +230,24 @@ fn run_controller(
     }
 }
 
+/// Clamp a phase length to 0.1 s .. 86_400 s (one day) before it reaches
+/// `Duration::from_secs_f64`, which panics on inf, NaN or anything past
+/// `Duration::MAX`. `.max(0.1)` runs first, and `f64::max` returns the
+/// non-NaN operand, so NaN floors to 0.1 s same as any other non-positive
+/// input. `f64::clamp` reads tidier but hands a NaN input straight back
+/// out, which `Duration::from_secs_f64` panics on all the same
+#[allow(clippy::manual_clamp)]
+fn phase_secs(secs: f64) -> f64 {
+    secs.max(0.1).min(86_400.0)
+}
+
 fn fresh_inner(now: Instant, inhale_dur: f64) -> Inner {
     // A zero-length inhale takes zero time, so the first tick finds the
     // phase already over and advances to whatever the user did configure
     let phase_duration = if inhale_dur <= 0.0 {
         Duration::ZERO
     } else {
-        Duration::from_secs_f64(inhale_dur.max(0.1))
+        Duration::from_secs_f64(phase_secs(inhale_dur))
     };
     Inner {
         phase:               BreathingPhase::Inhale,
@@ -259,7 +270,7 @@ fn tick(
     inner:    &mut Inner,
     settings: &Arc<RwLock<Settings>>,
     easing:   &EasingTable,
-) -> (bool, Duration) {
+) -> (Option<BreathingState>, Duration) {
     let now = Instant::now();
 
     // Snapshot the fields we need. Avoid holding the lock across sleeps
@@ -292,7 +303,7 @@ fn tick(
 
     // ── Not animating ─────────────────────────────────────────────────────────
     if !is_animating && !is_paused {
-        return (false, Duration::from_secs(10));
+        return (None, Duration::from_secs(10));
     }
 
     // ── Paused / static fullscreen / all-zero-duration tint ──────────────────
@@ -319,10 +330,11 @@ fn tick(
         let elapsed = now.duration_since(inner.last_draw_time);
         if elapsed >= Duration::from_secs(1) {
             inner.last_draw_time = now;
-            return (true, Duration::from_secs(1));
+            let current = compute_state_with_easing(inner, easing, anim_mode, now);
+            return (Some(current), Duration::from_secs(1));
         }
         let remaining = Duration::from_secs(1).saturating_sub(elapsed);
-        return (false, remaining);
+        return (None, remaining);
     }
 
     // ── Hold phase ────────────────────────────────────────────────────────────
@@ -338,7 +350,8 @@ fn tick(
             );
             inner.did_render_hold = false;
             inner.last_draw_time  = now;
-            return (true, INTERVAL_FAST);
+            let current = compute_state_with_easing(inner, easing, anim_mode, now);
+            return (Some(current), INTERVAL_FAST);
         }
 
         if hold_ripple_enabled {
@@ -347,17 +360,19 @@ fn tick(
             {
                 inner.did_render_hold = true;
                 inner.last_draw_time  = now;
-                return (true, INTERVAL_FAST.min(remaining));
+                let current = compute_state_with_easing(inner, easing, anim_mode, now);
+                return (Some(current), INTERVAL_FAST.min(remaining));
             }
-            return (false, INTERVAL_FAST.min(remaining));
+            return (None, INTERVAL_FAST.min(remaining));
         } else {
             // No ripple: render once per hold, then sleep until it ends
             if !inner.did_render_hold {
                 inner.did_render_hold = true;
                 inner.last_draw_time  = now;
-                return (true, remaining);
+                let current = compute_state_with_easing(inner, easing, anim_mode, now);
+                return (Some(current), remaining);
             }
-            return (false, remaining);
+            return (None, remaining);
         }
     }
 
@@ -390,21 +405,17 @@ fn tick(
             inner.last_draw_time        = now;
             inner.last_drawn_phase      = current.phase;
             inner.last_drawn_progress   = current.progress;
-            return (true, cadence.min(time_to_phase_end));
+            return (Some(current), cadence.min(time_to_phase_end));
         }
         // Not yet time. Come back when cadence expires
         let wait = cadence.saturating_sub(elapsed_since_last);
-        return (false, wait.min(time_to_phase_end));
+        return (None, wait.min(time_to_phase_end));
     }
 
-    (false, cadence.min(time_to_phase_end))
+    (None, cadence.min(time_to_phase_end))
 }
 
 // ─── State computation ────────────────────────────────────────────────────────
-
-fn compute_state(inner: &Inner) -> BreathingState {
-    compute_state_with_easing(inner, &EasingTable::default_ease_in_out(), AnimationMode::Sinusoidal, Instant::now())
-}
 
 fn compute_state_with_easing(
     inner:   &Inner,
@@ -527,7 +538,7 @@ fn phase_duration_for(
     if base <= 0.0 {
         return Duration::ZERO;
     }
-    Duration::from_secs_f64((jitter(base, fraction) * current_drift).max(0.1))
+    Duration::from_secs_f64(phase_secs(jitter(base, fraction) * current_drift))
 }
 
 /// Perturb `base` by up to ±`fraction` of itself
@@ -854,6 +865,42 @@ mod tests {
         assert_eq!(zero, Duration::ZERO);
     }
 
+    #[test]
+    fn phase_secs_clamps_non_finite_and_huge_inputs() {
+        // `Duration::from_secs_f64` panics on inf, NaN or anything past
+        // `Duration::MAX`, so every input reaching it has to land inside
+        // 0.1 s .. 86_400 s first
+        assert_eq!(phase_secs(f64::INFINITY), 86_400.0);
+        assert_eq!(phase_secs(f64::NAN), 0.1);
+        assert_eq!(phase_secs(1e30), 86_400.0);
+    }
+
+    #[test]
+    fn non_finite_and_huge_inhale_durations_do_not_panic() {
+        // A hand-edited or generated settings.toml can hold `inf`, `nan`
+        // or `1e30` for a duration. Both call sites that turn a duration
+        // into a `Duration` have to survive all three
+        let cases = [
+            (f64::INFINITY, Duration::from_secs(86_400)),
+            (f64::NAN,       Duration::from_millis(100)),
+            (1e30,           Duration::from_secs(86_400)),
+        ];
+        for (dur, expected) in cases {
+            assert_eq!(
+                fresh_inner(Instant::now(), dur).phase_duration, expected,
+                "fresh_inner({dur})"
+            );
+
+            let via_phase_duration_for = phase_duration_for(
+                BreathingPhase::Inhale,
+                1.0,
+                dur, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0,
+            );
+            assert_eq!(via_phase_duration_for, expected, "phase_duration_for({dur})");
+        }
+    }
+
     // ── tick() cadence / hysteresis tests ─────────────────────────────────
     //
     // These exercise the per-tick scheduler logic that decides whether
@@ -883,8 +930,8 @@ mod tests {
         let settings = Arc::new(RwLock::new(s));
         let easing   = EasingTable::default_ease_in_out();
         let mut inner = fresh_inner_at(Instant::now(), Duration::from_secs(5));
-        let (should_draw, next) = tick(&mut inner, &settings, &easing);
-        assert!(!should_draw, "a stopped controller shouldn't request a draw");
+        let (state, next) = tick(&mut inner, &settings, &easing);
+        assert!(state.is_none(), "a stopped controller shouldn't request a draw");
         assert!(next >= Duration::from_secs(1), "stopped controller should sleep >=1s, got {next:?}");
     }
 
@@ -898,12 +945,12 @@ mod tests {
         // First call: last_draw_time was 1s ago, so this should draw
         // (the paused branch redraws once a second to keep the static
         // frame current against settings changes)
-        let (should_draw_1, _) = tick(&mut inner, &settings, &easing);
-        assert!(should_draw_1, "paused controller draws once per second");
+        let (state_1, _) = tick(&mut inner, &settings, &easing);
+        assert!(state_1.is_some(), "paused controller draws once per second");
         // Second call immediately after: not yet a second elapsed, so
         // it shouldn't draw and the sleep should be < 1s
-        let (should_draw_2, next_2) = tick(&mut inner, &settings, &easing);
-        assert!(!should_draw_2, "paused controller doesn't draw twice in a row");
+        let (state_2, next_2) = tick(&mut inner, &settings, &easing);
+        assert!(state_2.is_none(), "paused controller doesn't draw twice in a row");
         assert!(next_2 < Duration::from_secs(1));
     }
 
@@ -921,9 +968,9 @@ mod tests {
         inner.phase = BreathingPhase::HoldAfterInhale;
         inner.last_draw_time = now - Duration::from_millis(200); // not yet due
 
-        let (should_draw, _) = tick(&mut inner, &settings, &easing);
+        let (state, _) = tick(&mut inner, &settings, &easing);
         // First tick of a fresh hold draws (did_render_hold was false)
-        assert!(should_draw);
+        assert!(state.is_some());
     }
 
     #[test]
@@ -937,10 +984,10 @@ mod tests {
         let mut inner = fresh_inner_at(now, Duration::from_secs_f64(2.0));
         inner.phase = BreathingPhase::HoldAfterInhale;
 
-        let (should_draw_1, _) = tick(&mut inner, &settings, &easing);
-        assert!(should_draw_1, "first tick of no-ripple hold draws");
-        let (should_draw_2, _) = tick(&mut inner, &settings, &easing);
-        assert!(!should_draw_2, "second tick of no-ripple hold sleeps");
+        let (state_1, _) = tick(&mut inner, &settings, &easing);
+        assert!(state_1.is_some(), "first tick of no-ripple hold draws");
+        let (state_2, _) = tick(&mut inner, &settings, &easing);
+        assert!(state_2.is_none(), "second tick of no-ripple hold sleeps");
     }
 
     #[test]
@@ -962,6 +1009,25 @@ mod tests {
 
         tick(&mut inner, &settings, &easing);
         assert_eq!(inner.phase, BreathingPhase::HoldAfterInhale);
+    }
+
+    #[test]
+    fn linear_mode_reaches_the_published_state() {
+        // The renderer draws the state `tick` returns, so the user's Linear
+        // mode has to show up there
+        let mut s = Settings::default();
+        s.animation_mode  = AnimationMode::Linear;
+        s.inhale_duration = 4.0;
+        let settings = Arc::new(RwLock::new(s));
+        let easing   = EasingTable::default_ease_in_out();
+
+        let now = Instant::now();
+        // One second into a four-second inhale: a quarter of the way through
+        let mut inner = fresh_inner_at(now - Duration::from_secs(1), Duration::from_secs(4));
+
+        let (state, _) = tick(&mut inner, &settings, &easing);
+        let progress = state.expect("first tick of a fresh phase always draws").progress;
+        assert!((progress - 0.25).abs() < 0.02, "linear progress at t=0.25 was {progress}");
     }
 
     #[test]

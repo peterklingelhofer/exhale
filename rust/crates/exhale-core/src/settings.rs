@@ -11,6 +11,7 @@ use crate::types::{
 /// 5 / 0 / 10 / 0 with 1 % drift in Swift. Stored as TOML in the platform
 /// config directory
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Settings {
     // ── Appearance ────────────────────────────────────────────────────────────
     /// Linear RGBA of the inhale color. Alpha is display alpha (not premultiplied)
@@ -313,9 +314,8 @@ impl Default for Settings {
             // (`lehrer2022-my-life-hrvb` recalls one that did, secondhand). It's
             // still one click away as a preset
             //
-            // These fields carry no `#[serde(default)]`, so a settings.toml that
-            // predates this change keeps every value it already has. The move
-            // reaches only fresh installs and Reset to Defaults
+            // A settings.toml keeps every value it holds, so this default reaches
+            // fresh installs, Reset to Defaults and files missing the key
             inhale_duration:           5.0,
             post_inhale_hold_duration: 0.0,
             exhale_duration:           5.0,
@@ -631,6 +631,16 @@ mod tests {
         assert_eq!(deserialized.inhale_duration, original.inhale_duration);
         assert_eq!(deserialized.shape, original.shape);
         assert_eq!(deserialized.hold_ripple_mode, original.hold_ripple_mode);
+    }
+
+    #[test]
+    fn a_settings_toml_missing_most_keys_only_defaults_those_keys() {
+        // A file written by an older version, or trimmed by hand, keeps the
+        // values it has and takes defaults for the rest
+        let s: Settings = toml::from_str("inhale_duration = 7.0").expect("deserialise");
+        assert_eq!(s.inhale_duration, 7.0);
+        assert_eq!(s.exhale_duration, Settings::default().exhale_duration);
+        assert_eq!(s.shape, Settings::default().shape);
     }
 
     #[test]

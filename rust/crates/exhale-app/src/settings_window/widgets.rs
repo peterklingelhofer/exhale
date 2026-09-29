@@ -6,6 +6,8 @@
 //! the parent `settings_window` module
 use std::time::{Duration, Instant};
 
+use super::theme::TEXT_EDIT_RADIUS;
+
 pub(super) fn section(ui: &mut egui::Ui, header: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
     let dark_mode = ui.visuals().dark_mode;
 
@@ -190,7 +192,7 @@ pub(super) fn control_button(
     // hard outline, matching the user's "subtle drop shadow glow"
     // request
     if response.has_focus() {
-        focus_halo(&painter, rect, BUTTON_RADIUS, dark_mode, BUTTON_HALO);
+        focus_halo(&painter, rect, TEXT_EDIT_RADIUS, dark_mode, BUTTON_HALO);
     }
 
     // Pressed state: Swift uses `.opacity(0.7)` + `.scaleEffect(0.97)`.  Scale
@@ -353,7 +355,6 @@ pub(super) fn control_button(
 //   section gap      (10) -> sectionSpacing
 //   row gap          (8) -> rowSpacing
 //   card radius      (10) -> RoundedRectangle(cornerRadius: 10, style: .continuous)
-//   button radius    (7) -> ControlButton's RoundedRectangle(cornerRadius: 7)
 //   stepper field    (56) -> CombinedStepperTextField TextField .frame(width: 56)
 // Label column width.  Trade-off: shorter keeps the segmented pickers
 // (Rectangle/Circle/Full, Gradient/Stark/Off, etc.) from wrapping their
@@ -370,9 +371,9 @@ pub(super) const CARD_PAD:         f32 = 12.0;
 pub(super) const SECTION_GAP:      f32 = 10.0;
 pub(super) const ROW_GAP:          f32 = 8.0;
 pub(super) const CARD_RADIUS:      f32 = 10.0;
-pub(super) const BUTTON_RADIUS:    f32 = 7.0;
-// (`TEXT_EDIT_RADIUS` lives in the `theme` submodule: it's used by
-// `visuals_for_theme` and nothing else, no reason to expose it here)
+// Control buttons are stock `egui::Button` chrome, so their corner radius
+// is `theme::TEXT_EDIT_RADIUS`, and `control_button`'s focus halo reads
+// that same constant to stay concentric
 pub(super) const STEPPER_FIELD_W:  f32 = 56.0;
 
 /// Translucent `SectionCard` fill, composited over the platform
@@ -1087,7 +1088,9 @@ pub(super) fn stepper_row(
         );
         scroll_into_view_on_focus(&field_resp);
         if field_resp.changed() {
-            if let Ok(parsed) = buf.trim().parse::<f64>() {
+            // `f64::parse` accepts "inf" and "NaN", and a stepper with no
+            // max would store an infinity, so keep finite values only
+            if let Some(parsed) = buf.trim().parse::<f64>().ok().filter(|v| v.is_finite()) {
                 changed |= commit(parsed, value);
             }
         }
@@ -1491,6 +1494,7 @@ pub(super) mod test_hooks {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::theme::{PANEL_FILL_DARK, PANEL_FILL_LIGHT};
 
     fn round_trip(scale: ValueScale, stored: f64) {
         let displayed = scale.to_display(stored);
@@ -1573,12 +1577,13 @@ mod tests {
     #[test]
     fn chip_text_meets_wcag_aa_on_the_backdrop_the_app_controls() {
         // With blur unavailable (older Windows, GNOME, EXHALE_DISABLE_BLUR)
-        // the window is opaque and `clear_color_for_theme` picks the
-        // backdrop, so this is a contrast floor exhale can
-        // promise instead of one that depends on the wallpaper
+        // the window is opaque and `clear_color_for_theme` clears to the
+        // same `PANEL_FILL_*` constants the panel paints, so this is a
+        // contrast floor exhale can promise instead of one that depends
+        // on the wallpaper
         for (dark_mode, clear) in [
-            (true,  egui::Color32::from_gray((0.12 * 255.0) as u8)),
-            (false, egui::Color32::from_gray((0.96 * 255.0) as u8)),
+            (true,  PANEL_FILL_DARK),
+            (false, PANEL_FILL_LIGHT),
         ] {
             let card = over(card_fill(dark_mode), clear);
             let body = if dark_mode {

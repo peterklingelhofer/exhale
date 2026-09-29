@@ -3,15 +3,9 @@
 //!
 //! Nothing here references `App` or `AppEvent` directly: everything is
 //! either a one-shot side effect (logger, panic hook) or a pure
-//! lookup (log-path picker, lock-file path).  The single-instance
-//! guard takes an [`winit::event_loop::EventLoopProxy`] only as a
-//! placeholder for the type parameter.  The "secondary" path exits
+//! lookup (log-path picker, lock-file path).  The "secondary" path exits
 
 use std::path::PathBuf;
-
-use winit::event_loop::EventLoopProxy;
-
-use crate::AppEvent;
 
 /// Outcome of [`single_instance_guard`].  See enum variants for
 /// platform behaviour
@@ -41,7 +35,7 @@ pub(crate) enum InstanceGuard {
 /// Sandbox because `127.0.0.1` binds require
 /// `com.apple.security.network.server`, an entitlement MAS submissions
 /// should avoid
-pub(crate) fn single_instance_guard(_proxy: &EventLoopProxy<AppEvent>) -> InstanceGuard {
+pub(crate) fn single_instance_guard() -> InstanceGuard {
     let lock_path = match instance_lock_path() {
         Some(p) => p,
         None    => {
@@ -193,11 +187,16 @@ impl std::io::Write for TeeLogWriter {
 ///   2. `<temp>/exhale.log`
 ///   3. `./exhale.log`
 pub(crate) fn pick_log_path() -> PathBuf {
+    // Probe by opening in append mode: a second launch runs this
+    // same probe while the first instance is still writing, and
+    // truncating here would zero the file out from under it.  The
+    // caller in `main` truncates for real, once `single_instance_guard`
+    // confirms this process isn't that second launch
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             let candidate = dir.join("exhale.log");
             if std::fs::OpenOptions::new()
-                .create(true).write(true).truncate(true)
+                .create(true).append(true)
                 .open(&candidate).is_ok()
             {
                 return candidate;
@@ -206,7 +205,7 @@ pub(crate) fn pick_log_path() -> PathBuf {
     }
     let tmp = std::env::temp_dir().join("exhale.log");
     if std::fs::OpenOptions::new()
-        .create(true).write(true).truncate(true)
+        .create(true).append(true)
         .open(&tmp).is_ok()
     {
         return tmp;
