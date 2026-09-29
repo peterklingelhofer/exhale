@@ -8,18 +8,38 @@ upload mechanics are in [DEPLOYMENT.md](../../../DEPLOYMENT.md#windows-microsoft
 ## Description
 
 ```
-A minimal cross-platform breathing overlay: a friendly indicator and reminder to take full, deep breaths while looking at screens. Demanding work at a keyboard measurably changes how you breathe: people breathe faster and mildly over-breathe, and slumped, forward-head posture is associated with reduced lung volumes. Slow paced breathing is the breathing practice with the most published evidence behind it, and exhale is a way to run one with no sensor, no account and no telemetry.
+A minimal breathing overlay: a friendly indicator and reminder to take full, deep breaths while looking at screens.
 
-The overlay is a translucent always-on-top window that gently expands on inhale and contracts on exhale. Inhale, post-inhale hold, exhale, and post-exhale hold durations are all configurable. A good place to start is 5 seconds in and 5 seconds out, which is 6 breaths a minute. Rates from 5 to 7 a minute are the ones that have been tested directly. Box breathing (4 / 4 / 4 / 4) is also supported.
+Demanding work at a keyboard measurably changes how you breathe. In small studies, people breathed faster and mildly over-breathed during data entry, and forward head posture is associated with reduced lung volumes. Slow paced breathing is the breathing practice with the most published evidence behind it. Whether it counters that over-breathing is untested, and one study found it can add to it. exhale paces slow breathing for you with no sensor, no account and no telemetry.
 
-Every claim above is sourced, alongside a ledger of what the research doesn't support, at https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md
+The overlay is a translucent window that gently expands on inhale and contracts on exhale. It stays on top of other windows and lets clicks pass through, so it never interrupts whatever you're doing. On some Windows 10 graphics drivers it opens as a regular window instead.
 
-Every action (Start, Stop, Reset, Quit, Preferences) is rebindable to a global keyboard shortcut. The Preferences panel is fully keyboard-navigable. exhale runs as a menu-bar / system-tray app, and the overlay itself is click-through so it never interrupts whatever you're doing.
+Inhale, post-inhale hold, exhale, and post-exhale hold durations are all configurable. The default is 5 seconds in and 5 out with no holds, which is 6 breaths a minute, where most of the direct evidence was gathered. The range tested directly runs from 5 to 7 a minute. Box breathing (4 / 4 / 4 / 4) is supported too, though at 3.75 breaths a minute it falls below that range. Making the exhale longer than the inhale is a matter of preference, since the studies comparing ratios are split.
 
-Take breaks if intense feelings arise, and don't overdo it.
+Every research claim above is sourced, alongside a list of what the research doesn't support, at https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md
 
----
-Disclaimer: The information and guidance provided by this app are intended for general informational purposes only and aren't medical advice. The creator isn't a medical professional. Always seek the advice of a qualified healthcare provider with any questions about your health, and don't disregard or delay professional medical advice because of this app. Use is at your own risk.
+exhale runs from the system tray, and its Preferences window is fully keyboard-navigable.
+
+Few side effects are expected from slow breathing. The sliders also reach fast, hold-heavy patterns, where brief light-headedness and muscle cramps have been reported, so slow down or stop if you feel either.
+
+Disclaimer: The information and guidance provided by this app are for general informational purposes only and aren't medical advice. The creator isn't a medical professional. Always seek the advice of a qualified healthcare provider with any questions about your health, and don't disregard or delay professional medical advice because of this app. Use is at your own risk.
+```
+
+The Store MSIX is built with `--no-default-features`, so global hotkeys are compiled out. Don't
+list them here.
+
+## Product features
+
+```
+Click-through full-screen overlay that never interrupts your work
+Customizable inhale, exhale, and hold durations for any breathing cadence
+Inhale, exhale, and background colors with optional gradient or constant fill
+Multiple shapes: fullscreen, circle, or rectangle
+Sinusoidal or linear animation modes
+Adjustable overlay opacity to blend with any desktop
+Drift factor to gradually lengthen or shorten breath cycles over time
+Lives in the system tray: start, stop, or reset without leaving your workflow
+Five breathing patterns as one-click presets, with the current rate shown against the tested range
 ```
 
 ## Short description (150 char max)
@@ -30,17 +50,32 @@ A translucent breathing overlay that gently expands on inhale and contracts on e
 
 ## Search terms (keywords)
 
+Partner Center takes up to 7.
+
 ```
-breathing, mindfulness, focus, breath, reminder, meditation, productivity, calm, relaxation, mental health, box breathing, pranayama, wellness, overlay, screen, blink
+mindfulness, meditation, box breathing, mental health, relaxation, wellness
 ```
 
 ## What's new in this version
 
 Per-release, so it's not pinned here. Take it from the release notes for the tag being
-submitted. The v2.0.21 text, kept as a shape reference:
+submitted. The v2.0.25 text, kept as a shape reference:
 
 ```
-Rebuilt from the ground up in Rust. ~36% lower CPU vs the prior build. Every action has a customizable global keyboard shortcut, full keyboard navigation in Preferences, inline reset confirmation, smoother Start/Stop transitions, near-zero CPU when all four breath durations are set to zero (treated as a static tint).
+No longer needs the Microsoft Visual C++ Redistributable.
+New one-click breathing presets, with the current pace shown in breaths per minute.
+The default pattern is now 5 seconds in and 5 out, six breaths a minute.
+A Research item in the tray menu opens the sources behind these choices.
+Holds set to 0 take no time, and timing randomization is now a percentage of each phase.
+Fixed: the Linear animation option now takes effect, a settings file missing a value no longer resets everything, and invalid durations no longer freeze the animation.
+```
+
+## Restricted capability justification (runFullTrust)
+
+Submission options asks for this on every submission that uploads a package.
+
+```
+exhale is a Win32 desktop app, a single Rust binary packaged as MSIX, so it declares runFullTrust to run as a regular desktop process. It needs that to draw its translucent breathing overlay as a layered, click-through, always-on-top window above other apps, and to show its system tray icon and menu. It makes no network connections, collects no data, and only reads and writes its own settings and log files.
 ```
 
 ## Copyright and trademark info
