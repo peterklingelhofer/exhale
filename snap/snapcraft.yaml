@@ -3,6 +3,9 @@ title: exhale
 base: core22
 version: '2.0.25'
 summary: A translucent breathing overlay for mindful breathing.
+# Keep crypto-wallet words (ledger, wallet and the like) out of the summary
+# and description. The Snap Store's metadata filter holds such an upload for
+# manual review, which took 2.0.23 off the automatic path
 description: |
   A minimal cross-platform breathing overlay: a friendly indicator and
   reminder to take full, deep breaths while looking at screens.
@@ -29,8 +32,8 @@ description: |
   falls below that range. Making the exhale longer than the inhale is a
   matter of preference, since the studies comparing ratios are split.
 
-  Every claim above is sourced, alongside a ledger of what the research
-  doesn't support, at
+  Every research claim above is sourced, alongside a list of what the
+  research doesn't support, at
   https://github.com/peterklingelhofer/exhale/blob/main/docs/CITATIONS.md
 
   Features:
