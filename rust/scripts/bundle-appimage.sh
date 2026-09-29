@@ -37,7 +37,7 @@ TOOL_DIR="$OUT_DIR/bin"
 # build under the plain `appimagetool` name, which must not be reused
 APPIMAGETOOL="$TOOL_DIR/appimagetool-x86_64.AppImage"
 
-VERSION="${VERSION:-2.0.25}"
+VERSION="${VERSION:-2.0.26}"
 OUT_APPIMAGE="$OUT_DIR/exhale-${VERSION}-x86_64.AppImage"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
