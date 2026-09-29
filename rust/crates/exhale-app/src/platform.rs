@@ -55,7 +55,8 @@ pub use mac::{
     install_settings_vibrancy, render_sf_symbol,
     sync_settings_backdrop_frame,
     uninstall_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
-    request_notification_permission, setup_overlay_window, setup_settings_window,
+    request_notification_permission, running_in_app_bundle, setup_overlay_window,
+    setup_settings_window,
 };
 
 #[cfg(target_os = "windows")]

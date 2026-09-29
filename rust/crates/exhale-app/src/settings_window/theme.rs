@@ -14,13 +14,14 @@ use winit::window::Theme;
 use crate::platform;
 
 /// Corner radius used for egui widget chrome (TextEdit, comboboxes,
-/// etc.) inside the settings window.  Hand-painted widgets (stepper,
-/// segmented picker, control button) draw their own rounding via
+/// control buttons, etc.) inside the settings window.  Hand-painted
+/// widgets (stepper, segmented picker) draw their own rounding via
 /// `painter.rect_*` and pass their own constants.  They aren't
 /// affected by this value.  Kept here (not in the parent module's
 /// layout constants) so [`visuals_for_theme`] can be tested in
-/// isolation
-const TEXT_EDIT_RADIUS: f32 = 5.0;
+/// isolation.  `pub(super)` so the control button's focus halo in
+/// `widgets` can stay concentric with the same radius
+pub(super) const TEXT_EDIT_RADIUS: f32 = 5.0;
 
 /// Load the OS-native UI font and register it as the default proportional
 /// font on the egui context.  Each platform's system-preferences app uses a
@@ -167,6 +168,13 @@ pub(crate) fn theme_preference(theme: Theme) -> ThemePreference {
     }
 }
 
+/// Opaque settings-panel fill used when no OS blur is available (older
+/// Windows, GNOME, opt-out via `EXHALE_DISABLE_BLUR=1`).  Single source of
+/// truth for both the egui panel fill and the wgpu clear colour below, so
+/// the two can't drift apart wherever the clear colour peeks through
+pub(super) const PANEL_FILL_DARK:  egui::Color32 = egui::Color32::from_rgb(24, 24, 28);
+pub(super) const PANEL_FILL_LIGHT: egui::Color32 = egui::Color32::from_rgb(240, 240, 242);
+
 /// wgpu clear colour for the settings surface
 ///
 /// When `platform::is_blur_active()` is true, the OS is providing a blur
@@ -177,14 +185,22 @@ pub(crate) fn theme_preference(theme: Theme) -> ThemePreference {
 /// When blur isn't active (older Windows, GNOME, opt-out via
 /// `EXHALE_DISABLE_BLUR=1`), the window is rendered opaquely: clear to
 /// egui's panel fill so there's no flash between surface reconfiguration
-/// and the first paint
+/// and the first paint.  The surface is a non-sRGB `Unorm` format (see
+/// `SettingsWindow::new`'s format selection), so the conversion below is
+/// a plain u8/255 divide with no gamma curve involved
 pub(crate) fn clear_color_for_theme(theme: Theme) -> wgpu::Color {
     if platform::is_blur_active() {
         wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }
     } else {
-        match theme {
-            Theme::Dark  => wgpu::Color { r: 0.12, g: 0.12, b: 0.12, a: 1.0 },
-            Theme::Light => wgpu::Color { r: 0.96, g: 0.96, b: 0.96, a: 1.0 },
+        let fill = match theme {
+            Theme::Dark  => PANEL_FILL_DARK,
+            Theme::Light => PANEL_FILL_LIGHT,
+        };
+        wgpu::Color {
+            r: fill.r() as f64 / 255.0,
+            g: fill.g() as f64 / 255.0,
+            b: fill.b() as f64 / 255.0,
+            a: 1.0,
         }
     }
 }
