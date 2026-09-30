@@ -202,6 +202,7 @@ UNSUPPORTED_PHRASES: list[tuple[str, str]] = [
 # are skipped
 ASSERTING_SURFACES: list[str] = [
     "snap/snapcraft.yaml",
+    "rust/packaging/macos/store-listing.md",
     "rust/packaging/windows/AppxManifest.xml",
     "rust/packaging/windows/store-listing.md",
 ]
