@@ -38,9 +38,12 @@ path = "src/main.rs"
 
 [features]
 # `global-hotkeys` wires up the Carbon `RegisterEventHotKey`-backed
-# `global-hotkey` crate.  Disabled for the Mac App Store build
-# (`--no-default-features`) as a hedge in case App Review flags the
-# behaviour: it's trivial to re-enable per-target later
+# `global-hotkey` crate, plus the tray and settings UI for binding
+# shortcuts.  Disabled for every packaged build (Mac App Store,
+# Microsoft Store, Snap, .deb, AppImage), which all build with
+# `--no-default-features`: a hedge in case App Review flags the
+# behaviour, and it also keeps the UI from offering bindings that
+# could never fire.  Trivial to re-enable per-target later
 default        = ["global-hotkeys"]
 global-hotkeys = ["dep:global-hotkey"]
 

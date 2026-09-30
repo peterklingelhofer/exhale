@@ -1,9 +1,13 @@
 use anyhow::Result;
 use exhale_core::{KeyboardShortcuts, ShortcutAction};
 use tray_icon::{
-    menu::{Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{Menu, MenuId, MenuItem, PredefinedMenuItem},
     TrayIcon, TrayIconBuilder,
 };
+// Only the "Keyboard Shortcuts ▶" submenu needs a `Submenu`, and that
+// submenu doesn't exist without the feature
+#[cfg(feature = "global-hotkeys")]
+use tray_icon::menu::Submenu;
 
 // ─── Research link ────────────────────────────────────────────────────────────
 
@@ -61,7 +65,9 @@ pub struct TrayMenuIds {
     // text via `set_text` on rebind) and acts as a click target that
     // opens the settings window in capture mode for that action.
     // Storing the handles here lets us update labels in place without
-    // a tray rebuild
+    // a tray rebuild.  Doesn't exist without the feature: a source
+    // build is the only one that can ever register a binding
+    #[cfg(feature = "global-hotkeys")]
     kb:           [(ShortcutAction, MenuItem); 5],
 }
 
@@ -70,6 +76,7 @@ impl TrayMenuIds {
     /// [`ShortcutAction`] whose binding the user wants to change.
     /// Returns `None` for items that aren't part of the
     /// "Keyboard Shortcuts ▶" submenu
+    #[cfg(feature = "global-hotkeys")]
     pub fn kb_action_for(&self, id: &MenuId) -> Option<ShortcutAction> {
         action_for(&self.kb, id)
     }
@@ -94,7 +101,7 @@ impl TrayMenuIds {
     /// after the user reassigns one.  Called from the rebind path so
     /// the tray menu stays in sync with `settings.keyboard_shortcuts`
     /// without a full tray rebuild (which would flash the tray icon)
-    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
+    #[cfg(feature = "global-hotkeys")]
     pub fn refresh_labels(&self, shortcuts: &KeyboardShortcuts) {
         for (action, item) in &self.top { item.set_text(top_level_label(*action, shortcuts)); }
         for (action, item) in &self.kb  { item.set_text(submenu_label(*action, shortcuts)); }
@@ -109,12 +116,20 @@ fn action_for(items: &[(ShortcutAction, MenuItem)], id: &MenuId) -> Option<Short
 /// Format a top-level menu item's label.  Embeds the current
 /// binding in parentheses so the user can read it without opening
 /// the submenu.  Reads "Preferences" when the slot is unbound
+#[cfg(feature = "global-hotkeys")]
 fn top_level_label(action: ShortcutAction, shortcuts: &KeyboardShortcuts) -> String {
     let base = top_label(action);
     match shortcuts.get(action) {
         Some(sc) => format!("{base}  ({})", sc.display()),
         None     => base.to_string(),
     }
+}
+
+/// No shortcut can ever fire without the feature, so the label stays
+/// plain instead of claiming a binding that would never work
+#[cfg(not(feature = "global-hotkeys"))]
+fn top_level_label(action: ShortcutAction, _shortcuts: &KeyboardShortcuts) -> String {
+    top_label(action).to_string()
 }
 
 /// A top-level item's text, before `top_level_label` appends the binding
@@ -131,6 +146,7 @@ fn top_label(action: ShortcutAction) -> &'static str {
 /// Format a "Keyboard Shortcuts ▶" submenu item.  Action name on
 /// the left, current binding (or "(none)") on the right.  Clicking
 /// the row opens settings in capture mode for the matching action
+#[cfg(feature = "global-hotkeys")]
 fn submenu_label(action: ShortcutAction, shortcuts: &KeyboardShortcuts) -> String {
     let binding = shortcuts
         .get(action)
@@ -184,9 +200,14 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
     let research = MenuItem::new(RESEARCH_LABEL, true, None);
 
     // ── Keyboard Shortcuts submenu ────────────────────────────────────────────
+    // Only a source build can ever register a binding, so packaged
+    // builds (`--no-default-features`) never build this submenu at all
+    #[cfg(feature = "global-hotkeys")]
     let kb = ACTIONS.map(|action| (action, MenuItem::new(submenu_label(action, shortcuts), true, None)));
 
+    #[cfg(feature = "global-hotkeys")]
     let kb_submenu = Submenu::new("Keyboard Shortcuts", true);
+    #[cfg(feature = "global-hotkeys")]
     for (action, item) in &kb {
         // Preferences sits below a separator, apart from the other four
         if *action == ShortcutAction::Preferences {
@@ -195,7 +216,10 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
         kb_submenu.append(item)?;
     }
 
+    #[cfg(feature = "global-hotkeys")]
     let ids = TrayMenuIds { top, research, kb };
+    #[cfg(not(feature = "global-hotkeys"))]
+    let ids = TrayMenuIds { top, research };
 
     let menu = Menu::new();
     menu.append(ids.top_item(ShortcutAction::Preferences))?;
@@ -204,8 +228,11 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
     menu.append(ids.top_item(ShortcutAction::Start))?;
     menu.append(ids.top_item(ShortcutAction::Stop))?;
     menu.append(ids.top_item(ShortcutAction::Reset))?;
-    menu.append(&PredefinedMenuItem::separator())?;
-    menu.append(&kb_submenu)?;
+    #[cfg(feature = "global-hotkeys")]
+    {
+        menu.append(&PredefinedMenuItem::separator())?;
+        menu.append(&kb_submenu)?;
+    }
     menu.append(&PredefinedMenuItem::separator())?;
     menu.append(ids.top_item(ShortcutAction::Quit))?;
 
