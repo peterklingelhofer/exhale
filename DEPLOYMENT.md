@@ -8,7 +8,7 @@ How to ship a new exhale release to the three stores plus the GitHub Releases pa
 |---|---|---|---|
 | Mac App Store | live (Swift listing id6447758995, being migrated to Rust) | Apple Developer membership (have), bundle ID + certs + profile | `bundle-mas.sh` -> Transporter (must run locally, see "CI caveat" below) |
 | Windows Microsoft Store | listing live (Store ID `9P79Z1NJMZB3`) | Partner Center listing | `bundle-msix.ps1` -> Partner Center |
-| Snap Store | published, manual upload | Snapcraft developer account, `snap-creds` Multipass VM | CI builds `.snap`, `multipass exec snap-creds -- snapcraft upload` |
+| Snap Store | published, manual upload | Snapcraft developer account, Docker | CI builds `.snap`, `snapcraft upload` from a `snapcore/snapcraft` container |
 | Windows standalone `.exe` | direct ship | none | GitHub Release artifact from `release.yml` |
 | Linux `.deb` / AppImage | direct ship | none | GitHub Release artifact from `release.yml` |
 | macOS standalone | not shipped (MAS only) | n/a | n/a |
@@ -235,40 +235,31 @@ The snap is published as `exhale-app` on https://snapcraft.io.
 
 ### Why upload is manual
 
-Every snapcraft auth path tried in CI (snap @ latest/7.x/8.x, the `snapcore/action-publish` action, `pip install snapcraft`, direct REST API calls) hit the same `018h` byte in the discharge macaroon and crashed. Until snapcraft's auth story works in headless CI again, CI builds the `.snap` artifact and upload happens from a Multipass VM with the credentials pre-stored. See the long comment block above the `linux-snap` job in [release.yml](.github/workflows/release.yml#L181-L197) for the exact failure mode.
-
-### One-time setup
-
-On the dev Mac:
-
-```sh
-brew install multipass
-multipass launch --name snap-creds --memory 2G --disk 5G 22.04
-multipass shell snap-creds
-# inside the VM:
-sudo snap install snapcraft --classic
-snapcraft login   # browser flow, paste the URL back
-```
-
-The login cookie persists across `multipass stop` / `start`, so this is a one-time step.
+Every snapcraft auth path tried in CI (snap @ latest/7.x/8.x, the `snapcore/action-publish` action, `pip install snapcraft`, direct REST API calls) hit the same `018h` byte in the discharge macaroon and crashed. The byte comes from `snapcraft export-login`, and an interactive `snapcraft login` sidesteps it. So CI builds the `.snap`, and the upload runs from a local Docker container that you log in to by hand.
 
 ### Per-release upload
 
-CI produces `exhale-app_<VERSION>_amd64.snap` as the `linux-snap-<VERSION>` artifact on every `v*` tag. To ship it:
+You need Docker and a Snapcraft account with access to `exhale-app`. The `snapcore/snapcraft:stable` image ships snapcraft 4.4.4. The release job attaches the `.snap` to the GitHub release:
 
 ```sh
-# 1. Download the snap from the CI run
-gh run download <run-id> -n linux-snap-2.0.20
-
-# 2. Push it into the VM
-multipass transfer exhale-app_2.0.20_amd64.snap snap-creds:/tmp/
-
-# 3. Upload to the Snap Store (edge channel)
-multipass exec snap-creds -- snapcraft upload \
-    --release=edge /tmp/exhale-app_2.0.20_amd64.snap
+open -a Docker   # if the daemon isn't running
+docker run -d --platform linux/amd64 --name exhale-snap-upload \
+    -v "$HOME/Downloads":/dl:ro --entrypoint sleep snapcore/snapcraft:stable infinity
+docker exec -it exhale-snap-upload snapcraft login   # email, password, 2FA
+gh release download vX.Y.Z --pattern 'exhale-app_X.Y.Z_amd64.snap' --dir "$HOME/Downloads"
+docker exec exhale-snap-upload snapcraft upload --release=stable /dl/exhale-app_X.Y.Z_amd64.snap
+docker exec exhale-snap-upload snapcraft release exhale-app <revision> edge   # keeps edge current
+docker exec exhale-snap-upload snapcraft status exhale-app
+docker exec exhale-snap-upload snapcraft logout
+docker rm -f exhale-snap-upload
 ```
 
-Then promote `edge -> stable` from https://snapcraft.io/exhale-app/releases once you've smoke-tested edge on a Linux box.
+`upload` prints the revision number that `release` needs. Logging out and removing the container leaves no credentials behind.
+
+- The store reviews one upload at a time. A revision held for review blocks every later upload until it clears or you reject it at `https://dashboard.snapcraft.io/snaps/exhale-app/revisions/<revision>/`
+- Crypto-wallet words such as "ledger" in the summary or description trip the store's `metadata-snap-v2_snap_metadata_redflag` check and hold the upload for manual review. 2.0.23 and 2.0.25 were held for "ledger"
+- `snapcraft list-revisions` crashes in 4.4.4 on the `ReviewQueued` status, so check held revisions on the dashboard
+- `snapcraft upload` leaves the store listing alone. Edit the summary and description at https://snapcraft.io/exhale-app/listing, where changes go live on save, and keep `snapcraft.yaml`'s description the same
 
 ### Local snap build (no CI)
 
@@ -335,7 +326,7 @@ Per release, after CI is green:
 
 - Transporter upload + Submit for Review on App Store Connect
 - Partner Center MSIX upload + Submit on Microsoft
-- `multipass exec snap-creds -- snapcraft upload` for the snap
+- `snapcraft upload` from the Docker container for the snap
 
 Per cert rotation (~yearly):
 

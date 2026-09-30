@@ -9,7 +9,7 @@
 # Store submission (Mac App Store / Microsoft Store / Snap Store) isn't
 # automated here: those require interactive secret setup (Apple App-Store-
 # Connect API key, Partner Center MSIX submission).  Snap Store upload is
-# manual: see the linux-snap job below for the one-line multipass command
+# manual: see DEPLOYMENT.md
 #
 # Secrets referenced (all optional: jobs gracefully degrade if missing):
 #   MACOS_APP_IDENT_P12       base64 of the Mac App Distribution .p12
@@ -235,15 +235,7 @@ jobs:
   # no Multipass) and pre-install the base/runtime build-snaps that the
   # `gnome` extension pulls in, so snapcraft doesn't have to
   #
-  # Upload is MANUAL: every snapcraft path we tried (snap @ latest/7.x/8.x,
-  # snapcore/action-publish, `pip install snapcraft`, direct curl REST API)
-  # crashed with the same `018h` byte in the discharge macaroon. CI builds
-  # the .snap as an artifact. Download it and run on a local Multipass VM:
-  #
-  #   gh run download <run-id> -n linux-snap-<VERSION>
-  #   multipass transfer exhale-app_<VERSION>_amd64.snap snap-creds:/tmp/
-  #   multipass exec snap-creds -- snapcraft upload \
-  #       --release=edge /tmp/exhale-app_<VERSION>_amd64.snap
+  # Upload is manual (exported snapcraft logins fail in CI): see DEPLOYMENT.md
   linux-snap:
     needs: prepare
     runs-on: ubuntu-22.04
