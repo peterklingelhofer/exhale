@@ -6,7 +6,7 @@ How to ship a new exhale release to the three stores plus the GitHub Releases pa
 
 | Target | Status | One-time | Per-release |
 |---|---|---|---|
-| Mac App Store | live (Swift listing id6447758995, being migrated to Rust) | Apple Developer membership (have), bundle ID + certs + profile | `bundle-mas.sh` -> Transporter (must run locally, see "CI caveat" below) |
+| Mac App Store | listing live (Apple ID `6447758995`) | Apple Developer membership (have), bundle ID + certs + profile | `bundle-mas.sh` -> Transporter (must run locally, see "CI caveat" below) |
 | Windows Microsoft Store | listing live (Store ID `9P79Z1NJMZB3`) | Partner Center listing | `bundle-msix.ps1` -> Partner Center |
 | Snap Store | published, manual upload | Snapcraft developer account, Docker | CI builds `.snap`, `snapcraft upload` from a `snapcore/snapcraft` container |
 | Windows standalone `.exe` | direct ship | none | GitHub Release artifact from `release.yml` |
@@ -37,7 +37,7 @@ You already have a paid Apple Developer Program membership and the App Store Con
 
 ### One-time setup (per dev machine)
 
-1. **Bundle ID** at https://developer.apple.com -> Certificates, Identifiers & Profiles -> Identifiers. The ID `peterklingelhofer.exhale` already exists from the Swift app and is what [rust/scripts/bundle-mas.sh](rust/scripts/bundle-mas.sh#L51) embeds. Capabilities: only **App Sandbox**.
+1. **Bundle ID** at https://developer.apple.com -> Certificates, Identifiers & Profiles -> Identifiers. The ID `peterklingelhofer.exhale` already exists from the Swift app and is what [rust/scripts/bundle-mas.sh](rust/scripts/bundle-mas.sh#L52) embeds. Capabilities: only **App Sandbox**.
 2. **Certificates** in the same portal:
    - **Apple Distribution** (single cert covers iOS + macOS, replaces the legacy "3rd Party Mac Developer Application")
    - **Mac Installer Distribution** (a.k.a. "3rd Party Mac Developer Installer")
@@ -69,7 +69,7 @@ VERSION=2.0.20 BUILD=2020 rust/scripts/bundle-mas.sh
 
 What it does (read the source for line-by-line: [bundle-mas.sh](rust/scripts/bundle-mas.sh)):
 
-1. Builds the Rust binary `--release --no-default-features` for both `aarch64-apple-darwin` and `x86_64-apple-darwin`, `lipo`'d into a universal binary. The `--no-default-features` build drops the global-hotkey crate since the Carbon hotkey API is sandbox-prohibited
+1. Builds the Rust binary `--release` for both `aarch64-apple-darwin` and `x86_64-apple-darwin`, `lipo`'d into a universal binary. Global shortcuts are included, since Carbon's `RegisterEventHotKey` works inside the sandbox without an entitlement
 2. Generates `AppIcon.icns` from [swift/exhale/Assets.xcassets/AppIcon.appiconset/exhaleColorGradient1024.png](swift/exhale/Assets.xcassets/AppIcon.appiconset/exhaleColorGradient1024.png) (the canonical 1024 master shared with the Swift project)
 3. Assembles `exhale.app` with `Info.plist` (LSUIElement, category `healthcare-fitness`), entitlements (`app-sandbox` + `files.user-selected.read-only`), and the embedded provisioning profile
 4. Signs the `.app` with the Apple Distribution identity
@@ -92,7 +92,7 @@ codesign --verify --deep --strict --verbose=2 rust/target/mas/exhale.app
 codesign -d --entitlements - rust/target/mas/exhale.app
 ```
 
-**Don't try `sudo installer -pkg ... -target /` on an MAS-signed `.pkg`.** The 3rd-Party-Mac-Developer-Installer signature + embedded provisioning profile only validate when the package is delivered through the Mac App Store / TestFlight pipeline. `installer(8)` claims success and writes a `pkgutil` receipt, but macOS silently refuses to drop the `.app` into `/Applications`, so the install looks broken when nothing is wrong. For sandbox / runtime verification, run the unsigned `cargo run --no-default-features` build directly (no sandbox), or wait for TestFlight after Transporter upload (real sandbox + real delivery).
+**Don't try `sudo installer -pkg ... -target /` on an MAS-signed `.pkg`.** The 3rd-Party-Mac-Developer-Installer signature + embedded provisioning profile only validate when the package is delivered through the Mac App Store / TestFlight pipeline. `installer(8)` claims success and writes a `pkgutil` receipt, but macOS silently refuses to drop the `.app` into `/Applications`, so the install looks broken when nothing is wrong. For sandbox / runtime verification, run the unsigned `cargo run` build directly (no sandbox), or wait for TestFlight after Transporter upload (real sandbox + real delivery).
 
 If a TestFlight install crashes immediately but `cargo run` was fine, the sandbox is biting. Look in `~/Library/Logs/DiagnosticReports/exhale*.crash` for `deny(1) file-read-data` or similar.
 
@@ -131,7 +131,7 @@ Typical SLA is 24 to 48 hours. First-time submissions can take 1 to 3 days.
 Common rejection reasons for exhale specifically:
 - **App Store Connect agreements unsigned.** First-time-each-year hurdle. Check Agreements, Tax, and Banking before submitting
 - **Reviewer "can't find the UI".** The App Review notes in [store-listing.md](rust/packaging/macos/store-listing.md#app-review-notes) cover it
-- **Sandbox violations.** Almost always a new entitlement we added without updating [bundle-mas.sh](rust/scripts/bundle-mas.sh#L196-L207)
+- **Sandbox violations.** Almost always a new entitlement we added without updating [bundle-mas.sh](rust/scripts/bundle-mas.sh#L214-L225)
 
 ### Update cycle
 
@@ -183,7 +183,7 @@ If you want a sideload-friendly macOS download some day, the path is "Developer 
 
 ## Windows: Microsoft Store
 
-The Partner Center listing already exists (Store ID `9P79Z1NJMZB3`, Package Family `PeterKlingelhofer.exhale_rrj7wxvvetjy2`). The identity values are baked into [rust/packaging/windows/AppxManifest.xml](rust/packaging/windows/AppxManifest.xml#L25-L28). You don't need to reserve a new identity for updates.
+The Partner Center listing already exists (Store ID `9P79Z1NJMZB3`, Package Family `PeterKlingelhofer.exhale_rrj7wxvvetjy2`). The identity values are baked into [rust/packaging/windows/AppxManifest.xml](rust/packaging/windows/AppxManifest.xml#L23-L26). You don't need to reserve a new identity for updates.
 
 ### Build the MSIX
 
@@ -197,7 +197,7 @@ rust\scripts\bundle-msix.ps1 -Version 2.0.20 -Build 2020
 
 Output: `rust\target\msix\exhale.msix`.
 
-The script ([bundle-msix.ps1](rust/scripts/bundle-msix.ps1)) builds the binary `--release --no-default-features` for `x86_64-pc-windows-msvc`, stages the MSIX layout (binary + assets + manifest), patches the version into the manifest's `<Identity>` element, and packs with `makeappx.exe` from the Windows 10 SDK.
+The script ([bundle-msix.ps1](rust/scripts/bundle-msix.ps1)) builds the binary `--release` for `x86_64-pc-windows-msvc`, stages the MSIX layout (binary + assets + manifest), patches the version into the manifest's `<Identity>` element, and packs with `makeappx.exe` from the Windows 10 SDK.
 
 ### Code signing
 
@@ -283,7 +283,7 @@ These ship directly on the GitHub Releases page (no store flow). CI builds them 
 # .deb
 cd rust
 cargo install cargo-deb --locked
-cargo build --release --no-default-features -p exhale-app
+cargo build --release -p exhale-app
 cargo deb --no-build -p exhale-app
 # -> rust/target/debian/exhale-app_<VERSION>_amd64.deb
 
