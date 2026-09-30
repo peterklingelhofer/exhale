@@ -20,7 +20,7 @@ Every research claim above is sourced, alongside a list of what the research doe
 
 exhale runs from the system tray, and its Preferences window is fully keyboard-navigable.
 
-Few side effects are expected from slow breathing. The sliders also reach fast, hold-heavy patterns, where brief light-headedness and muscle cramps have been reported, so slow down or stop if you feel either.
+Few side effects are expected from slow breathing. The timing controls also reach fast, hold-heavy patterns, where brief light-headedness and muscle cramps have been reported, so slow down or stop if you feel either.
 
 Disclaimer: The information and guidance provided by this app are for general informational purposes only and aren't medical advice. The creator isn't a medical professional. Always seek the advice of a qualified healthcare provider with any questions about your health, and don't disregard or delay professional medical advice because of this app. Use is at your own risk.
 ```
