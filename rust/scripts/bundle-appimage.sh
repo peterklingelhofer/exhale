@@ -54,10 +54,10 @@ for t in cargo rustup patchelf; do
 done
 
 # ── 1. Build the Rust binary ─────────────────────────────────────────────────
-log "cargo build --release --no-default-features --target x86_64-unknown-linux-gnu"
+log "cargo build --release --target x86_64-unknown-linux-gnu"
 (cd "$RUST_ROOT" && rustup target add x86_64-unknown-linux-gnu >/dev/null)
 (cd "$RUST_ROOT" && \
-    cargo build --release --no-default-features -p exhale-app \
+    cargo build --release -p exhale-app \
         --target x86_64-unknown-linux-gnu)
 
 BIN_PATH="$RUST_ROOT/target/x86_64-unknown-linux-gnu/release/exhale"

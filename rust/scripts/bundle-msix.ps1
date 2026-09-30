@@ -78,12 +78,12 @@ if (-not $DryRun -and $CertPath -and -not $SignTool) {
     Write-Fail "signtool.exe not found: install Windows 10 SDK"
 }
 
-# ── 1. Build the Rust binary (release, no-default-features for MAS parity) ──
-Write-Log "cargo build --release --no-default-features --target $Target"
+# ── 1. Build the Rust binary ─────────────────────────────────────────────────
+Write-Log "cargo build --release --target $Target"
 Push-Location $RustRoot
 try {
     & rustup target add $Target | Out-Null
-    & cargo build --release --no-default-features -p exhale-app --target $Target
+    & cargo build --release -p exhale-app --target $Target
     if ($LASTEXITCODE -ne 0) { Write-Fail "cargo build failed" }
 } finally {
     Pop-Location

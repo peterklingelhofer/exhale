@@ -45,6 +45,8 @@ description: |
     opacity
   - Runs from the system tray: preferences, the research page, start/stop
     animation, reset to defaults, quit
+  - Global keyboard shortcuts for preferences, start, stop, reset and quit
+    on X11 sessions
   - Optional reminder notifications
 
   Few side effects are expected from slow breathing. The timing controls
@@ -80,10 +82,7 @@ apps:
 
 parts:
   # The `rust` plugin can build workspace members directly, but we lean on
-  # `override-build` so the invocation mirrors `cargo-deb` / CI and so we
-  # can pin to `--no-default-features` (global-hotkeys off, which matches
-  # the Mac App Store policy, and snap confinement wouldn't grant
-  # global-hotkey access anyway)
+  # `override-build` so the invocation mirrors `cargo-deb` / CI
   exhale:
     plugin: nil
     # snapcraft.yaml lives at snap/snapcraft.yaml so the project dir is the
@@ -127,7 +126,7 @@ parts:
       . "${HOME}/.cargo/env"
 
       cd rust
-      cargo build --release --no-default-features -p exhale-app
+      cargo build --release -p exhale-app
 
       install -D -m 755 target/release/exhale \
         "${CRAFT_PART_INSTALL}/usr/bin/exhale"

@@ -211,7 +211,7 @@ jobs:
         working-directory: rust
         run: |
           cargo deb --no-build -p exhale-app || true   # first call produces target/release
-          cargo build --release --no-default-features -p exhale-app
+          cargo build --release -p exhale-app
           cargo deb --no-build -p exhale-app
 
       - name: Build .AppImage
