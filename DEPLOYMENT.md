@@ -6,9 +6,9 @@ How to ship a new exhale release to the three stores plus the GitHub Releases pa
 
 | Target | Status | One-time | Per-release |
 |---|---|---|---|
-| Mac App Store | live (Swift listing id6447758995, being migrated to Rust) | Apple Developer membership (have), bundle ID + certs + profile | `bundle-mas.sh` -> Transporter (must run locally, see "CI caveat" below) |
+| Mac App Store | listing live (Apple ID `6447758995`) | Apple Developer membership (have), bundle ID + certs + profile | `bundle-mas.sh` -> Transporter (must run locally, see "CI caveat" below) |
 | Windows Microsoft Store | listing live (Store ID `9P79Z1NJMZB3`) | Partner Center listing | `bundle-msix.ps1` -> Partner Center |
-| Snap Store | published, manual upload | Snapcraft developer account, `snap-creds` Multipass VM | CI builds `.snap`, `multipass exec snap-creds -- snapcraft upload` |
+| Snap Store | published, manual upload | Snapcraft developer account, Docker | CI builds `.snap`, `snapcraft upload` from a `snapcore/snapcraft` container |
 | Windows standalone `.exe` | direct ship | none | GitHub Release artifact from `release.yml` |
 | Linux `.deb` / AppImage | direct ship | none | GitHub Release artifact from `release.yml` |
 | macOS standalone | not shipped (MAS only) | n/a | n/a |
@@ -37,7 +37,7 @@ You already have a paid Apple Developer Program membership and the App Store Con
 
 ### One-time setup (per dev machine)
 
-1. **Bundle ID** at https://developer.apple.com -> Certificates, Identifiers & Profiles -> Identifiers. The ID `peterklingelhofer.exhale` already exists from the Swift app and is what [rust/scripts/bundle-mas.sh](rust/scripts/bundle-mas.sh#L51) embeds. Capabilities: only **App Sandbox**.
+1. **Bundle ID** at https://developer.apple.com -> Certificates, Identifiers & Profiles -> Identifiers. The ID `peterklingelhofer.exhale` already exists from the Swift app and is what [rust/scripts/bundle-mas.sh](rust/scripts/bundle-mas.sh#L52) embeds. Capabilities: only **App Sandbox**.
 2. **Certificates** in the same portal:
    - **Apple Distribution** (single cert covers iOS + macOS, replaces the legacy "3rd Party Mac Developer Application")
    - **Mac Installer Distribution** (a.k.a. "3rd Party Mac Developer Installer")
@@ -69,7 +69,7 @@ VERSION=2.0.20 BUILD=2020 rust/scripts/bundle-mas.sh
 
 What it does (read the source for line-by-line: [bundle-mas.sh](rust/scripts/bundle-mas.sh)):
 
-1. Builds the Rust binary `--release --no-default-features` for both `aarch64-apple-darwin` and `x86_64-apple-darwin`, `lipo`'d into a universal binary. The `--no-default-features` build drops the global-hotkey crate since the Carbon hotkey API is sandbox-prohibited
+1. Builds the Rust binary `--release` for both `aarch64-apple-darwin` and `x86_64-apple-darwin`, `lipo`'d into a universal binary. Global shortcuts are included, since Carbon's `RegisterEventHotKey` works inside the sandbox without an entitlement
 2. Generates `AppIcon.icns` from [swift/exhale/Assets.xcassets/AppIcon.appiconset/exhaleColorGradient1024.png](swift/exhale/Assets.xcassets/AppIcon.appiconset/exhaleColorGradient1024.png) (the canonical 1024 master shared with the Swift project)
 3. Assembles `exhale.app` with `Info.plist` (LSUIElement, category `healthcare-fitness`), entitlements (`app-sandbox` + `files.user-selected.read-only`), and the embedded provisioning profile
 4. Signs the `.app` with the Apple Distribution identity
@@ -92,7 +92,7 @@ codesign --verify --deep --strict --verbose=2 rust/target/mas/exhale.app
 codesign -d --entitlements - rust/target/mas/exhale.app
 ```
 
-**Don't try `sudo installer -pkg ... -target /` on an MAS-signed `.pkg`.** The 3rd-Party-Mac-Developer-Installer signature + embedded provisioning profile only validate when the package is delivered through the Mac App Store / TestFlight pipeline. `installer(8)` claims success and writes a `pkgutil` receipt, but macOS silently refuses to drop the `.app` into `/Applications`, so the install looks broken when nothing is wrong. For sandbox / runtime verification, run the unsigned `cargo run --no-default-features` build directly (no sandbox), or wait for TestFlight after Transporter upload (real sandbox + real delivery).
+**Don't try `sudo installer -pkg ... -target /` on an MAS-signed `.pkg`.** The 3rd-Party-Mac-Developer-Installer signature + embedded provisioning profile only validate when the package is delivered through the Mac App Store / TestFlight pipeline. `installer(8)` claims success and writes a `pkgutil` receipt, but macOS silently refuses to drop the `.app` into `/Applications`, so the install looks broken when nothing is wrong. For sandbox / runtime verification, run the unsigned `cargo run` build directly (no sandbox), or wait for TestFlight after Transporter upload (real sandbox + real delivery).
 
 If a TestFlight install crashes immediately but `cargo run` was fine, the sandbox is biting. Look in `~/Library/Logs/DiagnosticReports/exhale*.crash` for `deny(1) file-read-data` or similar.
 
@@ -122,7 +122,7 @@ External testing requires Beta App Review (~1 day) the first time. For a low-ris
 App Store Connect -> exhale -> macOS App -> Prepare for Submission:
 
 1. Pick the uploaded build
-2. Fill in **What's New in This Version**
+2. Fill in **What's New in This Version**. The rest of the listing copy is in [store-listing.md](rust/packaging/macos/store-listing.md)
 3. Confirm pricing (free), age rating, availability
 4. Add for Review -> Submit to App Review
 
@@ -130,8 +130,8 @@ Typical SLA is 24 to 48 hours. First-time submissions can take 1 to 3 days.
 
 Common rejection reasons for exhale specifically:
 - **App Store Connect agreements unsigned.** First-time-each-year hurdle. Check Agreements, Tax, and Banking before submitting
-- **Reviewer "can't find the UI".** Add a note in App Review Information: "App runs in the menu bar. Click the ring icon for Preferences."
-- **Sandbox violations.** Almost always a new entitlement we added without updating [bundle-mas.sh](rust/scripts/bundle-mas.sh#L196-L207)
+- **Reviewer "can't find the UI".** The App Review notes in [store-listing.md](rust/packaging/macos/store-listing.md#app-review-notes) cover it
+- **Sandbox violations.** Almost always a new entitlement we added without updating [bundle-mas.sh](rust/scripts/bundle-mas.sh#L214-L225)
 
 ### Update cycle
 
@@ -183,7 +183,7 @@ If you want a sideload-friendly macOS download some day, the path is "Developer 
 
 ## Windows: Microsoft Store
 
-The Partner Center listing already exists (Store ID `9P79Z1NJMZB3`, Package Family `PeterKlingelhofer.exhale_rrj7wxvvetjy2`). The identity values are baked into [rust/packaging/windows/AppxManifest.xml](rust/packaging/windows/AppxManifest.xml#L25-L28). You don't need to reserve a new identity for updates.
+The Partner Center listing already exists (Store ID `9P79Z1NJMZB3`, Package Family `PeterKlingelhofer.exhale_rrj7wxvvetjy2`). The identity values are baked into [rust/packaging/windows/AppxManifest.xml](rust/packaging/windows/AppxManifest.xml#L23-L26). You don't need to reserve a new identity for updates.
 
 ### Build the MSIX
 
@@ -197,7 +197,7 @@ rust\scripts\bundle-msix.ps1 -Version 2.0.20 -Build 2020
 
 Output: `rust\target\msix\exhale.msix`.
 
-The script ([bundle-msix.ps1](rust/scripts/bundle-msix.ps1)) builds the binary `--release --no-default-features` for `x86_64-pc-windows-msvc`, stages the MSIX layout (binary + assets + manifest), patches the version into the manifest's `<Identity>` element, and packs with `makeappx.exe` from the Windows 10 SDK.
+The script ([bundle-msix.ps1](rust/scripts/bundle-msix.ps1)) builds the binary `--release` for `x86_64-pc-windows-msvc`, stages the MSIX layout (binary + assets + manifest), patches the version into the manifest's `<Identity>` element, and packs with `makeappx.exe` from the Windows 10 SDK.
 
 ### Code signing
 
@@ -235,40 +235,31 @@ The snap is published as `exhale-app` on https://snapcraft.io.
 
 ### Why upload is manual
 
-Every snapcraft auth path tried in CI (snap @ latest/7.x/8.x, the `snapcore/action-publish` action, `pip install snapcraft`, direct REST API calls) hit the same `018h` byte in the discharge macaroon and crashed. Until snapcraft's auth story works in headless CI again, CI builds the `.snap` artifact and upload happens from a Multipass VM with the credentials pre-stored. See the long comment block above the `linux-snap` job in [release.yml](.github/workflows/release.yml#L181-L197) for the exact failure mode.
-
-### One-time setup
-
-On the dev Mac:
-
-```sh
-brew install multipass
-multipass launch --name snap-creds --memory 2G --disk 5G 22.04
-multipass shell snap-creds
-# inside the VM:
-sudo snap install snapcraft --classic
-snapcraft login   # browser flow, paste the URL back
-```
-
-The login cookie persists across `multipass stop` / `start`, so this is a one-time step.
+Every snapcraft auth path tried in CI (snap @ latest/7.x/8.x, the `snapcore/action-publish` action, `pip install snapcraft`, direct REST API calls) hit the same `018h` byte in the discharge macaroon and crashed. The byte comes from `snapcraft export-login`, and an interactive `snapcraft login` sidesteps it. So CI builds the `.snap`, and the upload runs from a local Docker container that you log in to by hand.
 
 ### Per-release upload
 
-CI produces `exhale-app_<VERSION>_amd64.snap` as the `linux-snap-<VERSION>` artifact on every `v*` tag. To ship it:
+You need Docker and a Snapcraft account with access to `exhale-app`. The `snapcore/snapcraft:stable` image ships snapcraft 4.4.4. The release job attaches the `.snap` to the GitHub release:
 
 ```sh
-# 1. Download the snap from the CI run
-gh run download <run-id> -n linux-snap-2.0.20
-
-# 2. Push it into the VM
-multipass transfer exhale-app_2.0.20_amd64.snap snap-creds:/tmp/
-
-# 3. Upload to the Snap Store (edge channel)
-multipass exec snap-creds -- snapcraft upload \
-    --release=edge /tmp/exhale-app_2.0.20_amd64.snap
+open -a Docker   # if the daemon isn't running
+docker run -d --platform linux/amd64 --name exhale-snap-upload \
+    -v "$HOME/Downloads":/dl:ro --entrypoint sleep snapcore/snapcraft:stable infinity
+docker exec -it exhale-snap-upload snapcraft login   # email, password, 2FA
+gh release download vX.Y.Z --pattern 'exhale-app_X.Y.Z_amd64.snap' --dir "$HOME/Downloads"
+docker exec exhale-snap-upload snapcraft upload --release=stable /dl/exhale-app_X.Y.Z_amd64.snap
+docker exec exhale-snap-upload snapcraft release exhale-app <revision> edge   # keeps edge current
+docker exec exhale-snap-upload snapcraft status exhale-app
+docker exec exhale-snap-upload snapcraft logout
+docker rm -f exhale-snap-upload
 ```
 
-Then promote `edge -> stable` from https://snapcraft.io/exhale-app/releases once you've smoke-tested edge on a Linux box.
+`upload` prints the revision number that `release` needs. Logging out and removing the container leaves no credentials behind.
+
+- The store reviews one upload at a time. A revision held for review blocks every later upload until it clears or you reject it at `https://dashboard.snapcraft.io/snaps/exhale-app/revisions/<revision>/`
+- Crypto-wallet words such as "ledger" in the summary or description trip the store's `metadata-snap-v2_snap_metadata_redflag` check and hold the upload for manual review. 2.0.23 and 2.0.25 were held for "ledger"
+- `snapcraft list-revisions` crashes in 4.4.4 on the `ReviewQueued` status, so check held revisions on the dashboard
+- `snapcraft upload` leaves the store listing alone. Edit the summary and description at https://snapcraft.io/exhale-app/listing, where changes go live on save, and keep `snapcraft.yaml`'s description the same
 
 ### Local snap build (no CI)
 
@@ -292,7 +283,7 @@ These ship directly on the GitHub Releases page (no store flow). CI builds them 
 # .deb
 cd rust
 cargo install cargo-deb --locked
-cargo build --release --no-default-features -p exhale-app
+cargo build --release -p exhale-app
 cargo deb --no-build -p exhale-app
 # -> rust/target/debian/exhale-app_<VERSION>_amd64.deb
 
@@ -335,7 +326,7 @@ Per release, after CI is green:
 
 - Transporter upload + Submit for Review on App Store Connect
 - Partner Center MSIX upload + Submit on Microsoft
-- `multipass exec snap-creds -- snapcraft upload` for the snap
+- `snapcraft upload` from the Docker container for the snap
 
 Per cert rotation (~yearly):
 
