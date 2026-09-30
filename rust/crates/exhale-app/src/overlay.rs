@@ -246,12 +246,7 @@ impl OverlayHandle {
         // on the main thread so wgpu's surface acquisition stays
         // synchronized with the compositor's frame-callback
         // protocol (see `HandleMode` doc)
-        #[cfg(all(unix, not(target_os = "macos")))]
-        let is_wayland = std::env::var("XDG_SESSION_TYPE")
-            .map(|s| s.eq_ignore_ascii_case("wayland"))
-            .unwrap_or(false);
-        #[cfg(not(all(unix, not(target_os = "macos"))))]
-        let is_wayland = false;
+        let is_wayland = platform::is_wayland_session();
 
         if is_wayland {
             log::info!(
