@@ -45,6 +45,8 @@ description: |
     opacity
   - Runs from the system tray: preferences, the research page, start/stop
     animation, reset to defaults, quit
+  - Global keyboard shortcuts for preferences, start, stop, reset and quit
+    on X11 sessions
   - Optional reminder notifications
 
   Few side effects are expected from slow breathing. The timing controls
