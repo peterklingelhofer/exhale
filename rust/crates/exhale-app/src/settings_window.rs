@@ -33,6 +33,8 @@ use winit::{
 };
 
 use crate::platform;
+#[cfg(feature = "global-hotkeys")]
+use crate::hotkeys;
 
 // ─── SettingsWindow ───────────────────────────────────────────────────────────
 
@@ -726,6 +728,11 @@ fn shortcut_context_menu(
     dirty:                  &mut bool,
     rebind_hotkeys:         &mut bool,
 ) {
+    // No binding can ever fire on a Wayland session, so don't offer a
+    // menu that promises one
+    if !hotkeys::shortcuts_available() {
+        return;
+    }
     resp.context_menu(|ui| {
         let current = settings.keyboard_shortcuts.get(action)
             .map(|sc| sc.display())
@@ -763,6 +770,9 @@ fn shortcut_tooltip_line(
     settings: &Settings,
     action:   ShortcutAction,
 ) -> String {
+    if !hotkeys::shortcuts_available() {
+        return String::new();
+    }
     match settings.keyboard_shortcuts.get(action) {
         Some(sc) => format!("\nShortcut: {}\nRight-click to change.", sc.display()),
         None     => "\nShortcut: (none)\nRight-click to set.".to_string(),

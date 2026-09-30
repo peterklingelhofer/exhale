@@ -8,6 +8,8 @@ use tray_icon::{
 // submenu doesn't exist without the feature
 #[cfg(feature = "global-hotkeys")]
 use tray_icon::menu::Submenu;
+#[cfg(feature = "global-hotkeys")]
+use crate::hotkeys;
 
 // ─── Research link ────────────────────────────────────────────────────────────
 
@@ -119,6 +121,9 @@ fn action_for(items: &[(ShortcutAction, MenuItem)], id: &MenuId) -> Option<Short
 #[cfg(feature = "global-hotkeys")]
 fn top_level_label(action: ShortcutAction, shortcuts: &KeyboardShortcuts) -> String {
     let base = top_label(action);
+    if !hotkeys::shortcuts_available() {
+        return base.to_string();
+    }
     match shortcuts.get(action) {
         Some(sc) => format!("{base}  ({})", sc.display()),
         None     => base.to_string(),
@@ -228,8 +233,10 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
     menu.append(ids.top_item(ShortcutAction::Start))?;
     menu.append(ids.top_item(ShortcutAction::Stop))?;
     menu.append(ids.top_item(ShortcutAction::Reset))?;
+    // No submenu on a Wayland session either: nothing can ever bind,
+    // so don't show a menu that promises otherwise
     #[cfg(feature = "global-hotkeys")]
-    {
+    if hotkeys::shortcuts_available() {
         menu.append(&PredefinedMenuItem::separator())?;
         menu.append(&kb_submenu)?;
     }

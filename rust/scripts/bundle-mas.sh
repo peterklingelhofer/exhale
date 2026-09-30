@@ -111,12 +111,12 @@ fi
 log "ensuring rustup targets..."
 (cd "$RUST_ROOT" && rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null)
 
-# ── 2. Build universal binary (MAS = --no-default-features) ──────────────────
-log "cargo build --release --no-default-features × (arm64, x86_64)"
+# ── 2. Build universal binary ────────────────────────────────────────────────
+log "cargo build --release × (arm64, x86_64)"
 (cd "$RUST_ROOT" && \
-    cargo build --release --no-default-features -p exhale-app \
+    cargo build --release -p exhale-app \
         --target aarch64-apple-darwin >/dev/null && \
-    cargo build --release --no-default-features -p exhale-app \
+    cargo build --release -p exhale-app \
         --target x86_64-apple-darwin  >/dev/null)
 
 BIN_ARM="$RUST_ROOT/target/aarch64-apple-darwin/release/$EXECUTABLE"
@@ -183,8 +183,8 @@ PLIST
 plutil -lint "$CONTENTS/Info.plist" >/dev/null || die "Info.plist failed plutil lint"
 
 # Entitlements: mirror the Swift app (sandbox + user-selected
-# read-only).  No network, no camera, no hotkey entitlement (we ship the
-# MAS build with `--no-default-features`, which drops the hotkey crate)
+# read-only).  No network, no camera, no hotkey entitlement: global-hotkey's
+# Carbon RegisterEventHotKey backend works inside the sandbox on its own
 #
 # `application-identifier` + `team-identifier` must be present in the
 # binary's code signature and must match the embedded provisioning profile

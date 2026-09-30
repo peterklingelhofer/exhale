@@ -1,9 +1,21 @@
+use std::sync::OnceLock;
+
 use anyhow::Result;
 use exhale_core::{KeyboardShortcut, KeyboardShortcuts, ShortcutAction};
 use global_hotkey::{
     hotkey::{Code, HotKey, Modifiers},
     GlobalHotKeyManager,
 };
+
+/// Whether global shortcuts can register in this session.  False only
+/// on a Wayland session: `global-hotkey`'s Linux backend is
+/// `XGrabKey`, an X11-only API that never fires under Wayland.  Cached
+/// since the session type can't change while exhale is running, and
+/// tooltip text rebuilds this on every settings-window frame
+pub fn shortcuts_available() -> bool {
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(|| !crate::platform::is_wayland_session())
+}
 
 /// Per-action ids returned by [`register_hotkeys`].  The dispatcher in
 /// `main.rs` matches incoming `GlobalHotKeyEvent`s by `id` through

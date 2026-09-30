@@ -25,9 +25,6 @@ Few side effects are expected from slow breathing. The timing controls also reac
 Disclaimer: The information and guidance provided by this app are for general informational purposes only and aren't medical advice. The creator isn't a medical professional. Always seek the advice of a qualified healthcare provider with any questions about your health, and don't disregard or delay professional medical advice because of this app. Use is at your own risk.
 ```
 
-The Store MSIX is built with `--no-default-features`, so global hotkeys are compiled out. Don't
-list them here.
-
 ## Product features
 
 ```
@@ -39,6 +36,7 @@ Sinusoidal or linear animation modes
 Adjustable overlay opacity to blend with any desktop
 Drift factor to gradually lengthen or shorten breath cycles over time
 Lives in the system tray: start, stop, or reset without leaving your workflow
+Global keyboard shortcuts for Preferences, start, stop, reset, and quit
 Five breathing patterns as one-click presets, with the current rate shown against the tested range
 ```
 
@@ -59,9 +57,10 @@ mindfulness, meditation, box breathing, mental health, relaxation, wellness
 ## What's new in this version
 
 Per-release, so it's not pinned here. Take it from the release notes for the tag being
-submitted. The v2.0.25 text, kept as a shape reference:
+submitted. The v2.0.28 text, kept as a shape reference:
 
 ```
+Global keyboard shortcuts now work in the Microsoft Store version. Ctrl+Shift+Comma opens Preferences, and you can bind Start, Stop, Reset and Quit from the tray's Keyboard Shortcuts menu or by right-clicking their buttons.
 No longer needs the Microsoft Visual C++ Redistributable.
 New one-click breathing presets, with the current pace shown in breaths per minute.
 The default pattern is now 5 seconds in and 5 out, six breaths a minute.

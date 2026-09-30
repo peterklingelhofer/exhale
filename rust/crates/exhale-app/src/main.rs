@@ -769,29 +769,33 @@ impl ApplicationHandler<AppEvent> for App {
         }
 
         // ── Global hotkeys ────────────────────────────────────────────────────
-        // Gated behind the `global-hotkeys` feature so the Mac App Store
-        // build (`--no-default-features`) ships without the Carbon-based
-        // hotkey registration as a hedge against App Review flagging it
+        // Not available on a Wayland session: `global-hotkey`'s Linux
+        // backend is `XGrabKey`, an X11-only API, so there's nothing to
+        // register and no point creating the manager
         #[cfg(feature = "global-hotkeys")]
-        match GlobalHotKeyManager::new() {
-            Ok(mgr) => {
-                // Forward presses through the proxy, which wakes the loop
-                // at once.  The X11 backend fires from its own thread, and
-                // nothing else would wake the loop until its next scheduled
-                // tick.  Set before any hotkey is registered, since the
-                // handler can only be installed before the first event
-                let proxy = self.proxy.clone();
-                GlobalHotKeyEvent::set_event_handler(Some(move |e| {
-                    let _ = proxy.send_event(AppEvent::GlobalHotkey(e));
-                }));
-                let shortcuts = self.settings.read_or_recover().keyboard_shortcuts.clone();
-                match hotkeys::register_hotkeys(&mgr, &shortcuts) {
-                    Ok(ids) => { self.hotkey_ids = Some(ids); }
-                    Err(e)  => error!("hotkey registration: {e}"),
+        if !hotkeys::shortcuts_available() {
+            info!("global shortcuts are off on Wayland sessions");
+        } else {
+            match GlobalHotKeyManager::new() {
+                Ok(mgr) => {
+                    // Forward presses through the proxy, which wakes the loop
+                    // at once.  The X11 backend fires from its own thread, and
+                    // nothing else would wake the loop until its next scheduled
+                    // tick.  Set before any hotkey is registered, since the
+                    // handler can only be installed before the first event
+                    let proxy = self.proxy.clone();
+                    GlobalHotKeyEvent::set_event_handler(Some(move |e| {
+                        let _ = proxy.send_event(AppEvent::GlobalHotkey(e));
+                    }));
+                    let shortcuts = self.settings.read_or_recover().keyboard_shortcuts.clone();
+                    match hotkeys::register_hotkeys(&mgr, &shortcuts) {
+                        Ok(ids) => { self.hotkey_ids = Some(ids); }
+                        Err(e)  => error!("hotkey registration: {e}"),
+                    }
+                    self.hotkey_manager = Some(mgr);
                 }
-                self.hotkey_manager = Some(mgr);
+                Err(e) => error!("hotkey manager: {e}"),
             }
-            Err(e) => error!("hotkey manager: {e}"),
         }
 
         // ── Timer init ────────────────────────────────────────────────────────
