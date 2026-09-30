@@ -45,6 +45,29 @@ fn set_blur_active(active: bool) {
     BLUR_ACTIVE.store(active, std::sync::atomic::Ordering::Relaxed);
 }
 
+// ─── Wayland session detection ────────────────────────────────────────────────
+
+/// Whether the current session is Wayland.  Only Linux/BSD have a
+/// Wayland/X11 split to detect, so every other OS reports `false`.
+/// Single source of truth for the overlay's X11-only click-through
+/// check and, behind `global-hotkeys`, for `hotkeys::shortcuts_available`
+pub fn is_wayland_session() -> bool {
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let session_type = std::env::var("XDG_SESSION_TYPE").ok();
+    #[cfg(not(all(unix, not(target_os = "macos"))))]
+    let session_type: Option<String> = None;
+
+    is_wayland_session_type(session_type.as_deref())
+}
+
+/// Pure decision behind [`is_wayland_session`]: does this
+/// `XDG_SESSION_TYPE` value (`None` when unset) mean Wayland?  Split
+/// out so the comparison is unit-testable without touching the
+/// environment
+fn is_wayland_session_type(session_type: Option<&str>) -> bool {
+    session_type.is_some_and(|s| s.eq_ignore_ascii_case("wayland"))
+}
+
 // ─── Per-OS implementation modules ───────────────────────────────────────────
 
 #[cfg(target_os = "macos")]
@@ -156,6 +179,14 @@ fn is_openable(url: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wayland_session_type_is_case_insensitive() {
+        assert!(is_wayland_session_type(Some("wayland")));
+        assert!(is_wayland_session_type(Some("Wayland")));
+        assert!(!is_wayland_session_type(Some("x11")));
+        assert!(!is_wayland_session_type(None));
+    }
 
     #[test]
     fn only_plain_https_urls_are_openable() {
