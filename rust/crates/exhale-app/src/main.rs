@@ -75,6 +75,7 @@ enum AppEvent {
     /// from the tray menu's "Keyboard Shortcuts ▶" submenu so the
     /// user can rebind any action, including Preferences, which
     /// has no settings-window button to right-click
+    #[cfg(feature = "global-hotkeys")]
     BeginCapturingShortcut(exhale_core::settings::ShortcutAction),
     Quit,
 }
@@ -264,7 +265,10 @@ impl App {
     /// necessary), hand it to `prepare` so the caller can put up its
     /// card or overlay, then focus and redraw it so that content is on
     /// screen.  Shared by the Reset hotkey and the tray's "Keyboard
-    /// Shortcuts ▶" rows
+    /// Shortcuts ▶" rows.  Both callers are feature-gated: without
+    /// `global-hotkeys` neither the confirmation card nor the capture
+    /// overlay can be requested, so this helper would be unused
+    #[cfg(feature = "global-hotkeys")]
     fn show_settings(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -481,6 +485,7 @@ impl App {
     /// tray menu's "Keyboard Shortcuts ▶" submenu so the user can
     /// rebind any action without first navigating to its button: critical
     /// for Preferences, which has no button to right-click
+    #[cfg(feature = "global-hotkeys")]
     fn do_begin_capturing_shortcut(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -840,6 +845,7 @@ impl ApplicationHandler<AppEvent> for App {
             AppEvent::RebindHotkeys  => self.do_rebind_hotkeys(),
             #[cfg(feature = "global-hotkeys")]
             AppEvent::GlobalHotkey(e) => self.dispatch_global_hotkey(e),
+            #[cfg(feature = "global-hotkeys")]
             AppEvent::BeginCapturingShortcut(action) => self.do_begin_capturing_shortcut(event_loop, action),
             AppEvent::Quit => {
                 self.shutdown(event_loop);
@@ -1162,7 +1168,10 @@ impl ApplicationHandler<AppEvent> for App {
                 // the settings window in capture mode for the
                 // matching `ShortcutAction`.  `kb_action_for`
                 // returns `None` for any non-submenu id, falling
-                // through to the action-execution branches below
+                // through to the action-execution branches below.
+                // No submenu exists without the feature, so that
+                // build goes straight to the branches below
+                #[cfg(feature = "global-hotkeys")]
                 if let Some(action) = ids.kb_action_for(id) {
                     let _ = self.proxy.send_event(AppEvent::BeginCapturingShortcut(action));
                 }
@@ -1173,6 +1182,11 @@ impl ApplicationHandler<AppEvent> for App {
                 else if id == ids.research.id() { platform::open_url(tray::RESEARCH_URL); }
                 // Reset included: the tray's Reset resets at once with
                 // no confirmation, which is what `event_for` returns
+                else if let Some(action) = ids.top_action_for(id) {
+                    let _ = self.proxy.send_event(event_for(action));
+                }
+                #[cfg(not(feature = "global-hotkeys"))]
+                if id == ids.research.id() { platform::open_url(tray::RESEARCH_URL); }
                 else if let Some(action) = ids.top_action_for(id) {
                     let _ = self.proxy.send_event(event_for(action));
                 }

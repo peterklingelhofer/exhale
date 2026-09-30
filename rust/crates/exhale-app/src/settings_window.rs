@@ -461,9 +461,7 @@ impl SettingsWindow {
     /// `GlobalHotKeyEvent`s so a previously-bound hotkey doesn't
     /// execute its action at the same time the capture overlay reads
     /// the keystroke as a new binding
-    // Only consumed by the global-hotkey suppression block in main.rs.
-    // MAS build (no hotkey crate) has no caller, hence the cfg_attr allow
-    #[cfg_attr(not(feature = "global-hotkeys"), allow(dead_code))]
+    #[cfg(feature = "global-hotkeys")]
     pub fn is_capturing_shortcut(&self) -> bool {
         self.capturing_shortcut_for.is_some()
     }
@@ -473,6 +471,7 @@ impl SettingsWindow {
     /// capture overlay shows the next time we render: same flow as
     /// the right-click -> Change Shortcut path inside the settings
     /// window, initiated from outside
+    #[cfg(feature = "global-hotkeys")]
     pub fn begin_capturing(&mut self, action: ShortcutAction) {
         self.capturing_shortcut_for = Some(action);
     }
@@ -718,6 +717,7 @@ impl Drop for SettingsWindow {
 /// instead of inside [`control_button`] because tooltip help text is
 /// already passed in: the context-menu hook is independent of the
 /// glyph rendering and easier to reason about as a separate concern
+#[cfg(feature = "global-hotkeys")]
 fn shortcut_context_menu(
     resp:                   &egui::Response,
     action:                 ShortcutAction,
@@ -756,15 +756,27 @@ fn shortcut_context_menu(
 /// Shared one-line helper for the button tooltip text, embeds the
 /// current binding when present, or "Right-click to set." when the
 /// slot is unbound (the default for Start / Stop / Reset / Quit
-/// after the "no opt-in defaults" simplification)
+/// after the "no opt-in defaults" simplification).  Starts with the
+/// line break, so the version without the feature can return nothing
+#[cfg(feature = "global-hotkeys")]
 fn shortcut_tooltip_line(
     settings: &Settings,
     action:   ShortcutAction,
 ) -> String {
     match settings.keyboard_shortcuts.get(action) {
-        Some(sc) => format!("Shortcut: {}\nRight-click to change.", sc.display()),
-        None     => "Shortcut: (none)\nRight-click to set.".to_string(),
+        Some(sc) => format!("\nShortcut: {}\nRight-click to change.", sc.display()),
+        None     => "\nShortcut: (none)\nRight-click to set.".to_string(),
     }
+}
+
+/// Without the feature there's no binding to show and no right-click
+/// menu to point at, so the tooltip is the button's description alone
+#[cfg(not(feature = "global-hotkeys"))]
+fn shortcut_tooltip_line(
+    _settings: &Settings,
+    _action:   ShortcutAction,
+) -> String {
+    String::new()
 }
 
 // Segmented-picker options, one table per picker.  Each table feeds
@@ -923,19 +935,19 @@ fn settings_ui(
                     // tooltip stays in sync with whatever the user just
                     // captured in the right-click -> Change Shortcut overlay
                     let start_help = format!(
-                        "Start the app and re-initialize animation.\n{}",
+                        "Start the app and re-initialize animation.{}",
                         shortcut_tooltip_line(settings, ShortcutAction::Start),
                     );
                     let stop_help = format!(
-                        "Stop the animation and remove all screen tints.\n{}",
+                        "Stop the animation and remove all screen tints.{}",
                         shortcut_tooltip_line(settings, ShortcutAction::Stop),
                     );
                     let reset_help = format!(
-                        "Reset all settings to their default values.\n{}",
+                        "Reset all settings to their default values.{}",
                         shortcut_tooltip_line(settings, ShortcutAction::Reset),
                     );
                     let quit_help = format!(
-                        "Quit exhale (full shutdown).\n{}",
+                        "Quit exhale (full shutdown).{}",
                         shortcut_tooltip_line(settings, ShortcutAction::Quit),
                     );
 
@@ -955,6 +967,7 @@ fn settings_ui(
                         "Start",
                         &start_help,
                     );
+                    #[cfg(feature = "global-hotkeys")]
                     shortcut_context_menu(
                         &start_resp, ShortcutAction::Start, settings,
                         capturing_shortcut_for, &mut dirty, &mut rebind_hotkeys,
@@ -975,6 +988,7 @@ fn settings_ui(
                         "Stop",
                         &stop_help,
                     );
+                    #[cfg(feature = "global-hotkeys")]
                     shortcut_context_menu(
                         &stop_resp, ShortcutAction::Stop, settings,
                         capturing_shortcut_for, &mut dirty, &mut rebind_hotkeys,
@@ -1008,6 +1022,7 @@ fn settings_ui(
                         "Reset",
                         &reset_help,
                     );
+                    #[cfg(feature = "global-hotkeys")]
                     shortcut_context_menu(
                         &reset_resp, ShortcutAction::Reset, settings,
                         capturing_shortcut_for, &mut dirty, &mut rebind_hotkeys,
@@ -1078,6 +1093,7 @@ fn settings_ui(
                         "Quit",
                         &quit_help,
                     );
+                    #[cfg(feature = "global-hotkeys")]
                     shortcut_context_menu(
                         &quit_resp, ShortcutAction::Quit, settings,
                         capturing_shortcut_for, &mut dirty, &mut rebind_hotkeys,
