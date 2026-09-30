@@ -71,7 +71,7 @@ PROVISION_PROFILE="${PROVISION_PROFILE:-$RUST_ROOT/signing/exhale.provisionprofi
 
 # Version of the build unless overridden.  `release.sh` rewrites this line
 # in step with the crate's Cargo.toml on every tag
-VERSION="${VERSION:-2.0.26}"
+VERSION="${VERSION:-2.0.27}"
 # CFBundleVersion. Apple requires this to be monotonically increasing
 # across all uploads (rejected ones count too), so derive from git commit
 # count instead of VERSION, see release.sh for the full story
