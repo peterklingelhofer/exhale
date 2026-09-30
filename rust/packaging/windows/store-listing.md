@@ -61,12 +61,6 @@ submitted. The v2.0.28 text, kept as a shape reference:
 
 ```
 Global keyboard shortcuts now work in the Microsoft Store version. Ctrl+Shift+Comma opens Preferences, and you can bind Start, Stop, Reset and Quit from the tray's Keyboard Shortcuts menu or by right-clicking their buttons.
-No longer needs the Microsoft Visual C++ Redistributable.
-New one-click breathing presets, with the current pace shown in breaths per minute.
-The default pattern is now 5 seconds in and 5 out, six breaths a minute.
-A Research item in the tray menu opens the sources behind these choices.
-Holds set to 0 take no time, and timing randomization is now a percentage of each phase.
-Fixed: the Linear animation option now takes effect, a settings file missing a value no longer resets everything, and invalid durations no longer freeze the animation.
 ```
 
 ## Restricted capability justification (runFullTrust)
