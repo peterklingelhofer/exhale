@@ -304,7 +304,7 @@ Per-release build, sign, package, and store-upload instructions for every suppor
 |------------------------------|---------------------------------|
 | Mac App Store                | `rust/scripts/bundle-mas.sh`    |
 | Microsoft Store              | `rust\scripts\bundle-msix.ps1`  |
-| Snap Store                   | CI builds, manual upload via Multipass `snap-creds` VM |
+| Snap Store                   | CI builds, manual upload from a Docker `snapcore/snapcraft` container |
 | Linux `.deb` / AppImage      | `cargo deb` + `rust/scripts/bundle-appimage.sh` |
 | Windows standalone `.exe`    | `cargo build --release`         |
 
