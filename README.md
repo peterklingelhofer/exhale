@@ -144,7 +144,7 @@ Linux `.deb` and AppImage packages are on the [Releases](https://github.com/pete
 
 ### Global keyboard shortcuts
 
-Global shortcuts exist only in builds from source. Every packaged release (App Store, Microsoft Store, Snap, `.deb`, AppImage) is built without them. In a source build, one shortcut is bound by default:
+Global shortcuts work in every build except on a Wayland session, where Linux gives apps no way to listen for keys globally. One shortcut is bound by default:
 
 | Shortcut                                    | Action                 |
 |---------------------------------------------|------------------------|
