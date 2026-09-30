@@ -1,7 +1,7 @@
 name: exhale-app
 title: exhale
 base: core22
-version: '2.0.26'
+version: '2.0.27'
 summary: A translucent breathing overlay for mindful breathing.
 # Keep crypto-wallet words (ledger, wallet and the like) out of the summary
 # and description. The Snap Store's metadata filter holds such an upload for
