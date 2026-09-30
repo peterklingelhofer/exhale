@@ -122,7 +122,7 @@ External testing requires Beta App Review (~1 day) the first time. For a low-ris
 App Store Connect -> exhale -> macOS App -> Prepare for Submission:
 
 1. Pick the uploaded build
-2. Fill in **What's New in This Version**
+2. Fill in **What's New in This Version**. The rest of the listing copy is in [store-listing.md](rust/packaging/macos/store-listing.md)
 3. Confirm pricing (free), age rating, availability
 4. Add for Review -> Submit to App Review
 
@@ -130,7 +130,7 @@ Typical SLA is 24 to 48 hours. First-time submissions can take 1 to 3 days.
 
 Common rejection reasons for exhale specifically:
 - **App Store Connect agreements unsigned.** First-time-each-year hurdle. Check Agreements, Tax, and Banking before submitting
-- **Reviewer "can't find the UI".** Add a note in App Review Information: "App runs in the menu bar. Click the ring icon for Preferences."
+- **Reviewer "can't find the UI".** The App Review notes in [store-listing.md](rust/packaging/macos/store-listing.md#app-review-notes) cover it
 - **Sandbox violations.** Almost always a new entitlement we added without updating [bundle-mas.sh](rust/scripts/bundle-mas.sh#L196-L207)
 
 ### Update cycle
