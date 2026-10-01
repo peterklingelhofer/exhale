@@ -41,7 +41,7 @@ description: |
   - Fully tunable inhale / hold / exhale / hold cadence
   - Five breathing patterns as one-click presets, with the current rate
     shown against the tested range
-  - Customisable colours, shapes (fullscreen, circle, or rectangle), and
+  - Customizable colors, shapes (fullscreen, circle, or rectangle), and
     opacity
   - Runs from the system tray: preferences, the research page, start/stop
     animation, reset to defaults, quit
