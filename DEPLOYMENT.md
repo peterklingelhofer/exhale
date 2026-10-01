@@ -192,7 +192,7 @@ From a Windows machine (or the `windows` job in `release.yml`):
 ```powershell
 rust\scripts\bundle-msix.ps1
 # explicit version:
-rust\scripts\bundle-msix.ps1 -Version 2.0.20 -Build 2020
+rust\scripts\bundle-msix.ps1 -Version 2.0.20
 ```
 
 Output: `rust\target\msix\exhale.msix`.
