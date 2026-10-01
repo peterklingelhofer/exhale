@@ -27,10 +27,10 @@
 #     `PROVISION_PROFILE` env var at any path)
 #
 # Usage
-#   rust/scripts/bundle-mas.sh                           # default version
-#   VERSION=2.0.8 BUILD=208 rust/scripts/bundle-mas.sh   # override version
+#   rust/scripts/bundle-mas.sh                              # default version
+#   VERSION=2.0.28 BUILD=10592 rust/scripts/bundle-mas.sh   # override version
 #   PROVISION_PROFILE=/path/to/exhale.provisionprofile \
-#       rust/scripts/bundle-mas.sh                       # override profile
+#       rust/scripts/bundle-mas.sh                          # override profile
 #
 # Environment overrides
 #   APP_IDENT       default: "Apple Distribution: ...VZCHHV7VNW..."
