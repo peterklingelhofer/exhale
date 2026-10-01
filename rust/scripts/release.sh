@@ -7,7 +7,7 @@
 #   rust/crates/exhale-app/Cargo.toml          version = "X.Y.Z"
 #   snap/snapcraft.yaml                        version: 'X.Y.Z'
 #   rust/packaging/windows/AppxManifest.xml    Version="X.Y.Z.0"
-#   rust/scripts/bundle-msix.ps1               $Version / $Build
+#   rust/scripts/bundle-msix.ps1               $Version
 #   rust/scripts/bundle-appimage.sh            VERSION="${VERSION:-X.Y.Z}"
 #   rust/scripts/bundle-mas.sh                 VERSION="${VERSION:-X.Y.Z}"
 #   .github/workflows/release.yml              V="X.Y.Z" fallback
@@ -38,7 +38,7 @@ case "$MODE" in ""|--dry-run|--tag) ;; *)
     exit 2
 ;; esac
 
-# MAS / MSIX / release.yml short build number. Apple App Store requires
+# MAS / release.yml short build number. Apple App Store requires
 # CFBundleVersion to be monotonically increasing across every upload for
 # the bundle ID, including rejected/resubmitted ones. The old formula
 # `${VERSION//./}` was deterministic-per-VERSION which meant every
@@ -87,8 +87,6 @@ sed_inplace 's/(^[[:space:]]+Version=")[0-9]+\.[0-9]+\.[0-9]+\.0(")/\1'"${VERSIO
     rust/packaging/windows/AppxManifest.xml
 
 sed_inplace 's/(\$Version[[:space:]]+=[[:space:]]+")[^"]+(")/\1'"$VERSION"'\2/' \
-    rust/scripts/bundle-msix.ps1
-sed_inplace 's/(\$Build[[:space:]]+=[[:space:]]+")[^"]+(")/\1'"$BUILD"'\2/' \
     rust/scripts/bundle-msix.ps1
 
 sed_inplace 's/(VERSION="\$\{VERSION:-)[^}]+(\}")/\1'"$VERSION"'\2/' \

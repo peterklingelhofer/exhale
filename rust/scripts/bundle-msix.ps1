@@ -16,7 +16,7 @@
 #
 # Usage (PowerShell)
 #   rust\scripts\bundle-msix.ps1                                   # default version
-#   rust\scripts\bundle-msix.ps1 -Version 2.0.8 -Build 208         # override
+#   rust\scripts\bundle-msix.ps1 -Version 2.0.8                    # override
 #   rust\scripts\bundle-msix.ps1 -CertPath C:\certs\self.pfx `
 #                                -CertPassword (ConvertTo-SecureString "pw" -AsPlainText -Force)
 #   rust\scripts\bundle-msix.ps1 -DryRun                           # skip signing
@@ -29,7 +29,6 @@
 [CmdletBinding()]
 param(
     [string] $Version         = "2.0.28",
-    [string] $Build           = "10590",
     [string] $CertPath        = "",
     [SecureString] $CertPassword = $null,
     [switch] $DryRun
