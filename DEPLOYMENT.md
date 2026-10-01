@@ -63,8 +63,8 @@ Everything below is one script:
 
 ```sh
 rust/scripts/bundle-mas.sh
-# or with explicit version:
-VERSION=2.0.20 BUILD=2020 rust/scripts/bundle-mas.sh
+# BUILD defaults to 10000 + the commit count. From a commit after the tag, pin the tag's:
+BUILD=$(( $(git rev-list --count vX.Y.Z) + 10000 )) rust/scripts/bundle-mas.sh
 ```
 
 What it does (read the source for line-by-line: [bundle-mas.sh](rust/scripts/bundle-mas.sh)):
@@ -192,7 +192,7 @@ From a Windows machine (or the `windows` job in `release.yml`):
 ```powershell
 rust\scripts\bundle-msix.ps1
 # explicit version:
-rust\scripts\bundle-msix.ps1 -Version 2.0.20 -Build 2020
+rust\scripts\bundle-msix.ps1 -Version 2.0.20
 ```
 
 Output: `rust\target\msix\exhale.msix`.
