@@ -285,7 +285,6 @@ jobs:
     # gate the Decode step on `env.HAS_WIN_CERT`
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
-      BUILD:   ${{ needs.prepare.outputs.build }}
       HAS_WIN_CERT: ${{ secrets.WINDOWS_CERT_PFX != '' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v5
@@ -318,10 +317,10 @@ jobs:
           if ($env:HAS_WIN_CERT -eq 'true') {
             $pw = ConvertTo-SecureString $env:CERT_PASSWORD -AsPlainText -Force
             rust\scripts\bundle-msix.ps1 `
-              -Version $env:VERSION -Build $env:BUILD `
+              -Version $env:VERSION `
               -CertPath $env:CERT_PATH -CertPassword $pw
           } else {
-            rust\scripts\bundle-msix.ps1 -Version $env:VERSION -Build $env:BUILD -DryRun
+            rust\scripts\bundle-msix.ps1 -Version $env:VERSION -DryRun
           }
 
       - uses: actions/upload-artifact@v5

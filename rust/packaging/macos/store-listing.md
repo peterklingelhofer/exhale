@@ -30,7 +30,7 @@ Features:
 - Translucent overlay that expands on inhale and contracts on exhale
 - Fully tunable inhale / hold / exhale / hold cadence
 - Five breathing patterns as one-click presets, with the current rate shown against the tested range
-- Customisable colours, shapes (fullscreen, circle, or rectangle), and opacity
+- Customizable colors, shapes (fullscreen, circle, or rectangle), and opacity
 - Runs from the menu bar: preferences, the research page, start/stop animation, reset to defaults, quit
 - Global keyboard shortcuts for preferences, start, stop, reset and quit
 - Optional reminder notifications
