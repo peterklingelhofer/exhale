@@ -100,8 +100,8 @@ jobs:
 
   # The other two crates need a windowing stack to compile, and macOS is the
   # one runner that has it without system packages. This is the only place
-  # `exhale-app`'s tests run in CI. The `--no-default-features` check is the
-  # Mac App Store build, which drops global hotkeys
+  # `exhale-app`'s tests run in CI. The `--no-default-features` check covers
+  # builds without global hotkeys
   app-check:
     runs-on: macos-15
     steps:
@@ -120,6 +120,6 @@ jobs:
         working-directory: rust
         run: cargo test --locked -p exhale-render -p exhale-app
 
-      - name: cargo check (App Store feature set)
+      - name: cargo check (no global hotkeys)
         working-directory: rust
         run: cargo check --locked -p exhale-app --no-default-features

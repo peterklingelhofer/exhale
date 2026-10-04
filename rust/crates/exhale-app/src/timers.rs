@@ -39,8 +39,8 @@ impl Timers {
     /// Earliest time the event loop must wake to service a pending
     /// timer.  Returned to `about_to_wait` so it can configure
     /// `ControlFlow::WaitUntil`: without this the loop would sleep
-    /// forever on idle and miss auto-stop / reminder firings now that
-    /// the old per-tick redraw loop no longer wakes it every frame
+    /// forever on idle and miss auto-stop / reminder firings, since no
+    /// per-frame redraw wakes it
     pub fn next_deadline(&self, settings: &Settings) -> Option<Instant> {
         let mut next: Option<Instant> = self.auto_stop_deadline;
         if settings.reminder_interval_minutes > 0.0 {

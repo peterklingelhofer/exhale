@@ -3,7 +3,7 @@
 #
 # Fires on any `v*` tag push (e.g. `git tag v2.0.8 && git push --tags`) and
 # on manual `workflow_dispatch`.  Each platform job builds, packages, and
-# uploads its artefact. The `release` job gathers them and attaches them to
+# uploads its artifact. The `release` job gathers them and attaches them to
 # a GitHub Release
 #
 # Store submission (Mac App Store / Microsoft Store / Snap Store) isn't
@@ -164,10 +164,9 @@ jobs:
           # Distribution-signed .app produces a binary that launchd refuses
           # to spawn outside the App Store (the embedded provisioning
           # profile + sandbox entitlements only validate via MAS delivery).
-          # Net: there's no shippable macOS artifact from CI today. The
-          # actual MAS submission is built locally and uploaded via
-          # Transporter. This job's only purpose is verifying the macOS
-          # build still compiles + signs cleanly on tag push
+          # So CI ships no macOS artifact. The MAS submission is built
+          # locally and uploaded via Transporter. This job only verifies
+          # that the macOS build still compiles + signs cleanly on tag push
           SKIP_PKG: '1'
         run: |
           chmod +x rust/scripts/bundle-mas.sh
@@ -329,7 +328,7 @@ jobs:
           path: rust/target/msix/*.msix
           if-no-files-found: error
 
-  # ─── Attach all artefacts to a GitHub Release ─────────────────────────────
+  # ─── Attach all artifacts to a GitHub Release ─────────────────────────────
   release:
     needs: [prepare, macos, linux-direct, linux-snap, windows]
     if:    startsWith(github.ref, 'refs/tags/v')
@@ -341,7 +340,7 @@ jobs:
         with:
           path: artifacts
 
-      - name: Flatten artefacts
+      - name: Flatten artifacts
         run: |
           set -euo pipefail
           mkdir -p release

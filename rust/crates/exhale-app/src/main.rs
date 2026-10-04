@@ -240,9 +240,8 @@ impl App {
             // captures a new shortcut (or resets one to default) so we
             // can re-register every global hotkey from the updated
             // `settings.keyboard_shortcuts`.  Gated behind the
-            // `global-hotkeys` feature so the Mac App Store build (which
-            // ships without Carbon hotkey integration) doesn't end up
-            // sending an event variant whose dispatcher is also cfg-d out
+            // `global-hotkeys` feature so a build without it doesn't end
+            // up sending an event variant whose dispatcher is also cfg-d out
             #[cfg(feature = "global-hotkeys")]
             let on_rebind_hotkeys = Box::new(move || {
                 let _ = proxy.send_event(AppEvent::RebindHotkeys);
@@ -1211,13 +1210,12 @@ impl ApplicationHandler<AppEvent> for App {
 
         // Fire a settings-window redraw only if egui has asked for one via
         // its `repaint_delay` (tooltip fade, button-press animation, etc.).
-        // Previously this block unconditionally called `sw.request_redraw()`
-        // every idle tick, which spun the event loop at the display's
-        // refresh rate and drove a full egui + GPU paint pass ~60 times per
-        // second while the settings window was open: the dominant cause of
-        // the ~18 % idle CPU baseline.  Now the window sits idle until
-        // there's an input event or a scheduled animation frame.  Handle a
-        // fired settings-repaint deadline first
+        // Calling `sw.request_redraw()` on every idle tick would spin the
+        // event loop at the display's refresh rate and run a full egui + GPU
+        // paint pass ~60 times per second while the settings window is open,
+        // measured as the dominant cause of an ~18 % idle CPU baseline.  The
+        // window sits idle until there's an input event or a scheduled
+        // animation frame.  Handle a fired settings-repaint deadline first
         if let Some(deadline) = self.next_settings_repaint {
             if Instant::now() >= deadline {
                 if let Some(sw) = &self.settings_win {

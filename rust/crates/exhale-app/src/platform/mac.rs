@@ -540,10 +540,9 @@ use super::*;
                     | NSWindowCollectionBehavior::FullScreenAuxiliary,
             );
 
-            // NSVisualEffectView filling the backdrop's contentView.
-            // Material + blending + state mirror the old in-window install,
-            // except now it composites AppKit-natively against the desktop
-            // behind the backdrop window
+            // NSVisualEffectView filling the backdrop's contentView, where
+            // it composites AppKit-natively against the desktop behind the
+            // backdrop window
             let content_bounds = NSRect {
                 origin: NSPoint { x: 0.0, y: 0.0 },
                 size:   frame.size,

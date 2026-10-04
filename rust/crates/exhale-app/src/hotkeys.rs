@@ -169,6 +169,6 @@ fn code_from_str(s: &str) -> Option<Code> {
     })
 }
 
-// egui_key_to_code + egui_modifiers_to_mask moved to `crate::keymap` so
-// the MAS build (no global-hotkey crate) can still compile the capture-
+// egui_key_to_code + egui_modifiers_to_mask live in `crate::keymap` so a
+// build without the global-hotkey crate still compiles the capture-
 // overlay code in settings_window.rs
