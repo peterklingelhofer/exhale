@@ -1,8 +1,7 @@
 // egui -> internal key/modifier translators used by the shortcut-capture
-// overlay in `settings_window.rs`. Pulled out of `hotkeys.rs` so the MAS
-// build (`--no-default-features`, no global-hotkey crate) can still let
-// the user capture and persist a binding even when no system-level
-// registration will happen
+// overlay in `settings_window.rs`. Kept out of `hotkeys.rs` so a build
+// without global hotkeys (`--no-default-features`, no global-hotkey
+// crate) still compiles the capture overlay
 
 use exhale_core::{KBD_MOD_ALT, KBD_MOD_CTRL, KBD_MOD_SHIFT};
 #[cfg(target_os = "macos")]

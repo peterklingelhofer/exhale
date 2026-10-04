@@ -205,8 +205,8 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
     let research = MenuItem::new(RESEARCH_LABEL, true, None);
 
     // ── Keyboard Shortcuts submenu ────────────────────────────────────────────
-    // Only a source build can ever register a binding, so packaged
-    // builds (`--no-default-features`) never build this submenu at all
+    // Only a `global-hotkeys` build can register a binding, so a
+    // `--no-default-features` build never builds this submenu at all
     #[cfg(feature = "global-hotkeys")]
     let kb = ACTIONS.map(|action| (action, MenuItem::new(submenu_label(action, shortcuts), true, None)));
 

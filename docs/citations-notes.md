@@ -8,7 +8,7 @@ and re-verified against all three registries on 2026-09-20 and 2026-09-26. Every
 against the abstracts and open full texts on 2026-09-02, and again on 2026-09-20 against the full text
 of 35 entries and the abstract of 12, with the two books unread as before. On 2026-09-26 every
 statement was checked again against the same texts, and the ten entries that had been marked as read
-in full but could only be checked against their abstracts were relabelled as read from the abstract.
+in full but could only be checked against their abstracts were relabeled as read from the abstract.
 
 > **This file is generated.** Edit [`CITATIONS.csl.json`](./CITATIONS.csl.json) for records and
 > [`citations-notes.md`](./citations-notes.md) for the prose, then run
@@ -32,18 +32,18 @@ true, and nothing about whether the full text was read.
 | `crossref-verified` | The DOI resolves in Crossref, and the title, authors, year, journal, volume and pages printed here are the ones Crossref returned. |
 | `openlibrary-verified` | No DOI exists because the source is a book. The title, author, publisher, edition and page count printed here were checked against the Open Library record for the stated ISBN. |
 | `pubmed-verified` | No DOI exists, but the article is indexed in PubMed. The title, authors, journal, year, volume and pages were checked against the NCBI E-utilities record for the stated PMID. |
-| `unverified` | No resolvable DOI and no catalogue record. Bibliographic details are inherited from secondary citation and may be wrong. |
+| `unverified` | No resolvable DOI and no catalog record. Bibliographic details are inherited from secondary citation and may be wrong. |
 
 Author names are printed as the registry holds them, which is why a few records carry initials
 where others carry full given names.
 
 A verified record can still carry a loud caveat. Verification confirms only the *citation*, so each
 entry also states to what depth the source was read before its claims were written down: in full,
-from the abstract only, or as a catalogue record only.
+from the abstract only, or as a catalog record only.
 
 ### Access level
 
-`open-access` (a CC licence is registered with Crossref, or the title is fully open access) |
+`open-access` (a CC license is registered with Crossref, or the title is fully open access) |
 `paywalled`. Where a Crossref `license` field was present, the access level is taken from it.
 Where it was absent, the basis is stated in the entry's caveat. `paywalled` describes
 the version of record. Where a legal open copy exists in a repository or free at the publisher, the
@@ -150,7 +150,7 @@ person. [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) found 5.5 bpm with
 outperformed the 6 bpm variants tested. A single
 shipped number can't be right for everyone, and finding a person's own resonance frequency takes an
 assessment protocol and a sensor, neither of which exhale has. The default is a reasonable starting
-point and isn't personalised.
+point and isn't personalized.
 
 Anyone who already has exhale installed keeps whatever they had: the timing fields carry no
 `#[serde(default)]`, so an existing `settings.toml` is untouched and the change reaches only fresh
@@ -174,9 +174,9 @@ didn't win either time:
   4-7-8 breathing, and 6 breaths per minute at two ratios. Breathing at 6 raised HRV **more than
   either square or 4-7-8**, with small to medium effects. The paper opens by stating that square and
   4-7-8 "are popularly promoted by psychotherapists but have little empirical support."
-- [`balban2023-cyclic-sighing`](#balban2023-cyclic-sighing), a randomised trial registered after
+- [`balban2023-cyclic-sighing`](#balban2023-cyclic-sighing), a randomized trial registered after
   the fact, tested box breathing, cyclic sighing and cyclic hyperventilation over a month against a
-  mindfulness-meditation control. Cyclic sighing, the exhale-emphasising arm, separated from the
+  mindfulness-meditation control. Cyclic sighing, the exhale-emphasizing arm, separated from the
   control on positive affect, and box breathing didn't. The box arm had 21 people, the arms weren't
   tested against each other, and their daily gains were 1.84 and 1.89 points, so this is a
   difference in reaching significance and doesn't demonstrate a gap.
@@ -210,7 +210,7 @@ On HRV, six results, and they don't line up:
 The count inside this corpus is three for, one against and two nulls.
 [`meehan2024-longer-exhalations`](#meehan2024-longer-exhalations)'s introduction tallies the older
 literature beyond this corpus as three further nulls, one of which didn't measure HRV, one further
-result favouring the longer exhale and one favouring the longer inhale. No mechanism claim
+result favoring the longer exhale and one favoring the longer inhale. No mechanism claim
 survives that split, which is why exhale doesn't make one.
 
 On how people reported feeling, the picture isn't cleaner. Three studies here measured subjective
@@ -265,7 +265,7 @@ contents of [`satyananda1999-apmb`](#satyananda1999-apmb) haven't been read to c
 study in this corpus examines a progressively lengthening pace at all.
 [`szulczewski2019-training-relaxation`](#szulczewski2019-training-relaxation)
 trained at a fixed rate and found relaxation accrued over a week of practice, which supports "keep
-practising" and is silent on "keep slowing down within a session."
+practicing" and is silent on "keep slowing down within a session."
 
 Nothing in this review contradicts the tradition either. The primary rate-comparison studies in this
 corpus stop below about 5 breaths a minute and don't report worse outcomes there.
@@ -299,16 +299,16 @@ three decimals, so 0.001 % is the finest value the field round-trips. Compoundin
 that whole percents are unusable: from the 10 s default, 1 % doubles the breath in about 17
 minutes, 0.1 % in about 2.8 hours, 0.01 % in about 28. The settings panel reports the doubling point in
 **breaths**, because cycle `k` lasts `c · dᵏ` and so `dᵏ = 2` at
-`k = ln2 / ln d`, with the starting cycle length cancelling out: 1 % is 70 breaths from any starting
+`k = ln2 / ln d`, with the starting cycle length canceling out: 1 % is 70 breaths from any starting
 pace, 0.1 % is 693, 0.001 % is 69,315. A doubling time would depend on where the user started and
 would disagree with the minute figures quoted above, which are anchored to the 10 s default.
 
-### 7. Randomised timing has no literature behind it either
+### 7. Randomized timing has no literature behind it either
 
-The four randomisation sliders inject per-phase jitter. Every pacing study in this corpus uses a
+The four randomization sliders inject per-phase jitter. Every pacing study in this corpus uses a
 fixed rate, which is what "paced" means. The nearest adjacent literature is
 [`vlemincx2013-sigh-reset-model`](#vlemincx2013-sigh-reset-model), on natural respiratory
-variability and sighs, which is about spontaneous breathing, while the sliders destabilise a
+variability and sighs, which is about spontaneous breathing, while the sliders destabilize a
 pacer. Defaults are 0, which is the right default. Treat the sliders as an
 aesthetic option.
 
@@ -403,7 +403,7 @@ design history. And the "longer exhale" idea in modern breathing apps predates a
 of it, since pranayama traditions taught longer-exhale ratios centuries earlier, which is worth
 weighing when reading the studies that later tested it.
 
-Both entries are catalogue records only: checked against Open Library, contents not consulted, and
+Both entries are catalog records only: checked against Open Library, contents not consulted, and
 no claim about whether a practice works rests on them. The Satyananda entry cites the 1999 third
 revised edition its ISBN resolves to. A 2008 fourth revised edition exists under the same imprint.
 

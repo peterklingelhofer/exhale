@@ -65,7 +65,7 @@ ACCESS_LEVELS = {"open-access", "paywalled"}
 READ_DEPTH_LABELS = {
     "full-text": "full text",
     "abstract":  "abstract only",
-    "record":    "catalogue record only",
+    "record":    "catalog record only",
 }
 READ_DEPTHS = set(READ_DEPTH_LABELS)
 
@@ -190,10 +190,10 @@ def check_cross_references(records: list[dict]) -> None:
 UNSUPPORTED_PHRASES: list[tuple[str, str]] = [
     ("engage the parasympathetic nervous system", "gaps ledger 4: the cardiac evidence splits 3-for / 1-against / 2-null"),
     ("engages the parasympathetic nervous system", "gaps ledger 4: the cardiac evidence splits 3-for / 1-against / 2-null"),
-    ("breathe more shallowly", "gaps ledger 1: the measured finding is faster and slightly over-ventilated, the chest-high shift is theorised, and no study measured shallower breathing"),
+    ("breathe more shallowly", "gaps ledger 1: the measured finding is faster and slightly over-ventilated, the chest-high shift is theorized, and no study measured shallower breathing"),
     ("screen apnea", "gaps ledger 1: no peer-reviewed source, and the measured effect points the other way"),
     ("email apnea", "gaps ledger 1: no peer-reviewed source, and the measured effect points the other way"),
-    ("higher in the chest", "gaps ledger 1: the diaphragmatic-to-thoracic shift is theorised, and no study has measured it in screen users"),
+    ("higher in the chest", "gaps ledger 1: the diaphragmatic-to-thoracic shift is theorized, and no study has measured it in screen users"),
     ("countermeasure with the most evidence", "no source compares countermeasures, and gaps ledger 5 says slow pacing can add to over-breathing"),
     ("hardware buys nothing", "laborde2021-spb-6cpm-biofeedback reports a valence advantage for biofeedback"),
 ]
@@ -264,7 +264,7 @@ def check_preset_citekeys(records: list[dict]) -> None:
     Of the four conditions, the third and fourth do most of the work.
     A record downgraded to tier E is lineage-only and can't license a
     default. A record marked `inAppCitable: false` is one the design review
-    blocklisted from a store-reviewed binary, which is a different judgement
+    blocklisted from a store-reviewed binary, which is a different judgment
     from whether it's good evidence: `fincham2023` is the strongest warrant
     in the corpus and is on that list
     """
@@ -514,7 +514,7 @@ def render_summary(records: list[dict]) -> str:
     return (
         f"{len(records)} sources: {', '.join(parts)}. "
         f"{depth['full-text']} were read in full, {depth['abstract']} from the abstract only, "
-        f"and {depth['record']} are catalogue records only. Each entry says which. "
+        f"and {depth['record']} are catalog records only. Each entry says which. "
         f"{tiered_out} aren't peer-reviewed and are tiered E so they can back lineage but "
         f"never a claim."
     )
