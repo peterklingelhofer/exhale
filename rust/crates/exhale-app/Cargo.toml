@@ -39,8 +39,8 @@ path = "src/main.rs"
 [features]
 # `global-hotkeys` wires up the Carbon `RegisterEventHotKey`-backed
 # `global-hotkey` crate, plus the tray and settings UI for binding
-# shortcuts.  On for every packaged build now.  `--no-default-features`
-# still builds without it, and that build hides the shortcut UI too
+# shortcuts.  Every packaged build has it.  `--no-default-features`
+# builds without it, and that build hides the shortcut UI too
 default        = ["global-hotkeys"]
 global-hotkeys = ["dep:global-hotkey"]
 

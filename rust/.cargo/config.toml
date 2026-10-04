@@ -2,7 +2,7 @@
 # dependency on the Microsoft Visual C++ Redistributable. Store certification
 # (policy 10.2.4.1, Security - Software Dependencies) flags that runtime as
 # undisclosed non-integrated software. Linking it statically removes the
-# dependency instead of merely disclosing it.
+# dependency instead of disclosing it
 #
 # Scoped to the MSVC target only, so macOS and Linux builds are unaffected. Safe
 # here because the dependency tree is pure Rust (wgpu, egui, winit, tray-icon,

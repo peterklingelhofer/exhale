@@ -29,9 +29,9 @@ pub struct BreathingState {
 // ─── Cadence ─────────────────────────────────────────────────────────────────
 //
 // 24 fps matches Swift's `MetalBreathingController.swift`
-// `maximumDrawIntervalFast`.  We don't run a slower "near-hold"
-// cadence anymore: bench measurements showed the slow-cadence path
-// fired for <10 % of clock time and saved well under 0.1 % CPU, which
+// `maximumDrawIntervalFast`.  There's no slower "near-hold" cadence:
+// bench measurements showed a slow-cadence path firing for <10 % of
+// clock time and saving well under 0.1 % CPU, which
 // is below the noise floor of any user-facing measurement and not
 // worth the extra hysteresis state
 const INTERVAL_FAST: Duration = Duration::from_nanos(41_666_667);  // 1/24 s

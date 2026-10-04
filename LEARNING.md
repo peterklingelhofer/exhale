@@ -275,7 +275,7 @@ fn dock_only_visibility() { /* macOS implementation */ }
 fn dock_only_visibility() { /* Windows implementation */ }
 ```
 
-`#[cfg(...)]` lines compile their item only when the condition matches. This is how we ship one source tree that produces three different platform binaries. You'll see `#[cfg(feature = "global-hotkeys")]` too: that gates code on a Cargo feature flag (the Mac App Store build disables it because Apple's sandbox blocks global hotkeys).
+`#[cfg(...)]` lines compile their item only when the condition matches. This is how we ship one source tree that produces three different platform binaries. You'll see `#[cfg(feature = "global-hotkeys")]` too: that gates code on a Cargo feature flag. It's on by default, and `--no-default-features` builds the app without global shortcuts.
 
 ### Bonus: modules and `use`
 
