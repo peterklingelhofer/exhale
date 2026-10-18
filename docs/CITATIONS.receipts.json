@@ -27,6 +27,30 @@
         }
       },
       {
+        "quote": "ce15d2bf7ffc109338d636bec7b9361388e7ef3764603d70a60eb995857cb879",
+        "preview": "Considering the outcomes’ operationalizations, vigor and fat",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 152954,
+          "textSha256": "daeb17ad40da3a3810fae9dcfee0307ebf5ac535c533557ea1c49cec926f3d85",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "5f623a3e2e74e31c53db6fea4263ca44ddda7a24ae9598cbccf42b4006599144",
+        "preview": "Finstad et al. (2006) [ 91] Study 1 Non work Cognitive Irrel",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 152954,
+          "textSha256": "daeb17ad40da3a3810fae9dcfee0307ebf5ac535c533557ea1c49cec926f3d85",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "d8ec2d394e44612ede59d329e58786afdf67947fca185ac890726da2ba97686d",
         "preview": "For overall performance, however, two moderators were found.",
         "found": {
@@ -77,6 +101,18 @@
       {
         "quote": "6c7a3ebd4565164e8cf132dabd4d120addce259413fb4c3d2dc122e6030df382",
         "preview": "However, there was significant unexplained variance in the t",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 152954,
+          "textSha256": "daeb17ad40da3a3810fae9dcfee0307ebf5ac535c533557ea1c49cec926f3d85",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "f665372bfa03fc62424b41d97f8629df2d3a0a7d37a84159006f1b169b10e09c",
+        "preview": "Overall, only four out of twenty-two studies were assessed w",
         "found": {
           "variant": "epmc",
           "source": "the Europe PMC full text",
@@ -235,6 +271,18 @@
         }
       },
       {
+        "quote": "fb03dc2333ae99c70a0d28154d73c879f2f9cce54f4ae050b662f716c8c15de4",
+        "preview": "Changes in STAI state anxiety and PANAS positive and negativ",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 65711,
+          "textSha256": "4a563c5856b7ac14045d557acc581e58c7bcd7767c6c889d0c3964cf1ac846cb",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "9ef99313016935a5616b94a7d3fd7e484d0945df42fe9196dbe3cc4914d198ae",
         "preview": "Cyclic sighing produced the highest daily improvement in pos",
         "found": {
@@ -274,11 +322,11 @@
         "quote": "5a93ee14423f4b41e3f4bf9a4d227c59b8258d09ad4c5d0cb836365c06eb157a",
         "preview": "Here, we report a remote, randomized, controlled study (NCT0",
         "found": {
-          "variant": "abstract",
-          "source": "the Europe PMC abstract",
-          "scope": "abstract",
-          "chars": 1052,
-          "textSha256": "53a52e36a0f65acef72ab899a0019bacd9c1c329a22845db654ba6149eb53ff5",
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 65711,
+          "textSha256": "4a563c5856b7ac14045d557acc581e58c7bcd7767c6c889d0c3964cf1ac846cb",
           "date": "2026-10-18"
         }
       },
@@ -346,11 +394,11 @@
         "quote": "1aecd25d5047003c122457f06081e72c538d8974938686fecaf4420a15f3f421",
         "preview": "The breathing conditions are (1) cyclic sighing, which empha",
         "found": {
-          "variant": "abstract",
-          "source": "the Europe PMC abstract",
-          "scope": "abstract",
-          "chars": 1052,
-          "textSha256": "53a52e36a0f65acef72ab899a0019bacd9c1c329a22845db654ba6149eb53ff5",
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 65711,
+          "textSha256": "4a563c5856b7ac14045d557acc581e58c7bcd7767c6c889d0c3964cf1ac846cb",
           "date": "2026-10-18"
         }
       },
@@ -418,11 +466,11 @@
         "quote": "f05521868c148f67f729ee6132c35c6a68420c4f86c12343900526f8146dfc29",
         "preview": "Using a mixed-effects model, we show that breathwork, especi",
         "found": {
-          "variant": "abstract",
-          "source": "the Europe PMC abstract",
-          "scope": "abstract",
-          "chars": 1052,
-          "textSha256": "53a52e36a0f65acef72ab899a0019bacd9c1c329a22845db654ba6149eb53ff5",
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 65711,
+          "textSha256": "4a563c5856b7ac14045d557acc581e58c7bcd7767c6c889d0c3964cf1ac846cb",
           "date": "2026-10-18"
         }
       },
@@ -575,6 +623,18 @@
         }
       },
       {
+        "quote": "f1de54fa10b72f8572298175da6e986e0c7e8e4f4338d94e266bea80e7d3e2ce",
+        "preview": "Breathing rate reduction is mainly obtained by prolonging th",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 37145,
+          "textSha256": "964a312e1dcee5c208369f1c7b2755915db6a3f94ea4b1fcf55d8b923ec73a80",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "c130018e2dad5828bb942862e8e307528d00082070bfe517d40f2b98ae4dac2e",
         "preview": "However, several other mechanisms may be hypothesized to par",
         "found": {
@@ -673,6 +733,18 @@
       {
         "quote": "42f350e0fa9521f0c7513655a34ac9db6a7012dcd94b845ec4ddcbff52ecaa8a",
         "preview": "Thirdly, due to logistic limitations, we were not able to di",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 37145,
+          "textSha256": "964a312e1dcee5c208369f1c7b2755915db6a3f94ea4b1fcf55d8b923ec73a80",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "cb3b49dd9b106f10a9e7d5f45ba2606254c0b0d02cba9c7725928fb39d52b23e",
+        "preview": "This improvement was most likely due to a reduction of dead ",
         "found": {
           "variant": "epmc",
           "source": "the Europe PMC full text",
@@ -867,6 +939,42 @@
         }
       },
       {
+        "quote": "24b68e0a342c59e1cb030d6dd5b0b6b38ec74fb536e3a68fe77434e6e9370f62",
+        "preview": "However, the lack of a statistically significant correlation",
+        "found": {
+          "variant": "cloak",
+          "source": "the publisher's page",
+          "scope": "body",
+          "chars": 35734,
+          "textSha256": "132e8439fe5887700df062f7c2526e4541b397e8ece61264a55514d5b5671c1a",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "4ff48e67c37de6153ca14e0dfb7a669eef22ee6e3e888ea0dec663b67810f970",
+        "preview": "In Köseki's study, only healthy males were included, and mea",
+        "found": {
+          "variant": "cloak",
+          "source": "the publisher's page",
+          "scope": "body",
+          "chars": 35734,
+          "textSha256": "132e8439fe5887700df062f7c2526e4541b397e8ece61264a55514d5b5671c1a",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "c12f90c8e3c330fa3ddeb27459dd7981890be0f6a4f06fbe8001d2c91f3b450c",
+        "preview": "In three comparative studies, significant statistical decrea",
+        "found": {
+          "variant": "cloak",
+          "source": "the publisher's page",
+          "scope": "body",
+          "chars": 35734,
+          "textSha256": "132e8439fe5887700df062f7c2526e4541b397e8ece61264a55514d5b5671c1a",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "71258b91256cc87c57fcbd87647af1d3888a0ae1b2c1608d9a830ec255cabcc8",
         "preview": "The correlation coefficient between CVA and FVC was reported",
         "found": {
@@ -887,6 +995,18 @@
           "scope": "abstract",
           "chars": 1294,
           "textSha256": "1e1e1bee7a999e60e87da9c77f0c623a80b2c3a68f45210b3ba2d01dbbc26d82",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "d014b496a127c2f33eb246abf94c7122338cc4eec6272a2907ab07028a6e51ff",
+        "preview": "The findings suggest that the FHP exerts a negative impact o",
+        "found": {
+          "variant": "cloak",
+          "source": "the publisher's page",
+          "scope": "body",
+          "chars": 35734,
+          "textSha256": "132e8439fe5887700df062f7c2526e4541b397e8ece61264a55514d5b5671c1a",
           "date": "2026-10-18"
         }
       },
@@ -967,6 +1087,30 @@
       {
         "quote": "d274fb923d22eee91029df01495462e806afbef17d92d58059f4dbe8dde22471",
         "preview": "Most studies were deemed as being at moderate risk of bias.",
+        "found": {
+          "variant": "abstract",
+          "source": "the Europe PMC abstract",
+          "scope": "abstract",
+          "chars": 1644,
+          "textSha256": "edd3dd0066193ed8712c63ea836042673532503a8c6f4041bdf1364332c0c264",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "be6165173326ccc7df82f99240b2108382fe7105015672b51ed0327e7ff34791",
+        "preview": "Nonetheless, regarding safety and tolerability, a small subg",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 79430,
+          "textSha256": "658b63d066747375c088b09fd29265572850bd8cb1744160f50718f4e09d0ffb",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "a2cb2e504d41f5ab0b2f3ce38df83fda3b5751fc843823a03a65d8808af4cd5e",
+        "preview": "Overall, results showed that breathwork may be effective for",
         "found": {
           "variant": "abstract",
           "source": "the Europe PMC abstract",
@@ -1099,6 +1243,18 @@
         }
       },
       {
+        "quote": "02f57faf60335d1167be07033800d329ad7c890c91b959590ea2357fd70e2bc7",
+        "preview": "In the comparator, reasons, all of which were directly attri",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 79415,
+          "textSha256": "efce44cd0c55db0bfea12926407e36a3f32a17bb33f13b7260d95416425c27f4",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "94a83811af9d0ad2867a1a3529c29d4e6f454d827cf98e2135a0fed92f41d23c",
         "preview": "In the intervention group, 72 (79%) participants strongly di",
         "found": {
@@ -1219,6 +1375,18 @@
         }
       },
       {
+        "quote": "7e965dac9078f3d6153886e06d3bd164c6fa99e1436423866a6a4e6a90d4f925",
+        "preview": "Though it appears that the breathing pace in the brief, remo",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 79415,
+          "textSha256": "efce44cd0c55db0bfea12926407e36a3f32a17bb33f13b7260d95416425c27f4",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "e0c62d493d08a8e750063ad22f727f786fbff3f40fe713f637c5b64257fef2cb",
         "preview": "Trial funded by Sasakawa Young Leaders Fellowship Fund (Sylf",
         "found": {
@@ -1281,6 +1449,18 @@
         }
       },
       {
+        "quote": "02c4a31ac5762d7f4bce3fc7ff0f3610f8486464e2311bdcf1104a4b172d9f58",
+        "preview": "However, petCO2 was consistently reported to decrease wherea",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 82668,
+          "textSha256": "8996db00b07ccca462f5fc076218d0ea30cd8a12b0bed95f437da1e34c15a84e",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "29ab6c2981ff3eaeb877982aa304f4269219e4ccde418b73e1a4dde6cc1c8c7e",
         "preview": "In addition, we found that cognitive load may lead to overbr",
         "found": {
@@ -1289,6 +1469,18 @@
           "scope": "abstract",
           "chars": 1443,
           "textSha256": "ae96a1ded759b279b206dfeffdee9634ee885d25e6d7131b8ce1d045c6e20c39",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "35095d7ea30512ba3286289450bab8a6fa9aff5ed81e9e79078323b9037d587c",
+        "preview": "Interestingly, the implementation of feedback was mostly ass",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 82668,
+          "textSha256": "8996db00b07ccca462f5fc076218d0ea30cd8a12b0bed95f437da1e34c15a84e",
           "date": "2026-10-18"
         }
       },
@@ -1329,6 +1521,18 @@
         }
       },
       {
+        "quote": "573bc833c5e509393062898192934c391ada712834476fbe62388de162cb46cb",
+        "preview": "The 11 studies including more than one type of cognitive tas",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 82668,
+          "textSha256": "8996db00b07ccca462f5fc076218d0ea30cd8a12b0bed95f437da1e34c15a84e",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "10cd887923a2bb266c90c36a6233499bbdb49a6fa199defba685b25334caccc6",
         "preview": "The present findings show that cognitive load was accompanie",
         "found": {
@@ -1355,18 +1559,6 @@
       {
         "quote": "9312f7988c08153f9e3b90b77c126e563c948f81398d8eef187998343653bcee",
         "preview": "While the studies including TV are rather inconsistent and m",
-        "found": {
-          "variant": "epmc",
-          "source": "the Europe PMC full text",
-          "scope": "body",
-          "chars": 82668,
-          "textSha256": "8996db00b07ccca462f5fc076218d0ea30cd8a12b0bed95f437da1e34c15a84e",
-          "date": "2026-10-18"
-        }
-      },
-      {
-        "quote": "4dde228ebcc88373da50f6b1ef5c9719a50900a4f71c1de547ae612d7225aec0",
-        "preview": "petCO2 was consistently reported to decrease",
         "found": {
           "variant": "epmc",
           "source": "the Europe PMC full text",
@@ -1525,6 +1717,18 @@
         }
       },
       {
+        "quote": "b7470a0897087a5d7cfc18671a8caa5d116e24c69e9536fd351af315245e255d",
+        "preview": "Females [...] n = 40 19.2 19.1 1.875± 1.71 6.9 S",
+        "found": {
+          "variant": "ijpp",
+          "source": "the journal's archive PDF",
+          "scope": "body",
+          "chars": 10751,
+          "textSha256": "6a74b7ffbbdb5bafc8f75eebbeb957c8567b127a4e630053ec8b3266e9eb2e75",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "ee4b2ce2da70399f5b63eb0ce48a0d43a19e11173901bb3d15c7df096ab2d6ec",
         "preview": "Forced expiratory vol. at the end of first second in %.",
         "found": {
@@ -1539,6 +1743,18 @@
       {
         "quote": "1900448f444f0df845a207717a7d80d72b60c9b536aec3602f6f543aba991708",
         "preview": "Pranayamic practice each time as indicated below, lasted for",
+        "found": {
+          "variant": "ijpp",
+          "source": "the journal's archive PDF",
+          "scope": "body",
+          "chars": 10751,
+          "textSha256": "6a74b7ffbbdb5bafc8f75eebbeb957c8567b127a4e630053ec8b3266e9eb2e75",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "c0f9dcfa9b70613828c5d81632d50f0d51a4acd75443b78ec86f5eea3a2c8f35",
+        "preview": "R.R./min n = 28 18.2 17.5 2.07 ± 1.99 5.5 S",
         "found": {
           "variant": "ijpp",
           "source": "the journal's archive PDF",
@@ -1621,18 +1837,6 @@
         }
       },
       {
-        "quote": "9fe647f52b8c5185b23df04bb5dc17574197c8e59b872b3963987fec771eb34d",
-        "preview": "Thus we may hypothesize that by voluntarily practicing pryna",
-        "found": {
-          "variant": "ijpp",
-          "source": "the journal's archive PDF",
-          "scope": "body",
-          "chars": 10751,
-          "textSha256": "6a74b7ffbbdb5bafc8f75eebbeb957c8567b127a4e630053ec8b3266e9eb2e75",
-          "date": "2026-10-18"
-        }
-      },
-      {
         "quote": "9c7fc0331ad0f163b297f8d3c89bb377d28a5e7781f01c25039c0bca0dc34213",
         "preview": "increases in the forced vital capacity (FVC), [...] maximum ",
         "found": {
@@ -1695,6 +1899,30 @@
         }
       },
       {
+        "quote": "3f4abd55803fc81f0ec2496221ce23ead087d51b38ae47667b188fc89712ea02",
+        "preview": "CVA (°) 54.5 (± 4.2) 53.0 (± 6.3)* Round shoulder Scapular i",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 17108,
+          "textSha256": "b9351cc5846827f10acf9f3df1cd495ec7af4e9a6c4da44cb498d480546cc655",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "af2b854ab58f5bacf30042c2bf2c08ddbf3bd3ed1ea7d2e52d797b274068d5e9",
+        "preview": "Data were analyzed by using the independent t-test to examin",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 17108,
+          "textSha256": "b9351cc5846827f10acf9f3df1cd495ec7af4e9a6c4da44cb498d480546cc655",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "5a1dfcc17dbe2896f2e5a199aef147e4af29d02ef7926d7819387eac4bbb21eb",
         "preview": "However, other variables (FVC, FEV1, FEV1/FVC) also showed l",
         "found": {
@@ -1715,6 +1943,18 @@
           "scope": "body",
           "chars": 17108,
           "textSha256": "b9351cc5846827f10acf9f3df1cd495ec7af4e9a6c4da44cb498d480546cc655",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "1aa0c792d40ed41ebd2a53e310002f2f6413fabf3af16541aae077daa35d04c5",
+        "preview": "Participants were randomly allocated to 2 groups: group 1 (s",
+        "found": {
+          "variant": "abstract",
+          "source": "the Europe PMC abstract",
+          "scope": "abstract",
+          "chars": 1007,
+          "textSha256": "3ea26ccf937069e2a5ed0274617ed49076bd690f0b65c9dc13e6f48a2c8ba44f",
           "date": "2026-10-18"
         }
       },
@@ -1819,6 +2059,18 @@
       {
         "quote": "217df700896979493b9ada5538c20e87605a441a8b63a13769541cc50cf7ea7e",
         "preview": "Following recommendations for HRV research [10,69], we recru",
+        "found": {
+          "variant": "cloak",
+          "source": "the publisher's page",
+          "scope": "body",
+          "chars": 55884,
+          "textSha256": "1aa4d0273e32c4dab674d1605b922f9a5d20f103b0687b2fd4f0a14a4d70fd17",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "58d219d82f0b095f51cadf3a159ab0f935fcea4be39ef9e99f876ccff0246efa",
+        "preview": "Given that no changes were observed in CVA, it may be that t",
         "found": {
           "variant": "cloak",
           "source": "the publisher's page",
@@ -2191,6 +2443,18 @@
         }
       },
       {
+        "quote": "262917b44c255635e6b141dc881f91e85bdbbc422f3f4823e72853803f8c05f5",
+        "preview": "Regarding the main effect of time, post-hoc t tests were con",
+        "found": {
+          "variant": "hal",
+          "source": "the HAL repository copy",
+          "scope": "body",
+          "chars": 77940,
+          "textSha256": "62bc742dbf7436f86632655a66f2c2e9410725f25fcf9be3fdbd0fa55e8c5d8c",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "97a66c4fb7fadffb36a1e06c285991aedc09384976b18a0c17c6d9cd755c66f0",
         "preview": "Results showed that for PRE and POST comparisons (referring,",
         "found": {
@@ -2229,6 +2493,18 @@
     ],
     "laborde2022-vsb-meta": [
       {
+        "quote": "bef2eec32ac408e5f8143b3f075262294ad037e44e523afe620ad4e0d8b1d0ff",
+        "preview": "For each study, the following characteristics were extracted",
+        "found": {
+          "variant": "hal",
+          "source": "the HAL repository copy",
+          "scope": "body",
+          "chars": 45995,
+          "textSha256": "b52e2aa83127108fe16f4e7977dbdfb48efb8bfec36c7a0d50829a815466f5fb",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "670b315fee31b298ff17e08eb25864b4e4cd2c6012130762e5370d3ea24a27ed",
         "preview": "From the 1842 selected abstracts, 223 studies were suitable ",
         "found": {
@@ -2253,8 +2529,68 @@
         }
       },
       {
+        "quote": "dafd4747594433694124f16f07dad9c052598fe7a44a853f69009a495fe75a5e",
+        "preview": "However, the large majority of studies included present a hi",
+        "found": {
+          "variant": "hal",
+          "source": "the HAL repository copy",
+          "scope": "body",
+          "chars": 45995,
+          "textSha256": "b52e2aa83127108fe16f4e7977dbdfb48efb8bfec36c7a0d50829a815466f5fb",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "fabcb6fdd639b6230c2f2e5cff97f5c34b0069bde49061e8e92d2c871381027c",
         "preview": "Moreover, very few adverse effects are reported throughout t",
+        "found": {
+          "variant": "hal",
+          "source": "the HAL repository copy",
+          "scope": "body",
+          "chars": 45995,
+          "textSha256": "b52e2aa83127108fe16f4e7977dbdfb48efb8bfec36c7a0d50829a815466f5fb",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "beacb1571e10bfc17c69bfa49f4059f0a81acb0101da4bbdf3be19739a7188ce",
+        "preview": "Overall Risk of Bias was high in 215 studies, with some conc",
+        "found": {
+          "variant": "hal",
+          "source": "the HAL repository copy",
+          "scope": "body",
+          "chars": 45995,
+          "textSha256": "b52e2aa83127108fe16f4e7977dbdfb48efb8bfec36c7a0d50829a815466f5fb",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "1d1f81b94ab7af54b4199997cb61017d554a196bb9394ea123f28722f071957b",
+        "preview": "Results from the main analysis after outliers’ exclusion sho",
+        "found": {
+          "variant": "hal",
+          "source": "the HAL repository copy",
+          "scope": "body",
+          "chars": 45995,
+          "textSha256": "b52e2aa83127108fe16f4e7977dbdfb48efb8bfec36c7a0d50829a815466f5fb",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "27e581797f363000c69a8e96461e683097b6cd2ae4e62b04af1589c1a3ce0acc",
+        "preview": "Results from the main-analysis after outlier’s exclusion for",
+        "found": {
+          "variant": "hal",
+          "source": "the HAL repository copy",
+          "scope": "body",
+          "chars": 45995,
+          "textSha256": "b52e2aa83127108fe16f4e7977dbdfb48efb8bfec36c7a0d50829a815466f5fb",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "19a4926028c3c029769717edb0a542806de010d92214da205d959779055e812e",
+        "preview": "Results from the main-analysis for AFTER-INT show a small ef",
         "found": {
           "variant": "hal",
           "source": "the HAL repository copy",
@@ -2607,8 +2943,32 @@
         }
       },
       {
+        "quote": "64640767163109e02292056aa78758a36cbd35e9135d4e4554e8b386498b52ae",
+        "preview": "However, after five days we noted occasional brief episodes ",
+        "found": {
+          "variant": "pmc",
+          "source": "the PubMed Central author manuscript",
+          "scope": "body",
+          "chars": 55813,
+          "textSha256": "95be423075779bd92342011d888b016737af20decca0d29abbb667c05789b525",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "f6329a33bf1dc27a4c4275cfe2327b1473af35d661975b39e275f50f71c93991",
         "preview": "Our results show sighing is controlled by two largely parall",
+        "found": {
+          "variant": "pmc",
+          "source": "the PubMed Central author manuscript",
+          "scope": "body",
+          "chars": 55813,
+          "textSha256": "95be423075779bd92342011d888b016737af20decca0d29abbb667c05789b525",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "c8a3d8c8f4a9ccc9d322abae35a0db8366bdc50ba90a1d0d07508ff7b6da2eb5",
+        "preview": "We conclude that preBötC Nmbr and Grpr -expressing neurons h",
         "found": {
           "variant": "pmc",
           "source": "the PubMed Central author manuscript",
@@ -2829,6 +3189,18 @@
         }
       },
       {
+        "quote": "f5ac3ce695fdc2d438633aa08b1c8068fbd66156175c23595fec0d5a4d43eff1",
+        "preview": "Individuals with high distress or faster resting respiratory",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 61934,
+          "textSha256": "c0ac501e36c38afc97b1dc22745b740ab8a685af7b749b796e032126ed553bda",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "4c69da09e53c9245c89d11f7cdb9b47869dc25c7ca459f6239889ebf4f64942a",
         "preview": "Limited research exists on brief breath hold retention, espe",
         "found": {
@@ -2841,8 +3213,32 @@
         }
       },
       {
+        "quote": "4baeb8fe7e032d5f089e5bee64247a30adef0153ef4e81b633bab69848b2910a",
+        "preview": "Medical databases were searched: 465 articles were screened ",
+        "found": {
+          "variant": "abstract",
+          "source": "the Europe PMC abstract",
+          "scope": "abstract",
+          "chars": 1968,
+          "textSha256": "a9ca5c36c0801adaa868e39b1b9abda9c12bf708cc52208994f626f305fb8ef0",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "645f50c458c0e1bb6c554c33ee61b704ef18aefe4de7f6a78bf1eacd28279aa6",
         "preview": "Moreover, greater physiological and psychological gains were",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 61934,
+          "textSha256": "c0ac501e36c38afc97b1dc22745b740ab8a685af7b749b796e032126ed553bda",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "294a1398ee89ba5a336034cb58968dd94ecb3b1bde65649a7262d4a7651e1e19",
+        "preview": "Slow‐paced breathing (6 bpm, 5:5 I:E ratio); single 2‐min se",
         "found": {
           "variant": "epmc",
           "source": "the Europe PMC full text",
@@ -2915,6 +3311,18 @@
       {
         "quote": "5eafc1351f16216b4166b517ad2475b2d9d5587e06e03795d566ac4bbcf50e5d",
         "preview": "While no studies to date have directly tested the 5‐5‐2 brea",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 61934,
+          "textSha256": "c0ac501e36c38afc97b1dc22745b740ab8a685af7b749b796e032126ed553bda",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "fce71db7c752b8dae58adeca2c0d6651085323bdc812c0466f2e1758b2d1b0dc",
+        "preview": "While the optimal pattern and frequency of slow paced breath",
         "found": {
           "variant": "epmc",
           "source": "the Europe PMC full text",
@@ -3529,6 +3937,54 @@
         }
       },
       {
+        "quote": "66b5c84563190a66e9d650b806809f7226c09218bda27bb7f9ee2e8d57efc508",
+        "preview": "In conclusion, this study is at high risk of bias due to a l",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 56685,
+          "textSha256": "2235b2772d14f937af21e5320dbf38ed36cf1ab1a98e8fd4c47ddf4128a98bce",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "17fb4d2bbe553f8ea6dcfd0890eb078e60a1992a86a6dede54ddd3a0a8490e4d",
+        "preview": "In conclusion, this study yielded a high risk of bias becaus",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 56685,
+          "textSha256": "2235b2772d14f937af21e5320dbf38ed36cf1ab1a98e8fd4c47ddf4128a98bce",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "1d0d071d54ff9182652435bce0231613e9c9869ddfe4c9a32451a57e3742d6cc",
+        "preview": "In conclusion, this study yielded a high risk of bias becaus",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 56685,
+          "textSha256": "2235b2772d14f937af21e5320dbf38ed36cf1ab1a98e8fd4c47ddf4128a98bce",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "22c631065bf705e745a8794ff8b83e98ae76a574953ded419d98aad949a69b07",
+        "preview": "In conclusion, this study yielded a high risk of bias becaus",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 56685,
+          "textSha256": "2235b2772d14f937af21e5320dbf38ed36cf1ab1a98e8fd4c47ddf4128a98bce",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "e18e9285a8cd627b403fe2e9edd188cf2a7971db0488598a2ee123fd6e58d5a3",
         "preview": "Researchers visually confirmed compliance with respiration r",
         "found": {
@@ -3661,6 +4117,18 @@
         }
       },
       {
+        "quote": "961031708dfba6777d8be96aa3dba433a90e3adaf631821d2f88177422f29a16",
+        "preview": "We measured RR, HR, the SDNN, RMSSD, and pNN50, LF power, an",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 56685,
+          "textSha256": "2235b2772d14f937af21e5320dbf38ed36cf1ab1a98e8fd4c47ddf4128a98bce",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "4221f106c765d1da9c2d3b8a19b995b059e865843436dc036ff6e4f5cb75efc9",
         "preview": "We randomly assigned participants to one of two IE ratio ord",
         "found": {
@@ -3735,6 +4203,18 @@
         }
       },
       {
+        "quote": "252bed29d9306e90673406a3e4bb570803e5175a49882fc9f4f26c320efc23d2",
+        "preview": "Our hypothesis that PPR influences user respiration while en",
+        "found": {
+          "variant": "idl",
+          "source": "the authors' PDF",
+          "scope": "body",
+          "chars": 24236,
+          "textSha256": "756660ea1dd666044febf7945344ea2198e32f4fd12ece184d386bcdbbc438ef",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "b1fdb8b85a0972140da1cebb1094a37965e82cf36fa5801e3fd389a0a805ead0",
         "preview": "Peripheral paced respiration differs from prior techniques i",
         "found": {
@@ -3761,6 +4241,18 @@
       {
         "quote": "e56738d7bcdd13cbb06b854e466eb375b869cedaa1364778353bf2e68f3727a3",
         "preview": "The 1.9bpm difference is close to the 2bpm interval changes ",
+        "found": {
+          "variant": "idl",
+          "source": "the authors' PDF",
+          "scope": "body",
+          "chars": 24236,
+          "textSha256": "756660ea1dd666044febf7945344ea2198e32f4fd12ece184d386bcdbbc438ef",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "87fcbf93dd96380b576fce9a8f20cc7942e69abc422845766f70bbf331dc7c5d",
+        "preview": "The first prototype used the common method of a pulsing circ",
         "found": {
           "variant": "idl",
           "source": "the authors' PDF",
@@ -3982,11 +4474,11 @@
         "quote": "3f77a4216e6e555c02917ffdadb2ce83ca55510129d877f4ad6e44b45c83597c",
         "preview": "Key findings include effects on respiratory muscle activity,",
         "found": {
-          "variant": "abstract",
-          "source": "the Europe PMC abstract",
-          "scope": "abstract",
-          "chars": 2482,
-          "textSha256": "e1b3d5b4a740da63fa93b1fefe758d8704318c3dbc59fd34a92330bd0258e5d9",
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 63279,
+          "textSha256": "5f2a7f6594624a38a1b94d22c7c83623b983c2781318b9effdc9a2141b9241a9",
           "date": "2026-10-18"
         }
       },
@@ -4018,11 +4510,11 @@
         "quote": "98ff8f3f9ffa29d3fb7390b2ba8d678e77035932843cd20bf1db1aaa0b5ef7c9",
         "preview": "There appears to be potential for use of controlled slow bre",
         "found": {
-          "variant": "abstract",
-          "source": "the Europe PMC abstract",
-          "scope": "abstract",
-          "chars": 2482,
-          "textSha256": "e1b3d5b4a740da63fa93b1fefe758d8704318c3dbc59fd34a92330bd0258e5d9",
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 63279,
+          "textSha256": "5f2a7f6594624a38a1b94d22c7c83623b983c2781318b9effdc9a2141b9241a9",
           "date": "2026-10-18"
         }
       },
@@ -4030,11 +4522,11 @@
         "quote": "a1e862bdf0b2132359ef144c59809b96e791402ed6475feb0620eb81c58f0068",
         "preview": "To review and discuss the evidence and hypotheses regarding ",
         "found": {
-          "variant": "abstract",
-          "source": "the Europe PMC abstract",
-          "scope": "abstract",
-          "chars": 2482,
-          "textSha256": "e1b3d5b4a740da63fa93b1fefe758d8704318c3dbc59fd34a92330bd0258e5d9",
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 63279,
+          "textSha256": "5f2a7f6594624a38a1b94d22c7c83623b983c2781318b9effdc9a2141b9241a9",
           "date": "2026-10-18"
         }
       },
@@ -4101,6 +4593,18 @@
         }
       },
       {
+        "quote": "2aebe3173182da19bc4b229e758e3177cd61533fcc377abe52e81422f545c2f1",
+        "preview": "End-tidal [...] was the only physiological indicator to disc",
+        "found": {
+          "variant": "cdc",
+          "source": "the CDC Stacks scan",
+          "scope": "body",
+          "chars": 30418,
+          "textSha256": "e7e70b67294362a821e7d3c08fcea984bc6caeaa83e40e601b1dd2d2cb7a6728",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "04fd1c002eb5d638944d26f3356f29fd57d83453989066230a2d81a020dd3fbc",
         "preview": "Further research is needed to determine the utility of this ",
         "found": {
@@ -4151,6 +4655,18 @@
       {
         "quote": "d6c2dbb15025975d88df8bb5aeefe61c61f88a0695a986e0b627faff98adc569",
         "preview": "Since the first two days of the study were devoted to practi",
+        "found": {
+          "variant": "cdc",
+          "source": "the CDC Stacks scan",
+          "scope": "body",
+          "chars": 30418,
+          "textSha256": "e7e70b67294362a821e7d3c08fcea984bc6caeaa83e40e601b1dd2d2cb7a6728",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "33e217bb8d6baa089775257ab149add88b78243126b8397e8a116e5af1757a98",
+        "preview": "The VDT data-entry condition provided for a highly repetitiv",
         "found": {
           "variant": "cdc",
           "source": "the CDC Stacks scan",
@@ -4529,6 +5045,18 @@
         }
       },
       {
+        "quote": "ca44ee1941d4b03bf24eedf2a19c5744b0b95583466a6f19283af6d251dba978",
+        "preview": "If your clients struggle with breathing at 4.5 bpm, this pac",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 79529,
+          "textSha256": "6afd41bae1d882ce9461a6f98d74b4254502db1f4d03f2af773b94b6e07eb9a6",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "e4ce5ae19820ff764836bad24f299e4173543b8bd73df8225f7e98305cab9a6b",
         "preview": "The authors explain the rationale for the resonance frequenc",
         "found": {
@@ -4761,8 +5289,32 @@
         }
       },
       {
+        "quote": "358f15d6a277116fdd88162a7de2680a0c7a7808bb6434c3189061a326fcb6b4",
+        "preview": "PetCO2 and respiratory rate were measured with an infrared s",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 50243,
+          "textSha256": "ef32cebfa4407e0303481c5b14b2ab7b5e5d5a193b9acb1b85c742c8828d3588",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "f44cd62eec3d8e2af1e2344c6ad9156c69a4f607ffc509ff2dbe5a281d9e9933",
         "preview": "Present and previous findings indicate that merely slowing d",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 50243,
+          "textSha256": "ef32cebfa4407e0303481c5b14b2ab7b5e5d5a193b9acb1b85c742c8828d3588",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "0e1cb13161131c15b78d98d123e7d500ab39ab26311b51e713411ddbf5c5822d",
+        "preview": "Respiratory rate (breaths/minute) Baseline 16.76 (3.41) 15.4",
         "found": {
           "variant": "epmc",
           "source": "the Europe PMC full text",
@@ -4859,6 +5411,18 @@
         }
       },
       {
+        "quote": "cc85a0292729a5454bf70f5620f1a4390e8678358668a579675ba9bcbd5cd58d",
+        "preview": "Four participants skipped one day of training.",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 46683,
+          "textSha256": "6482ec798b753555b2f8cd5c6d264f609dece84cb94f1cb0e6f0c35399c3edc2",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "727cf66f7506f6bd1577c1c922fd57f8d1f213bba2d0451cf04ad94af48e2e4e",
         "preview": "Home practice was done using the same audiovisual pacer.",
         "found": {
@@ -4873,6 +5437,18 @@
       {
         "quote": "46e9be9ef5e6b4d1e5197de3496faf3a8b5b9b01e7afd30a3c9b6b497558f46c",
         "preview": "However, despite the decrease in the drop of PetCO2, the int",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 46683,
+          "textSha256": "6482ec798b753555b2f8cd5c6d264f609dece84cb94f1cb0e6f0c35399c3edc2",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "34b4b22dd845684ade40734e574cb2d6751ec079ba94af28044b18efac3c0be5",
+        "preview": "Inhalation lasted four seconds and exhalation lasted six sec",
         "found": {
           "variant": "epmc",
           "source": "the Europe PMC full text",
@@ -4903,6 +5479,18 @@
           "scope": "body",
           "chars": 46683,
           "textSha256": "6482ec798b753555b2f8cd5c6d264f609dece84cb94f1cb0e6f0c35399c3edc2",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "f2b81ae6d0e988c4a7c19a9f0e8f4b9c0cad8e7c8f003733a2c8eb3ce2e2e6eb",
+        "preview": "Partial pressure of end-tidal CO2 (PetCO2), symptoms of hype",
+        "found": {
+          "variant": "abstract",
+          "source": "the Europe PMC abstract",
+          "scope": "abstract",
+          "chars": 1952,
+          "textSha256": "fcbfd618c53ca9b00c37f2a5e94d4a4c65b6fe27490af7afef4f1be97d853d73",
           "date": "2026-10-18"
         }
       },
@@ -4981,6 +5569,18 @@
       {
         "quote": "47cd02000cd60f85ee3dc7dcd4ab1041eb2fccc59e3687744b4b807c67f1b8f4",
         "preview": "Thus, the present results suggest that both CO2 homeostasis ",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 46683,
+          "textSha256": "6482ec798b753555b2f8cd5c6d264f609dece84cb94f1cb0e6f0c35399c3edc2",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "25210998d79db0e7f4454d098b535439469eca213ad95ea1c0173d716aca848f",
+        "preview": "Unpleasant arousal Baseline -3.34(1.18) -2.84(1.39) -2.72(1.",
         "found": {
           "variant": "epmc",
           "source": "the Europe PMC full text",
@@ -5211,6 +5811,18 @@
         }
       },
       {
+        "quote": "b0bdea1be7ce9af1c6cbe4e5a02e337782fa8fd7e02656ffb544a9bea0e748ad",
+        "preview": "The rate of evaporation increased as the area of exposed ocu",
+        "found": {
+          "variant": "cloak",
+          "source": "the publisher's page",
+          "scope": "body",
+          "chars": 8832,
+          "textSha256": "c5fc0398a071924f87822d6433b2f54d1f5d869ecf5ea01e46a4053feb12148b",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "1c7dccef6a2830f1dbcdd4af31ca0554b2e50ca4fa14a557e4ef10e57026686e",
         "preview": "These results indicate that the use of video display termina",
         "found": {
@@ -5357,6 +5969,18 @@
         }
       },
       {
+        "quote": "70254a1d302eed196e04b63dc198e834256a07b35d72d6ac9e523e06db7bfcd6",
+        "preview": "LF-HRV was higher when breathing at 6 compared to 12 breaths",
+        "found": {
+          "variant": "lirias",
+          "source": "the Lirias repository copy",
+          "scope": "body",
+          "chars": 52320,
+          "textSha256": "dd01abacb20e5e5282858b8508b0bb98bc686ff888f196416509ebd20add21c9",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "44e88a35944f29c03e4d474e48db81b2271350ff588f8ab2948f8139743fec52",
         "preview": "Participants reported increased relaxation, stress reduction",
         "found": {
@@ -5455,8 +6079,44 @@
         }
       },
       {
+        "quote": "c099ca55cc21816d03322df57533748853f105ea72453c25595a6a5613236d25",
+        "preview": "Landman GW, Drion I, van Hateren KJ, et al. Device-guided br",
+        "found": {
+          "variant": "cloak",
+          "source": "the publisher's page",
+          "scope": "body",
+          "chars": 6324,
+          "textSha256": "84d0626f590824f77ab6844c700060601584670d669e7de07d6449d07d7d521d",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "2f15655f1f64ed9382613d2f7c65680c5f87661dbad172f1d9e3fe5fe5928018",
+        "preview": "Landman GW, van Hateren KJ, van Dijk PR, et al. Efficacy of ",
+        "found": {
+          "variant": "cloak",
+          "source": "the publisher's page",
+          "scope": "body",
+          "chars": 6324,
+          "textSha256": "84d0626f590824f77ab6844c700060601584670d669e7de07d6449d07d7d521d",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "5e216c3c65b9fc270867d8ddccbb977729838b41eb8894093d76070685e524fa",
         "preview": "Letter to the Editor [...] Pages 181-182",
+        "found": {
+          "variant": "cloak",
+          "source": "the publisher's page",
+          "scope": "body",
+          "chars": 6324,
+          "textSha256": "84d0626f590824f77ab6844c700060601584670d669e7de07d6449d07d7d521d",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "d6ea7ceb500cc047fbaf5118f70f7726039d7e503c1e26486308837e42798855",
+        "preview": "Peter R. van Dijk,Kornelis J.J. van Hateren,Nanne Kleefstra ",
         "found": {
           "variant": "cloak",
           "source": "the publisher's page",
@@ -5519,6 +6179,18 @@
         }
       },
       {
+        "quote": "44a54ed30d5914e2e1ff70c62b25a471b20900bd0991b6c99e332ce86746d32c",
+        "preview": "During the presentation of the safety and danger cues, an in",
+        "found": {
+          "variant": "abstract",
+          "source": "the Europe PMC abstract",
+          "scope": "abstract",
+          "chars": 1703,
+          "textSha256": "08b57d11e1f445c4f0decae5a0d890e30045da7a0cf1b9529006596984594720",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "dfbb9d2221340ffa85bf0a3fb7e9a0afa4c7f8e8b88e5f21576ea71081297b11",
         "preview": "Physiological tension decreased following a spontaneous sigh",
         "found": {
@@ -5533,6 +6205,18 @@
       {
         "quote": "b458e557135d3941ad35ca656d050909b741d9fc114098b1eeb3dbbb29a018f6",
         "preview": "Results show that self-reported relief following an instruct",
+        "found": {
+          "variant": "abstract",
+          "source": "the Europe PMC abstract",
+          "scope": "abstract",
+          "chars": 1703,
+          "textSha256": "08b57d11e1f445c4f0decae5a0d890e30045da7a0cf1b9529006596984594720",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "f81ebe93210078b64ae34115f28b161c22c133c5e61355842afa28c76c08c932",
+        "preview": "Self-reported relief and physiological tension were compared",
         "found": {
           "variant": "abstract",
           "source": "the Europe PMC abstract",
@@ -5681,18 +6365,6 @@
       {
         "quote": "64335c740c49ac8cbf173e8b65e5ed8451d843e99fbb4acf4719d848a4b22c56",
         "preview": "Conditional, bilateral genetic ablation of the ~175 Cdh9/Dbx",
-        "found": {
-          "variant": "abstract",
-          "source": "the Europe PMC abstract",
-          "scope": "abstract",
-          "chars": 870,
-          "textSha256": "16887bc80be78cca04b386a61fc0acc2d2155515625a7541e751b633a22b42c7",
-          "date": "2026-10-18"
-        }
-      },
-      {
-        "quote": "1f0d0ab266dfe67c26c7555d5dfbcf4a52d1bad36a87eac6216f09f4c1bf386e",
-        "preview": "However, the physiological and neural basis of the relations",
         "found": {
           "variant": "abstract",
           "source": "the Europe PMC abstract",
@@ -5973,6 +6645,42 @@
         }
       },
       {
+        "quote": "1490d56695a57f896d2993297de192ebb4954aaa30e6e8442954f59fbc8cc26e",
+        "preview": "In particular, we found reliable associations between increa",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 88064,
+          "textSha256": "ea7218b2140ccf7595295b155ab54ab5ec9a271d49352f843bd3a793fab119d9",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "01c13b6d5ae9632fe7cbef09d1f980b0a3e255a9df0bb4023568093a873b2c78",
+        "preview": "Moreover, no study explicitly estimated the correlations bet",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 88064,
+          "textSha256": "ea7218b2140ccf7595295b155ab54ab5ec9a271d49352f843bd3a793fab119d9",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "cec3ec2694d6f4a498b08fb3ab642f3424afe29ea53ddab8871a951c1bcc857c",
+        "preview": "No studies adopted longitudinal or randomized controlled des",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 88064,
+          "textSha256": "ea7218b2140ccf7595295b155ab54ab5ec9a271d49352f843bd3a793fab119d9",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "afda6a1af5710bdb66e41e9a5a53d4f932a9f95a8265258509958e8eec0ccbd3",
         "preview": "Psychological/behavioral outputs related to the abovemention",
         "found": {
@@ -6005,6 +6713,30 @@
           "scope": "abstract",
           "chars": 2638,
           "textSha256": "5c74c96b201fd3d1f4fa35b06cb0f7fea09b143f1a30bcf0defaa12745628a9b",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "85da8abe54d9faf6770e506ba7c76572f0bc10b815eeb4da47bfd60cb8ad8127",
+        "preview": "Studies identified from the literature search were excluded ",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 88064,
+          "textSha256": "ea7218b2140ccf7595295b155ab54ab5ec9a271d49352f843bd3a793fab119d9",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "4dcb1da7b2979cd6aa6187379c718240c5193ce67fe8e624eca890179e660ca8",
+        "preview": "Studies identified from the literature search were included ",
+        "found": {
+          "variant": "epmc",
+          "source": "the Europe PMC full text",
+          "scope": "body",
+          "chars": 88064,
+          "textSha256": "ea7218b2140ccf7595295b155ab54ab5ec9a271d49352f843bd3a793fab119d9",
           "date": "2026-10-18"
         }
       },
@@ -6071,14 +6803,26 @@
         }
       },
       {
+        "quote": "97ed3c3ac1149eca743908e7e14c0186e9392cc56bc4cd64380d0ea94e432d76",
+        "preview": "In amygdala ( Fig. 4 B ), inspiration-locked oscillatory pow",
+        "found": {
+          "variant": "pmc",
+          "source": "the PubMed Central author manuscript",
+          "scope": "body",
+          "chars": 112338,
+          "textSha256": "654894b003d02197ebbdd585ed1b3de433c6546d5b27101be98cf76b50624c80",
+          "date": "2026-10-18"
+        }
+      },
+      {
         "quote": "354efe264eae201206e178e18bf5fa63a0c605a07c37a65a8f7c78f98636af92",
         "preview": "In this study, we collected intracranial EEG data from rare ",
         "found": {
-          "variant": "abstract",
-          "source": "the Europe PMC abstract",
-          "scope": "abstract",
-          "chars": 2422,
-          "textSha256": "13e6fc24bb63ab1a76220f583ead452dab11e507a10fbaffd86c549ed949d05d",
+          "variant": "pmc",
+          "source": "the PubMed Central author manuscript",
+          "scope": "body",
+          "chars": 112338,
+          "textSha256": "654894b003d02197ebbdd585ed1b3de433c6546d5b27101be98cf76b50624c80",
           "date": "2026-10-18"
         }
       },
@@ -6145,6 +6889,18 @@
       {
         "quote": "78daf8692c57d7b559b199fef9d3f0cc12bf8abab438920413609427e947b585",
         "preview": "We also found that the route of breathing was critical to th",
+        "found": {
+          "variant": "pmc",
+          "source": "the PubMed Central author manuscript",
+          "scope": "body",
+          "chars": 112338,
+          "textSha256": "654894b003d02197ebbdd585ed1b3de433c6546d5b27101be98cf76b50624c80",
+          "date": "2026-10-18"
+        }
+      },
+      {
+        "quote": "e00ed7d8c41e840bf7702d9c8668847cbcb2a3eb8c82a1589dc7c29976c29981",
+        "preview": "We examined iEEG data from three patients (P5, P6, and P7) w",
         "found": {
           "variant": "pmc",
           "source": "the PubMed Central author manuscript",

@@ -149,21 +149,25 @@ diaphragm breathing in screen users.
 
 Two things limit how much the keyboard can be blamed. The 1994 study compares work with
 relaxation and the 2008 study compares high with low mental workload during data entry, and [`grassmann2016-cognitive-load-respiration`](#grassmann2016-cognitive-load-respiration)
-finds the same faster, over-ventilated pattern under any demanding task, so the keyboard is where
+finds the same faster, over-ventilated pattern across cognitive tasks in general, though it may vary
+with the kind of demand, so the keyboard is where
 the effect was measured and hasn't been shown to be its cause. And the two samples total 34 people
 from one research group.
 
 A second, independent line runs through posture.
 [`jung2016-smartphone-posture-respiration`](#jung2016-smartphone-posture-respiration) found that
-people using smartphones more than four hours a day had significantly worse craniovertebral angle
-and lower peak expiratory flow than lighter users, and
-[`deniz2024-forward-head-lung-volumes`](#deniz2024-forward-head-lung-volumes) found forward head
-posture associated with FVC reductions of 0.25 to 0.81 L across 115 participants.
+people using smartphones more than four hours a day had lower peak expiratory flow than lighter
+users. It also reports a worse craniovertebral angle, but the means and standard deviations in its
+own table don't reach significance (p of about 0.33 by its stated t-test). In
+[`deniz2024-forward-head-lung-volumes`](#deniz2024-forward-head-lung-volumes), three of four
+comparison studies found forward head posture lowered FVC, with reductions of 0.25 to 0.81 L across
+115 participants.
 
 **What the evidence doesn't support** is *shallow* meaning a reduced *volume of air moved*.
 [`grassmann2016-cognitive-load-respiration`](#grassmann2016-cognitive-load-respiration), 54
-experiments, finds respiratory amplitude roughly stable and minute ventilation **up** under
-cognitive load. Both things can hold at once: more air per minute, on the theory above moved by
+experiments, finds that respiratory amplitude appears to stay roughly stable and minute ventilation
+goes **up** under cognitive load, though its tidal-volume results are inconsistent and tasks with
+performance feedback mostly lowered tidal volume. Both things can hold at once: more air per minute, on the theory above moved by
 the wrong muscles, from a slumped posture associated with less capacity.
 
 The defensible statement, and the one the README makes, is therefore that during demanding work at
@@ -253,7 +257,7 @@ On HRV, six results, and they don't line up:
 |---|---|---|---|
 | [`bae2021-exhalation-inhalation-ratio`](#bae2021-exhalation-inhalation-ratio) | 28 | 2:1 vs 1:1 cue at spontaneous rate | Longer exhale raised RMSSD and HF-HRV |
 | [`vandiest2014-ie-ratio-relaxation`](#vandiest2014-ie-ratio-relaxation) | 23 (30 recruited) | i/e 0.42 vs 2.33 targets (0.49 vs 1.44 achieved), at 6 and 12 bpm (7.3 to 7.7 achieved at the slow rate) | Longer exhale raised HF-HRV, but only at the slow rate |
-| [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) | 47 | 5:5 vs 4:6 at 5.5 and 6 bpm | **Equal** ratio won on SDNN and LF |
+| [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) | 47 | 5:5 vs 4:6 at 5.5 and 6 bpm | **Equal** ratio at 5.5 bpm won on SDNN and LF |
 | [`laborde2021-ie-ratio-pauses`](#laborde2021-ie-ratio-pauses) | 64 | i/e 0.8, 1.0, 1.2 at 6 bpm, with and without 0.4 s pauses | Longer exhale raised RMSSD, and pauses changed nothing |
 | [`meehan2024-longer-exhalations`](#meehan2024-longer-exhalations) | 26 + 16 replication | 1:1 vs 1:2 at 6 bpm | No difference, in the original *and* the replication |
 | [`marchant2025-square-478-six`](#marchant2025-square-478-six) | 84 | 5:5 vs 4:6 at 6 bpm | No significant ratio difference on RMSSD (4:6 ahead by 0.20 SD, p = 0.07), LF-HRV or end-tidal CO2 |
@@ -288,8 +292,8 @@ This is a tension between two entries that nobody has looked at.
 breathing at 6 breaths per minute produced **mild over-breathing**: HRV went up and end-tidal CO2
 went down, into the 30 to 35 mmHg range.
 [`vandiest2014-ie-ratio-relaxation`](#vandiest2014-ie-ratio-relaxation) reports the same from the other
-direction: tidal volume rose from 532 ml at baseline to 1262 and 1383 ml in its slow conditions, and
-the authors suspect their participants were hyperventilating. Meanwhile [`schleifer1994-vdt-petco2`](#schleifer1994-vdt-petco2) and
+direction: its uncalibrated tidal-volume signal more than doubled from baseline in its slow
+conditions, and the authors suspect their participants were hyperventilating. Meanwhile [`schleifer1994-vdt-petco2`](#schleifer1994-vdt-petco2) and
 [`schleifer2008-emg-gaps-computer-work`](#schleifer2008-emg-gaps-computer-work) show that a person at
 a keyboard *already* runs end-tidal CO2 lower than at rest: one to two mmHg lower in the 1994
 study, a change its authors call relatively small and a hyperventilatory stress effect, and lower
@@ -315,8 +319,9 @@ across a session. Graded extension of the breath fits the pranayama tradition br
 contents of [`satyananda1999-apmb`](#satyananda1999-apmb) haven't been read to confirm it, and no
 study in this corpus examines a progressively lengthening pace at all.
 [`szulczewski2019-training-relaxation`](#szulczewski2019-training-relaxation)
-trained at a fixed rate and found relaxation accrued over a week of practice, which supports
-continued practice and says nothing about slowing down further within a session.
+trained at a fixed rate and found the drop in unpleasant arousal during each session grew across a
+week of practice, which supports continued practice and says nothing about slowing down further
+within a session.
 
 Nothing in this review contradicts the tradition either. The primary rate-comparison studies in this
 corpus stop below about 5 breaths a minute and don't report worse outcomes there.
@@ -331,8 +336,9 @@ or comfort. What subjective evidence exists points the tradition's way:
 produced more relaxation, stress reduction, mindfulness and positive energy, and
 [`lin2014-equal-ratio-hrv`](#lin2014-equal-ratio-hrv) found every slow pattern beat baseline on
 relaxation. Objective measures point the same way:
-[`joshi1992-pranayam-training`](#joshi1992-pranayam-training) found six weeks of practice lowered
-resting respiratory rate and lengthened breath-holding time. The inverted-U in
+[`joshi1992-pranayam-training`](#joshi1992-pranayam-training) reports that six weeks of practice
+lowered respiratory rate, though its printed means barely moved, and lengthened breath-holding time.
+The resonance peak in
 [`shaffer2020-resonance-frequency-assessment`](#shaffer2020-resonance-frequency-assessment) is worth
 reading alongside these, but it describes a peak in **HRV amplitude**, and doesn't transfer to a
 peak in relaxation or comfort.
@@ -433,11 +439,14 @@ who installed a menu-bar app in March.
 
 [`fincham2023-breathwork-meta`](#fincham2023-breathwork-meta) found that only four of its twelve
 primary-outcome trials reported on adverse events at all, none attributing lasting harm to
-breathwork. [`laborde2022-vsb-meta`](#laborde2022-vsb-meta) concludes that few adverse effects are expected from
-*slow* breathing specifically, which is the mode exhale is built around. exhale's sliders can also
+breathwork, and one fast-paced trial reported transient hot flushes, shortness of breath or sweating
+in a small subgroup. [`laborde2022-vsb-meta`](#laborde2022-vsb-meta) remarks that "very few adverse
+effects are reported" in the *slow* breathing studies it reviewed, though it didn't collect
+adverse-event data, and slow breathing is the mode exhale is built around. exhale's sliders can also
 be set to fast, hold-heavy patterns that leave that evidence base entirely. Those belong to the
 high-ventilation literature ([`fincham2024-high-ventilation-rct`](#fincham2024-high-ventilation-rct)),
-where transient tetany and light-headedness are documented. This is the basis for the
+where transient tetany is documented in the fast arm, and light-headedness in both the fast arm and
+its slower comparison arm. This is the basis for the
 README's advice to take breaks if intense feelings arise.
 
 ### 14. The tradition sources are lineage rather than evidence, and are tiered accordingly
