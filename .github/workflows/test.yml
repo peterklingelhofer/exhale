@@ -65,7 +65,11 @@ jobs:
   # job also validates citekey format, the group / verification / access /
   # tier enums, and every anchor link the gaps ledger makes into the
   # corpus, so a renamed entry fails here instead of rotting in the docs.
-  # Stdlib only and no Rust toolchain, so it costs seconds
+  # It also holds each quote to its receipt, the figures pinned in the Rust
+  # sources to the corpus, and the registry snapshot to the ledger.  The two
+  # self-checks come first because those rules live in scripts/verbatim.py
+  # and scripts/registry.py.  Stdlib only, no Rust toolchain, no network and
+  # no research cache, so it costs seconds
   citations:
     runs-on: ubuntu-latest
     steps:
@@ -74,6 +78,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Self-check the quote rules
+        run: python3 scripts/verbatim.py
+
+      - name: Self-check the registry rules
+        run: python3 scripts/registry.py
+
+      - name: Self-check the HTTP client the weekly job uses
+        run: python3 scripts/fetching.py
 
       - name: Check generated citations are current
         run: python3 scripts/generate-citations.py --check

@@ -8,7 +8,7 @@ Slow paced breathing is the breathing practice with the most published evidence 
 
 Blink rate also falls sharply at a display ([Tsubota & Nakamori 1993](docs/CITATIONS.md#tsubota1993-vdt-blink), [Rosenfield 2011](docs/CITATIONS.md#rosenfield2011-computer-vision-syndrome), [Sheppard & Wolffsohn 2018](docs/CITATIONS.md#sheppard2018-digital-eye-strain)). exhale only paces breathing, so it doesn't help with that.
 
-Every claim above and below is sourced in **[docs/CITATIONS.md](docs/CITATIONS.md)**, 49 sources whose bibliographic records were checked against Crossref, Open Library or PubMed. Some of these findings are weaker than a citation alone suggests, so each link goes to the source's corpus entry, with its DOI, access level, evidence tier and caveats. The [gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices) collects fourteen places where exhale ships something the literature doesn't back.
+Every claim above and below is sourced in **[docs/CITATIONS.md](docs/CITATIONS.md)**, 49 sources whose bibliographic records were checked against Crossref, Open Library or PubMed. Some of these findings are weaker than a citation alone suggests, so each link goes to the source's corpus entry, with its DOI, access level, evidence tier, caveats and, for every source that was read, the source's own words under each claim. The [gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices) collects fourteen places where exhale ships something the literature doesn't back.
 
 The overlay is a translucent window that expands on inhale and contracts on exhale, and on most setups it floats above your other windows (see [Platform notes](#platform-notes)). Inhale, post-inhale hold, exhale, and post-exhale hold durations are all configurable.
 
@@ -42,7 +42,7 @@ reported a month-long mood benefit used five minutes a day
 reduce fatigue and increase vigor ([Albulescu et al. 2022](docs/CITATIONS.md#albulescu2022-micro-breaks), 22
 independent study samples), and self-reported relief is higher after a single instructed deep breath than before it
 ([Vlemincx et al. 2016](docs/CITATIONS.md#vlemincx2016-sigh-relief)). That's the closest published support for
-a single "Remember to breathe" reminder.
+a single reminder to breathe.
 
 **Breathe through your nose.** exhale can't cue this, so it's up to you. Nasal
 respiration entrains oscillations in human piriform cortex, amygdala and hippocampus, and the effect
@@ -67,7 +67,7 @@ one in people.
 lists the source's evidence tier, access level and the claims it can back.
 
 The corpus carries the published dissent next to the support. On blood pressure, a meta-analysis
-finds sustained slow breathing lowers systolic pressure by about 5.6 mmHg
+finds sustained slow breathing lowers systolic pressure by 5.62 mmHg
 ([Chaddha et al. 2019](docs/CITATIONS.md#chaddha2019-slow-breathing-bp)), while a letter in a hypertension
 journal argues the case for device-guided slow breathing should be considered closed
 ([van Dijk et al. 2018](docs/CITATIONS.md#vandijk2018-close-the-book)). It also carries the null results: one
@@ -106,6 +106,22 @@ renamed entry or a stale number breaks the build. It also refuses a short list o
 doesn't support on the surfaces that assert claims: the Rust sources, the Snap description and the
 Microsoft Store listing copy. The README and the gaps ledger can still name those claims, because
 they discuss them.
+
+Every claim from a source that was read sits above the source's own words in the corpus, and each
+quote carries a receipt in [`docs/CITATIONS.receipts.json`](docs/CITATIONS.receipts.json) showing it
+was found in the source's text. `--check` fails when a quote changes after it was checked, when quote
+marks in this file or the corpus surround words that no quote of the cited source has, when a figure
+this file attributes to a source isn't printed in one of that source's quotes, and when the tested
+range the app reports stops matching the sentence it comes from. The source texts stay out of the
+repository, so receipts and the registry snapshot are written on a machine that has them:
+
+```sh
+uv run --no-project scripts/check-quotes.py --write-receipts   # look up every quote, record receipts
+uv run --no-project scripts/check-sources.py --write           # ask Crossref, Open Library and PubMed again
+```
+
+A weekly workflow repeats the registry check and checks the quotes found in Europe PMC against its
+current copy.
 
 **In the app.** There's a *Research* item in the macOS app menu, directly under About, and the same
 item in the system-tray menu on every platform. Both open the corpus page, which fetches the current

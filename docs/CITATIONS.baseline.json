@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "counts": {
+    "unverifiedEntries": 0,
+    "quotesWithoutReceipt": 0,
+    "claimsWithoutQuote": 2,
+    "readmeFiguresWithoutQuote": 0,
+    "linksWithoutArchive": 5
+  }
+}

@@ -1,0 +1,55 @@
+name: Sources
+
+# Weekly, and never on a push, so a publisher's outage can't hold up a merge. The run fails,
+# and GitHub emails the failure, only on what is new since the snapshots committed in
+# docs/CITATIONS.registry.json and docs/CITATIONS.receipts.json:
+#   - a DOI, ISBN or PMID that stopped answering 200
+#   - a link that answered 200 in the snapshot and now answers 404 or 410
+#   - a field that stopped agreeing with its registry, or a ledger field edited since its check
+#   - an update notice (retraction, correction, expression of concern) on a cited work
+#   - a Creative Commons license newly registered for an entry marked paywalled
+#   - a quote with a receipt that the live text of its source no longer contains
+# Every other link problem (a 403, a challenge page, a 429, a 5xx, a timeout) is listed in the
+# run summary and doesn't fail the run. The snapshot is written from a different network than
+# the one GitHub's runners use, publishers' bot walls answer by IP, and every open copy is meant
+# to carry a Wayback capture, so a wall that only the runner meets says little about the link. A
+# problem the snapshot already had is listed too and doesn't fail the run. The job reads the
+# repository and changes nothing in it. The registry snapshot is refreshed by hand with
+# `uv run --no-project scripts/check-sources.py --write`, and the receipts with
+# `uv run --no-project scripts/check-quotes.py --write-receipts`. See those two scripts for the
+# exact rules
+
+on:
+  schedule:
+    - cron: '41 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # An unset repository variable is an empty string, which both scripts read as no address
+  CROSSREF_MAILTO: ${{ vars.CROSSREF_MAILTO }}
+
+jobs:
+  check:
+    name: registries, links and quotes
+    runs-on: ubuntu-latest
+    # About 110 registry and link requests at two a second take two minutes, and the live
+    # quote check adds a few more. The cap is for a day when many hosts hang for their full
+    # 60 s timeout and retry
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check every DOI, ISBN, PMID and link in the ledger
+        run: python3 scripts/check-sources.py --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Check every receipted quote against the live source text
+        # Runs when the step above fails, so one broken link doesn't hide a lost quote
+        if: ${{ !cancelled() }}
+        run: python3 scripts/check-quotes.py --live --summary "$GITHUB_STEP_SUMMARY"

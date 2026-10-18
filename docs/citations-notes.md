@@ -9,6 +9,8 @@ against the abstracts and open full texts on 2026-09-02, and again on 2026-09-20
 of 35 entries and the abstract of 12, with the two books unread as before. On 2026-09-26 every
 statement was checked again against the same texts, and the ten entries that had been marked as read
 in full but could only be checked against their abstracts were relabeled as read from the abstract.
+On 2026-10-18 each claim of a source that was read gained the words in the source that back it, and
+every one of those quotes was found in the source's text.
 
 > **This file is generated.** Edit [`CITATIONS.csl.json`](./CITATIONS.csl.json) for records and
 > [`citations-notes.md`](./citations-notes.md) for the prose, then run
@@ -63,6 +65,55 @@ establishing that it does.
 | D | Narrative review, theory, mechanism, or animal work | Cite for mechanism only: it can't establish that a practice works |
 | E | Not peer reviewed, or contradicted by better evidence | May be cited for provenance, meaning where a practice came from, and never for whether it works |
 
+### Quotes
+
+Each claim is followed by the words in the source that back it, and by where they sit: `Abstract`,
+a section heading as the source prints it, a table, or a printed page. Quotes under a caveat back a
+statement in the caveat. `[...]` marks words left out, and nothing else inside the quote marks
+differs from the source. Where a passage in this file, the README or the gaps ledger links an entry,
+quote marks hold that entry's words, and the generator stops when they surround words that no quote
+of the linked entry has. A word discussed as a word is set in italics.
+
+### Receipts
+
+Most of the source texts are copyrighted, so they stay out of the repository.
+[`CITATIONS.receipts.json`](./CITATIONS.receipts.json) carries a receipt for each quote instead: a
+hash of its words, the copy of the source it was found in, a hash of that copy's text and the date.
+A quote edited after it was checked no longer matches its receipt, and the generator stops until the
+quote is found in the source again. Each entry's *Quotes checked* line counts the quotes that hold a
+receipt and names the copies they were found in.
+
+Matching forgives typography only: curly or straight quote marks, dash forms, line breaks, spacing
+around punctuation, and a hyphen or dash between two letters, since PDFs break and join words at
+line ends. Words, case, digits and units have to match.
+
+The receipts also hold the read-depth label to account. An entry marked as read in full has at least
+one quote found outside its abstract, and an entry marked as read from the abstract quotes only its
+abstract. A copy is used only when it carries the entry's title, so a landing page or a different
+paper can't stand in for the source.
+
+A receipt shows that the words were in that copy on that date. It doesn't show that the copy is the
+version of record, since an author's manuscript can differ from the published article in small ways,
+or that the words back the claim in the way the claim says. The caveats carry that judgment.
+
+### Registry and link checks
+
+A scheduled job asks Crossref, Open Library and PubMed about every entry each week, fetches every
+open copy, and checks the quotes found in Europe PMC against its current copy.
+[`CITATIONS.registry.json`](./CITATIONS.registry.json) keeps the answers. A verification label stands
+only while the registry agrees with the title, year, journal, volume, issue, pages and first author
+printed here, and an edit to any of those fields stops the generator until the registry has been
+asked again. A retraction or an expression of concern posted against a source stops it too, and a
+correction is listed under the entry it corrects. Open copies and catalog pages link a Wayback
+Machine capture, so the copy that was quoted can still be read if the page moves.
+
+### Counts that only go down
+
+[`CITATIONS.baseline.json`](./CITATIONS.baseline.json) holds five counts: unverified entries, quotes
+without a receipt, claims without a quote, figures in the README that no quote of the cited entry
+prints, and links without an archived copy. `--check` fails when a count changes and the baseline
+doesn't change with it, and the generator raises a count only when told to with `--raise`.
+
 <!-- COUNTS -->
 
 <!-- CORPUS -->
@@ -89,10 +140,10 @@ The relevant literature is old and small, and it's filed under ergonomics, outsi
   entry, tracking reduced trapezius EMG gaps.
 - [`schleifer2002-hyperventilation-job-stress`](#schleifer2002-hyperventilation-job-stress): the
   theory paper tying it together, which states that hyperventilation "is often characterized by a
-  shift from a **diaphragmatic to a thoracic** breathing pattern," recruiting sternocleidomastoid,
+  shift from a diaphragmatic to a thoracic breathing pattern," recruiting sternocleidomastoid,
   scalene and trapezius.
 
-That diaphragmatic-to-thoracic shift is what people mean by "shallow": chest breathing instead of
+That diaphragmatic-to-thoracic shift is what people mean by *shallow*: chest breathing instead of
 belly breathing. It's a theory of mechanism, and no study in this corpus measures chest against
 diaphragm breathing in screen users.
 
@@ -109,7 +160,7 @@ and lower peak expiratory flow than lighter users, and
 [`deniz2024-forward-head-lung-volumes`](#deniz2024-forward-head-lung-volumes) found forward head
 posture associated with FVC reductions of 0.25 to 0.81 L across 115 participants.
 
-**What the evidence doesn't support** is "shallow" meaning a reduced *volume of air moved*.
+**What the evidence doesn't support** is *shallow* meaning a reduced *volume of air moved*.
 [`grassmann2016-cognitive-load-respiration`](#grassmann2016-cognitive-load-respiration), 54
 experiments, finds respiratory amplitude roughly stable and minute ventilation **up** under
 cognitive load. Both things can hold at once: more air per minute, on the theory above moved by
@@ -264,8 +315,8 @@ across a session. Graded extension of the breath fits the pranayama tradition br
 contents of [`satyananda1999-apmb`](#satyananda1999-apmb) haven't been read to confirm it, and no
 study in this corpus examines a progressively lengthening pace at all.
 [`szulczewski2019-training-relaxation`](#szulczewski2019-training-relaxation)
-trained at a fixed rate and found relaxation accrued over a week of practice, which supports "keep
-practicing" and is silent on "keep slowing down within a session."
+trained at a fixed rate and found relaxation accrued over a week of practice, which supports
+continued practice and says nothing about slowing down further within a session.
 
 Nothing in this review contradicts the tradition either. The primary rate-comparison studies in this
 corpus stop below about 5 breaths a minute and don't report worse outcomes there.
@@ -306,7 +357,7 @@ would disagree with the minute figures quoted above, which are anchored to the 1
 ### 7. Randomized timing has no literature behind it either
 
 The four randomization sliders inject per-phase jitter. Every pacing study in this corpus uses a
-fixed rate, which is what "paced" means. The nearest adjacent literature is
+fixed rate, which is what *paced* means. The nearest adjacent literature is
 [`vlemincx2013-sigh-reset-model`](#vlemincx2013-sigh-reset-model), on natural respiratory
 variability and sighs, which is about spontaneous breathing, while the sliders destabilize a
 pacer. Defaults are 0, which is the right default. Treat the sliders as an
