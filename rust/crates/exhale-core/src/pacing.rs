@@ -17,16 +17,57 @@
 
 use crate::settings::{Settings, TIMING_EPS};
 
-/// Slowest rate with direct experimental support, in breaths per minute
+/// A number the binary states that it took from a source, held to the
+/// sentence that prints it
 ///
-/// From `you2023-respiratory-frequency`, which tested 5, 5.5, 6, 6.5
-/// and 7 cycles per minute. The endpoints are the edges of what was
-/// run: a fact about the experiment, separate from a recommendation
-/// or a safe range. Outside it means untested here, which is
-/// different from tested and found wanting. Gaps ledger item 2
-pub(crate) const TESTED_MIN_BPM: f64 = 5.0;
-/// Fastest rate with direct experimental support. See [`TESTED_MIN_BPM`]
-pub(crate) const TESTED_MAX_BPM: f64 = 7.0;
+/// `scripts/generate-citations.py` checks `citekey`, `locator` and `quote`
+/// against `docs/CITATIONS.csl.json`, and the test below checks `value`
+/// against `quote`
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Pinned {
+    pub value: f64,
+    // The binary reads only `value`. The rest is for the test and for the
+    // Python check, which parses this source as text
+    #[allow(dead_code)]
+    pub spelled: &'static str,
+    #[allow(dead_code)]
+    pub citekey: &'static str,
+    #[allow(dead_code)]
+    pub locator: &'static str,
+    #[allow(dead_code)]
+    pub quote: &'static str,
+}
+
+/// The abstract's own words on the rates it tested, copied exactly
+const YOU_2023_RATES: &str =
+    "including SPB at different frequencies (5 cycles per minute (cpm), 5.5 cpm, 6 cpm, 6.5 cpm, 7 cpm)";
+
+/// Slowest rate with direct experimental support
+///
+/// `you2023-respiratory-frequency` tested 5, 5.5, 6, 6.5 and 7 cycles
+/// per minute. The endpoints are the edges of what was run: a fact
+/// about the experiment, separate from a recommendation or a safe
+/// range. Outside it means untested here, which is different from
+/// tested and found wanting. Gaps ledger item 2
+pub(crate) const TESTED_MIN: Pinned = Pinned {
+    value: 5.0,
+    spelled: "5 cycles per minute",
+    citekey: "you2023-respiratory-frequency",
+    locator: "Abstract",
+    quote: YOU_2023_RATES,
+};
+/// Fastest rate with direct experimental support. See [`TESTED_MIN`]
+pub(crate) const TESTED_MAX: Pinned = Pinned {
+    value: 7.0,
+    spelled: "7 cpm",
+    citekey: "you2023-respiratory-frequency",
+    locator: "Abstract",
+    quote: YOU_2023_RATES,
+};
+/// [`TESTED_MIN`] as a bare number of breaths per minute
+pub(crate) const TESTED_MIN_BPM: f64 = TESTED_MIN.value;
+/// [`TESTED_MAX`] as a bare number of breaths per minute
+pub(crate) const TESTED_MAX_BPM: f64 = TESTED_MAX.value;
 
 /// Where a rate sits relative to the directly tested range
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -369,6 +410,22 @@ mod tests {
         let lines = readout_lines(&s);
         assert!(lines[0].contains("5.0 breaths a minute"), "{}", lines[0]);
         assert!(lines[1].ends_with("This one is one of them."), "{}", lines[1]);
+    }
+
+    #[test]
+    fn each_pinned_figure_agrees_with_the_sentence_that_prints_it() {
+        // The Python check holds `quote` to the corpus. This holds `value`
+        // to `quote`, so the number the binary uses is the number the
+        // source prints
+        for pin in [TESTED_MIN, TESTED_MAX] {
+            let (spelled, quote) = (pin.spelled, pin.quote);
+            assert!(quote.contains(spelled), "{spelled:?} isn't in {quote:?}");
+            let leading: String = spelled
+                .chars()
+                .take_while(|c| c.is_ascii_digit() || *c == '.')
+                .collect();
+            assert_eq!(leading.parse::<f64>(), Ok(pin.value), "{spelled:?}");
+        }
     }
 
     #[test]
