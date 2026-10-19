@@ -147,11 +147,19 @@ Linux `.deb` and AppImage packages are on the [Releases](https://github.com/pete
 
 **Mac**
 
-[<img src="https://user-images.githubusercontent.com/60944077/232312847-df673556-fb5e-49b4-8037-4d38267e6e18.png"  width="157" height="63"></img>](https://apps.apple.com/us/app/exhale-breath/id6447758995?mt=12)
+[<img src="https://user-images.githubusercontent.com/60944077/232312847-df673556-fb5e-49b4-8037-4d38267e6e18.png" alt="Download on the App Store" width="157" height="63"></img>](https://apps.apple.com/us/app/exhale-breath/id6447758995?mt=12)
 
-**Windows**: install exhale from the Microsoft Store, or build the standalone `.exe` from source (see [Build & run](#build--run)).
+**Windows**
 
-**Linux**: install the Snap from the Snap Store, or build from source.
+[<img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Download from the Microsoft Store" width="146" height="40">](https://apps.microsoft.com/detail/9p79z1njmzb3)
+
+You can also build the standalone `.exe` from source (see [Build & run](#build--run)).
+
+**Linux**
+
+[<img src="https://snapcraft.io/static/images/badges/en/snap-store-black.svg" alt="Get it from the Snap Store" width="130" height="40">](https://snapcraft.io/exhale-app)
+
+You can also build from source (see [Build & run](#build--run)).
 
 ## Usage
 
