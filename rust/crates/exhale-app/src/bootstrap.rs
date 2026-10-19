@@ -7,6 +7,8 @@
 
 use std::path::PathBuf;
 
+use exhale_core::settings_manager::file_label;
+
 /// Outcome of [`single_instance_guard`].  See enum variants for
 /// platform behaviour
 pub(crate) enum InstanceGuard {
@@ -58,7 +60,7 @@ pub(crate) fn single_instance_guard() -> InstanceGuard {
             log::warn!(
                 "single_instance_guard: could not open lock file {} ({e}), \
                  running without the guard",
-                lock_path.display(),
+                file_label(&lock_path),
             );
             return InstanceGuard::Unavailable;
         }
@@ -96,9 +98,9 @@ pub(crate) fn single_instance_guard() -> InstanceGuard {
                  if you intended to relaunch a new build.",
             );
             log::info!(
-                "single_instance_guard: another instance holds the lock at {}, \
+                "single_instance_guard: another instance holds the lock on {}, \
                  bringing it to front and exiting",
-                lock_path.display(),
+                file_label(&lock_path),
             );
             #[cfg(target_os = "macos")]
             crate::platform::activate_running_exhale();

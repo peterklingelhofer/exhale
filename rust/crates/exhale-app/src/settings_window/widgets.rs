@@ -158,8 +158,11 @@ pub(super) fn control_button(
     // so the top row matches the Cancel / Reset pair height.  The
     // icon + label rendering below still fits since we paint at
     // 16-pt icon and 12-pt label, both within the 22-pt bounds
+    //
+    // In a disabled `Ui` (`ui.add_enabled_ui(false, ..)`) the button takes
+    // no clicks and Tab skips it: see [`click_sense`]
     let size     = egui::vec2(width, ROW_H);
-    let response = ui.add_sized(size, egui::Button::new(""));
+    let response = ui.add_sized(size, egui::Button::new("").sense(click_sense(ui)));
     let rect     = response.rect;
 
     scroll_into_view_on_focus(&response);
@@ -345,7 +348,8 @@ pub(super) fn control_button(
         text, font_label, content_color,
     );
 
-    response.on_hover_text(help)
+    // `help` also shows on a disabled button, where it says why
+    response.on_hover_text(help).on_disabled_hover_text(help)
 }
 
 // Layout constants mirror SwiftUI SettingsView.swift:

@@ -30,8 +30,9 @@ use exhale_core::{
     controller::{BreathingController, PhaseEnd, PhaseObserver},
     poison::RwLockPoisonExt,
     session_log::{self, SessionLog, Value},
-    settings::{Settings, ShortcutAction},
-    settings_manager::SettingsManager,
+    settings::{Settings, SettingsDiff, ShortcutAction},
+    settings_manager::{file_label, SettingsManager},
+    study::{StudyError, StudyStatus},
     types::DisplayMode,
 };
 use exhale_render::GpuContext;
@@ -125,6 +126,84 @@ fn animation_fields(settings: &Settings) -> [(&'static str, Value<'_>); 5] {
     ]
 }
 
+// ─── Study mode ───────────────────────────────────────────────────────
+
+/// Whether the pace is kept from the participant: any study status but
+/// `Off`
+///
+/// This is "study mode" for every surface that hides something. A locked
+/// study hides the pace so the participant stays blinded. A study that
+/// can't run (a file that failed to load, a log that won't open) hides it
+/// for the same reason: the pace it would show is whatever `settings.toml`
+/// held, and the lab hasn't assigned that. `pub(crate)` because the
+/// settings window decides its cards by it
+pub(crate) fn hides_pacing(status: &StudyStatus) -> bool {
+    !matches!(status, StudyStatus::Off)
+}
+
+/// Reset `settings` to their defaults and write the study log's `reset`
+/// line
+///
+/// Every Reset goes through here: the settings panel's button after its
+/// confirmation, which the hotkey raises as well, and the tray item. In a
+/// study the lock outlives it (see `Settings::reset_preserving_runtime_state`),
+/// so what comes back is Show In and the shortcuts. The line has no
+/// fields, only the time the participant pressed Reset. `pub(crate)`
+/// because the panel's button calls it
+pub(crate) fn reset_settings(settings: &mut Settings, log: Option<&SessionLog>) {
+    settings.reset_preserving_runtime_state();
+    if let Some(log) = log {
+        log.record("reset", &[]);
+    }
+}
+
+/// Put back what a study holds fixed, after the settings panel has had
+/// its turn
+///
+/// The panel works on a copy of the settings and the copy is committed
+/// when its frame ends. Re-applying the lock to the copy first means
+/// nothing the panel does can move a locked field, and a study that can't
+/// run stays stopped whatever a widget did to `is_animating`
+fn hold_study(settings: &mut Settings, status: &StudyStatus) {
+    if let Some(study) = settings.study.clone() {
+        study.apply(settings);
+    }
+    if status.error().is_some() {
+        settings.is_animating = false;
+    }
+}
+
+/// Open the participant's session log, when a study locked the app
+///
+/// Writes the `app_start` header and returns the log. `None` when no study
+/// file locked the pacing, so an ordinary install writes nothing and has
+/// nothing to export. `None` as well when the log can't be opened, and
+/// then the study is Broken: a study without its log is a lost
+/// measurement, so the card says so and Start does nothing until the
+/// problem is fixed and the app relaunched. The debug log gets the
+/// reason, with no participant id and no folder
+fn open_session_log(manager: &SettingsManager) -> Option<Arc<SessionLog>> {
+    let opened = {
+        let s = manager.settings.read_or_recover();
+        let study = s.study.as_ref()?;
+        SessionLog::open(manager.config_dir(), &study.participant_id).map(|log| {
+            log.record("app_start", &header_fields(&s));
+            Arc::new(log)
+        })
+        // `s` drops here, because `mark_study_broken` takes the write lock
+    };
+    match opened {
+        Ok(log) => {
+            info!("study session log opened");
+            Some(log)
+        }
+        Err(e) => {
+            manager.mark_study_broken(StudyError::log_unavailable(&e));
+            None
+        }
+    }
+}
+
 // ─── App state ────────────────────────────────────────────────────────────────
 
 struct App {
@@ -212,11 +291,13 @@ struct App {
     timers: Timers,
 
     // Study builds only: the append-only session log the participant
-    // hands back to the lab.  `None` in every ordinary build, and also
-    // in a study build whose log file couldn't be opened. The app runs
-    // locked either way, because a missing log is a lost measurement
-    // and a refused session is a lost participant
+    // hands back to the lab.  `None` in every ordinary build, and in a
+    // study that can't run, which opens no log (see `open_session_log`)
     session_log: Option<Arc<SessionLog>>,
+
+    // Set once the shutdown work in `exiting` has run, so a loop that
+    // ends twice does it once
+    shut_down: bool,
 }
 
 impl App {
@@ -251,6 +332,7 @@ impl App {
             hotkey_ids:       None,
             timers:           Timers::new(),
             session_log,
+            shut_down:        false,
         }
     }
 
@@ -362,8 +444,29 @@ impl App {
         }
     }
 
+    /// Whether the study can't run, so Start has to do nothing
+    fn study_broken(&self) -> bool {
+        self.settings_manager.study_status().error().is_some()
+    }
+
+    /// Whether the Research item may show in the tray and the macOS app
+    /// menu.  Nothing a participant can reach may point at the evidence
+    /// while the pace is hidden: a blinded arm that reads what the rates
+    /// are studied for is no longer blinded
+    fn show_research(&self) -> bool {
+        !hides_pacing(&self.settings_manager.study_status())
+    }
+
     fn do_start(&mut self) {
+        // The tray item and the panel button are disabled, and this is
+        // the hotkey's guard
+        if self.study_broken() {
+            info!("start ignored: the study can't run");
+            return;
+        }
         self.set_animating(true);
+        // Logged every time: a Start while running restarts the breath,
+        // and the log has to show the restart
         if let Some(log) = &self.session_log {
             let s = self.settings.read_or_recover();
             log.record("animation_start", &animation_fields(&s));
@@ -372,20 +475,27 @@ impl App {
     }
 
     fn do_stop(&mut self) {
+        let was_animating = self.settings.read_or_recover().is_animating;
         self.set_animating(false);
         // Force one final render so the shader sees display_mode=STOPPED and
         // clears to transparent, matches Swift `window.backgroundColor = .clear`
         for h in self.overlays.values() { h.wake_render(); }
-        if let Some(log) = &self.session_log {
-            log.record("animation_stop", &[]);
+        // Logged only when it stopped something: a Stop hotkey pressed
+        // while stopped would otherwise write a second `animation_stop`
+        if was_animating {
+            if let Some(log) = &self.session_log {
+                log.record("animation_stop", &[]);
+            }
         }
         self.request_settings_redraw();
     }
 
     fn update_tray_state(&self, s: &exhale_core::settings::Settings) {
         if let Some(ids) = &self.tray_ids {
-            // Start disabled while animating (matches Swift AppDelegate)
-            ids.top_item(ShortcutAction::Start).set_enabled(!s.is_animating);
+            // Start disabled while animating (matches Swift AppDelegate),
+            // and for good in a study that can't run
+            ids.top_item(ShortcutAction::Start)
+                .set_enabled(!s.is_animating && !self.study_broken());
             // Stop enabled when animating or paused (matches Swift AppDelegate)
             ids.top_item(ShortcutAction::Stop).set_enabled(s.is_animating || s.is_paused);
         }
@@ -398,13 +508,8 @@ impl App {
         let needs_tray = vis != AppVisibility::DockOnly;
         let has_tray   = self._tray.is_some();
         if needs_tray && !has_tray {
-            // Study mode drops the Research item: nothing a participant
-            // can reach may point at the evidence
-            let (shortcuts, show_research) = {
-                let s = self.settings.read_or_recover();
-                (s.keyboard_shortcuts.clone(), s.study.is_none())
-            };
-            match tray::build_tray(&shortcuts, show_research) {
+            let shortcuts = self.settings.read_or_recover().keyboard_shortcuts.clone();
+            match tray::build_tray(&shortcuts, self.show_research()) {
                 Ok((t, ids)) => {
                     let s = self.settings.read_or_recover();
                     self._tray    = Some(t);
@@ -422,10 +527,11 @@ impl App {
     fn do_reset(&mut self, event_loop: &ActiveEventLoop) {
         let mut s = self.settings.write_or_recover();
         let before = s.clone();
-        s.reset_preserving_runtime_state();
-        let diff = exhale_core::settings::SettingsDiff::from(&before, &s);
-        self.timers.reschedule_auto_stop(&s);
-        self.timers.reschedule_reminder(&s);
+        reset_settings(&mut s, self.session_log.as_deref());
+        let diff = SettingsDiff::from(&before, &s);
+        // Only the timers whose setting changed, as the panel does: in a
+        // study neither does, and a Reset mustn't restart the countdown
+        self.timers.reschedule_for(&diff, &s);
         self.settings_manager.mark_dirty();
         self.update_tray_state(&s);
         drop(s);
@@ -987,7 +1093,7 @@ impl ApplicationHandler<AppEvent> for App {
         // Cmd-X/Cmd-C/etc all stop working.  Closes a Swift-parity gap
         // that's invisible until you try to copy text from a settings
         // field.  No-op on Windows / Linux
-        platform::install_main_menu(self.settings.read_or_recover().study.is_none());
+        platform::install_main_menu(self.show_research());
 
         // ── Dock-icon reopen handler (macOS-only internally, no-op elsewhere) ─
         platform::register_reopen_handler();
@@ -1101,6 +1207,11 @@ impl ApplicationHandler<AppEvent> for App {
                             Err(e) => { error!("settings render: {e}"); std::time::Duration::MAX }
                         };
 
+                        // Whatever the panel did, a study's lock stands and a
+                        // study that can't run stays stopped.  Before the
+                        // diff, so the diff describes what's committed
+                        hold_study(&mut settings, &self.settings_manager.study_status());
+
                         // Quit-button clicks dispatch directly through the
                         // `on_quit` callback passed in at SettingsWindow
                         // construction: no flag polling here
@@ -1108,7 +1219,7 @@ impl ApplicationHandler<AppEvent> for App {
                         // Diff before/after in one pass.  Adding a new
                         // setting is a one-line edit to
                         // `SettingsDiff::from` in exhale-core
-                        let diff = exhale_core::settings::SettingsDiff::from(&before, &settings);
+                        let diff = SettingsDiff::from(&before, &settings);
 
                         // Commit the (possibly-mutated) snapshot back.  The
                         // write lock is held only for a struct assignment: brief
@@ -1146,8 +1257,8 @@ impl ApplicationHandler<AppEvent> for App {
                         };
 
                         // Reschedule timers if relevant settings changed
+                        self.timers.reschedule_for(&diff, &settings);
                         if diff.auto_stop_changed || diff.animating_changed {
-                            self.timers.reschedule_auto_stop(&settings);
                             self.update_tray_state(&settings);
                         }
                         // Display changed: swap the animation windows for
@@ -1176,13 +1287,10 @@ impl ApplicationHandler<AppEvent> for App {
                                 h.set_animation_visible(settings.is_animating);
                             }
                         }
-                        if diff.reminder_changed {
-                            self.timers.reschedule_reminder(&settings);
-                            // Request notification permission when reminders are first enabled
-                            // (macOS-only, no-op elsewhere)
-                            if settings.reminder_interval_minutes > 0.0 {
-                                platform::request_notification_permission();
-                            }
+                        // Request notification permission when reminders are first enabled
+                        // (macOS-only, no-op elsewhere)
+                        if diff.reminder_changed && settings.reminder_interval_minutes > 0.0 {
+                            platform::request_notification_permission();
                         }
 
                         let should_restart = diff.should_restart_animation(&settings);
@@ -1329,6 +1437,22 @@ impl ApplicationHandler<AppEvent> for App {
         if let WindowEvent::CloseRequested = event {
             self.shutdown(event_loop);
         }
+    }
+
+    /// The shutdown work: the `app_stop` line, the controller, the last
+    /// settings write
+    ///
+    /// winit calls it once as the loop ends, from `applicationWillTerminate:`
+    /// on macOS as well, which is how Cmd-Q, the app menu's Quit and the
+    /// Dock's get an `app_stop` line and a settings flush.  The flag keeps a
+    /// second call from writing a second line
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        shut_down(
+            &mut self.shut_down,
+            self.session_log.as_deref(),
+            self.controller.as_mut(),
+            &self.settings_manager,
+        );
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
@@ -1479,13 +1603,35 @@ impl ApplicationHandler<AppEvent> for App {
 }
 
 impl App {
-    fn shutdown(&mut self, event_loop: &ActiveEventLoop) {
-        info!("shutting down, flushing settings");
-        if let Some(log) = &self.session_log { log.record("app_stop", &[]); }
-        if let Some(c) = self.controller.as_mut() { c.stop(); }
-        if let Err(e) = self.settings_manager.flush_sync() { error!("flush: {e}"); }
+    /// Ask the event loop to end.  The shutdown work runs in
+    /// [`ApplicationHandler::exiting`], which every way out reaches: the
+    /// Quit button, the tray, the Linux window's close box, and on macOS
+    /// Cmd-Q, the app menu's Quit and the Dock's, which end in
+    /// `terminate:` and never come through here
+    fn shutdown(&self, event_loop: &ActiveEventLoop) {
         event_loop.exit();
     }
+}
+
+/// The shutdown work, once: the `app_stop` line, the controller, the last
+/// settings write
+///
+/// `done` is the flag that makes a second call do nothing, so a loop that
+/// ends twice writes one `app_stop`. The line comes first, so a hung join
+/// can't cost the log its last event
+fn shut_down(
+    done:       &mut bool,
+    log:        Option<&SessionLog>,
+    controller: Option<&mut BreathingController>,
+    manager:    &SettingsManager,
+) {
+    if std::mem::replace(done, true) {
+        return;
+    }
+    info!("shutting down, flushing settings");
+    if let Some(log) = log { log.record("app_stop", &[]); }
+    if let Some(c) = controller { c.stop(); }
+    if let Err(e) = manager.flush_sync() { error!("flush: {e}"); }
 }
 
 // ─── main ─────────────────────────────────────────────────────────────────────
@@ -1558,7 +1704,9 @@ fn main() -> Result<()> {
         InstanceGuard::Secondary   => return Ok(()),
         InstanceGuard::Unavailable => None,
     };
-    info!("logging to {}", log_path.display());
+    // File names alone: the folders above them include the home folder,
+    // which is named after the OS account
+    info!("logging to {}", file_label(&log_path));
 
     // Linux: initialise GTK before anything in the tray-icon path runs.
     // `tray-icon` builds on top of GTK + libayatana-appindicator on
@@ -1574,38 +1722,14 @@ fn main() -> Result<()> {
     }
 
     let settings_manager = Arc::new(SettingsManager::new()?);
-    info!("settings: {}", settings_manager.config_path().display());
+    info!("settings: {}", file_label(settings_manager.config_path()));
 
     // Study builds keep a local session log beside settings.toml.  It
     // is opened only when a study file locked the pacing, so an
     // ordinary install writes nothing and has nothing to export.  A log
-    // that won't open is logged and skipped: the participant still gets
-    // their session at the assigned pace
-    let session_log = {
-        let s = settings_manager.settings.read_or_recover();
-        if let Some(study) = &s.study {
-            // Part 3: a log that can't open puts the app in the broken
-            // state (D1): `settings_manager.mark_study_broken(
-            // StudyError::log_unavailable(&e))`, called once `s` is
-            // dropped, because that takes the settings write lock. The
-            // two lines below stop naming the folder (C3). Until then
-            // the session runs without a log
-            match SessionLog::open(settings_manager.config_dir(), &study.participant_id) {
-                Ok(log) => {
-                    let log = Arc::new(log);
-                    log.record("app_start", &header_fields(&s));
-                    info!("study session log: {}", log.path().display());
-                    Some(log)
-                }
-                Err(e) => {
-                    error!("session log in {}: {e}", settings_manager.config_dir().display());
-                    None
-                }
-            }
-        } else {
-            None
-        }
-    };
+    // that won't open puts the study in the Broken state, where the
+    // overlay stays still and the window says why
+    let session_log = open_session_log(&settings_manager);
 
     let event_loop = EventLoop::<AppEvent>::with_user_event().build()?;
     let proxy      = event_loop.create_proxy();
@@ -1615,4 +1739,266 @@ fn main() -> Result<()> {
     // A fatal failure in `resumed()` exits the loop the way a quit does,
     // so hand it back here for a non-zero exit status
     app.fatal.map_or(Ok(()), Err)
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+/// A settings folder with a study file in it, shared with the settings
+/// window's tests
+#[cfg(test)]
+pub(crate) mod test_support {
+    use std::{
+        path::PathBuf,
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        },
+    };
+
+    use exhale_core::{session_log::SessionLog, settings_manager::SettingsManager};
+
+    /// The log's lines, each as the event name it wrote
+    pub(crate) fn events(log: &SessionLog) -> Vec<String> {
+        std::fs::read_to_string(log.path())
+            .expect("read the log")
+            .lines()
+            .map(|line| {
+                let after = line.split("\"event\":\"").nth(1).expect("an event field");
+                after.split('"').next().expect("a closing quote").to_string()
+            })
+            .collect()
+    }
+
+    /// A study file that locks the pace at 5 and 5 for participant `P07`
+    /// on arm `arm-blue-7`, a code a test can look for on screen
+    pub(crate) const STUDY_FILE: &str = "participant_id = \"P07\"\n\
+                                         condition = \"arm-blue-7\"\n\
+                                         inhale_duration = 5.0\n\
+                                         post_inhale_hold_duration = 0.0\n\
+                                         exhale_duration = 5.0\n\
+                                         post_exhale_hold_duration = 0.0\n";
+
+    /// A study file whose inhale is below the shortest phase the
+    /// controller runs. The number is one a test can look for on screen
+    pub(crate) const BROKEN_STUDY_FILE: &str = "participant_id = \"P07\"\n\
+                                                condition = \"arm-blue-7\"\n\
+                                                inhale_duration = 0.0731\n\
+                                                post_inhale_hold_duration = 0.0\n\
+                                                exhale_duration = 5.0\n\
+                                                post_exhale_hold_duration = 0.0\n";
+
+    /// A settings folder of its own, with a manager over it. The study
+    /// file, when given, decides the manager's status the way it does at
+    /// launch
+    pub(crate) struct Folder {
+        pub(crate) dir:     PathBuf,
+        pub(crate) manager: Arc<SettingsManager>,
+    }
+
+    impl Folder {
+        pub(crate) fn new(tag: &str, study_file: Option<&str>) -> Self {
+            match study_file {
+                Some(text) => Self::with_files(tag, &[("study.toml", text)]),
+                None       => Self::with_files(tag, &[]),
+            }
+        }
+
+        /// A folder holding these `(name, contents)` files before the
+        /// manager reads it
+        pub(crate) fn with_files(tag: &str, files: &[(&str, &str)]) -> Self {
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            let dir = std::env::temp_dir().join(format!(
+                "exhale-app-test-{tag}-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed),
+            ));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).expect("create the settings folder");
+            for (name, text) in files {
+                std::fs::write(dir.join(name), text).expect("write a file into the folder");
+            }
+            let manager = SettingsManager::with_config_path(dir.join("settings.toml"))
+                .expect("a manager over the folder");
+            Self { dir, manager: Arc::new(manager) }
+        }
+    }
+
+    impl Drop for Folder {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::test_support::{events, Folder, BROKEN_STUDY_FILE, STUDY_FILE};
+
+    /// `Settings` has no `PartialEq`, so two are the same when every field
+    /// prints the same
+    fn assert_same(a: &Settings, b: &Settings, why: &str) {
+        assert_eq!(format!("{a:?}"), format!("{b:?}"), "{why}");
+    }
+
+    // ── Which status hides the pace ───────────────────────────────
+
+    #[test]
+    fn every_status_but_off_hides_the_pace() {
+        let broken = StudyStatus::Broken(StudyError::log_unavailable(&std::io::Error::other("x")));
+        assert!(!hides_pacing(&StudyStatus::Off));
+        assert!(hides_pacing(&StudyStatus::Locked));
+        assert!(hides_pacing(&broken), "a study that can't run hides it too");
+    }
+
+    // ── The session log opens, or the study breaks ────────────────
+
+    #[test]
+    fn a_study_opens_its_log_and_writes_the_header() {
+        let folder = Folder::new("open", Some(STUDY_FILE));
+        assert_eq!(folder.manager.study_status(), StudyStatus::Locked);
+
+        let log = open_session_log(&folder.manager).expect("the log opens");
+
+        assert_eq!(folder.manager.study_status(), StudyStatus::Locked);
+        assert_eq!(events(&log), ["app_start"]);
+        assert!(log.path().ends_with("exhale-log-P07.jsonl"));
+        let header = std::fs::read_to_string(log.path()).expect("read");
+        assert!(header.contains("\"participant_id\":\"P07\""), "{header}");
+    }
+
+    #[test]
+    fn no_study_opens_no_log() {
+        let folder = Folder::new("nostudy", None);
+        assert_eq!(folder.manager.study_status(), StudyStatus::Off);
+
+        assert!(open_session_log(&folder.manager).is_none());
+
+        let listing: Vec<_> = std::fs::read_dir(&folder.dir).expect("list").flatten().collect();
+        assert!(
+            listing.iter().all(|e| !e.file_name().to_string_lossy().starts_with("exhale-log")),
+            "an ordinary install writes no log"
+        );
+    }
+
+    #[test]
+    fn a_log_that_will_not_open_breaks_the_study_and_leaves_the_animation_stopped() {
+        let folder = Folder::new("blocked", Some(STUDY_FILE));
+        // A directory where the log file belongs: the open fails
+        std::fs::create_dir(folder.dir.join("exhale-log-P07.jsonl")).expect("block the log");
+        assert_eq!(folder.manager.study_status(), StudyStatus::Locked);
+        assert!(folder.manager.settings.read_or_recover().is_animating, "a locked app starts running");
+
+        assert!(open_session_log(&folder.manager).is_none());
+
+        let status = folder.manager.study_status();
+        let err = status.error().expect("the study is broken");
+        assert!(err.summary().contains("session log"), "{}", err.summary());
+        let s = folder.manager.settings.read_or_recover();
+        assert!(!s.is_animating, "the overlay stays still");
+        assert!(s.study.is_some(), "the lock itself stays in force");
+    }
+
+    // ── What the panel can't move ─────────────────────────────────
+
+    #[test]
+    fn holding_a_study_puts_every_locked_field_back_and_leaves_the_rest() {
+        let folder = Folder::new("hold", Some(STUDY_FILE));
+        let locked = folder.manager.settings.read_or_recover().clone();
+        let mut s = locked.clone();
+        s.inhale_duration = 9.0;
+        s.drift           = 1.5;
+        s.shape           = exhale_core::types::AnimationShape::Circle;
+        s.inhale_color    = [0.3, 0.3, 0.3, 1.0];
+        s.display_mode    = DisplayMode::Window;
+        s.auto_stop_minutes = 3.0;
+        s.app_visibility  = exhale_core::types::AppVisibility::DockOnly;
+
+        hold_study(&mut s, &StudyStatus::Locked);
+
+        let mut want = locked.clone();
+        want.app_visibility = exhale_core::types::AppVisibility::DockOnly;
+        assert_same(&s, &want, "everything the file locks is back, and Show In stays the participant's");
+    }
+
+    #[test]
+    fn holding_leaves_an_ordinary_install_alone() {
+        let mut s = Settings { inhale_duration: 9.0, is_animating: true, ..Settings::default() };
+        let before = s.clone();
+        hold_study(&mut s, &StudyStatus::Off);
+        assert_same(&s, &before, "no study, nothing to put back");
+    }
+
+    #[test]
+    fn a_study_that_cannot_run_cannot_be_started_by_the_panel() {
+        let folder = Folder::new("hold-broken", Some(BROKEN_STUDY_FILE));
+        let status = folder.manager.study_status();
+        assert!(status.error().is_some());
+        let mut s = folder.manager.settings.read_or_recover().clone();
+        assert!(!s.is_animating);
+        // What a Start button would have done
+        s.is_animating = true;
+
+        hold_study(&mut s, &status);
+
+        assert!(!s.is_animating);
+    }
+
+    // ── Shutdown ──────────────────────────────────────────────────
+
+    #[test]
+    fn shutting_down_twice_writes_one_app_stop_and_flushes_the_settings() {
+        let folder = Folder::new("shutdown", Some(STUDY_FILE));
+        let log = open_session_log(&folder.manager).expect("the log opens");
+        let settings = folder.dir.join("settings.toml");
+        assert!(!settings.exists(), "nothing has written the settings yet");
+        // A running controller, which the shutdown has to stop and join
+        let mut controller = BreathingController::start(
+            Arc::clone(&folder.manager.settings),
+            Arc::new(std::sync::Mutex::new(None)),
+            Arc::new(|| {}),
+            None,
+        );
+        let mut done = false;
+
+        shut_down(&mut done, Some(&log), Some(&mut controller), &folder.manager);
+        shut_down(&mut done, Some(&log), Some(&mut controller), &folder.manager);
+
+        assert_eq!(events(&log), ["app_start", "app_stop"], "one app_stop, however often the loop ends");
+        assert!(settings.exists(), "the settings were flushed");
+    }
+
+    #[test]
+    fn shutting_down_an_ordinary_install_writes_no_log_and_still_flushes() {
+        let folder = Folder::new("shutdown-plain", None);
+        let mut done = false;
+        shut_down(&mut done, None, None, &folder.manager);
+        assert!(folder.dir.join("settings.toml").exists());
+    }
+
+    // ── Reset ─────────────────────────────────────────────────────
+
+    #[test]
+    fn reset_writes_a_line_with_no_fields_and_keeps_the_lock() {
+        let folder = Folder::new("reset", Some(STUDY_FILE));
+        let log = open_session_log(&folder.manager).expect("the log opens");
+        let mut s = folder.manager.settings.read_or_recover().clone();
+        let locked = s.clone();
+        s.app_visibility = exhale_core::types::AppVisibility::DockOnly;
+
+        reset_settings(&mut s, Some(&log));
+
+        assert_eq!(events(&log), ["app_start", "reset"]);
+        let last = std::fs::read_to_string(log.path()).expect("read");
+        let last = last.lines().last().expect("a line");
+        assert!(last.ends_with("\"event\":\"reset\"}"), "no fields after the event: {last}");
+        assert_same(&s, &locked, "Show In is back and the lock stands");
+    }
+
+    #[test]
+    fn reset_without_a_log_writes_nothing_and_still_resets() {
+        let mut s = Settings { inhale_duration: 9.0, ..Settings::default() };
+        reset_settings(&mut s, None);
+        assert_eq!(s.inhale_duration, Settings::default().inhale_duration);
+    }
 }

@@ -142,8 +142,9 @@ fn config_file_path() -> Result<PathBuf> {
 /// The last component of `path`, for a debug-log line
 ///
 /// The folders above it include the home folder, which is named after the
-/// OS account
-fn file_label(path: &Path) -> String {
+/// OS account. Public so the app's own debug-log lines can name a file the
+/// same way
+pub fn file_label(path: &Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default()

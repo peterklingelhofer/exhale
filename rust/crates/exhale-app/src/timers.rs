@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use exhale_core::settings::Settings;
+use exhale_core::settings::{Settings, SettingsDiff};
 use log::info;
 
 /// `from` plus `minutes`, or `None` when that isn't a time the clock can hold
@@ -45,6 +45,23 @@ impl Timers {
         } else {
             None
         };
+    }
+
+    /// Re-arm the timers a settings change touched, and leave the others
+    /// running
+    ///
+    /// The settings panel and the tray's Reset both go through here. A
+    /// Reset in a study changes neither timer, because the file locks
+    /// them, and the auto-stop countdown counts from the latest Start:
+    /// re-arming it would give the participant a fresh countdown that no
+    /// Start began
+    pub fn reschedule_for(&mut self, diff: &SettingsDiff, settings: &Settings) {
+        if diff.auto_stop_changed || diff.animating_changed {
+            self.reschedule_auto_stop(settings);
+        }
+        if diff.reminder_changed {
+            self.reschedule_reminder(settings);
+        }
     }
 
     /// Earliest time the event loop must wake to service a pending
@@ -406,6 +423,72 @@ mod tests {
         // `Option`, never a panic
         let _ = minutes_after(now, 2e17);
         let _ = minutes_after(now, 1.54e17);
+    }
+
+    // ── Re-arming after a settings change ─────────────────────────
+
+    /// Timers set to values a re-arm would replace: an auto-stop a second
+    /// out (a re-arm puts it half an hour out) and a reminder clock ten
+    /// seconds old (a re-arm puts it at now)
+    fn backdated_timers() -> (Timers, Settings) {
+        let s = settings_with(30.0, 15.0, true);
+        let mut t = Timers::new();
+        t.auto_stop_deadline = Some(Instant::now() + Duration::from_secs(1));
+        t.last_reminder      = Some(Instant::now() - Duration::from_secs(10));
+        (t, s)
+    }
+
+    #[test]
+    fn a_change_that_touches_neither_timer_leaves_both_running() {
+        // What Reset does in a study: the file locks both timers, so
+        // nothing about them changes and nothing starts over
+        let (mut t, s) = backdated_timers();
+        let (stop, last) = (t.auto_stop_deadline, t.last_reminder);
+
+        t.reschedule_for(&SettingsDiff::from(&s, &s), &s);
+
+        assert_eq!(t.auto_stop_deadline, stop, "the auto-stop countdown keeps counting");
+        assert_eq!(t.last_reminder, last, "the reminder clock keeps its start");
+    }
+
+    #[test]
+    fn a_new_auto_stop_length_re_arms_the_auto_stop_and_nothing_else() {
+        let (mut t, before) = backdated_timers();
+        let (stop, last) = (t.auto_stop_deadline.expect("armed"), t.last_reminder);
+        let mut after = before.clone();
+        after.auto_stop_minutes = 5.0;
+
+        t.reschedule_for(&SettingsDiff::from(&before, &after), &after);
+
+        let re_armed = t.auto_stop_deadline.expect("still armed");
+        assert!(re_armed > stop + Duration::from_secs(200), "five minutes out now");
+        assert_eq!(t.last_reminder, last);
+    }
+
+    #[test]
+    fn a_new_reminder_length_re_arms_the_reminder_and_nothing_else() {
+        let (mut t, before) = backdated_timers();
+        let (stop, last) = (t.auto_stop_deadline, t.last_reminder.expect("armed"));
+        let mut after = before.clone();
+        after.reminder_interval_minutes = 20.0;
+
+        t.reschedule_for(&SettingsDiff::from(&before, &after), &after);
+
+        assert_eq!(t.auto_stop_deadline, stop);
+        assert!(t.last_reminder.expect("still armed") > last, "the clock starts over");
+    }
+
+    #[test]
+    fn starting_and_stopping_re_arm_the_auto_stop() {
+        let (mut t, running) = backdated_timers();
+        let mut stopped = running.clone();
+        stopped.is_animating = false;
+
+        t.reschedule_for(&SettingsDiff::from(&running, &stopped), &stopped);
+        assert!(t.auto_stop_deadline.is_none(), "a stopped animation has no countdown");
+
+        t.reschedule_for(&SettingsDiff::from(&stopped, &running), &running);
+        assert!(t.auto_stop_deadline.is_some(), "a started one counts from now");
     }
 
     #[test]

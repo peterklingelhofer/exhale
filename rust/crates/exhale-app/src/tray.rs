@@ -170,11 +170,13 @@ fn submenu_label(action: ShortcutAction, shortcuts: &KeyboardShortcuts) -> Strin
 /// to [`TrayMenuIds::refresh_labels`] when bindings change to keep
 /// the menu in sync
 ///
-/// `show_research` is false in study mode, which leaves the Research
-/// item out of the menu.  Nothing a participant can reach may point at
-/// the evidence: a blinded arm that reads what the rates are studied
-/// for is no longer blinded.  The `research` handle in [`TrayMenuIds`]
-/// stays put either way, and an item that isn't in a menu never fires
+/// `show_research` is false while the pace is hidden (see
+/// `crate::hides_pacing`), a study that can't run included, which leaves
+/// the Research item out of the menu.  Nothing a participant can reach
+/// may point at the evidence: a blinded arm that reads what the rates are
+/// studied for is no longer blinded.  The `research` handle in
+/// [`TrayMenuIds`] stays put either way, and an item that isn't in a
+/// menu never fires
 pub fn build_tray(
     shortcuts:     &KeyboardShortcuts,
     show_research: bool,
