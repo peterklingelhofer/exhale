@@ -6,11 +6,11 @@ use std::{
 
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
-use log::{info, warn};
+use log::{error, info, warn};
 
 use crate::poison::RwLockPoisonExt;
 use crate::settings::Settings;
-use crate::study;
+use crate::study::{self, StudyStatus};
 
 /// Manages loading, saving, and sharing of [`Settings`]
 ///
@@ -25,10 +25,10 @@ use crate::study;
 pub struct SettingsManager {
     pub settings: Arc<RwLock<Settings>>,
     config_path:  PathBuf,
-    /// Why the study file beside `settings.toml` was ignored, when one
-    /// was there and couldn't be used. The settings window shows this
-    /// so a lab installing a file finds out it didn't take
-    study_error:  Option<String>,
+    /// What the study file beside `settings.toml` amounted to at launch.
+    /// Read once, so a file installed while the app runs takes effect
+    /// at the next launch
+    study_status: StudyStatus,
     dirty_tx:     std::sync::mpsc::Sender<()>,
     _writer:      std::thread::JoinHandle<()>,
 }
@@ -38,7 +38,7 @@ impl SettingsManager {
     /// the coalescing write-back thread
     pub fn new() -> Result<Self> {
         let config_path = config_file_path()?;
-        let (settings, study_error) = load_with_study(&config_path);
+        let (settings, study_status) = load_with_study(&config_path);
         let shared = Arc::new(RwLock::new(settings));
 
         let (dirty_tx, dirty_rx) = std::sync::mpsc::channel::<()>();
@@ -57,7 +57,7 @@ impl SettingsManager {
         Ok(Self {
             settings: shared,
             config_path,
-            study_error,
+            study_status,
             dirty_tx,
             _writer: writer,
         })
@@ -79,13 +79,15 @@ impl SettingsManager {
         self.config_path.parent().unwrap_or_else(|| Path::new("."))
     }
 
-    /// `Some(message)` when a study file was present and unusable
+    /// Off, locked by a valid study file, or broken by one that can't be
+    /// used
     ///
-    /// The app runs without the lock in that case, so the message has
-    /// to reach the screen: a silent fallback would hand a participant
-    /// the shipped default pace while the lab believes they're on an arm
-    pub fn study_error(&self) -> Option<&str> {
-        self.study_error.as_deref()
+    /// A broken study file fails closed: [`load_with_study`] has already
+    /// stopped the animation, and the app has to keep it stopped and say
+    /// why on screen. A silent fallback would hand a participant the
+    /// shipped default pace while the lab believes they're on an arm
+    pub fn study_status(&self) -> &StudyStatus {
+        &self.study_status
     }
 
     /// Synchronously flush settings to disk right now. Useful on
@@ -110,17 +112,28 @@ fn config_file_path() -> Result<PathBuf> {
     Ok(dir.join("settings.toml"))
 }
 
+/// The last component of `path`, for a debug-log line
+///
+/// The folders above it include the home folder, which is named after the
+/// OS account
+fn file_label(path: &Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
 fn load_or_default(path: &Path) -> Settings {
+    let name = file_label(path);
     let mut s = match std::fs::read_to_string(path) {
         Ok(contents) => match toml::from_str::<Settings>(&contents) {
-            Ok(s)  => { info!("loaded settings from {}", path.display()); s }
+            Ok(s)  => { info!("loaded {name}"); s }
             Err(e) => {
-                warn!("failed to parse {}: {e}, using defaults", path.display());
+                warn!("failed to parse {name}: {e}, using defaults");
                 Settings::default()
             }
         },
         Err(_) => {
-            info!("no settings file at {}, using defaults", path.display());
+            info!("no {name}, using defaults");
             Settings::default()
         }
     };
@@ -135,27 +148,28 @@ fn load_or_default(path: &Path) -> Settings {
 
 /// Load the settings file, then apply the study file beside it
 ///
-/// The second element is the message to show when a study file was
-/// there and couldn't be used. `None` covers both "no study file" and
-/// "the study file loaded cleanly", which the caller tells apart by
-/// looking at `settings.study`
-pub fn load_with_study(settings_path: &Path) -> (Settings, Option<String>) {
+/// The second element says what the study file amounted to. `Off` is
+/// every build that isn't running a study. `Locked` means the file's
+/// pacing is in the returned settings, with `settings.study` set.
+/// `Broken` means a study file is there and can't be used, and then the
+/// animation is stopped (`is_animating` false), and nothing is locked:
+/// the pace in the returned settings is whatever `settings.toml` held,
+/// and the app mustn't run it. The debug log gets the error's detail,
+/// which holds no participant id and no folder name
+pub fn load_with_study(settings_path: &Path) -> (Settings, StudyStatus) {
     let mut settings = load_or_default(settings_path);
     let study_path   = study::study_file_path(settings_path);
     match study::load(&study_path) {
         Ok(Some(cfg)) => {
-            info!(
-                "study mode: {} locked the pacing fields for participant {}",
-                study_path.display(),
-                cfg.participant_id,
-            );
+            info!("study mode: {} locked the pacing fields", study::STUDY_FILE_NAME);
             cfg.apply(&mut settings);
-            (settings, None)
+            (settings, StudyStatus::Locked)
         }
-        Ok(None) => (settings, None),
-        Err(msg) => {
-            warn!("{msg}. Pacing isn't locked");
-            (settings, Some(msg))
+        Ok(None) => (settings, StudyStatus::Off),
+        Err(e) => {
+            error!("study file unusable, the animation stays stopped: {}", e.detail());
+            settings.is_animating = false;
+            (settings, StudyStatus::Broken(e))
         }
     }
 }
@@ -165,10 +179,12 @@ fn save_settings(settings: &Settings, path: &PathBuf) -> Result<()> {
         .context("serialise settings")?;
     // Write to a temp file then rename: atomic on POSIX, best-effort on Windows
     let tmp = path.with_extension("toml.tmp");
+    // File names only: these messages reach the debug log, which holds
+    // no folder named after the account
     std::fs::write(&tmp, &contents)
-        .with_context(|| format!("write {}", tmp.display()))?;
+        .with_context(|| format!("write {}", file_label(&tmp)))?;
     std::fs::rename(&tmp, path)
-        .with_context(|| format!("rename {} -> {}", tmp.display(), path.display()))?;
+        .with_context(|| format!("rename {} -> {}", file_label(&tmp), file_label(path)))?;
     Ok(())
 }
 
@@ -295,8 +311,8 @@ mod tests {
         std::fs::write(dir.join(study::STUDY_FILE_NAME), FULL_STUDY_FILE)
             .expect("write study file");
 
-        let (s, err) = load_with_study(&settings);
-        assert_eq!(err, None);
+        let (s, status) = load_with_study(&settings);
+        assert_eq!(status, StudyStatus::Locked);
 
         assert_eq!(s.inhale_duration,           4.0);
         assert_eq!(s.post_inhale_hold_duration, 1.0);
@@ -320,24 +336,70 @@ mod tests {
         assert_eq!(study.condition, "B");
     }
 
+    const INVALID_STUDY_FILE: &str = concat!(
+        "participant_id = \"P07\"\n",
+        "condition = \"\"\n",
+        "inhale_duration = 5.0\n",
+        "post_inhale_hold_duration = 0.0\n",
+        "exhale_duration = 5.0\n",
+        "post_exhale_hold_duration = 0.0\n",
+    );
+
     #[test]
-    fn an_invalid_study_file_reports_and_leaves_the_app_unlocked() {
+    fn an_invalid_study_file_fails_closed() {
         let dir      = study_tmp_dir("invalid");
         let settings = dir.join("settings.toml");
         write_settings_file(&settings);
-        std::fs::write(
-            dir.join(study::STUDY_FILE_NAME),
-            "participant_id = \"P07\"\ncondition = \"\"\ninhale_duration = 5.0\n\
-             post_inhale_hold_duration = 0.0\nexhale_duration = 5.0\n\
-             post_exhale_hold_duration = 0.0\n",
-        ).expect("write study file");
+        std::fs::write(dir.join(study::STUDY_FILE_NAME), INVALID_STUDY_FILE)
+            .expect("write study file");
 
-        let (s, err) = load_with_study(&settings);
-        let msg = err.expect("an unusable study file reports why");
-        assert!(msg.contains("condition"), "{msg}");
-        assert!(s.study.is_none(), "an unusable file locks nothing");
+        let (s, status) = load_with_study(&settings);
+        let StudyStatus::Broken(err) = status else { panic!("expected Broken, got {status:?}") };
+        assert_eq!(err.summary(), "study.toml, line 2, field condition: can't be empty");
+
+        assert!(!s.is_animating, "an unusable study file leaves the animation stopped");
+        assert!(!s.is_paused);
+        assert!(s.study.is_none(), "and locks nothing");
+        // The settings file's pace is loaded, and it's the app's job to keep it from running
         assert_eq!(s.inhale_duration, load_or_default(&settings).inhale_duration);
         assert_eq!(s.shape, AnimationShape::Circle);
+    }
+
+    #[test]
+    fn every_kind_of_unusable_study_file_stops_the_animation() {
+        for tag in ["syntax", "validation", "directory", "misnamed"] {
+            let dir      = study_tmp_dir(tag);
+            let settings = dir.join("settings.toml");
+            write_settings_file(&settings);
+            match tag {
+                "syntax"     => std::fs::write(dir.join("study.toml"), "participant_id = ").expect("write"),
+                "validation" => std::fs::write(dir.join("study.toml"), INVALID_STUDY_FILE).expect("write"),
+                "directory"  => std::fs::create_dir(dir.join("study.toml")).expect("mkdir"),
+                _            => std::fs::write(dir.join("study.toml.txt"), FULL_STUDY_FILE).expect("write"),
+            }
+
+            let (s, status) = load_with_study(&settings);
+            assert!(matches!(status, StudyStatus::Broken(_)), "{tag}: {status:?}");
+            assert!(!s.is_animating, "{tag}");
+            assert!(s.study.is_none(), "{tag}");
+        }
+    }
+
+    #[test]
+    fn a_misnamed_study_file_names_itself_in_the_error() {
+        let dir      = study_tmp_dir("misnamed");
+        let settings = dir.join("settings.toml");
+        write_settings_file(&settings);
+        std::fs::write(dir.join("study.toml.txt"), FULL_STUDY_FILE).expect("write");
+
+        let (s, status) = load_with_study(&settings);
+        let err = status.error().expect("a misnamed file breaks the study");
+        assert_eq!(
+            err.summary(),
+            "study.toml: found \"study.toml.txt\" in the settings folder. Rename it to study.toml",
+        );
+        assert!(!s.is_animating);
+        assert_eq!(status.error(), Some(err));
     }
 
     #[test]
@@ -346,11 +408,85 @@ mod tests {
         let settings = dir.join("settings.toml");
         write_settings_file(&settings);
 
-        let (s, err) = load_with_study(&settings);
-        assert_eq!(err, None);
+        let (s, status) = load_with_study(&settings);
+        assert_eq!(status, StudyStatus::Off);
+        assert!(status.error().is_none());
         assert!(s.study.is_none());
+        assert!(s.is_animating, "an ordinary launch starts animating");
         assert_eq!(s.inhale_duration, 7.5);
         assert_eq!(s.exhale_duration, 7.5);
         assert_eq!(s.shape, AnimationShape::Circle);
+    }
+
+    // ── What the debug log is allowed to say ──────────────────────────
+
+    /// Collects every line the `log` macros emit while a test runs
+    struct CaptureLogger;
+
+    static CAPTURED: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+    impl log::Log for CaptureLogger {
+        fn enabled(&self, _: &log::Metadata) -> bool { true }
+        fn log(&self, record: &log::Record) {
+            CAPTURED.lock().unwrap().push(format!("{}", record.args()));
+        }
+        fn flush(&self) {}
+    }
+
+    /// Install the capture once. Another test may have got there first,
+    /// which only matters if it installed a different logger, and none does
+    fn capture_logs() {
+        let _ = log::set_logger(&CaptureLogger);
+        log::set_max_level(log::LevelFilter::Trace);
+    }
+
+    #[test]
+    fn the_debug_log_names_no_participant_id_and_no_folder() {
+        capture_logs();
+        let secret_id = "P-SECRET-4711";
+        let secret_arm = "ARM-SECRET-4711";
+        let valid = FULL_STUDY_FILE
+            .replace("P07", secret_id)
+            .replace("\"B\"", &format!("\"{secret_arm}\""));
+        // A mistyped id is the one parse error whose message quotes it
+        let mistyped_id = valid.replace(&format!("\"{secret_id}\""), "47110000");
+
+        let mut folders = Vec::new();
+        for (tag, study_file) in [
+            ("locked", Some(valid.clone())),
+            ("invalid", Some(valid.replace("inhale_duration = 4.0", "inhale_duration = 0.05"))),
+            ("mistyped-id", Some(mistyped_id)),
+            ("none", None),
+        ] {
+            let dir      = study_tmp_dir(&format!("log-{tag}"));
+            let settings = dir.join("settings.toml");
+            write_settings_file(&settings);
+            if let Some(text) = study_file {
+                std::fs::write(dir.join(study::STUDY_FILE_NAME), text).expect("write");
+            }
+            let _ = load_with_study(&settings);
+            // A settings write that fails names a folder in its error
+            let missing = dir.join("no-such-folder").join("settings.toml");
+            let err = save_settings(&Settings::default(), &missing).expect_err("no such folder");
+            assert!(!err.to_string().contains(&*dir.to_string_lossy()), "{err}");
+            folders.push(dir);
+        }
+
+        let lines = CAPTURED.lock().unwrap().clone();
+        assert!(!lines.is_empty(), "the capture saw nothing, so it proves nothing");
+        for line in &lines {
+            for secret in [secret_id, secret_arm, "47110000"] {
+                assert!(!line.contains(secret), "the debug log holds {secret}: {line}");
+            }
+            for dir in &folders {
+                let text = dir.to_string_lossy();
+                assert!(!line.contains(&*text), "the debug log holds a folder: {line}");
+            }
+        }
+        // And it does say what happened to the file
+        assert!(
+            lines.iter().any(|l| l.contains("study file unusable") && l.contains("0.05")),
+            "the unusable file's detail reaches the debug log: {lines:?}",
+        );
     }
 }

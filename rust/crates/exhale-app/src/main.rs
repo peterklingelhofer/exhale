@@ -29,7 +29,7 @@ use anyhow::Result;
 use exhale_core::{
     controller::{BreathingController, PhaseEnd, PhaseObserver},
     poison::RwLockPoisonExt,
-    session_log::{SessionLog, Value, LOG_FILE_NAME},
+    session_log::{SessionLog, Value},
     settings::{Settings, ShortcutAction},
     settings_manager::SettingsManager,
     types::DisplayMode,
@@ -1513,7 +1513,7 @@ impl App {
 
 fn main() -> Result<()> {
     use bootstrap::{
-        install_panic_logger, pick_log_path, single_instance_guard,
+        install_panic_logger, pick_log_path, reset_log_file, single_instance_guard,
         InstanceGuard, TeeLogWriter,
     };
 
@@ -1549,13 +1549,10 @@ fn main() -> Result<()> {
     // Open without truncating: a second launch runs this same open while
     // the first instance is still writing, and truncating would zero the
     // file under it.  The truncation happens below, once
-    // `single_instance_guard` says this process owns the lock.
-    // `log_file_reset` is a second handle kept for `set_len`, since `file`
-    // moves into the logger
+    // `single_instance_guard` says this process owns the lock
     let log_file = std::fs::OpenOptions::new()
         .create(true).append(true)
         .open(&log_path);
-    let log_file_reset = log_file.as_ref().ok().and_then(|f| f.try_clone().ok());
     if let Ok(file) = log_file {
         builder.target(env_logger::Target::Pipe(
             Box::new(TeeLogWriter { file }),
@@ -1574,9 +1571,7 @@ fn main() -> Result<()> {
     // launch leaves the running instance's log intact, apart from the
     // guard's one line about it
     if !matches!(guard, InstanceGuard::Secondary) {
-        if let Some(f) = &log_file_reset {
-            let _ = f.set_len(0);
-        }
+        reset_log_file(&log_path);
     }
     let _instance_guard = match guard {
         InstanceGuard::First(g)    => Some(g),
@@ -1608,9 +1603,11 @@ fn main() -> Result<()> {
     // their session at the assigned pace
     let session_log = {
         let s = settings_manager.settings.read_or_recover();
-        if s.study.is_some() {
-            let path = settings_manager.config_dir().join(LOG_FILE_NAME);
-            match SessionLog::open(path.clone()) {
+        if let Some(study) = &s.study {
+            // Part 3: a log that can't open puts the app in the broken
+            // state (D1), and the two lines below stop naming the
+            // folder (C3). Until then the session runs without a log
+            match SessionLog::open(settings_manager.config_dir(), &study.participant_id) {
                 Ok(log) => {
                     let log = Arc::new(log);
                     log.record("app_start", &header_fields(&s));
@@ -1618,7 +1615,7 @@ fn main() -> Result<()> {
                     Some(log)
                 }
                 Err(e) => {
-                    error!("session log {}: {e}", path.display());
+                    error!("session log in {}: {e}", settings_manager.config_dir().display());
                     None
                 }
             }

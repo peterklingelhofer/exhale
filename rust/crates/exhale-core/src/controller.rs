@@ -265,21 +265,30 @@ fn run_controller(
     }
 }
 
+/// Shortest phase the controller runs, in seconds
+///
+/// A phase the user asked for never runs shorter than this, so a value
+/// below it would run longer than the pace it states. `phase_secs` floors
+/// to it, and a study file that asks for a duration between 0 and this
+/// is rejected at load. A phase set to exactly 0 takes no time at all
+pub(crate) const MIN_PHASE_SECS: f64 = 0.1;
+
 /// Longest phase the controller schedules, in seconds (one day)
 ///
 /// `phase_secs` clamps to it, and a study file that asks for more is
 /// rejected at load
 pub(crate) const MAX_PHASE_SECS: f64 = 86_400.0;
 
-/// Clamp a phase length to 0.1 s .. `MAX_PHASE_SECS` before it reaches
-/// `Duration::from_secs_f64`, which panics on inf, NaN or anything past
-/// `Duration::MAX`. `.max(0.1)` runs first, and `f64::max` returns the
-/// non-NaN operand, so NaN floors to 0.1 s same as any other non-positive
-/// input. `f64::clamp` reads tidier but hands a NaN input straight back
-/// out, which `Duration::from_secs_f64` panics on all the same
+/// Clamp a phase length to `MIN_PHASE_SECS` .. `MAX_PHASE_SECS` before it
+/// reaches `Duration::from_secs_f64`, which panics on inf, NaN or
+/// anything past `Duration::MAX`. `.max(MIN_PHASE_SECS)` runs first, and
+/// `f64::max` returns the non-NaN operand, so NaN floors to 0.1 s same as
+/// any other non-positive input. `f64::clamp` reads tidier but hands a
+/// NaN input straight back out, which `Duration::from_secs_f64` panics
+/// on all the same
 #[allow(clippy::manual_clamp)]
 fn phase_secs(secs: f64) -> f64 {
-    secs.max(0.1).min(MAX_PHASE_SECS)
+    secs.max(MIN_PHASE_SECS).min(MAX_PHASE_SECS)
 }
 
 fn fresh_inner(now: Instant, inhale_dur: f64) -> Inner {

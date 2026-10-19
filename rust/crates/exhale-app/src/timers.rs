@@ -3,6 +3,19 @@ use std::time::{Duration, Instant};
 use exhale_core::settings::Settings;
 use log::info;
 
+/// `from` plus `minutes`, or `None` when that isn't a time the clock can hold
+///
+/// `Instant + Duration` panics on overflow, and a `settings.toml` can hold
+/// any number of minutes. `try_from_secs_f64` rejects NaN, infinite and
+/// negative values and anything past `Duration::MAX`. `checked_add`
+/// rejects the sums that are still past the clock, which start near
+/// 1.5e17 minutes on macOS and Linux. Every caller reads `None` as off
+fn minutes_after(from: Instant, minutes: f64) -> Option<Instant> {
+    Duration::try_from_secs_f64(minutes * 60.0)
+        .ok()
+        .and_then(|d| from.checked_add(d))
+}
+
 /// All timer state, checked each event-loop tick in `about_to_wait`
 pub struct Timers {
     pub auto_stop_deadline: Option<Instant>,
@@ -17,11 +30,9 @@ impl Timers {
     /// Call whenever `is_animating` or `auto_stop_minutes` changes
     pub fn reschedule_auto_stop(&mut self, settings: &Settings) {
         self.auto_stop_deadline = if settings.auto_stop_minutes > 0.0 && settings.is_animating {
-            let secs = settings.auto_stop_minutes * 60.0;
-            // `try_from_secs_f64` rejects NaN, infinite and negative
-            // values, and anything past `Duration::MAX`.  TOML accepts
-            // `inf` for a float setting, so a bad value leaves auto-stop off
-            Duration::try_from_secs_f64(secs).ok().map(|d| Instant::now() + d)
+            // TOML accepts `inf` for a float setting, so a bad value
+            // leaves auto-stop off
+            minutes_after(Instant::now(), settings.auto_stop_minutes)
         } else {
             None
         };
@@ -44,13 +55,11 @@ impl Timers {
     pub fn next_deadline(&self, settings: &Settings) -> Option<Instant> {
         let mut next: Option<Instant> = self.auto_stop_deadline;
         if settings.reminder_interval_minutes > 0.0 {
-            // A bad interval (inf, or past `Duration::MAX`) contributes
+            // A bad interval (inf, or too long for the clock) contributes
             // no deadline, same as the reminder being off
-            if let (Some(last), Ok(interval)) = (
-                self.last_reminder,
-                Duration::try_from_secs_f64(settings.reminder_interval_minutes * 60.0),
-            ) {
-                let due = last + interval;
+            if let Some(due) = self.last_reminder
+                .and_then(|last| minutes_after(last, settings.reminder_interval_minutes))
+            {
                 next = Some(match next {
                     Some(n) => n.min(due),
                     None    => due,
@@ -78,14 +87,12 @@ impl Timers {
         if settings.reminder_interval_minutes > 0.0 {
             // Same non-finite / too-large guard as `next_deadline`: a bad
             // interval just means the reminder never fires this tick
-            if let Ok(interval) = Duration::try_from_secs_f64(settings.reminder_interval_minutes * 60.0) {
-                let due = self.last_reminder
-                    .map(|t| now >= t + interval)
-                    .unwrap_or(false);
-                if due {
-                    self.last_reminder = Some(now);
-                    events.reminder = true;
-                }
+            let due = self.last_reminder
+                .and_then(|t| minutes_after(t, settings.reminder_interval_minutes))
+                .is_some_and(|due| now >= due);
+            if due {
+                self.last_reminder = Some(now);
+                events.reminder = true;
             }
         }
 
@@ -363,6 +370,42 @@ mod tests {
         t.reschedule_auto_stop(&settings_with(1e18, 0.0, true));
         assert!(t.auto_stop_deadline.is_none(),
             "minutes past Duration::MAX must not panic, treated as off");
+    }
+
+    #[test]
+    fn minutes_that_overflow_the_clock_do_not_panic() {
+        // 2e17 minutes is 1.2e19 seconds: a valid `Duration`, but past
+        // what `Instant` can add on macOS and Linux, where the sum used
+        // to panic. Windows' `Instant` takes it, so what's asserted is
+        // that nothing panics and that a timer that far out never fires
+        let mut t = Timers::new();
+        t.reschedule_auto_stop(&settings_with(2e17, 0.0, true));
+        assert!(!t.tick(&settings_with(2e17, 0.0, true)).auto_stop, "a deadline that far out never arrives");
+
+        let s = settings_with(0.0, 2e17, true);
+        t.reschedule_reminder(&s);
+        let _ = t.next_deadline(&s);
+        assert!(!t.tick(&s).reminder, "an interval that long never elapses");
+
+        // Backdated so a sum that did fit would be long overdue
+        t.last_reminder = Some(Instant::now() - Duration::from_secs(3600));
+        let _ = t.next_deadline(&s);
+        assert!(!t.tick(&s).reminder);
+    }
+
+    #[test]
+    fn minutes_after_reads_a_length_the_clock_cannot_hold_as_none() {
+        // `minutes_after` is the one place a minutes value meets the clock
+        let now = Instant::now();
+        assert!(minutes_after(now, 1.0).is_some_and(|t| t > now));
+        assert!(minutes_after(now, 0.0).is_some_and(|t| t == now));
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -1.0, 1e30, 3.1e17] {
+            assert_eq!(minutes_after(now, bad), None, "{bad}");
+        }
+        // Whatever the platform's clock makes of a huge value, it's an
+        // `Option`, never a panic
+        let _ = minutes_after(now, 2e17);
+        let _ = minutes_after(now, 1.54e17);
     }
 
     #[test]

@@ -213,6 +213,17 @@ pub(crate) fn pick_log_path() -> PathBuf {
     PathBuf::from("exhale.log")
 }
 
+/// Empty the debug log at `path` so this run starts it fresh
+///
+/// Goes through `exhale_core::session_log::truncate_file`, a fresh handle
+/// opened for writing. The logger holds its own handle opened for
+/// appending, and Windows refuses `set_len` on that one with "Access is
+/// denied", which left the previous run's lines in the file. That handle
+/// keeps appending at the new end. A file that isn't there is left alone
+pub(crate) fn reset_log_file(path: &std::path::Path) {
+    let _ = exhale_core::session_log::truncate_file(path);
+}
+
 /// Install a panic hook that appends panic info + backtrace to the log
 /// file before delegating to the default hook.  Without this, panics
 /// only print to stderr and are lost when stderr isn't captured
@@ -282,6 +293,38 @@ mod tests {
         drop(f2);
         drop(f3);
         let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn resetting_the_debug_log_works_while_the_logger_holds_it_open() {
+        let path = std::env::temp_dir().join(format!(
+            "exhale-test-debug-log-{}-{}.log",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0),
+        ));
+        // The logger's handle, opened the way `main` opens it
+        let mut logger = std::fs::OpenOptions::new()
+            .create(true).append(true)
+            .open(&path).expect("open the log");
+        std::io::Write::write_all(&mut logger, b"line from the last run\n").expect("write");
+
+        reset_log_file(&path);
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), "", "the last run's lines are gone");
+
+        std::io::Write::write_all(&mut logger, b"line from this run\n").expect("write");
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read"),
+            "line from this run\n",
+            "the logger carries on at the new end",
+        );
+
+        // A log that never opened is no reason to fail, or to create it
+        let _ = std::fs::remove_file(&path);
+        reset_log_file(&path);
+        assert!(!path.exists());
     }
 
     #[test]

@@ -17,7 +17,7 @@ use widgets::*;
 use egui::ViewportId;
 use egui_wgpu::ScreenDescriptor;
 use exhale_core::{
-    session_log::{export_dir, SessionLog},
+    session_log::{export_dirs, SessionLog},
     settings::{KeyboardShortcut, Settings, ShortcutAction},
     settings_manager::SettingsManager,
     types::{
@@ -1093,28 +1093,29 @@ fn body_cards(
 
         ui.add_space(ROW_GAP);
         ui.horizontal(|ui| {
+            // Part 3: `export_to` takes the fallback folders now (A9), and
+            // `exported_this_session` goes once Clear follows C1
             if ui.button("Export log").clicked() {
-                *study_status = Some(match export_dir() {
-                    Some(dir) => match log.export_to(&dir, &study.participant_id) {
-                        Ok(path) => {
-                            *exported_this_session = true;
-                            format!("Exported to {}", path.display())
-                        }
-                        Err(e) => format!("Export failed: {e}"),
-                    },
-                    None => "Export failed: no folder to export to".to_string(),
+                *study_status = Some(match log.export_to(&export_dirs(), &study.participant_id) {
+                    Ok(path) => {
+                        *exported_this_session = true;
+                        format!("Exported to {}", path.display())
+                    }
+                    Err(e) => format!("Export failed: {e}"),
                 });
             }
             // Appears only after an export has landed. Shown disabled
             // before that, an egui widget surrenders focus mid-Tab and
             // breaks the traversal for every control after it (see the
             // Background Color comment)
+            //
+            // Part 3: show it by `log.clear_allowed()` (C1) and replace
+            // `exported_this_session`, with a hint when it's withheld.
+            // Until then a press after new lines arrived is refused by
+            // `clear` and says why
             if *exported_this_session && ui.button("Clear log").clicked() {
-                *study_status = Some(match log.clear() {
-                    Ok(())  => {
-                        log.record("log_cleared", &crate::header_fields(settings));
-                        "Log cleared.".to_string()
-                    }
+                *study_status = Some(match log.clear(&crate::header_fields(settings)) {
+                    Ok(())  => "Log cleared.".to_string(),
                     Err(e) => format!("Clear failed: {e}"),
                 });
             }
@@ -1236,11 +1237,16 @@ fn settings_ui(
             // installs a file and gets no lock has to find that out
             // before the participant runs a session at the shipped
             // default pace believing it's an assigned arm
-            if let Some(msg) = settings_manager.study_error() {
+            //
+            // Part 3: a broken study file hides every pacing surface and
+            // keeps the overlay still (D1), so the second line stops
+            // saying the pace is unlocked. The summary is already the
+            // text meant for this card: no value and no excerpt
+            if let Some(err) = settings_manager.study_status().error() {
                 section(ui, "Study", |ui| {
                     let warning = warning_color(ui);
                     ui.label(
-                        egui::RichText::new(format!("Study file couldn't be used: {msg}"))
+                        egui::RichText::new(format!("Study file couldn't be used: {}", err.summary()))
                             .color(warning),
                     );
                     ui.label(egui::RichText::new("Pacing isn't locked.").color(warning));
