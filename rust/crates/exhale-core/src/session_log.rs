@@ -10,8 +10,9 @@
 //! file and never mixes two people's lines
 //!
 //! The emitter is hand-written. `serde_json` isn't in the dependency
-//! graph and a log of flat objects with four value shapes doesn't
-//! justify adding it: the whole encoder is `escape_into` plus a loop
+//! graph and a log of flat objects with a handful of value shapes
+//! doesn't justify adding it: the whole encoder is `escape_into` plus a
+//! loop
 
 use std::{
     fs::{File, OpenOptions},
@@ -23,7 +24,7 @@ use std::{
 
 use log::warn;
 
-use crate::poison::MutexPoisonExt;
+use crate::{poison::MutexPoisonExt, settings::Settings};
 
 /// Every log file name starts with this, the live log and an export alike
 const LOG_FILE_PREFIX: &str = "exhale-log-";
@@ -42,11 +43,17 @@ const MAX_NAME_TRIES: u32 = 1000;
 /// One field value in a log line
 ///
 /// `Int` and `Num` are separate so a cycle count prints as the integer
-/// `3`, and so a duration keeps its decimals
+/// `3`, and so a duration keeps its decimals. `F32` and `F32s` carry the
+/// settings stored as `f32` (opacity and the color components). Widened
+/// to `f64`, an opacity of 0.7 would print as `0.699999988079071`, and
+/// these print `0.7`, the digits a lab typed into the study file
 #[derive(Clone, Copy, Debug)]
 pub enum Value<'a> {
     Str(&'a str),
     Num(f64),
+    F32(f32),
+    /// A JSON array of numbers, such as the four components of a color
+    F32s(&'a [f32]),
     Int(i64),
     Bool(bool),
 }
@@ -96,12 +103,32 @@ pub fn json_line(unix_ms: u64, mono_ms: u64, event: &str, fields: &[(&str, Value
             Value::Num(n)  => {
                 if n.is_finite() { out.push_str(&n.to_string()); } else { out.push_str("null"); }
             }
+            Value::F32(n)  => push_f32(&mut out, *n),
+            Value::F32s(list) => {
+                out.push('[');
+                for (i, n) in list.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    push_f32(&mut out, *n);
+                }
+                out.push(']');
+            }
             Value::Int(i)  => out.push_str(&i.to_string()),
             Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
         }
     }
     out.push('}');
     out
+}
+
+/// Append an `f32` as a JSON number, or `null` when it has no spelling
+fn push_f32(out: &mut String, n: f32) {
+    if n.is_finite() {
+        out.push_str(&n.to_string());
+    } else {
+        out.push_str("null");
+    }
 }
 
 /// Milliseconds since the Unix epoch, 0 if the clock is before it
@@ -440,6 +467,62 @@ pub fn log_file_name(participant_id: &str) -> String {
     format!("{LOG_FILE_PREFIX}{}.jsonl", sanitise(participant_id))
 }
 
+/// The fields of an `app_start` or `log_cleared` line
+///
+/// Everything a reader of the log needs to know what produced the lines
+/// under it: the build, the machine's OS, who the lab assigned, the
+/// eleven numbers the study file locked, and the nine appearance and
+/// display settings it locked. Written at `app_start` and again after
+/// Clear, so a cleared log is still self-describing. `version` is the
+/// app's own, which the caller knows and this crate doesn't
+///
+/// The order is fixed, and the researchers' guide lists it:
+///
+/// 1. `version`, `os`, `participant_id`, `condition`
+/// 2. `inhale_duration`, `post_inhale_hold_duration`, `exhale_duration`,
+///    `post_exhale_hold_duration`, `drift`
+/// 3. `randomized_timing_inhale`, `randomized_timing_post_inhale_hold`,
+///    `randomized_timing_exhale`, `randomized_timing_post_exhale_hold`
+/// 4. `auto_stop_minutes`, `reminder_interval_minutes`
+/// 5. `inhale_color`, `exhale_color`, `background_color` (arrays of four
+///    numbers), `overlay_opacity` (a number), then `shape`,
+///    `color_fill_gradient`, `animation_mode`, `hold_ripple_mode` and
+///    `display_mode`, each the snake_case string settings.toml uses
+///
+/// Outside a study the participant id and the condition are empty
+pub fn header_fields<'a>(version: &'a str, settings: &'a Settings) -> Vec<(&'static str, Value<'a>)> {
+    let (participant_id, condition) = match &settings.study {
+        Some(s) => (s.participant_id.as_str(), s.condition.as_str()),
+        None    => ("", ""),
+    };
+    vec![
+        ("version",        Value::Str(version)),
+        ("os",             Value::Str(std::env::consts::OS)),
+        ("participant_id", Value::Str(participant_id)),
+        ("condition",      Value::Str(condition)),
+        ("inhale_duration",           Value::Num(settings.inhale_duration)),
+        ("post_inhale_hold_duration", Value::Num(settings.post_inhale_hold_duration)),
+        ("exhale_duration",           Value::Num(settings.exhale_duration)),
+        ("post_exhale_hold_duration", Value::Num(settings.post_exhale_hold_duration)),
+        ("drift",                     Value::Num(settings.drift)),
+        ("randomized_timing_inhale",           Value::Num(settings.randomized_timing_inhale)),
+        ("randomized_timing_post_inhale_hold", Value::Num(settings.randomized_timing_post_inhale_hold)),
+        ("randomized_timing_exhale",           Value::Num(settings.randomized_timing_exhale)),
+        ("randomized_timing_post_exhale_hold", Value::Num(settings.randomized_timing_post_exhale_hold)),
+        ("auto_stop_minutes",         Value::Num(settings.auto_stop_minutes)),
+        ("reminder_interval_minutes", Value::Num(settings.reminder_interval_minutes)),
+        ("inhale_color",        Value::F32s(&settings.inhale_color)),
+        ("exhale_color",        Value::F32s(&settings.exhale_color)),
+        ("background_color",    Value::F32s(&settings.background_color)),
+        ("overlay_opacity",     Value::F32(settings.overlay_opacity)),
+        ("shape",               Value::Str(settings.shape.name())),
+        ("color_fill_gradient", Value::Str(settings.color_fill_gradient.name())),
+        ("animation_mode",      Value::Str(settings.animation_mode.name())),
+        ("hold_ripple_mode",    Value::Str(settings.hold_ripple_mode.name())),
+        ("display_mode",        Value::Str(settings.display_mode.name())),
+    ]
+}
+
 /// Folders an export may go to, best first: Desktop, Documents,
 /// Downloads, then the home directory
 ///
@@ -489,6 +572,17 @@ mod tests {
         ));
         std::fs::create_dir_all(&dir).expect("create temp dir");
         dir
+    }
+
+    impl Value<'_> {
+        /// One value as it prints, for a test that compares spellings
+        fn as_json(&self) -> String {
+            let line = json_line(0, 0, "e", &[("v", *self)]);
+            line.strip_prefix("{\"t\":0,\"mono_ms\":0,\"event\":\"e\",\"v\":")
+                .and_then(|rest| rest.strip_suffix('}'))
+                .expect("one field")
+                .to_string()
+        }
     }
 
     fn open(dir: &Path) -> SessionLog {
@@ -558,6 +652,131 @@ mod tests {
             line,
             r#"{"t":0,"mono_ms":0,"event":"e","nan":null,"inf":null,"ninf":null}"#,
         );
+    }
+
+    #[test]
+    fn an_f32_prints_the_digits_that_read_back_as_the_same_f32() {
+        let line = json_line(0, 0, "e", &[
+            ("seven",   Value::F32(0.7)),
+            ("quarter", Value::F32(0.25)),
+            ("one",     Value::F32(1.0)),
+            ("zero",    Value::F32(0.0)),
+            ("tiny",    Value::F32(0.000_001)),
+            ("nan",     Value::F32(f32::NAN)),
+            ("inf",     Value::F32(f32::INFINITY)),
+        ]);
+        assert_eq!(
+            line,
+            r#"{"t":0,"mono_ms":0,"event":"e","seven":0.7,"quarter":0.25,"one":1,"zero":0,"tiny":0.000001,"nan":null,"inf":null}"#,
+        );
+        // Widened to f64 first, 0.7 would print as the 0.699999988079071 below
+        assert_eq!(Value::Num(f64::from(0.7_f32)).as_json(), "0.699999988079071");
+    }
+
+    #[test]
+    fn a_list_of_f32_is_a_json_array_of_numbers() {
+        let line = json_line(0, 0, "e", &[
+            ("red",    Value::F32s(&[1.0, 0.0, 0.0, 1.0])),
+            ("teal",   Value::F32s(&[0.2, 0.4, 0.6, 1.0])),
+            ("none",   Value::F32s(&[])),
+            ("broken", Value::F32s(&[f32::NAN, 0.5, f32::NEG_INFINITY])),
+            ("after",  Value::Int(5)),
+        ]);
+        assert_eq!(
+            line,
+            r#"{"t":0,"mono_ms":0,"event":"e","red":[1,0,0,1],"teal":[0.2,0.4,0.6,1],"none":[],"broken":[null,0.5,null],"after":5}"#,
+        );
+        // The key in front of an array is escaped like any other
+        let line = json_line(0, 0, "e", &[("a\"b", Value::F32s(&[1.0])), ("c\nd", Value::F32(2.0))]);
+        assert_eq!(line, "{\"t\":0,\"mono_ms\":0,\"event\":\"e\",\"a\\\"b\":[1],\"c\\nd\":2}");
+    }
+
+    // ── The header of an app_start or log_cleared line ─────────────────
+
+    /// The 24 header fields, in the order the researchers' guide lists them
+    const HEADER_ORDER: [&str; 24] = [
+        "version", "os", "participant_id", "condition",
+        "inhale_duration", "post_inhale_hold_duration", "exhale_duration", "post_exhale_hold_duration",
+        "drift",
+        "randomized_timing_inhale", "randomized_timing_post_inhale_hold",
+        "randomized_timing_exhale", "randomized_timing_post_exhale_hold",
+        "auto_stop_minutes", "reminder_interval_minutes",
+        "inhale_color", "exhale_color", "background_color", "overlay_opacity",
+        "shape", "color_fill_gradient", "animation_mode", "hold_ripple_mode", "display_mode",
+    ];
+
+    fn locked_settings() -> Settings {
+        let mut s = Settings::default();
+        crate::study::fixtures::everything().apply(&mut s);
+        s
+    }
+
+    #[test]
+    fn the_header_lists_its_fields_in_the_documented_order() {
+        for settings in [locked_settings(), Settings::default()] {
+            let fields = header_fields("2.0.28", &settings);
+            let names: Vec<&str> = fields.iter().map(|(name, _)| *name).collect();
+            assert_eq!(names, HEADER_ORDER);
+        }
+    }
+
+    #[test]
+    fn a_study_header_line_is_exactly_this() {
+        let settings = locked_settings();
+        let line = json_line(1, 2, "app_start", &header_fields("2.0.28", &settings));
+        let os   = std::env::consts::OS;
+        assert_eq!(
+            line,
+            format!(
+                "{{\"t\":1,\"mono_ms\":2,\"event\":\"app_start\",\"version\":\"2.0.28\",\"os\":\"{os}\",\
+                 \"participant_id\":\"P07\",\"condition\":\"B\",\
+                 \"inhale_duration\":4,\"post_inhale_hold_duration\":1,\"exhale_duration\":6,\
+                 \"post_exhale_hold_duration\":2,\"drift\":1.002,\
+                 \"randomized_timing_inhale\":0.1,\"randomized_timing_post_inhale_hold\":0.2,\
+                 \"randomized_timing_exhale\":0.3,\"randomized_timing_post_exhale_hold\":0.4,\
+                 \"auto_stop_minutes\":30,\"reminder_interval_minutes\":15,\
+                 \"inhale_color\":[0.2,0.4,0.6,1],\"exhale_color\":[0.9,0.8,0.1,1],\
+                 \"background_color\":[0.1,0.1,0.1,0.5],\"overlay_opacity\":0.6,\
+                 \"shape\":\"circle\",\"color_fill_gradient\":\"off\",\"animation_mode\":\"linear\",\
+                 \"hold_ripple_mode\":\"stark\",\"display_mode\":\"window\"}}"
+            ),
+        );
+    }
+
+    #[test]
+    fn a_header_outside_a_study_has_no_id_and_the_shipped_look() {
+        let settings = Settings::default();
+        let line = json_line(0, 0, "app_start", &header_fields("2.0.28", &settings));
+        assert!(line.contains("\"participant_id\":\"\",\"condition\":\"\","), "{line}");
+        assert!(
+            line.ends_with(
+                "\"inhale_color\":[1,0,0,1],\"exhale_color\":[0,0,1,1],\"background_color\":[0,0,0,0],\
+                 \"overlay_opacity\":0.25,\"shape\":\"rectangle\",\"color_fill_gradient\":\"on\",\
+                 \"animation_mode\":\"sinusoidal\",\"hold_ripple_mode\":\"gradient\",\
+                 \"display_mode\":\"overlay\"}"
+            ),
+            "{line}",
+        );
+    }
+
+    #[test]
+    fn log_cleared_carries_the_same_header_as_app_start() {
+        let dir = tmp_dir("header-twice");
+        let out = tmp_dir("header-twice-out");
+        let settings = locked_settings();
+        let log = open(&dir);
+        log.record("app_start", &header_fields("2.0.28", &settings));
+        log.export_to(std::slice::from_ref(&out), "P07").expect("export");
+        log.clear(&header_fields("2.0.28", &settings)).expect("clear");
+
+        let first = read(log.path());
+        let cleared = first.lines().next().expect("the header line");
+        assert!(cleared.contains(r#""event":"log_cleared""#), "{cleared}");
+        // Past `event`, the two lines are the same text
+        let tail = |line: &str| line.split_once("\"event\":").map(|(_, t)| t.split_once(',').map(|(_, rest)| rest.to_string())).unwrap().unwrap();
+        let exported = read(&std::fs::read_dir(&out).expect("list").next().expect("a copy").expect("entry").path());
+        assert_eq!(tail(cleared), tail(exported.lines().next().expect("app_start")));
+        assert!(cleared.contains(r#""inhale_color":[0.2,0.4,0.6,1]"#), "{cleared}");
     }
 
     // ── The live log's file ────────────────────────────────────────────

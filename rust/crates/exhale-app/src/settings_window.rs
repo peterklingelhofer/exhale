@@ -2437,6 +2437,15 @@ mod tests {
             randomized_timing_post_exhale_hold: 0.0,
             auto_stop_minutes:         0.0,
             reminder_interval_minutes: 0.0,
+            inhale_color:        None,
+            exhale_color:        None,
+            background_color:    None,
+            overlay_opacity:     None,
+            shape:               None,
+            color_fill_gradient: None,
+            animation_mode:      None,
+            hold_ripple_mode:    None,
+            display_mode:        None,
         };
         let mut s = exhale_core::settings::Settings::default();
         study.apply(&mut s);

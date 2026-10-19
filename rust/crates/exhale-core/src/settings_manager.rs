@@ -10,7 +10,7 @@ use log::{error, info, warn};
 
 use crate::poison::RwLockPoisonExt;
 use crate::settings::Settings;
-use crate::study::{self, StudyStatus};
+use crate::study::{self, StudyError, StudyStatus};
 
 /// Manages loading, saving, and sharing of [`Settings`]
 ///
@@ -25,10 +25,11 @@ use crate::study::{self, StudyStatus};
 pub struct SettingsManager {
     pub settings: Arc<RwLock<Settings>>,
     config_path:  PathBuf,
-    /// What the study file beside `settings.toml` amounted to at launch.
-    /// Read once, so a file installed while the app runs takes effect
-    /// at the next launch
-    study_status: StudyStatus,
+    /// What the study file beside `settings.toml` amounted to at launch,
+    /// until [`SettingsManager::mark_study_broken`] says otherwise. The
+    /// file is read once, so one installed while the app runs takes
+    /// effect at the next launch
+    study_status: RwLock<StudyStatus>,
     dirty_tx:     std::sync::mpsc::Sender<()>,
     _writer:      std::thread::JoinHandle<()>,
 }
@@ -37,7 +38,14 @@ impl SettingsManager {
     /// Load settings from disk (or use defaults if no file exists) and start
     /// the coalescing write-back thread
     pub fn new() -> Result<Self> {
-        let config_path = config_file_path()?;
+        Self::with_config_path(config_file_path()?)
+    }
+
+    /// [`SettingsManager::new`] for a settings file at `config_path`
+    ///
+    /// The app always goes through `new`. This is for a test or a tool
+    /// that needs a manager on a folder of its own
+    pub fn with_config_path(config_path: PathBuf) -> Result<Self> {
         let (settings, study_status) = load_with_study(&config_path);
         let shared = Arc::new(RwLock::new(settings));
 
@@ -57,7 +65,7 @@ impl SettingsManager {
         Ok(Self {
             settings: shared,
             config_path,
-            study_status,
+            study_status: RwLock::new(study_status),
             dirty_tx,
             _writer: writer,
         })
@@ -85,9 +93,28 @@ impl SettingsManager {
     /// A broken study file fails closed: [`load_with_study`] has already
     /// stopped the animation, and the app has to keep it stopped and say
     /// why on screen. A silent fallback would hand a participant the
-    /// shipped default pace while the lab believes they're on an arm
-    pub fn study_status(&self) -> &StudyStatus {
-        &self.study_status
+    /// shipped default pace while the lab believes they're on an arm.
+    /// Returned by value, because the status can change under a reader
+    /// (see [`SettingsManager::mark_study_broken`]) and a borrow would
+    /// hold the lock for as long as the caller kept it
+    pub fn study_status(&self) -> StudyStatus {
+        self.study_status.read_or_recover().clone()
+    }
+
+    /// Move the study to Broken after launch, for a failure only the app
+    /// can see. The one that exists is a session log that won't open: a
+    /// study without its log is a lost measurement, so the app treats it
+    /// as it treats a bad study file
+    ///
+    /// Stops the animation, as the load-time path does. The lock itself
+    /// stays in force (`settings.study` is untouched), so the pace and the
+    /// appearance stay hidden and fixed while the card explains. Nothing
+    /// persists: the next launch reads the files afresh. Takes the write
+    /// lock on the settings, so call it with no guard on them held
+    pub fn mark_study_broken(&self, error: StudyError) {
+        error!("study broken after launch, the animation stays stopped: {}", error.detail());
+        *self.study_status.write_or_recover() = StudyStatus::Broken(error);
+        self.settings.write_or_recover().is_animating = false;
     }
 
     /// Synchronously flush settings to disk right now. Useful on
@@ -275,15 +302,16 @@ mod tests {
         dir
     }
 
-    /// A settings file whose appearance and timing both differ from the
-    /// defaults, so a test can tell "the study file won" apart from
-    /// "everything was reset"
+    /// A settings file whose appearance, Show In and timing all differ
+    /// from the defaults, so a test can tell "the study file won" apart
+    /// from "everything was reset"
     fn write_settings_file(path: &Path) {
         let mut s = Settings::default();
         s.shape           = AnimationShape::Circle;
         s.overlay_opacity = 0.9;
         s.inhale_duration = 7.5;
         s.exhale_duration = 7.5;
+        s.app_visibility  = crate::types::AppVisibility::TopBarOnly;
         save_settings(&s, &path.to_path_buf()).expect("write settings");
     }
 
@@ -304,7 +332,7 @@ mod tests {
     );
 
     #[test]
-    fn a_study_file_overrides_the_pacing_and_nothing_else() {
+    fn a_study_file_locks_the_pacing_and_the_appearance_and_nothing_else() {
         let dir      = study_tmp_dir("locked");
         let settings = dir.join("settings.toml");
         write_settings_file(&settings);
@@ -326,14 +354,39 @@ mod tests {
         assert_eq!(s.auto_stop_minutes,         30.0);
         assert_eq!(s.reminder_interval_minutes, 15.0);
 
-        // The settings file's own values survive everywhere else
-        assert_eq!(s.shape, AnimationShape::Circle);
-        assert_eq!(s.overlay_opacity, 0.9);
+        // The file says nothing about appearance, so the participant's own
+        // choices in settings.toml don't reach the screen: it's the shipped look
+        let shipped = Settings::default();
+        assert_eq!(s.shape, shipped.shape);
+        assert_eq!(s.overlay_opacity, shipped.overlay_opacity);
+        assert_eq!(s.display_mode, shipped.display_mode);
+        // Show In is the one setting that stays theirs, and so does the launch state
+        assert_eq!(s.app_visibility, crate::types::AppVisibility::TopBarOnly);
         assert!(s.is_animating, "launch always starts animating");
 
         let study = s.study.expect("the lock is recorded");
         assert_eq!(study.participant_id, "P07");
         assert_eq!(study.condition, "B");
+    }
+
+    #[test]
+    fn the_appearance_a_study_file_sets_wins_over_the_participants_settings() {
+        let dir      = study_tmp_dir("locked-look");
+        let settings = dir.join("settings.toml");
+        write_settings_file(&settings);
+        std::fs::write(
+            dir.join(study::STUDY_FILE_NAME),
+            format!("{FULL_STUDY_FILE}shape = \"fullscreen\"\noverlay_opacity = 0.5\ndisplay_mode = \"window\"\n"),
+        ).expect("write study file");
+
+        let (s, status) = load_with_study(&settings);
+        assert_eq!(status, StudyStatus::Locked);
+        assert_eq!(s.shape, AnimationShape::Fullscreen, "the file's shape wins over the settings file's circle");
+        assert_eq!(s.overlay_opacity, 0.5);
+        assert_eq!(s.display_mode, crate::types::DisplayMode::Window);
+        // What the file leaves out is the shipped default and not the participant's
+        assert_eq!(s.inhale_color, Settings::default().inhale_color);
+        assert_eq!(s.app_visibility, crate::types::AppVisibility::TopBarOnly);
     }
 
     const INVALID_STUDY_FILE: &str = concat!(
@@ -416,6 +469,92 @@ mod tests {
         assert_eq!(s.inhale_duration, 7.5);
         assert_eq!(s.exhale_duration, 7.5);
         assert_eq!(s.shape, AnimationShape::Circle);
+    }
+
+    // ── The study status the app reads ────────────────────────────────
+
+    #[test]
+    fn the_manager_reports_the_status_it_loaded() {
+        // The manager's own writer thread is the cost, so one folder per case
+        let off = study_tmp_dir("manager-off");
+        write_settings_file(&off.join("settings.toml"));
+        let manager = SettingsManager::with_config_path(off.join("settings.toml")).expect("manager");
+        assert_eq!(manager.study_status(), StudyStatus::Off);
+        assert_eq!(manager.config_dir(), off);
+
+        let locked = study_tmp_dir("manager-locked");
+        write_settings_file(&locked.join("settings.toml"));
+        std::fs::write(locked.join(study::STUDY_FILE_NAME), FULL_STUDY_FILE).expect("write study file");
+        let manager = SettingsManager::with_config_path(locked.join("settings.toml")).expect("manager");
+        assert_eq!(manager.study_status(), StudyStatus::Locked);
+        assert!(manager.settings.read_or_recover().study.is_some());
+
+        let broken = study_tmp_dir("manager-broken");
+        write_settings_file(&broken.join("settings.toml"));
+        std::fs::write(broken.join(study::STUDY_FILE_NAME), INVALID_STUDY_FILE).expect("write study file");
+        let manager = SettingsManager::with_config_path(broken.join("settings.toml")).expect("manager");
+        let status = manager.study_status();
+        assert_eq!(
+            status.error().map(|e| e.summary()),
+            Some("study.toml, line 2, field condition: can't be empty".to_string()),
+        );
+        assert!(!manager.settings.read_or_recover().is_animating);
+    }
+
+    #[test]
+    fn a_study_marked_broken_after_launch_stops_the_animation_and_keeps_the_lock() {
+        let dir = study_tmp_dir("mark-broken");
+        write_settings_file(&dir.join("settings.toml"));
+        std::fs::write(dir.join(study::STUDY_FILE_NAME), FULL_STUDY_FILE).expect("write study file");
+        let manager = SettingsManager::with_config_path(dir.join("settings.toml")).expect("manager");
+        assert_eq!(manager.study_status(), StudyStatus::Locked);
+        assert!(manager.settings.read_or_recover().is_animating, "a locked study launches animating");
+
+        // What `main` does when the session log won't open
+        let reason = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        let error  = StudyError::log_unavailable(&reason);
+        manager.mark_study_broken(error.clone());
+
+        let status = manager.study_status();
+        assert_eq!(status, StudyStatus::Broken(error));
+        assert_eq!(
+            status.error().map(|e| e.summary()),
+            Some("study.toml: the session log can't be written".to_string()),
+        );
+
+        // The same effect on the animation as a bad file has at load
+        let s = manager.settings.read_or_recover();
+        assert!(!s.is_animating);
+        // And the lock holds: the pace and the look stay fixed and hidden while the card explains
+        assert!(s.study.is_some());
+        assert_eq!(s.inhale_duration, 4.0);
+        assert_eq!(s.shape, Settings::default().shape);
+        drop(s);
+
+        // Nothing persists. A launch reads the files afresh
+        let relaunch = SettingsManager::with_config_path(dir.join("settings.toml")).expect("manager");
+        assert_eq!(relaunch.study_status(), StudyStatus::Locked);
+        assert!(relaunch.settings.read_or_recover().is_animating);
+    }
+
+    #[test]
+    fn marking_a_study_broken_leaves_a_paused_flag_and_the_rest_alone() {
+        let dir = study_tmp_dir("mark-broken-rest");
+        write_settings_file(&dir.join("settings.toml"));
+        std::fs::write(dir.join(study::STUDY_FILE_NAME), FULL_STUDY_FILE).expect("write study file");
+        let manager = SettingsManager::with_config_path(dir.join("settings.toml")).expect("manager");
+        let before = manager.settings.read_or_recover().clone();
+
+        manager.mark_study_broken(StudyError::log_unavailable(&std::io::Error::other("full")));
+
+        let mut expected = before;
+        expected.is_animating = false;
+        let after = manager.settings.read_or_recover().clone();
+        assert_eq!(
+            toml::Value::try_from(&after).expect("serialise"),
+            toml::Value::try_from(&expected).expect("serialise"),
+            "only is_animating changed",
+        );
     }
 
     // ── What the debug log is allowed to say ──────────────────────────

@@ -111,9 +111,22 @@ impl BreathingPhase {
     }
 }
 
+// The `name` methods below give the session log's header the same
+// snake_case strings settings.toml and study.toml spell each setting
+// with. `names_match_what_settings_toml_writes` holds the two together
+
 impl AnimationShape {
     pub fn shader_value(self) -> u32 {
         self as u32
+    }
+
+    /// Name written into the session log's `app_start` and `log_cleared` lines
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Fullscreen => "fullscreen",
+            Self::Rectangle  => "rectangle",
+            Self::Circle     => "circle",
+        }
     }
 }
 
@@ -121,11 +134,49 @@ impl ColorFillGradient {
     pub fn shader_value(self) -> u32 {
         self as u32
     }
+
+    /// Name written into the session log's `app_start` and `log_cleared` lines
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Off   => "off",
+            Self::Inner => "inner",
+            Self::On    => "on",
+        }
+    }
 }
 
 impl HoldRippleMode {
     pub fn shader_value(self) -> u32 {
         self as u32
+    }
+
+    /// Name written into the session log's `app_start` and `log_cleared` lines
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Off      => "off",
+            Self::Stark    => "stark",
+            Self::Gradient => "gradient",
+        }
+    }
+}
+
+impl AnimationMode {
+    /// Name written into the session log's `app_start` and `log_cleared` lines
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Linear     => "linear",
+            Self::Sinusoidal => "sinusoidal",
+        }
+    }
+}
+
+impl DisplayMode {
+    /// Name written into the session log's `app_start` and `log_cleared` lines
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Overlay => "overlay",
+            Self::Window  => "window",
+        }
     }
 }
 
@@ -188,6 +239,33 @@ mod tests {
         let back: W = toml::from_str(&s).expect("deserialise");
         assert_eq!(back.shape, AnimationShape::Circle);
         assert_eq!(back.ripple, HoldRippleMode::Gradient);
+    }
+
+    #[test]
+    fn names_match_what_settings_toml_writes() {
+        // One wrapper per enum, so each variant is serialised as the
+        // value of a key, the way settings.toml and study.toml hold it
+        fn written<T: serde::Serialize>(value: T) -> String {
+            #[derive(serde::Serialize)]
+            struct W<T> { v: T }
+            let text = toml::to_string(&W { v: value }).expect("serialise");
+            text.trim_end().strip_prefix("v = \"").and_then(|t| t.strip_suffix('"')).expect("a string").to_string()
+        }
+        for shape in [AnimationShape::Fullscreen, AnimationShape::Rectangle, AnimationShape::Circle] {
+            assert_eq!(shape.name(), written(shape));
+        }
+        for gradient in [ColorFillGradient::Off, ColorFillGradient::Inner, ColorFillGradient::On] {
+            assert_eq!(gradient.name(), written(gradient));
+        }
+        for ripple in [HoldRippleMode::Off, HoldRippleMode::Stark, HoldRippleMode::Gradient] {
+            assert_eq!(ripple.name(), written(ripple));
+        }
+        for mode in [AnimationMode::Linear, AnimationMode::Sinusoidal] {
+            assert_eq!(mode.name(), written(mode));
+        }
+        for mode in [DisplayMode::Overlay, DisplayMode::Window] {
+            assert_eq!(mode.name(), written(mode));
+        }
     }
 
     #[test]

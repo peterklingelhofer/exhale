@@ -29,7 +29,7 @@ use anyhow::Result;
 use exhale_core::{
     controller::{BreathingController, PhaseEnd, PhaseObserver},
     poison::RwLockPoisonExt,
-    session_log::{SessionLog, Value},
+    session_log::{self, SessionLog, Value},
     settings::{Settings, ShortcutAction},
     settings_manager::SettingsManager,
     types::DisplayMode,
@@ -98,35 +98,15 @@ fn event_for(action: ShortcutAction) -> AppEvent {
 
 // ─── Session-log field lists ───────────────────────────────────────────
 
-/// Everything a reader of the log needs to know what produced the
-/// lines under it: the build, the machine's OS, who the lab assigned
-/// and the eleven numbers the study file locked
+/// The fields of an `app_start` or `log_cleared` line, which
+/// `exhale_core::session_log::header_fields` builds and documents
 ///
 /// Written at `app_start` and again after Clear, so a cleared log is
-/// still self-describing.  `pub(crate)` because the settings window's
-/// Clear button writes the second one
+/// still self-describing.  This wrapper supplies the app's own version:
+/// the core crate has a number of its own.  `pub(crate)` because the
+/// settings window's Clear button writes the second one
 pub(crate) fn header_fields(settings: &Settings) -> Vec<(&'static str, Value<'_>)> {
-    let (participant_id, condition) = match &settings.study {
-        Some(s) => (s.participant_id.as_str(), s.condition.as_str()),
-        None    => ("", ""),
-    };
-    vec![
-        ("version",        Value::Str(env!("CARGO_PKG_VERSION"))),
-        ("os",             Value::Str(std::env::consts::OS)),
-        ("participant_id", Value::Str(participant_id)),
-        ("condition",      Value::Str(condition)),
-        ("inhale_duration",           Value::Num(settings.inhale_duration)),
-        ("post_inhale_hold_duration", Value::Num(settings.post_inhale_hold_duration)),
-        ("exhale_duration",           Value::Num(settings.exhale_duration)),
-        ("post_exhale_hold_duration", Value::Num(settings.post_exhale_hold_duration)),
-        ("drift",                     Value::Num(settings.drift)),
-        ("randomized_timing_inhale",           Value::Num(settings.randomized_timing_inhale)),
-        ("randomized_timing_post_inhale_hold", Value::Num(settings.randomized_timing_post_inhale_hold)),
-        ("randomized_timing_exhale",           Value::Num(settings.randomized_timing_exhale)),
-        ("randomized_timing_post_exhale_hold", Value::Num(settings.randomized_timing_post_exhale_hold)),
-        ("auto_stop_minutes",         Value::Num(settings.auto_stop_minutes)),
-        ("reminder_interval_minutes", Value::Num(settings.reminder_interval_minutes)),
-    ]
+    session_log::header_fields(env!("CARGO_PKG_VERSION"), settings)
 }
 
 /// The five fields that decide what the next cycle looks like, written
@@ -1605,8 +1585,11 @@ fn main() -> Result<()> {
         let s = settings_manager.settings.read_or_recover();
         if let Some(study) = &s.study {
             // Part 3: a log that can't open puts the app in the broken
-            // state (D1), and the two lines below stop naming the
-            // folder (C3). Until then the session runs without a log
+            // state (D1): `settings_manager.mark_study_broken(
+            // StudyError::log_unavailable(&e))`, called once `s` is
+            // dropped, because that takes the settings write lock. The
+            // two lines below stop naming the folder (C3). Until then
+            // the session runs without a log
             match SessionLog::open(settings_manager.config_dir(), &study.participant_id) {
                 Ok(log) => {
                     let log = Arc::new(log);
