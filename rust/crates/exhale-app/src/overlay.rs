@@ -6,11 +6,12 @@ use std::thread::{self, JoinHandle};
 use anyhow::Result;
 use exhale_core::{
     controller::BreathingState,
-    settings::Settings,
+    settings::{Settings, WindowPlacement},
+    types::DisplayMode,
 };
 use exhale_render::{GpuContext, OverlayRenderer};
 use winit::{
-    dpi::{PhysicalPosition, PhysicalSize},
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Size},
     event_loop::ActiveEventLoop,
     monitor::MonitorHandle,
     window::Window,
@@ -96,7 +97,9 @@ impl FrameSender {
 
 // ─── Public handle (main-thread side) ─────────────────────────────────────────
 
-/// One transparent overlay covering a single monitor
+/// One transparent overlay covering a single monitor, or the one
+/// animation window of Window mode (and of a session that can only
+/// show a window)
 ///
 /// The main thread keeps only the [`Arc<Window>`] and a channel to the
 /// per-overlay render thread.  The render thread owns the
@@ -116,11 +119,17 @@ pub struct OverlayHandle {
     monitor_key: Option<MonitorKey>,
     /// `true` when the swap chain supports per-pixel alpha and the
     /// window is acting as a true click-through overlay.  `false`
-    /// when the compositor / GPU only exposed Opaque alpha and we
-    /// reconfigured the window as a regular windowed app: used by
-    /// `create_all` to avoid spawning duplicate fallback windows on
-    /// every monitor
+    /// when the window is a regular windowed app instead: Window
+    /// mode, the fallback after the compositor / GPU only exposed
+    /// Opaque alpha, or Wayland.  Used by `create_all` to avoid
+    /// spawning duplicate windowed copies on every monitor
     pub alpha_capable: bool,
+    /// `true` when this session can only show a window: Wayland, or
+    /// an overlay probe that found no per-pixel alpha.  `false` for a
+    /// real overlay and for the window of Window mode, which the user
+    /// asked for.  The settings panel reads it to lock the Display
+    /// row, and a display-mode change leaves such a session alone
+    pub window_only: bool,
     /// Render dispatch: per-window thread (macOS / Windows / Linux
     /// X11) or main-thread synchronous rendering (Wayland)
     mode:        HandleMode,
@@ -175,7 +184,10 @@ impl OverlayHandle {
         self.monitor_key
     }
 
-    /// Create one overlay per connected monitor, all sharing `gpu`
+    /// Create one overlay per connected monitor, all sharing `gpu`.  In
+    /// Window mode, create the one animation window instead, with no
+    /// overlay probe.  Startup and a live display-mode change both
+    /// come through here
     pub fn create_all(
         event_loop: &ActiveEventLoop,
         gpu:        Arc<GpuContext>,
@@ -183,7 +195,19 @@ impl OverlayHandle {
         state:      Arc<Mutex<Option<BreathingState>>>,
         max_circle_scale: f32,
     ) -> Vec<Self> {
-        let monitors: Vec<_> = event_loop.available_monitors().collect();
+        // Window mode is one window in total, so only the primary
+        // monitor is visited.  The loop below then stops after that
+        // window the same way it does when the overlay probe falls back,
+        // and the no-monitor fallback after it still covers a machine
+        // that reports none
+        let monitors: Vec<_> = if settings.read_or_recover().display_mode == DisplayMode::Window {
+            event_loop.primary_monitor()
+                .or_else(|| event_loop.available_monitors().next())
+                .into_iter()
+                .collect()
+        } else {
+            event_loop.available_monitors().collect()
+        };
         let mut handles = Vec::with_capacity(monitors.len());
 
         for monitor in monitors {
@@ -195,7 +219,8 @@ impl OverlayHandle {
                     // If the system's swap chain doesn't support
                     // per-pixel alpha, the first overlay reconfigured
                     // itself as a regular windowed app (see
-                    // `create_one`).  Spawning more "overlays" on
+                    // `create_one`).  Window mode builds that same
+                    // window on purpose.  Spawning more "overlays" on
                     // additional monitors in this mode would
                     // produce duplicate windowed copies of the
                     // animation, none of which act as overlays.
@@ -271,6 +296,7 @@ impl OverlayHandle {
                 window,
                 monitor_key,
                 alpha_capable,
+                window_only: true,
                 mode: HandleMode::MainThread(Box::new(MainThreadState {
                     renderer: Mutex::new(renderer),
                     state,
@@ -281,8 +307,17 @@ impl OverlayHandle {
         }
 
         // ── Non-Wayland: per-window render thread ──────────────────
-        let (window, mut renderer, alpha_capable) =
-            create_overlay_or_fallback(event_loop, &gpu, monitor.as_ref(), &settings)?;
+        //
+        // Window mode skips the overlay probe and builds its window
+        // directly, the way the fallback builds the one it settles
+        // for.  Otherwise the overlay comes first and the fallback
+        // only when the probe finds no per-pixel alpha
+        let window_mode = settings.read_or_recover().display_mode == DisplayMode::Window;
+        let (window, mut renderer, alpha_capable) = if window_mode {
+            create_windowed_app(event_loop, &gpu, monitor.as_ref(), &settings)?
+        } else {
+            create_overlay_or_fallback(event_loop, &gpu, monitor.as_ref(), &settings)?
+        };
 
         let (msg_tx, msg_rx) = mpsc::channel::<RenderMsg>();
         let thread = thread::Builder::new()
@@ -302,6 +337,7 @@ impl OverlayHandle {
             window,
             monitor_key,
             alpha_capable,
+            window_only: !window_mode && !alpha_capable,
             mode: HandleMode::Threaded { msg_tx, thread: Some(thread) },
         })
     }
@@ -385,49 +421,57 @@ impl OverlayHandle {
 
 /// Build a plain decorated / resizable / movable app window that
 /// renders the breath animation as its content.  Used unconditionally
-/// on Wayland (no portable always-on-top there) and as the fallback
+/// on Wayland (no portable always-on-top there), as the fallback
 /// when the overlay probe finds the swap chain is Opaque-only
-/// (WARP / remote-desktop / certain VM GPU paths).  Always returns
+/// (WARP / remote-desktop / certain VM GPU paths), and for Window
+/// mode, where the user asks for it.  Always returns
 /// `alpha_capable = false` so the renderer paints onto the opaque
 /// surface without compositing artefacts
+///
+/// The renderer is [`OverlayRenderer::new_window`] on every one of those
+/// paths: an opaque swap chain, drawn at full strength
 fn create_windowed_app(
     event_loop: &ActiveEventLoop,
     gpu:        &Arc<GpuContext>,
     monitor:    Option<&MonitorHandle>,
     settings:   &Arc<RwLock<Settings>>,
 ) -> Result<(Arc<Window>, OverlayRenderer, bool)> {
-    const DEFAULT_W: u32 = 480;
-    const DEFAULT_H: u32 = 360;
-
-    let placement = settings.read_or_recover().animation_window_placement();
+    let (placement, animating) = {
+        let s = settings.read_or_recover();
+        (s.animation_window_placement(), s.is_animating)
+    };
     let win_attrs = Window::default_attributes()
         .with_title("exhale")
-        .with_inner_size(PhysicalSize::new(
-            placement.width.unwrap_or(DEFAULT_W),
-            placement.height.unwrap_or(DEFAULT_H),
-        ))
+        .with_inner_size(initial_window_size(&placement))
         .with_decorations(true)
         .with_resizable(true)
+        // A stopped session keeps this window hidden until Start (see
+        // `set_animation_visible`), so one built mid-session after a
+        // display-mode change doesn't flash on screen first
+        .with_visible(animating)
         .with_window_icon(crate::app_icon::window_icon());
 
     let window  = Arc::new(event_loop.create_window(win_attrs)?);
+    // Lets the OS's own full-screen control work on this window
+    platform::setup_animation_window(&window);
 
     // Apply the saved position before creating the wgpu surface so
     // any compositor that re-runs configure on outer-position
     // changes settles into the final geometry before we configure
     // the surface.  Size was already set via `with_inner_size` in
-    // the attrs above using the persisted (or default) physical
-    // pixel dimensions
+    // the attrs above: see `initial_window_size`
     crate::placement::apply_placement(event_loop, &window, &placement);
     if placement.x.is_none() {
         // First launch / no saved position: centre on the assigned
         // monitor explicitly so X11 / Windows / macOS don't fall back
-        // to (0, 0).  Wayland still ignores this
+        // to (0, 0).  Wayland still ignores this.  Centres the window as
+        // it came out, since its physical size depends on the scale
         if let Some(m) = monitor {
-            let mp = m.position();
-            let ms = m.size();
-            let x  = mp.x + (ms.width  as i32 - DEFAULT_W as i32) / 2;
-            let y  = mp.y + (ms.height as i32 - DEFAULT_H as i32) / 2;
+            let mp    = m.position();
+            let ms    = m.size();
+            let outer = window.outer_size();
+            let x     = mp.x + (ms.width  as i32 - outer.width  as i32) / 2;
+            let y     = mp.y + (ms.height as i32 - outer.height as i32) / 2;
             window.set_outer_position(PhysicalPosition::new(
                 x.max(mp.x), y.max(mp.y),
             ));
@@ -436,10 +480,29 @@ fn create_windowed_app(
 
     let size     = window.inner_size();
     let surface  = gpu.instance.create_surface(Arc::clone(&window))?;
-    let renderer = OverlayRenderer::new(
+    let renderer = OverlayRenderer::new_window(
         Arc::clone(gpu), surface, size.width, size.height,
     )?;
     Ok((window, renderer, false))
+}
+
+/// Inner size the animation window opens at: the size the user left
+/// it at, else 480 by 360 logical points
+///
+/// A saved size is physical pixels, which is what
+/// `placement::capture_placement` stores, so it reads back as exactly
+/// that many pixels.  The default is logical points, so a Retina or
+/// scaled display gets the same 480 by 360 window an unscaled one does
+/// instead of half of it.  Half a saved size (one of the two numbers
+/// missing from a hand-edited `settings.toml`) counts as none
+fn initial_window_size(placement: &WindowPlacement) -> Size {
+    const DEFAULT_W: u32 = 480;
+    const DEFAULT_H: u32 = 360;
+
+    match (placement.width, placement.height) {
+        (Some(w), Some(h)) => PhysicalSize::new(w, h).into(),
+        _                  => LogicalSize::new(DEFAULT_W, DEFAULT_H).into(),
+    }
 }
 
 /// Try the platform-specific fullscreen overlay path (click-through,
@@ -733,5 +796,41 @@ mod coalesce_tests {
             latest_resize: None,
             should_quit:   false,
         });
+    }
+}
+
+#[cfg(test)]
+mod window_size_tests {
+    use super::*;
+
+    fn placement(width: Option<u32>, height: Option<u32>) -> WindowPlacement {
+        WindowPlacement { width, height, ..Default::default() }
+    }
+
+    #[test]
+    fn no_saved_size_opens_at_480_by_360_logical_points() {
+        // Logical, so a Retina display gets 960 by 720 pixels and not 480 by 360
+        assert_eq!(
+            initial_window_size(&placement(None, None)),
+            Size::Logical(LogicalSize::new(480.0, 360.0)),
+        );
+        let physical = initial_window_size(&placement(None, None)).to_physical::<u32>(2.0);
+        assert_eq!((physical.width, physical.height), (960, 720));
+    }
+
+    #[test]
+    fn a_saved_size_reads_back_as_the_physical_pixels_it_was_stored_in() {
+        // `capture_placement` stores `window.inner_size()`, which is physical
+        assert_eq!(
+            initial_window_size(&placement(Some(960), Some(720))),
+            Size::Physical(PhysicalSize::new(960, 720)),
+        );
+    }
+
+    #[test]
+    fn half_a_saved_size_counts_as_none() {
+        let default = initial_window_size(&placement(None, None));
+        assert_eq!(initial_window_size(&placement(Some(960), None)), default);
+        assert_eq!(initial_window_size(&placement(None, Some(720))), default);
     }
 }

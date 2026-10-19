@@ -62,6 +62,17 @@ pub enum AppVisibility {
     Both,
 }
 
+/// How the breathing animation is put on screen
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DisplayMode {
+    /// One translucent, click-through window per monitor, floating above
+    /// the other windows
+    Overlay,
+    /// One regular window to move, resize or make full screen
+    Window,
+}
+
 
 /// The four phases of a single breath cycle
 ///
@@ -177,5 +188,20 @@ mod tests {
         let back: W = toml::from_str(&s).expect("deserialise");
         assert_eq!(back.shape, AnimationShape::Circle);
         assert_eq!(back.ripple, HoldRippleMode::Gradient);
+    }
+
+    #[test]
+    fn display_mode_is_written_in_snake_case_like_its_siblings() {
+        #[derive(serde::Serialize, serde::Deserialize)]
+        struct W { display_mode: DisplayMode }
+        for (mode, text) in [
+            (DisplayMode::Overlay, "display_mode = \"overlay\"\n"),
+            (DisplayMode::Window,  "display_mode = \"window\"\n"),
+        ] {
+            let s = toml::to_string(&W { display_mode: mode }).expect("serialise");
+            assert_eq!(s, text);
+            let back: W = toml::from_str(&s).expect("deserialise");
+            assert_eq!(back.display_mode, mode);
+        }
     }
 }

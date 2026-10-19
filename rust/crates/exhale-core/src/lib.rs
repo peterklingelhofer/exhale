@@ -18,5 +18,5 @@ pub use settings_manager::SettingsManager;
 pub use study::StudyConfig;
 pub use types::{
     AnimationMode, AnimationShape, AppVisibility, BreathingPhase, ColorFillGradient,
-    HoldRippleMode,
+    DisplayMode, HoldRippleMode,
 };

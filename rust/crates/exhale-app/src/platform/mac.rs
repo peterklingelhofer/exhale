@@ -114,6 +114,21 @@ use super::*;
         ns_win.setHasShadow(false);
     }
 
+    /// Make the window of Window mode full-screen capable
+    ///
+    /// winit leaves `collectionBehavior` at its default, and AppKit's
+    /// `NSWindow.h` says `toggleFullScreen:` needs `FullScreenPrimary`
+    /// or `FullScreenAuxiliary` in it or "may simply do nothing".
+    /// Nothing else changes: the window stays at the normal level, on
+    /// one Space, and in Cmd+Tab, unlike the overlay
+    /// [`setup_overlay_window`] builds
+    pub fn setup_animation_window(window: &Window) {
+        use objc2_app_kit::NSWindowCollectionBehavior;
+
+        let Some(ns_win) = get_ns_window(window) else { return; };
+        ns_win.setCollectionBehavior(NSWindowCollectionBehavior::FullScreenPrimary);
+    }
+
     pub fn setup_settings_window(window: &Window) {
         // Window level only: the vibrancy install runs post-wgpu-surface via
         // `install_settings_vibrancy` so we don't re-parent winit's NSView

@@ -21,7 +21,8 @@ use exhale_core::{
     settings::{KeyboardShortcut, Settings, ShortcutAction},
     settings_manager::SettingsManager,
     types::{
-        AnimationMode, AnimationShape, AppVisibility, ColorFillGradient, HoldRippleMode,
+        AnimationMode, AnimationShape, AppVisibility, ColorFillGradient, DisplayMode,
+        HoldRippleMode,
     },
 };
 use crate::keymap::{egui_key_to_code, egui_modifiers_to_mask};
@@ -509,10 +510,14 @@ impl SettingsWindow {
     /// Returns the `repaint_delay` egui requests for its next frame, used by
     /// the caller to schedule the next repaint via a deadline instead of
     /// polling every idle tick.  `Duration::MAX` means no scheduled repaint
+    ///
+    /// `overlay_available` is false when this session can only show a
+    /// window, which locks the Display row to Window
     pub fn render(
         &mut self,
-        settings:         &mut Settings,
-        settings_manager: &Arc<SettingsManager>,
+        settings:          &mut Settings,
+        settings_manager:  &Arc<SettingsManager>,
+        overlay_available: bool,
     ) -> Result<std::time::Duration> {
         // Reconcile against the authoritative OS theme every frame.
         // `WindowEvent::ThemeChanged` can coalesce or drop during rapid
@@ -578,6 +583,7 @@ impl SettingsWindow {
                 &self.session_log,
                 &mut self.study_status,
                 &mut self.exported_this_session,
+                overlay_available,
             );
         });
 
@@ -812,6 +818,10 @@ fn shortcut_tooltip_line(
 // both its `segmented_row` and `uniform_picker_column_width`, so the
 // measured column always matches the labels drawn
 
+const DISPLAY_OPTIONS: &[(&str, DisplayMode)] = &[
+    ("Overlay", DisplayMode::Overlay),
+    ("Window",  DisplayMode::Window),
+];
 const SHAPE_OPTIONS: &[(&str, AnimationShape)] = &[
     ("Rectangle", AnimationShape::Rectangle),
     ("Circle",    AnimationShape::Circle),
@@ -841,6 +851,110 @@ const VISIBILITY_OPTIONS: &[(&str, AppVisibility)] = &[
     ("Dock",    AppVisibility::DockOnly),
     ("Both",    AppVisibility::Both),
 ];
+
+/// The one column width every picker in the Appearance card shares,
+/// measured over all of them.  Split out of [`settings_ui`] so a layout
+/// test measures the same column the window does
+fn picker_column_width(ui: &egui::Ui) -> f32 {
+    uniform_picker_column_width(ui, &[
+        option_labels(DISPLAY_OPTIONS),
+        option_labels(SHAPE_OPTIONS),
+        option_labels(GRADIENT_OPTIONS),
+        option_labels(ANIMATION_OPTIONS),
+        option_labels(RIPPLE_OPTIONS),
+        option_labels(VISIBILITY_OPTIONS),
+    ])
+}
+
+const DISPLAY_HELP: &str = "Overlay floats above your other windows and lets clicks \
+                            through. Window is a regular window you can move, resize \
+                            or make full screen.";
+/// Shown in its place when the session can't show an overlay
+const DISPLAY_LOCKED_HELP: &str = "This session always shows a window, because Wayland and \
+                                   some graphics drivers can't show an overlay.";
+
+/// The Display row: Overlay or Window
+///
+/// A session that can't show an overlay (Wayland, or a swap chain with
+/// no per-pixel alpha) always shows a window.  The row is then drawn
+/// disabled with Window selected, and nothing it does reaches
+/// `settings`, so the stored choice stays whatever the user last made.
+/// Disabling it with `add_enabled_ui` is safe because `segmented_row`
+/// senses hover only in a disabled `Ui`, which keeps Tab traversal
+/// intact (see the Background Color comment in `settings_ui`)
+///
+/// Returns true when the setting changed
+fn display_row(
+    ui:                &mut egui::Ui,
+    settings:          &mut Settings,
+    overlay_available: bool,
+    column_w:          f32,
+) -> bool {
+    if overlay_available {
+        return segmented_row(
+            ui, "Display", DISPLAY_HELP, column_w,
+            &mut settings.display_mode, DISPLAY_OPTIONS,
+        );
+    }
+    // The picker needs something to write to, and it never will
+    let mut shown = DisplayMode::Window;
+    ui.add_enabled_ui(false, |ui| {
+        segmented_row(
+            ui, "Display", DISPLAY_LOCKED_HELP, column_w,
+            &mut shown, DISPLAY_OPTIONS,
+        );
+    });
+    false
+}
+
+const OPACITY_HELP: &str = "Transparency of the overlay. Lower = more transparent.";
+/// Shown in its place while a window is showing
+const OPACITY_WINDOW_HELP: &str =
+    "A window draws at full strength. Overlay Opacity applies to the overlay.";
+
+/// Whether the animation is a window right now: Window mode, or a session
+/// that can't show an overlay and so shows one whatever is stored
+fn window_showing(settings: &Settings, overlay_available: bool) -> bool {
+    !overlay_available || settings.display_mode == DisplayMode::Window
+}
+
+/// The Overlay Opacity row
+///
+/// A window draws at full strength, so while one is showing the row is
+/// drawn disabled and nothing it does reaches `settings`: the stored
+/// opacity waits for the next time an overlay is showing.  It's disabled
+/// the way the Display row is, with the same Tab-safe widget
+///
+/// Returns true when the setting changed
+fn opacity_row(
+    ui:             &mut egui::Ui,
+    settings:       &mut Settings,
+    window_showing: bool,
+) -> bool {
+    // Swift stores 0.0..1.0, displays 0..100 %.  Wrap with an f64 shim
+    // because ValueScale::Percent operates on `*value / 100.0` and
+    // settings.overlay_opacity is f32
+    let mut opacity_pct = settings.overlay_opacity as f64;
+    if window_showing {
+        ui.add_enabled_ui(false, |ui| {
+            stepper_row(
+                ui, "Overlay Opacity (%)", OPACITY_WINDOW_HELP,
+                None, &mut opacity_pct, 1.0, 0.0, Some(100.0),
+                ValueScale::Percent,
+            );
+        });
+        return false;
+    }
+    if stepper_row(
+        ui, "Overlay Opacity (%)", OPACITY_HELP,
+        None, &mut opacity_pct, 1.0, 0.0, Some(100.0),
+        ValueScale::Percent,
+    ) {
+        settings.overlay_opacity = opacity_pct as f32;
+        return true;
+    }
+    false
+}
 
 /// Gap between the Controls-row buttons, and between the two reset
 /// confirmation buttons under them
@@ -1043,6 +1157,7 @@ fn settings_ui(
     session_log:            &Option<Arc<SessionLog>>,
     study_status:           &mut Option<String>,
     exported_this_session:  &mut bool,
+    overlay_available:      bool,
 ) -> f32 {
     let mut dirty = false;
     let mut content_height = 0.0f32;
@@ -1113,13 +1228,7 @@ fn settings_ui(
             // every picker lands on the same X, regardless of option count
             // or text length, and the column only extends as far left as
             // the widest picker requires
-            let picker_column_w = uniform_picker_column_width(ui, &[
-                option_labels(SHAPE_OPTIONS),
-                option_labels(GRADIENT_OPTIONS),
-                option_labels(ANIMATION_OPTIONS),
-                option_labels(RIPPLE_OPTIONS),
-                option_labels(VISIBILITY_OPTIONS),
-            ]);
+            let picker_column_w = picker_column_width(ui);
 
             // ── Study file that couldn't be used ──────────────────────
             //
@@ -1466,17 +1575,13 @@ fn settings_ui(
                     &mut settings.background_color, egui::color_picker::Alpha::OnlyBlend,
                 ) { dirty = true; }
 
-                // Overlay opacity: Swift stores 0.0..1.0, displays 0..100 %.
-                // Wrap with an f64 shim because ValueScale::Percent operates
-                // on `*value / 100.0` and settings.overlay_opacity is f32
-                let mut opacity_pct = settings.overlay_opacity as f64;
-                if stepper_row(
-                    ui, "Overlay Opacity (%)",
-                    "Transparency of the overlay. Lower = more transparent.",
-                    None, &mut opacity_pct, 1.0, 0.0, Some(100.0),
-                    ValueScale::Percent,
-                ) {
-                    settings.overlay_opacity = opacity_pct as f32;
+                // Overlay opacity: disabled while a window is showing
+                let window = window_showing(settings, overlay_available);
+                if opacity_row(ui, settings, window) {
+                    dirty = true;
+                }
+
+                if display_row(ui, settings, overlay_available, picker_column_w) {
                     dirty = true;
                 }
 
@@ -1983,6 +2088,330 @@ mod tests {
 
         assert!(changed, "clicking a segment should report a change");
         assert_eq!(value, 2);
+    }
+
+    // ── Display row ───────────────────────────────────────────────
+
+    /// One frame of the Display row inside a real Appearance card, at the
+    /// column width the window measures.  Goes through `section` for the
+    /// reason `run_chips_frame` does: a bare panel `Ui` lays out wider
+    /// than the shipped card
+    fn run_display_frame(
+        ctx:               &Context,
+        raw_in:            RawInput,
+        settings:          &mut exhale_core::settings::Settings,
+        overlay_available: bool,
+    ) -> bool {
+        let mut changed = false;
+        let _ = ctx.run(raw_in, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                section(ui, "Appearance", |ui| {
+                    let column_w = picker_column_width(ui);
+                    changed = display_row(ui, settings, overlay_available, column_w);
+                });
+            });
+        });
+        changed
+    }
+
+    #[test]
+    fn clicking_window_in_the_display_row_changes_the_setting() {
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        assert_eq!(settings.display_mode, DisplayMode::Overlay);
+
+        // Warm-up frame registers the two segments
+        let _ = run_display_frame(&ctx, blank_input(), &mut settings, true);
+        let rects = super::widgets::test_hooks::take_seg_rects()
+            .expect("the Display row records its segments");
+        assert_eq!(rects.len(), 2, "Overlay | Window");
+        assert_eq!(super::widgets::test_hooks::take_seg_selected(), Some(0));
+
+        let changed = run_display_frame(
+            &ctx, click_input(rects[1].center()), &mut settings, true,
+        );
+        assert!(changed, "clicking Window should mark settings dirty");
+        assert_eq!(settings.display_mode, DisplayMode::Window);
+
+        let _ = run_display_frame(&ctx, blank_input(), &mut settings, true);
+        assert_eq!(super::widgets::test_hooks::take_seg_selected(), Some(1));
+
+        // And back
+        let changed = run_display_frame(
+            &ctx, click_input(rects[0].center()), &mut settings, true,
+        );
+        assert!(changed);
+        assert_eq!(settings.display_mode, DisplayMode::Overlay);
+    }
+
+    #[test]
+    fn a_session_with_no_overlay_shows_window_selected_and_ignores_every_click() {
+        let ctx = Context::default();
+        // What a Wayland machine has stored: the default, since the row
+        // never lets anyone change it there
+        let mut settings = exhale_core::settings::Settings::default();
+        assert_eq!(settings.display_mode, DisplayMode::Overlay);
+
+        let _ = run_display_frame(&ctx, blank_input(), &mut settings, false);
+        let rects = super::widgets::test_hooks::take_seg_rects()
+            .expect("a disabled row still lays out its segments");
+        assert_eq!(
+            super::widgets::test_hooks::take_seg_selected(), Some(1),
+            "Window is the lit segment whatever is stored",
+        );
+
+        for (i, rect) in rects.iter().enumerate() {
+            let changed = run_display_frame(
+                &ctx, click_input(rect.center()), &mut settings, false,
+            );
+            assert!(!changed, "segment {i} of a disabled row reported a change");
+        }
+        assert_eq!(
+            settings.display_mode, DisplayMode::Overlay,
+            "the stored choice isn't touched",
+        );
+
+        let _ = run_display_frame(&ctx, blank_input(), &mut settings, false);
+        assert_eq!(super::widgets::test_hooks::take_seg_selected(), Some(1));
+    }
+
+    #[test]
+    fn tab_skips_a_disabled_display_row_and_walks_an_enabled_one() {
+        // The display row followed by the next control in Tab order
+        let frame = |ctx: &Context, raw_in: RawInput, overlay_available: bool| {
+            let mut settings = exhale_core::settings::Settings::default();
+            let mut next = egui::Id::NULL;
+            let _ = ctx.run(raw_in, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    section(ui, "Appearance", |ui| {
+                        let column_w = picker_column_width(ui);
+                        display_row(ui, &mut settings, overlay_available, column_w);
+                        next = ui.button("Next").id;
+                    });
+                });
+            });
+            next
+        };
+        let tab_presses = |overlay_available: bool| {
+            let ctx = Context::default();
+            let next = frame(&ctx, blank_input(), overlay_available);
+            for presses in 1..=3 {
+                let _ = frame(&ctx, key_input(egui::Key::Tab), overlay_available);
+                if ctx.memory(|m| m.focused()) == Some(next) {
+                    return presses;
+                }
+            }
+            usize::MAX
+        };
+
+        // An enabled row is two stops, Overlay then Window, before the next control
+        assert_eq!(tab_presses(true), 3);
+        // A disabled row is none. egui hands focus to a disabled widget and
+        // takes it back the same frame, which strands the traversal for
+        // every control after it, so the row has to offer no stop at all
+        assert_eq!(tab_presses(false), 1);
+    }
+
+    #[test]
+    fn the_display_row_lines_up_with_shape_and_stays_in_the_card_in_both_states() {
+        // Display and Shape laid out in one card, as the window does
+        let frame = |ctx: &Context, overlay_available: bool| {
+            let mut settings = exhale_core::settings::Settings::default();
+            let (mut display, mut shape, mut right) = (vec![], vec![], 0.0_f32);
+            let _ = ctx.run(blank_input(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    section(ui, "Appearance", |ui| {
+                        let column_w = picker_column_width(ui);
+                        display_row(ui, &mut settings, overlay_available, column_w);
+                        display = super::widgets::test_hooks::take_seg_rects().unwrap_or_default();
+                        let mut shape_value = settings.shape;
+                        segmented_row(ui, "Shape", "help", column_w, &mut shape_value, SHAPE_OPTIONS);
+                        shape = super::widgets::test_hooks::take_seg_rects().unwrap_or_default();
+                        right = ui.max_rect().right();
+                    });
+                });
+            });
+            (display, shape, right)
+        };
+
+        let ctx = Context::default();
+        let _ = frame(&ctx, true);
+        let (enabled, shape, card_right) = frame(&ctx, true);
+        let ctx = Context::default();
+        let _ = frame(&ctx, false);
+        let (disabled, shape_locked, _) = frame(&ctx, false);
+
+        assert_eq!(enabled.len(), 2);
+        assert_eq!(shape.len(), 3);
+        assert_eq!(enabled, disabled, "locking the row moves nothing");
+        assert_eq!(shape, shape_locked, "and nothing below it either");
+
+        // Same left and right edge as the Shape picker above or below it
+        let (d_left, d_right) = (enabled[0].min.x, enabled[1].max.x);
+        assert!((d_left  - shape[0].min.x).abs() < 0.5, "left edge {d_left} vs Shape {}", shape[0].min.x);
+        assert!((d_right - shape[2].max.x).abs() < 0.5, "right edge {d_right} vs Shape {}", shape[2].max.x);
+
+        // Inside the card, and the segments in order without overlap
+        // (contiguous segments share an edge, so `intersects` would say yes)
+        assert!(d_right <= card_right + 0.5, "the picker overflows the card by {}", d_right - card_right);
+        assert!(
+            enabled[0].max.x <= enabled[1].min.x + 0.5,
+            "Overlay ends at {} but Window starts at {}", enabled[0].max.x, enabled[1].min.x,
+        );
+    }
+
+    // ── Overlay Opacity row ───────────────────────────────────────
+
+    /// One frame of the Overlay Opacity row inside a real Appearance card,
+    /// followed by the next control in Tab order.  Returns whether the row
+    /// changed the setting and where that next control sits
+    fn run_opacity_frame(
+        ctx:            &Context,
+        raw_in:         RawInput,
+        settings:       &mut exhale_core::settings::Settings,
+        window_showing: bool,
+    ) -> (bool, egui::Response) {
+        let mut changed = false;
+        let mut next = None;
+        let _ = ctx.run(raw_in, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                section(ui, "Appearance", |ui| {
+                    changed = opacity_row(ui, settings, window_showing);
+                    next = Some(ui.button("Next"));
+                });
+            });
+        });
+        (changed, next.expect("the frame ran"))
+    }
+
+    /// Where the row's number field sits, from the stepper's two halves
+    fn opacity_field_center(up: egui::Rect, down: egui::Rect) -> egui::Pos2 {
+        egui::pos2(up.left() - 2.0 - STEPPER_FIELD_W / 2.0, (up.top() + down.bottom()) / 2.0)
+    }
+
+    #[test]
+    fn the_opacity_row_follows_what_is_showing() {
+        let settings = |mode| exhale_core::settings::Settings {
+            display_mode: mode,
+            ..Default::default()
+        };
+        // An overlay uses its opacity
+        assert!(!window_showing(&settings(DisplayMode::Overlay), true));
+        // Window mode is a window, and so is a session with no overlay to show,
+        // whatever the stored mode says
+        assert!(window_showing(&settings(DisplayMode::Window),  true));
+        assert!(window_showing(&settings(DisplayMode::Overlay), false));
+        assert!(window_showing(&settings(DisplayMode::Window),  false));
+    }
+
+    #[test]
+    fn the_stepper_edits_the_opacity_only_while_an_overlay_is_showing() {
+        // Overlay: the up half takes 25 % to 26 %
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        assert_eq!(settings.overlay_opacity, 0.25);
+        let _ = run_opacity_frame(&ctx, blank_input(), &mut settings, false);
+        let (up, _) = super::widgets::test_hooks::take_stepper_rects()
+            .expect("the row records its stepper halves");
+        let (changed, _) = run_opacity_frame(&ctx, click_input(up.center()), &mut settings, false);
+        assert!(changed, "the up half should mark settings dirty");
+        assert!((settings.overlay_opacity - 0.26).abs() < 1e-6);
+
+        // Window: neither half does anything, and the stored value stays
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        let _ = run_opacity_frame(&ctx, blank_input(), &mut settings, true);
+        let (up, down) = super::widgets::test_hooks::take_stepper_rects()
+            .expect("a disabled row still lays out its stepper");
+        for (name, target) in [("up", up), ("down", down)] {
+            let (changed, _) = run_opacity_frame(&ctx, click_input(target.center()), &mut settings, true);
+            assert!(!changed, "the {name} half of a disabled stepper reported a change");
+        }
+        assert_eq!(settings.overlay_opacity, 0.25, "the stored opacity is untouched");
+    }
+
+    #[test]
+    fn the_number_field_takes_focus_and_typing_only_while_an_overlay_is_showing() {
+        let typed = |text: &str| RawInput {
+            events: vec![egui::Event::Text(text.to_string())],
+            ..blank_input()
+        };
+
+        // Overlay: a click puts the cursor in the field, which is how the
+        // click below is known to land on it
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        let _ = run_opacity_frame(&ctx, blank_input(), &mut settings, false);
+        let (up, down) = super::widgets::test_hooks::take_stepper_rects().expect("stepper rects");
+        let field = opacity_field_center(up, down);
+        let _ = run_opacity_frame(&ctx, click_input(field), &mut settings, false);
+        assert!(ctx.memory(|m| m.focused()).is_some(), "the click should have focused the field");
+
+        // Window: the same click and keystrokes reach nothing
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        let _ = run_opacity_frame(&ctx, blank_input(), &mut settings, true);
+        let (up, down) = super::widgets::test_hooks::take_stepper_rects().expect("stepper rects");
+        let field = opacity_field_center(up, down);
+        let _ = run_opacity_frame(&ctx, click_input(field), &mut settings, true);
+        assert!(ctx.memory(|m| m.focused()).is_none(), "a disabled field took focus");
+        let (changed, _) = run_opacity_frame(&ctx, typed("9"), &mut settings, true);
+        assert!(!changed);
+        assert_eq!(settings.overlay_opacity, 0.25);
+    }
+
+    #[test]
+    fn tab_skips_a_disabled_opacity_row_and_walks_an_enabled_one() {
+        let tab_presses = |window_showing: bool| {
+            let ctx = Context::default();
+            let mut settings = exhale_core::settings::Settings::default();
+            let (_, next) = run_opacity_frame(&ctx, blank_input(), &mut settings, window_showing);
+            for presses in 1..=5 {
+                let _ = run_opacity_frame(&ctx, key_input(egui::Key::Tab), &mut settings, window_showing);
+                if ctx.memory(|m| m.focused()) == Some(next.id) {
+                    return presses;
+                }
+            }
+            usize::MAX
+        };
+
+        // An enabled row is three stops, the field then both halves, before the next control
+        assert_eq!(tab_presses(false), 4);
+        // A disabled one is none: see `tab_skips_a_disabled_display_row_and_walks_an_enabled_one`
+        assert_eq!(tab_presses(true), 1);
+    }
+
+    #[test]
+    fn locking_the_opacity_row_moves_nothing() {
+        let layout = |window_showing: bool| {
+            let ctx = Context::default();
+            let mut settings = exhale_core::settings::Settings::default();
+            let _ = run_opacity_frame(&ctx, blank_input(), &mut settings, window_showing);
+            let (_, next) = run_opacity_frame(&ctx, blank_input(), &mut settings, window_showing);
+            let halves = super::widgets::test_hooks::take_stepper_rects().expect("stepper rects");
+            (halves, next.rect)
+        };
+
+        let (enabled_halves, enabled_next) = layout(false);
+        let (locked_halves,  locked_next)  = layout(true);
+        assert_eq!(enabled_halves, locked_halves, "the stepper stays where it was");
+        assert_eq!(enabled_next, locked_next, "and so does the control below it");
+    }
+
+    #[test]
+    fn the_tooltips_say_what_each_row_does_in_each_state() {
+        assert_eq!(
+            DISPLAY_HELP,
+            "Overlay floats above your other windows and lets clicks through. \
+             Window is a regular window you can move, resize or make full screen.",
+        );
+        assert!(DISPLAY_LOCKED_HELP.starts_with("This session always shows a window"));
+        assert_eq!(
+            OPACITY_WINDOW_HELP,
+            "A window draws at full strength. Overlay Opacity applies to the overlay.",
+        );
+        // The overlay's own wording is still true there, so it stays
+        assert_eq!(OPACITY_HELP, "Transparency of the overlay. Lower = more transparent.");
     }
 
     // ── Study mode ────────────────────────────────────────────────

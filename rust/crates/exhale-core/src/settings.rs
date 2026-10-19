@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::{
-    AnimationMode, AnimationShape, AppVisibility, ColorFillGradient, HoldRippleMode,
+    AnimationMode, AnimationShape, AppVisibility, ColorFillGradient, DisplayMode,
+    HoldRippleMode,
 };
 
 /// All user-configurable settings for the exhale app
@@ -23,6 +24,11 @@ pub struct Settings {
 
     /// Master opacity of the overlay (0.0 to 1.0)
     pub overlay_opacity: f32,
+
+    /// An overlay on every monitor, or one regular window. A session that
+    /// can't show an overlay (Wayland, or a swap chain with no per-pixel
+    /// alpha) keeps the choice stored and shows the window anyway
+    pub display_mode: DisplayMode,
 
     pub shape: AnimationShape,
     pub color_fill_gradient: ColorFillGradient,
@@ -74,9 +80,9 @@ pub struct Settings {
     // [`Settings::animation_window_placement`]
     //
     // The settings window has a fixed width, so only its height is
-    // persisted (`settings_window_width` doesn't exist).  The animation
-    // window persists both dimensions because the user can resize it
-    // freely
+    // persisted (`settings_window_width` doesn't exist), in logical
+    // points.  The animation window persists both dimensions, in
+    // physical pixels, because the user can resize it freely
     pub settings_window_x: Option<i32>,
     pub settings_window_y: Option<i32>,
     pub settings_window_height: Option<u32>,
@@ -308,6 +314,7 @@ impl Default for Settings {
 
             overlay_opacity: 0.25,
 
+            display_mode:        DisplayMode::Overlay,
             shape:               AnimationShape::Rectangle,
             color_fill_gradient: ColorFillGradient::On,
             animation_mode:      AnimationMode::Sinusoidal,
@@ -387,11 +394,11 @@ impl Settings {
         self.settings_window_screen = p.screen;
     }
 
-    /// Read the persisted placement of the animation (windowed-mode
-    /// fallback) window.  Used only on platforms where the breath
-    /// animation runs as a regular app window instead of as a
-    /// fullscreen click-through overlay (currently Wayland and any
-    /// GPU path that exposes only Opaque alpha)
+    /// Read the persisted placement of the animation (windowed-mode)
+    /// window.  Used only where the breath animation runs as a regular
+    /// app window instead of as a fullscreen click-through overlay:
+    /// Window mode, Wayland and any GPU path that exposes only Opaque
+    /// alpha
     pub fn animation_window_placement(&self) -> WindowPlacement {
         WindowPlacement {
             x:      self.animation_window_x,
@@ -429,20 +436,22 @@ pub(crate) const TIMING_EPS: f64 = 1e-9;
 ///   - `paused_changed`: drives overlay redraw
 ///   - `visibility_changed` / `new_visibility`: drives platform Dock/menu-bar toggle
 ///   - `visual_changed`: drives Swift-parity `triggerAnimationReset()`
+///   - `display_mode_changed`: swaps the per-monitor overlays and the one animation window
 ///   - `timing_changed`: same as visual_changed for timing-related fields
 ///   - `auto_stop_changed`: reschedules the auto-stop deadline
 ///   - `reminder_changed`: reschedules the reminder timer + may prompt for permission
 #[derive(Clone, Copy, Debug)]
 pub struct SettingsDiff {
-    pub animating_started:  bool,
-    pub animating_changed:  bool,
-    pub paused_changed:     bool,
-    pub visibility_changed: bool,
-    pub new_visibility:     crate::types::AppVisibility,
-    pub visual_changed:     bool,
-    pub timing_changed:     bool,
-    pub auto_stop_changed:  bool,
-    pub reminder_changed:   bool,
+    pub animating_started:    bool,
+    pub animating_changed:    bool,
+    pub paused_changed:       bool,
+    pub visibility_changed:   bool,
+    pub new_visibility:       crate::types::AppVisibility,
+    pub visual_changed:       bool,
+    pub display_mode_changed: bool,
+    pub timing_changed:       bool,
+    pub auto_stop_changed:    bool,
+    pub reminder_changed:     bool,
 }
 
 impl SettingsDiff {
@@ -461,6 +470,7 @@ impl SettingsDiff {
             || after.exhale_color        != before.exhale_color
             || after.background_color    != before.background_color
             || (after.overlay_opacity - before.overlay_opacity).abs() > 1e-4;
+        let display_mode_changed = after.display_mode != before.display_mode;
         let timing_changed =
             (after.inhale_duration                       - before.inhale_duration).abs()           > TIMING_EPS
          || (after.post_inhale_hold_duration             - before.post_inhale_hold_duration).abs() > TIMING_EPS
@@ -480,6 +490,7 @@ impl SettingsDiff {
             visibility_changed: after.app_visibility != before.app_visibility,
             new_visibility:     after.app_visibility,
             visual_changed,
+            display_mode_changed,
             timing_changed,
             auto_stop_changed:  (after.auto_stop_minutes        - before.auto_stop_minutes).abs()        > TIMING_EPS,
             reminder_changed:   (after.reminder_interval_minutes - before.reminder_interval_minutes).abs() > TIMING_EPS,
@@ -488,7 +499,11 @@ impl SettingsDiff {
 
     /// Any setting that should trigger an overlay redraw
     pub fn should_redraw_overlay(&self) -> bool {
-        self.paused_changed || self.animating_changed || self.visual_changed || self.timing_changed
+        self.paused_changed
+            || self.animating_changed
+            || self.visual_changed
+            || self.timing_changed
+            || self.display_mode_changed
     }
 
     /// Any setting that, per Swift's `triggerAnimationReset()`,
@@ -496,7 +511,7 @@ impl SettingsDiff {
     /// the animation is actively running and not paused)
     pub fn should_restart_animation(&self, current: &Settings) -> bool {
         self.animating_started
-            || ((self.visual_changed || self.timing_changed)
+            || ((self.visual_changed || self.timing_changed || self.display_mode_changed)
                 && current.is_animating
                 && !current.is_paused)
     }
@@ -644,6 +659,7 @@ mod tests {
         assert_eq!(s.color_fill_gradient, ColorFillGradient::On);
         assert_eq!(s.animation_mode, AnimationMode::Sinusoidal);
         assert_eq!(s.hold_ripple_mode, HoldRippleMode::Gradient);
+        assert_eq!(s.display_mode, DisplayMode::Overlay);
         assert!(s.is_animating);
     }
 
@@ -665,6 +681,25 @@ mod tests {
         assert_eq!(s.inhale_duration, 7.0);
         assert_eq!(s.exhale_duration, Settings::default().exhale_duration);
         assert_eq!(s.shape, Settings::default().shape);
+    }
+
+    #[test]
+    fn a_settings_toml_written_before_display_mode_loads_as_overlay() {
+        // Every other key is present, as in a file an older version saved.
+        // Only this one is missing, so the default has to fill it
+        let current = toml::to_string(&Settings::default()).expect("serialise");
+        let older: String = current
+            .lines()
+            .filter(|line| !line.starts_with("display_mode"))
+            .map(|line| format!("{line}\n"))
+            .collect();
+        assert!(!older.contains("display_mode"), "the fixture still names the key");
+        let s: Settings = toml::from_str(&older).expect("deserialise");
+        assert_eq!(s.display_mode, DisplayMode::Overlay);
+
+        // A file that does name it keeps what it says
+        let w: Settings = toml::from_str("display_mode = \"window\"").expect("deserialise");
+        assert_eq!(w.display_mode, DisplayMode::Window);
     }
 
     #[test]
@@ -881,6 +916,16 @@ mod tests {
         assert_eq!(s.exhale_duration, Settings::default().exhale_duration);
     }
 
+    #[test]
+    fn reset_puts_the_display_back_to_overlay() {
+        let mut s = Settings::default();
+        s.display_mode = DisplayMode::Window;
+
+        s.reset_preserving_runtime_state();
+
+        assert_eq!(s.display_mode, DisplayMode::Overlay);
+    }
+
     // ── SettingsDiff ────────────────────────────────────────────────
 
     #[test]
@@ -892,6 +937,7 @@ mod tests {
         assert!(!d.paused_changed);
         assert!(!d.visibility_changed);
         assert!(!d.visual_changed);
+        assert!(!d.display_mode_changed);
         assert!(!d.timing_changed);
         assert!(!d.auto_stop_changed);
         assert!(!d.reminder_changed);
@@ -987,6 +1033,49 @@ mod tests {
         // Even with no visual or timing change, `started` triggers a restart
         let d = SettingsDiff::from(&before, &after);
         assert!(d.should_restart_animation(&after));
+    }
+
+    #[test]
+    fn diff_detects_a_display_mode_change_in_both_directions() {
+        let before = Settings::default();
+        let mut after = before.clone();
+        after.display_mode = DisplayMode::Window;
+
+        let there = SettingsDiff::from(&before, &after);
+        assert!(there.display_mode_changed);
+        assert!(SettingsDiff::from(&after, &before).display_mode_changed);
+
+        // Nothing else moved with it, so the other flags stay quiet
+        assert!(!there.visual_changed);
+        assert!(!there.timing_changed);
+        assert!(!there.animating_changed);
+        assert!(!there.paused_changed);
+        assert!(!there.visibility_changed);
+    }
+
+    #[test]
+    fn a_display_mode_change_restarts_and_redraws_like_a_visual_one() {
+        let before = Settings::default();
+        let mut running = before.clone();
+        running.display_mode = DisplayMode::Window;
+
+        // Running: the breath starts over from inhale phase 0 in the new window
+        let d = SettingsDiff::from(&before, &running);
+        assert!(d.should_restart_animation(&running));
+        assert!(d.should_redraw_overlay());
+
+        // Paused or stopped: no restart, but the new window still needs a frame
+        let mut paused = running.clone();
+        paused.is_paused = true;
+        let d = SettingsDiff::from(&before, &paused);
+        assert!(!d.should_restart_animation(&paused));
+        assert!(d.should_redraw_overlay());
+
+        let mut stopped = running.clone();
+        stopped.is_animating = false;
+        let d = SettingsDiff::from(&before, &stopped);
+        assert!(!d.should_restart_animation(&stopped));
+        assert!(d.should_redraw_overlay());
     }
 
     #[test]

@@ -32,6 +32,7 @@ use exhale_core::{
     session_log::{SessionLog, Value, LOG_FILE_NAME},
     settings::{Settings, ShortcutAction},
     settings_manager::SettingsManager,
+    types::DisplayMode,
 };
 use exhale_render::GpuContext;
 #[cfg(feature = "global-hotkeys")]
@@ -158,7 +159,8 @@ struct App {
     // GPU context: shared across all renderers
     gpu: Option<Arc<GpuContext>>,
 
-    // One overlay per monitor
+    // One overlay per monitor, or the one animation window in Window
+    // mode and on a session that can only show a window
     overlays:            HashMap<WindowId, OverlayHandle>,
 
     // Shared frame-sender list the controller's `request_draw` closure
@@ -369,11 +371,12 @@ impl App {
                 c.restart();
             }
         }
-        // Windowed-mode (Wayland fallback): Start brings the animation
-        // window back if Stop had hidden it, and Stop hides it so Stop
-        // closes it from the user's perspective.  No-op on threaded
-        // fullscreen-overlay windows: they stay mapped, and after Stop
-        // they render the "stopped" clear frame `do_stop` forces
+        // Windowed-mode (Window mode, Wayland, the opaque fallback):
+        // Start brings the animation window back if Stop had hidden
+        // it, and Stop hides it so Stop closes it from the user's
+        // perspective.  No-op on threaded fullscreen-overlay windows:
+        // they stay mapped, and after Stop they render the "stopped"
+        // clear frame `do_stop` forces
         for h in self.overlays.values() {
             h.set_animation_visible(on);
         }
@@ -436,9 +439,11 @@ impl App {
         }
     }
 
-    fn do_reset(&mut self) {
+    fn do_reset(&mut self, event_loop: &ActiveEventLoop) {
         let mut s = self.settings.write_or_recover();
+        let before = s.clone();
         s.reset_preserving_runtime_state();
+        let diff = exhale_core::settings::SettingsDiff::from(&before, &s);
         self.timers.reschedule_auto_stop(&s);
         self.timers.reschedule_reminder(&s);
         self.settings_manager.mark_dirty();
@@ -458,6 +463,19 @@ impl App {
         // cheap no-op
         #[cfg(feature = "global-hotkeys")]
         self.do_rebind_hotkeys();
+        // Reset puts the display back to Overlay, so a session showing
+        // the window of Window mode swaps back.  The new windows then
+        // get what an appearance change in the panel gives them: the
+        // breath restarts if it's running, and a frame is drawn if not
+        if diff.display_mode_changed {
+            self.apply_display_mode(event_loop);
+            let current = self.settings.read_or_recover().clone();
+            if diff.should_restart_animation(&current) {
+                if let Some(c) = &self.controller { c.restart(); }
+            } else {
+                for h in self.overlays.values() { h.wake_render(); }
+            }
+        }
         self.request_settings_redraw();
     }
 
@@ -586,12 +604,18 @@ impl App {
     /// any overlay) is already at the top of z-order: skipping the
     /// SetWindowPos round-trip avoids the per-second `WM_WINDOWPOSCHANGED`
     /// that DWM otherwise composites as a brief frame-edge flicker
+    ///
+    /// Click-through overlays only.  The window of Window mode, and
+    /// the windowed fallback, are ordinary windows: they stay out of the
+    /// topmost band, so the settings window, which sits in it, stays
+    /// above them
     #[cfg(target_os = "windows")]
     fn maybe_reassert_topmost(&mut self) {
         let now = Instant::now();
         let due = self.next_topmost_reassert.is_none_or(|t| now >= t);
         if !due { return; }
         self.next_topmost_reassert = Some(now + Duration::from_secs(1));
+        if !self.overlays.values().any(|h| h.alpha_capable) { return; }
 
         // Determine which of our windows should be at the top: if
         // settings is visible, settings should be above the overlay
@@ -602,14 +626,16 @@ impl App {
         let expected_top: Option<&Window> = self.settings_win.as_ref()
             .filter(|sw| sw.is_shown())
             .map(|sw| sw.window.as_ref())
-            .or_else(|| self.overlays.values().next().map(|h| h.window.as_ref()));
+            .or_else(|| {
+                self.overlays.values().find(|h| h.alpha_capable).map(|h| h.window.as_ref())
+            });
         if let Some(top) = expected_top {
             if platform::is_topmost_top(top) {
                 return;
             }
         }
 
-        for handle in self.overlays.values() {
+        for handle in self.overlays.values().filter(|h| h.alpha_capable) {
             platform::reassert_overlay_topmost(&handle.window);
         }
         if let Some(sw) = &self.settings_win {
@@ -646,8 +672,17 @@ impl App {
     /// that resolves in microseconds, and when the monitor set is
     /// unchanged this function does a single HashSet diff and exits
     /// without touching any locks
+    ///
+    /// Only per-monitor overlays have anything to reconcile.  Window
+    /// mode, and any session that can only show a window, has one
+    /// window whatever the monitor count, so this returns at once
     fn rescan_monitors(&mut self, event_loop: &ActiveEventLoop) {
         use std::collections::HashSet;
+        if self.settings.read_or_recover().display_mode == DisplayMode::Window
+            || self.overlays.values().any(|h| !h.alpha_capable)
+        {
+            return;
+        }
         let Some(gpu) = self.gpu.as_ref().map(Arc::clone) else { return; };
         let Some(senders) = self.frame_senders.as_ref().map(Arc::clone) else { return; };
         let Some(state) = self.breathing_state.as_ref().map(Arc::clone) else { return; };
@@ -695,6 +730,64 @@ impl App {
             let mut w = senders.write_or_recover();
             *w = self.overlays.values().map(|h| h.frame_sender()).collect();
         }
+    }
+
+    /// Swap the animation windows for the set `settings.display_mode`
+    /// now asks for.  Overlay to Window drops every per-monitor overlay
+    /// and opens the one window.  Window to Overlay closes the window
+    /// and builds the overlays again, probe and fallback included
+    ///
+    /// Goes through [`OverlayHandle::create_all`], the path startup
+    /// uses, and through the teardown hot-plug uses: dropping a handle
+    /// joins its render thread and closes its window.  The controller's
+    /// shared sender list is rebuilt before this returns, so its next
+    /// tick draws into the new windows.  Restarting the breath or
+    /// drawing a frame is up to the caller, which knows what else
+    /// changed along with the mode
+    ///
+    /// A session that can only show a window (Wayland, or a swap chain
+    /// with no per-pixel alpha) has nothing to swap: the setting stays
+    /// stored and the window stays
+    fn apply_display_mode(&mut self, event_loop: &ActiveEventLoop) {
+        if self.overlays.values().any(|h| h.window_only) { return; }
+        let Some(gpu) = self.gpu.as_ref().map(Arc::clone) else { return; };
+        let Some(senders) = self.frame_senders.as_ref().map(Arc::clone) else { return; };
+        let Some(state) = self.breathing_state.as_ref().map(Arc::clone) else { return; };
+
+        // A new window takes focus when it opens.  Note whether the panel
+        // held it, so the click that asked for the switch keeps working
+        let panel_had_focus = self.settings_win
+            .as_ref()
+            .is_some_and(|sw| sw.window.has_focus());
+
+        // Old windows go first, so the user never sees both sets at once
+        self.overlays.clear();
+        let handles = OverlayHandle::create_all(
+            event_loop, gpu, Arc::clone(&self.settings), state,
+            self.primary_max_circle_scale,
+        );
+        if handles.is_empty() {
+            error!("display mode change: no animation window created");
+        }
+        // Same as at startup: a stopped session keeps its window hidden
+        // until Start
+        let animating = self.settings.read_or_recover().is_animating;
+        for h in &handles {
+            h.set_animation_visible(animating);
+        }
+        for h in handles {
+            self.overlays.insert(h.window.id(), h);
+        }
+        *senders.write_or_recover() =
+            self.overlays.values().map(|h| h.frame_sender()).collect();
+        info!("display mode changed, {} animation window(s) created", self.overlays.len());
+
+        if panel_had_focus {
+            if let Some(sw) = &self.settings_win { sw.window.focus_window(); }
+        }
+        // The Display row locks when an Overlay request fell back to a
+        // window, so give the panel a frame to show it
+        self.request_settings_redraw();
     }
 }
 
@@ -769,6 +862,9 @@ impl ApplicationHandler<AppEvent> for App {
 
         // ── Create overlay windows (one per monitor) ──────────────────────────
         //
+        // In Window mode `create_all` builds the one animation window
+        // instead, with no overlay probe
+        //
         // Each overlay handle spawns a dedicated render thread that owns
         // its renderer.  The controller writes its state snapshot to a
         // shared Arc and signals the render threads via channels: that
@@ -795,11 +891,11 @@ impl ApplicationHandler<AppEvent> for App {
         let initial_senders: Vec<FrameSender> =
             handles.iter().map(|h| h.frame_sender()).collect();
         // Honour the persisted `is_animating` flag on startup:
-        // windowed-mode overlays (Wayland fallback) should start
-        // hidden if the user quit the app while stopped, so they
-        // come back to a clean "Stop"-state instead of a window
-        // showing the stopped clear frame.  No-op for threaded
-        // fullscreen overlays
+        // windowed-mode overlays (Window mode, Wayland, the opaque
+        // fallback) should start hidden if the user quit the app
+        // while stopped, so they come back to a clean "Stop"-state
+        // instead of a window showing the stopped clear frame.  No-op
+        // for threaded fullscreen overlays
         let initial_animating = self.settings.read_or_recover().is_animating;
         for h in &handles {
             h.set_animation_visible(initial_animating);
@@ -942,7 +1038,7 @@ impl ApplicationHandler<AppEvent> for App {
             AppEvent::ShowSettings   => self.toggle_settings(event_loop),
             AppEvent::StartAnimation => self.do_start(),
             AppEvent::StopAnimation  => self.do_stop(),
-            AppEvent::ResetDefaults  => self.do_reset(),
+            AppEvent::ResetDefaults  => self.do_reset(event_loop),
             #[cfg(feature = "global-hotkeys")]
             AppEvent::ResetDefaultsWithConfirm => self.do_reset_with_confirm(event_loop),
             #[cfg(feature = "global-hotkeys")]
@@ -1017,7 +1113,10 @@ impl ApplicationHandler<AppEvent> for App {
                         let before = self.settings.read_or_recover().clone();
                         let mut settings = before.clone();
 
-                        let repaint_delay = match sw.render(&mut settings, &self.settings_manager) {
+                        // The Display row locks when this session can only
+                        // show a window
+                        let overlay_available = !self.overlays.values().any(|h| h.window_only);
+                        let repaint_delay = match sw.render(&mut settings, &self.settings_manager, overlay_available) {
                             Ok(d)  => d,
                             Err(e) => { error!("settings render: {e}"); std::time::Duration::MAX }
                         };
@@ -1070,6 +1169,14 @@ impl ApplicationHandler<AppEvent> for App {
                         if diff.auto_stop_changed || diff.animating_changed {
                             self.timers.reschedule_auto_stop(&settings);
                             self.update_tray_state(&settings);
+                        }
+                        // Display changed: swap the animation windows for
+                        // the new mode before the steps below act on
+                        // them.  The restart-or-redraw further down then
+                        // treats the new windows like any other
+                        // appearance change
+                        if diff.display_mode_changed {
+                            self.apply_display_mode(event_loop);
                         }
                         // Sync windowed-fallback visibility with
                         // `is_animating`.  Settings-panel Start /
@@ -1191,11 +1298,18 @@ impl ApplicationHandler<AppEvent> for App {
             // their `Moved` / `Resized` only fires on monitor
             // hot-plug: already handled by `rescan_monitors`,
             // doesn't need to bleed into the placement file
+            //
+            // The window of Window mode can also go full screen through
+            // the OS's own control.  Skip the capture then: the rectangle
+            // it reports is the whole monitor, and the next launch would
+            // open at that size instead of where the user left it
             let is_windowed_mode = !handle.alpha_capable;
-            let persist_placement = is_windowed_mode && matches!(
-                &event,
-                WindowEvent::Moved(_) | WindowEvent::Resized(_),
-            );
+            let persist_placement = is_windowed_mode
+                && handle.window.fullscreen().is_none()
+                && matches!(
+                    &event,
+                    WindowEvent::Moved(_) | WindowEvent::Resized(_),
+                );
             // In windowed-fallback mode (Wayland, Windows 10 Vulkan
             // without alpha support, WARP / remote-desktop) the
             // overlay is a regular OS window with title-bar X / Alt-

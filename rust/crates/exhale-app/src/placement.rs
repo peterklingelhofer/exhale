@@ -1,5 +1,6 @@
 //! Shared window-placement helpers used by both the settings window
-//! and the windowed-mode animation window (Wayland fallback path)
+//! and the windowed-mode animation window (Window mode and the
+//! Wayland / opaque-surface fallbacks)
 //!
 //! Each window persists its position as an offset relative to a named
 //! monitor: when that monitor is still connected on next launch the
@@ -49,10 +50,12 @@ pub(crate) struct MonitorRect {
 /// .with_inner_size(...)` at creation time, using the right
 /// `LogicalSize` / `PhysicalSize` variant for the units its
 /// placement field stores in (settings window persists height in
-/// logical points, animation window persists in physical pixels).
-/// Re-applying via `request_inner_size(PhysicalSize::new(...))` here
-/// would treat the logical points as physical pixels, halving the
-/// height on Retina / 2× displays
+/// logical points, animation window persists in physical pixels, and
+/// opens at 480 by 360 logical points when nothing is saved, see
+/// `overlay::initial_window_size`).  Re-applying via
+/// `request_inner_size(PhysicalSize::new(...))` here would treat the
+/// logical points as physical pixels, halving the height on Retina /
+/// 2× displays
 pub fn apply_placement(
     event_loop: &ActiveEventLoop,
     window:     &Window,

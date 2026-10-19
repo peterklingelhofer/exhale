@@ -3,6 +3,8 @@
 //! Public surface (identical on every target so main.rs doesn't need cfgs):
 //!   - `setup_overlay_window`: make window click-through, always-on-top,
 //!     spans every workspace/Space
+//!   - `setup_animation_window`: let the OS's full-screen control work on the
+//!     window of Window mode (macOS only, a no-op elsewhere)
 //!   - `setup_settings_window`: float above overlay, don't appear in taskbar
 //!   - `apply_app_visibility`: TopBarOnly/DockOnly/Both (tray vs taskbar)
 //!   - `request_notification_permission`: no-op off macOS
@@ -78,8 +80,8 @@ pub use mac::{
     install_settings_vibrancy, render_sf_symbol,
     sync_settings_backdrop_frame,
     uninstall_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
-    request_notification_permission, running_in_app_bundle, setup_overlay_window,
-    setup_settings_window,
+    request_notification_permission, running_in_app_bundle, setup_animation_window,
+    setup_overlay_window, setup_settings_window,
 };
 
 #[cfg(target_os = "windows")]
@@ -111,6 +113,11 @@ pub use linux::{
 /// implementation, which drops the Research item in study mode
 #[cfg(not(target_os = "macos"))]
 pub fn install_main_menu(_show_research: bool) {}
+
+/// Non-macOS stub for `setup_animation_window`.  Windows maximize and
+/// the Linux window manager's own controls need nothing from us
+#[cfg(not(target_os = "macos"))]
+pub fn setup_animation_window(_window: &Window) {}
 
 /// Non-macOS stub for `render_sf_symbol`: SF Symbols are AppKit-only.
 /// Callers fall back to Unicode glyphs when this returns `None`
