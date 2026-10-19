@@ -1,0 +1,3242 @@
+{
+  "checked": "2026-10-18T20:51:09Z",
+  "format": 1,
+  "links": {
+    "joshi1992-pranayam-training": {
+      "URL": {
+        "bodySha256": null,
+        "checked": "2026-10-18T20:43:53Z",
+        "finalUrl": "https://pubmed.ncbi.nlm.nih.gov/1506070/",
+        "status": 203,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/1506070/"
+      },
+      "openCopy": {
+        "bodySha256": "c426f7808766c641ad89b889785757a025b489e9a850ff2574ec3c58786a2607",
+        "checked": "2026-10-18T20:44:02Z",
+        "finalUrl": "https://ijpp.com/IJPP%20archives/1992_36_2/105-108.pdf",
+        "status": 200,
+        "url": "https://ijpp.com/IJPP%20archives/1992_36_2/105-108.pdf"
+      }
+    },
+    "laborde2022-vsb-meta": {
+      "openCopy": {
+        "bodySha256": "d030cd8ac331e2c18a566e9b44d53b69c91f6d6b56994812dd1ad9964315ace7",
+        "checked": "2026-10-18T20:51:12Z",
+        "finalUrl": "https://hal.science/hal-04925897",
+        "status": 200,
+        "url": "https://hal.science/hal-04925897"
+      }
+    },
+    "lehrer2022-my-life-hrvb": {
+      "openCopy": {
+        "bodySha256": "53edf4a5429a460078503804227511913978cce15517b2cb4d39892e7b93f2b5",
+        "checked": "2026-10-18T20:51:12Z",
+        "finalUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8899772/",
+        "status": 200,
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8899772/"
+      }
+    },
+    "li2016-sigh-circuit": {
+      "openCopy": {
+        "bodySha256": "b4bff8b38033cf0bcc985767d9cdff3df99fed26ecf07b247df1dca26fee78e7",
+        "checked": "2026-10-18T20:51:10Z",
+        "finalUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4852886/",
+        "status": 200,
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4852886/"
+      }
+    },
+    "moraveji2011-peripheral-paced-respiration": {
+      "openCopy": {
+        "bodySha256": "6073c890eb7d49fd94c0aab632215df866f11f68b52feeed3ba42ce8ce526887",
+        "checked": "2026-10-18T20:43:58Z",
+        "finalUrl": "https://idl.cs.washington.edu/files/2011-PPR-UIST.pdf",
+        "status": 200,
+        "url": "https://idl.cs.washington.edu/files/2011-PPR-UIST.pdf"
+      }
+    },
+    "muktibodhananda1998-hatha-yoga-pradipika": {
+      "URL": {
+        "bodySha256": "482a445f94c3db1f6d6de679c0b3659f0c432267d020ac84a4931054a5063b3d",
+        "checked": "2026-10-18T20:43:59Z",
+        "finalUrl": "https://openlibrary.org/books/OL9083573M/Hatha_Yoga_Pradipika",
+        "status": 200,
+        "url": "https://openlibrary.org/books/OL9083573M/Hatha_Yoga_Pradipika"
+      }
+    },
+    "rosenfield2011-computer-vision-syndrome": {
+      "openCopy": {
+        "bodySha256": null,
+        "checked": "2026-10-18T20:43:59Z",
+        "finalUrl": "https://onlinelibrary.wiley.com/doi/full/10.1111/j.1475-1313.2011.00834.x",
+        "status": 403,
+        "url": "https://onlinelibrary.wiley.com/doi/full/10.1111/j.1475-1313.2011.00834.x"
+      }
+    },
+    "satyananda1999-apmb": {
+      "URL": {
+        "bodySha256": "73740c3481f2ac4c96ba47dae082ed007b6d954d50406c1586332956897e4056",
+        "checked": "2026-10-18T20:44:01Z",
+        "finalUrl": "https://openlibrary.org/books/OL22138410M/Asana_pranayama_mudra_bandha",
+        "status": 200,
+        "url": "https://openlibrary.org/books/OL22138410M/Asana_pranayama_mudra_bandha"
+      }
+    },
+    "schleifer1994-vdt-petco2": {
+      "openCopy": {
+        "bodySha256": "56f7968b1502b7a69be5dc12cf5f50d11ee02aebd3f31081f44aecc0ab671237",
+        "checked": "2026-10-18T20:44:01Z",
+        "finalUrl": "https://stacks.cdc.gov/view/cdc/204606",
+        "status": 200,
+        "url": "https://stacks.cdc.gov/view/cdc/204606"
+      }
+    },
+    "sevozcouche2022-coherence-resonance": {
+      "openCopy": {
+        "bodySha256": "c01349423095e35267d48d2bfc4b5135904f3c1757198b2609c7aa3a84bf6457",
+        "checked": "2026-10-18T20:44:03Z",
+        "finalUrl": "https://hal.sorbonne-universite.fr/hal-03578368",
+        "status": 200,
+        "url": "https://hal.sorbonne-universite.fr/hal-03578368"
+      }
+    },
+    "tsubota1993-vdt-blink": {
+      "openCopy": {
+        "bodySha256": null,
+        "checked": "2026-10-18T20:44:02Z",
+        "finalUrl": "https://www.nejm.org/doi/pdf/10.1056/NEJM199302253280817",
+        "status": 403,
+        "url": "https://www.nejm.org/doi/pdf/10.1056/NEJM199302253280817"
+      }
+    },
+    "vandiest2014-ie-ratio-relaxation": {
+      "openCopy": {
+        "bodySha256": "d98841fcb7938f45be09bd51b9130c6184095430ef52377978816f563cb9c1e0",
+        "checked": "2026-10-18T20:44:37Z",
+        "finalUrl": "https://lirias.kuleuven.be/retrieve/843e9b82-a9b0-42e6-897e-9177c10d71b1",
+        "status": 200,
+        "url": "https://lirias.kuleuven.be/retrieve/843e9b82-a9b0-42e6-897e-9177c10d71b1"
+      }
+    },
+    "vandijk2018-close-the-book": {
+      "openCopy": {
+        "bodySha256": null,
+        "checked": "2026-10-18T20:44:03Z",
+        "finalUrl": "https://www.tandfonline.com/doi/pdf/10.1080/08037051.2018.1435260",
+        "status": 403,
+        "url": "https://www.tandfonline.com/doi/pdf/10.1080/08037051.2018.1435260"
+      }
+    },
+    "wongsuphasawat2012-cant-force-calm": {
+      "openCopy": {
+        "bodySha256": "428b2cf9c998ec7d92d1e5644988ef3bb5de8af19b4fd96f6cb860d00e2b20ea",
+        "checked": "2026-10-18T20:44:05Z",
+        "finalUrl": "https://hci.stanford.edu/publications/2012/CantForceCalmUIST2012.pdf",
+        "status": 200,
+        "url": "https://hci.stanford.edu/publications/2012/CantForceCalmUIST2012.pdf"
+      }
+    },
+    "yackle2017-breathing-arousal-neurons": {
+      "openCopy": {
+        "bodySha256": "4d37e5077553ca8125aedd8896f0bb573b7ac8fb31fc869b39649d6a616d3cfc",
+        "checked": "2026-10-18T20:51:10Z",
+        "finalUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5505554/",
+        "status": 200,
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5505554/"
+      }
+    }
+  },
+  "records": {
+    "albulescu2022-micro-breaks": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:43:52Z",
+      "id": "10.1371/journal.pone.0272460",
+      "ledger": {
+        "authors": [
+          "Albulescu",
+          "Macsinga",
+          "Rusu",
+          "Sulea",
+          "Bodnaru",
+          "Tulbure"
+        ],
+        "containerTitle": "PLOS ONE",
+        "edition": null,
+        "issue": "8",
+        "numberOfPages": null,
+        "page": "e0272460",
+        "publisher": null,
+        "title": "\"Give me a break!\" A systematic review and meta-analysis on the efficacy of micro-breaks for increasing well-being and performance",
+        "volume": "17",
+        "year": 2022,
+        "years": [
+          2022
+        ]
+      },
+      "record": {
+        "alternativeIds": [],
+        "articleNumber": null,
+        "authors": [
+          "Albulescu",
+          "Macsinga",
+          "Rusu",
+          "Sulea",
+          "Bodnaru",
+          "Tulbure"
+        ],
+        "containerTitle": "PLOS ONE",
+        "edition": null,
+        "issue": "8",
+        "license": [
+          "http://creativecommons.org/licenses/by/4.0/"
+        ],
+        "numberOfPages": null,
+        "page": "e0272460",
+        "publisher": "Public Library of Science (PLoS)",
+        "title": "\"Give me a break!\" A systematic review and meta-analysis on the efficacy of micro-breaks for increasing well-being and performance",
+        "volume": "17",
+        "year": 2022,
+        "years": [
+          2022
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "bae2021-exhalation-inhalation-ratio": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:43:56Z",
+      "id": "10.1111/psyp.13905",
+      "ledger": {
+        "authors": [
+          "Bae",
+          "Matthews",
+          "Chen",
+          "Mah"
+        ],
+        "containerTitle": "Psychophysiology",
+        "edition": null,
+        "issue": "11",
+        "numberOfPages": null,
+        "page": "e13905",
+        "publisher": null,
+        "title": "Increased exhalation to inhalation ratio during breathing enhances high-frequency heart rate variability in healthy adults",
+        "volume": "58",
+        "year": 2021,
+        "years": [
+          2021
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1111/psyp.13905"
+        ],
+        "articleNumber": "e13905",
+        "authors": [
+          "Bae",
+          "Matthews",
+          "Chen",
+          "Mah"
+        ],
+        "containerTitle": "Psychophysiology",
+        "edition": null,
+        "issue": "11",
+        "license": [
+          "http://onlinelibrary.wiley.com/termsAndConditions#vor"
+        ],
+        "numberOfPages": null,
+        "page": "e13905",
+        "publisher": "Wiley",
+        "title": "Increased exhalation to inhalation ratio during breathing enhances high‐frequency heart rate variability in healthy adults",
+        "volume": "58",
+        "year": 2021,
+        "years": [
+          2021
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "balban2023-cyclic-sighing": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:43:58Z",
+      "id": "10.1016/j.xcrm.2022.100895",
+      "ledger": {
+        "authors": [
+          "Balban",
+          "Neri",
+          "Kogon",
+          "Weed",
+          "Nouriani",
+          "Jo",
+          "Holl",
+          "Zeitzer",
+          "Spiegel",
+          "Huberman"
+        ],
+        "containerTitle": "Cell Reports Medicine",
+        "edition": null,
+        "issue": "1",
+        "numberOfPages": null,
+        "page": "100895",
+        "publisher": null,
+        "title": "Brief structured respiration practices enhance mood and reduce physiological arousal",
+        "volume": "4",
+        "year": 2023,
+        "years": [
+          2023
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "S2666379122004748"
+        ],
+        "articleNumber": "100895",
+        "authors": [
+          "Balban",
+          "Neri",
+          "Kogon",
+          "Weed",
+          "Nouriani",
+          "Jo",
+          "Holl",
+          "Zeitzer",
+          "Spiegel",
+          "Huberman"
+        ],
+        "containerTitle": "Cell Reports Medicine",
+        "edition": null,
+        "issue": "1",
+        "license": [
+          "http://creativecommons.org/licenses/by-nc-nd/4.0/",
+          "https://www.elsevier.com/legal/tdmrep-license",
+          "https://www.elsevier.com/tdm/userlicense/1.0/"
+        ],
+        "numberOfPages": null,
+        "page": "100895",
+        "publisher": "Elsevier BV",
+        "title": "Brief structured respiration practices enhance mood and reduce physiological arousal",
+        "volume": "4",
+        "year": 2023,
+        "years": [
+          2023
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "bernardi2001-slow-breathing-chemoreflex": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:01Z",
+      "id": "10.1097/00004872-200112000-00016",
+      "ledger": {
+        "authors": [
+          "Bernardi",
+          "Gabutti",
+          "Porta",
+          "Spicuzza"
+        ],
+        "containerTitle": "Journal of Hypertension",
+        "edition": null,
+        "issue": "12",
+        "numberOfPages": null,
+        "page": "2221",
+        "publisher": null,
+        "title": "Slow breathing reduces chemoreflex response to hypoxia and hypercapnia, and increases baroreflex sensitivity",
+        "volume": "19",
+        "year": 2001,
+        "years": [
+          2001
+        ]
+      },
+      "record": {
+        "alternativeIds": [],
+        "articleNumber": null,
+        "authors": [
+          "Bernardi",
+          "Gabutti",
+          "Porta",
+          "Spicuzza"
+        ],
+        "containerTitle": "Journal of Hypertension",
+        "edition": null,
+        "issue": "12",
+        "license": [],
+        "numberOfPages": null,
+        "page": "2221",
+        "publisher": "Ovid Technologies (Wolters Kluwer Health)",
+        "title": "Slow breathing reduces chemoreflex response to hypoxia and hypercapnia, and increases baroreflex sensitivity",
+        "volume": "19",
+        "year": 2001,
+        "years": [
+          2001
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "bilo2012-slow-breathing-altitude": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:04Z",
+      "id": "10.1371/journal.pone.0049074",
+      "ledger": {
+        "authors": [
+          "Bilo",
+          "Revera",
+          "Bussotti",
+          "Bonacina",
+          "Styczkiewicz",
+          "Caldara",
+          "Giglio",
+          "Faini",
+          "Giuliano",
+          "Lombardi",
+          "Kawecka-Jaszcz",
+          "Mancia",
+          "Agostoni",
+          "Parati"
+        ],
+        "containerTitle": "PLoS ONE",
+        "edition": null,
+        "issue": "11",
+        "numberOfPages": null,
+        "page": "e49074",
+        "publisher": null,
+        "title": "Effects of Slow Deep Breathing at High Altitude on Oxygen Saturation, Pulmonary and Systemic Hemodynamics",
+        "volume": "7",
+        "year": 2012,
+        "years": [
+          2012
+        ]
+      },
+      "record": {
+        "alternativeIds": [],
+        "articleNumber": null,
+        "authors": [
+          "Bilo",
+          "Revera",
+          "Bussotti",
+          "Bonacina",
+          "Styczkiewicz",
+          "Caldara",
+          "Giglio",
+          "Faini",
+          "Giuliano",
+          "Lombardi",
+          "Kawecka-Jaszcz",
+          "Mancia",
+          "Agostoni",
+          "Parati"
+        ],
+        "containerTitle": "PLoS ONE",
+        "edition": null,
+        "issue": "11",
+        "license": [
+          "http://creativecommons.org/licenses/by/4.0/"
+        ],
+        "numberOfPages": null,
+        "page": "e49074",
+        "publisher": "Public Library of Science (PLoS)",
+        "title": "Effects of Slow Deep Breathing at High Altitude on Oxygen Saturation, Pulmonary and Systemic Hemodynamics",
+        "volume": "7",
+        "year": 2012,
+        "years": [
+          2012
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "chaddha2019-slow-breathing-bp": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:06Z",
+      "id": "10.1016/j.ctim.2019.03.005",
+      "ledger": {
+        "authors": [
+          "Chaddha",
+          "Modaff",
+          "Hooper-Lane",
+          "Feldstein"
+        ],
+        "containerTitle": "Complementary Therapies in Medicine",
+        "edition": null,
+        "issue": null,
+        "numberOfPages": null,
+        "page": "179",
+        "publisher": null,
+        "title": "Device and non-device-guided slow breathing to reduce blood pressure: A systematic review and meta-analysis",
+        "volume": "45",
+        "year": 2019,
+        "years": [
+          2019
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "S0965229918304242"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Chaddha",
+          "Modaff",
+          "Hooper-Lane",
+          "Feldstein"
+        ],
+        "containerTitle": "Complementary Therapies in Medicine",
+        "edition": null,
+        "issue": null,
+        "license": [
+          "https://www.elsevier.com/legal/tdmrep-license",
+          "https://www.elsevier.com/tdm/userlicense/1.0/"
+        ],
+        "numberOfPages": null,
+        "page": "179",
+        "publisher": "Elsevier BV",
+        "title": "Device and non-device-guided slow breathing to reduce blood pressure: A systematic review and meta-analysis",
+        "volume": "45",
+        "year": 2019,
+        "years": [
+          2019
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "deniz2024-forward-head-lung-volumes": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:07Z",
+      "id": "10.1186/s43161-024-00186-7",
+      "ledger": {
+        "authors": [
+          "Deniz",
+          "Ertekin",
+          "Çokar"
+        ],
+        "containerTitle": "Bulletin of Faculty of Physical Therapy",
+        "edition": null,
+        "issue": "1",
+        "numberOfPages": null,
+        "page": "15",
+        "publisher": null,
+        "title": "The effect of forward head posture on dynamic lung volumes in young adults: a systematic review",
+        "volume": "29",
+        "year": 2024,
+        "years": [
+          2024
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "186"
+        ],
+        "articleNumber": "15",
+        "authors": [
+          "Deniz",
+          "Ertekın",
+          "Cokar"
+        ],
+        "containerTitle": "Bulletin of Faculty of Physical Therapy",
+        "edition": null,
+        "issue": "1",
+        "license": [
+          "https://creativecommons.org/licenses/by/4.0"
+        ],
+        "numberOfPages": null,
+        "page": "15",
+        "publisher": "Springer Science and Business Media LLC",
+        "title": "The effect of forward head posture on dynamic lung volumes in young adults: a systematic review",
+        "volume": "29",
+        "year": 2024,
+        "years": [
+          2024
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "fincham2023-breathwork-meta": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:08Z",
+      "id": "10.1038/s41598-022-27247-y",
+      "ledger": {
+        "authors": [
+          "Fincham",
+          "Strauss",
+          "Montero-Marin",
+          "Cavanagh"
+        ],
+        "containerTitle": "Scientific Reports",
+        "edition": null,
+        "issue": "1",
+        "numberOfPages": null,
+        "page": "432",
+        "publisher": null,
+        "title": "Effect of breathwork on stress and mental health: A meta-analysis of randomised-controlled trials",
+        "volume": "13",
+        "year": 2023,
+        "years": [
+          2023
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "27247"
+        ],
+        "articleNumber": "432",
+        "authors": [
+          "Fincham",
+          "Strauss",
+          "Montero-Marin",
+          "Cavanagh"
+        ],
+        "containerTitle": "Scientific Reports",
+        "edition": null,
+        "issue": "1",
+        "license": [
+          "https://creativecommons.org/licenses/by/4.0"
+        ],
+        "numberOfPages": null,
+        "page": "432",
+        "publisher": "Springer Science and Business Media LLC",
+        "title": "Effect of breathwork on stress and mental health: A meta-analysis of randomised-controlled trials",
+        "volume": "13",
+        "year": 2023,
+        "years": [
+          2023
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "fincham2024-high-ventilation-rct": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:09Z",
+      "id": "10.1038/s41598-024-64254-7",
+      "ledger": {
+        "authors": [
+          "Fincham",
+          "Epel",
+          "Colasanti",
+          "Strauss",
+          "Cavanagh"
+        ],
+        "containerTitle": "Scientific Reports",
+        "edition": null,
+        "issue": "1",
+        "numberOfPages": null,
+        "page": "16893",
+        "publisher": null,
+        "title": "Effects of brief remote high ventilation breathwork with retention on mental health and wellbeing: a randomised placebo-controlled trial",
+        "volume": "14",
+        "year": 2024,
+        "years": [
+          2024
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "64254"
+        ],
+        "articleNumber": "16893",
+        "authors": [
+          "Fincham",
+          "Epel",
+          "Colasanti",
+          "Strauss",
+          "Cavanagh"
+        ],
+        "containerTitle": "Scientific Reports",
+        "edition": null,
+        "issue": "1",
+        "license": [
+          "https://creativecommons.org/licenses/by/4.0"
+        ],
+        "numberOfPages": null,
+        "page": "16893",
+        "publisher": "Springer Science and Business Media LLC",
+        "title": "Effects of brief remote high ventilation breathwork with retention on mental health and wellbeing: a randomised placebo-controlled trial",
+        "volume": "14",
+        "year": 2024,
+        "years": [
+          2024
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "grassmann2016-cognitive-load-respiration": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:11Z",
+      "id": "10.1155/2016/8146809",
+      "ledger": {
+        "authors": [
+          "Grassmann",
+          "Vlemincx",
+          "von Leupoldt",
+          "Mittelstädt",
+          "Van den Bergh"
+        ],
+        "containerTitle": "Neural Plasticity",
+        "edition": null,
+        "issue": null,
+        "numberOfPages": null,
+        "page": "8146809",
+        "publisher": null,
+        "title": "Respiratory Changes in Response to Cognitive Load: A Systematic Review",
+        "volume": "2016",
+        "year": 2016,
+        "years": [
+          2016
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "8146809"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Grassmann",
+          "Vlemincx",
+          "von Leupoldt",
+          "Mittelstädt",
+          "Van den Bergh"
+        ],
+        "containerTitle": "Neural Plasticity",
+        "edition": null,
+        "issue": null,
+        "license": [
+          "http://creativecommons.org/licenses/by/4.0/"
+        ],
+        "numberOfPages": null,
+        "page": "1",
+        "publisher": "Wiley",
+        "title": "Respiratory Changes in Response to Cognitive Load: A Systematic Review",
+        "volume": "2016",
+        "year": 2016,
+        "years": [
+          2016
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "johnson2023-20-20-20": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:12Z",
+      "id": "10.1097/OPX.0000000000001971",
+      "ledger": {
+        "authors": [
+          "Johnson",
+          "Rosenfield"
+        ],
+        "containerTitle": "Optometry and Vision Science",
+        "edition": null,
+        "issue": "1",
+        "numberOfPages": null,
+        "page": "52",
+        "publisher": null,
+        "title": "20-20-20 Rule: Are These Numbers Justified?",
+        "volume": "100",
+        "year": 2023,
+        "years": [
+          2023
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1097/OPX.0000000000001971"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Johnson",
+          "Rosenfield"
+        ],
+        "containerTitle": "Optometry and Vision Science",
+        "edition": null,
+        "issue": "1",
+        "license": [
+          "http://doi.wiley.com/10.1002/tdm_license_1.1",
+          "http://onlinelibrary.wiley.com/termsAndConditions#vor"
+        ],
+        "numberOfPages": null,
+        "page": "52",
+        "publisher": "Wiley",
+        "title": "20‐20‐20 Rule: Are These Numbers Justified?",
+        "volume": "100",
+        "year": 2023,
+        "years": [
+          2023
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "joshi1992-pranayam-training": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:43:51Z",
+      "id": "1506070",
+      "ledger": {
+        "authors": [
+          "Joshi",
+          "Joshi",
+          "Gokhale"
+        ],
+        "containerTitle": "Indian Journal of Physiology and Pharmacology",
+        "edition": null,
+        "issue": "2",
+        "numberOfPages": null,
+        "page": "105",
+        "publisher": null,
+        "title": "Effect of short term 'Pranayam' practice on breathing rate and ventilatory functions of lung",
+        "volume": "36",
+        "year": 1992,
+        "years": [
+          1992
+        ]
+      },
+      "record": {
+        "authors": [
+          "Joshi",
+          "Joshi",
+          "Gokhale"
+        ],
+        "containerTitle": "Indian journal of physiology and pharmacology",
+        "edition": null,
+        "issue": "2",
+        "numberOfPages": null,
+        "page": "105",
+        "publisher": null,
+        "title": "Effect of short term 'Pranayam' practice on breathing rate and ventilatory functions of lung",
+        "volume": "36",
+        "year": 1992,
+        "years": [
+          1992
+        ]
+      },
+      "registry": "pubmed",
+      "status": 200,
+      "updates": []
+    },
+    "jung2016-smartphone-posture-respiration": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:13Z",
+      "id": "10.1589/jpts.28.186",
+      "ledger": {
+        "authors": [
+          "Jung",
+          "Lee",
+          "Kang",
+          "Kim",
+          "Lee"
+        ],
+        "containerTitle": "Journal of Physical Therapy Science",
+        "edition": null,
+        "issue": "1",
+        "numberOfPages": null,
+        "page": "186",
+        "publisher": null,
+        "title": "The effect of smartphone usage time on posture and respiratory function",
+        "volume": "28",
+        "year": 2016,
+        "years": [
+          2016
+        ]
+      },
+      "record": {
+        "alternativeIds": [],
+        "articleNumber": null,
+        "authors": [
+          "Jung",
+          "Lee",
+          "Kang",
+          "Kim",
+          "Lee"
+        ],
+        "containerTitle": "Journal of Physical Therapy Science",
+        "edition": null,
+        "issue": "1",
+        "license": [],
+        "numberOfPages": null,
+        "page": "186",
+        "publisher": "Society of Physical Therapy Science",
+        "title": "The effect of smartphone usage time on posture and respiratory function",
+        "volume": "28",
+        "year": 2016,
+        "years": [
+          2016
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "laborde2021-ie-ratio-pauses": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:14Z",
+      "id": "10.3390/su13147775",
+      "ledger": {
+        "authors": [
+          "Laborde",
+          "Iskra",
+          "Zammit",
+          "Borges",
+          "You",
+          "Sevoz-Couche",
+          "Dosseville"
+        ],
+        "containerTitle": "Sustainability",
+        "edition": null,
+        "issue": "14",
+        "numberOfPages": null,
+        "page": "7775",
+        "publisher": null,
+        "title": "Slow-Paced Breathing: Influence of Inhalation/Exhalation Ratio and of Respiratory Pauses on Cardiac Vagal Activity",
+        "volume": "13",
+        "year": 2021,
+        "years": [
+          2021
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "su13147775"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Laborde",
+          "Iskra",
+          "Zammit",
+          "Borges",
+          "You",
+          "Sevoz-Couche",
+          "Dosseville"
+        ],
+        "containerTitle": "Sustainability",
+        "edition": null,
+        "issue": "14",
+        "license": [
+          "https://creativecommons.org/licenses/by/4.0/"
+        ],
+        "numberOfPages": null,
+        "page": "7775",
+        "publisher": "MDPI AG",
+        "title": "Slow-Paced Breathing: Influence of Inhalation/Exhalation Ratio and of Respiratory Pauses on Cardiac Vagal Activity",
+        "volume": "13",
+        "year": 2021,
+        "years": [
+          2021
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "laborde2021-spb-6cpm-biofeedback": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:16Z",
+      "id": "10.1111/psyp.13952",
+      "ledger": {
+        "authors": [
+          "Laborde",
+          "Allen",
+          "Borges",
+          "Iskra",
+          "Zammit",
+          "You",
+          "Hosang",
+          "Mosley",
+          "Dosseville"
+        ],
+        "containerTitle": "Psychophysiology",
+        "edition": null,
+        "issue": "1",
+        "numberOfPages": null,
+        "page": "e13952",
+        "publisher": null,
+        "title": "Psychophysiological effects of slow-paced breathing at six cycles per minute with or without heart rate variability biofeedback",
+        "volume": "59",
+        "year": 2021,
+        "years": [
+          2021
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1111/psyp.13952"
+        ],
+        "articleNumber": "e13952",
+        "authors": [
+          "Laborde",
+          "Allen",
+          "Borges",
+          "Iskra",
+          "Zammit",
+          "You",
+          "Hosang",
+          "Mosley",
+          "Dosseville"
+        ],
+        "containerTitle": "Psychophysiology",
+        "edition": null,
+        "issue": "1",
+        "license": [
+          "http://creativecommons.org/licenses/by-nc-nd/4.0/"
+        ],
+        "numberOfPages": null,
+        "page": "e13952",
+        "publisher": "Wiley",
+        "title": "Psychophysiological effects of slow‐paced breathing at six cycles per minute with or without heart rate variability biofeedback",
+        "volume": "59",
+        "year": 2021,
+        "years": [
+          2021,
+          2022
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "laborde2022-vsb-meta": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:51:24Z",
+      "id": "10.1016/j.neubiorev.2022.104711",
+      "ledger": {
+        "authors": [
+          "Laborde",
+          "Allen",
+          "Borges",
+          "Dosseville",
+          "Hosang",
+          "Iskra",
+          "Mosley",
+          "Salvotti",
+          "Spolverato",
+          "Zammit",
+          "Javelle"
+        ],
+        "containerTitle": "Neuroscience & Biobehavioral Reviews",
+        "edition": null,
+        "issue": null,
+        "numberOfPages": null,
+        "page": "104711",
+        "publisher": null,
+        "title": "Effects of voluntary slow breathing on heart rate and heart rate variability: A systematic review and a meta-analysis",
+        "volume": "138",
+        "year": 2022,
+        "years": [
+          2022
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "S0149763422002007"
+        ],
+        "articleNumber": "104711",
+        "authors": [
+          "Laborde",
+          "Allen",
+          "Borges",
+          "Dosseville",
+          "Hosang",
+          "Iskra",
+          "Mosley",
+          "Salvotti",
+          "Spolverato",
+          "Zammit",
+          "Javelle"
+        ],
+        "containerTitle": "Neuroscience & Biobehavioral Reviews",
+        "edition": null,
+        "issue": null,
+        "license": [
+          "http://www.elsevier.com/open-access/userlicense/1.0/",
+          "https://doi.org/10.15223/policy-004",
+          "https://doi.org/10.15223/policy-012",
+          "https://doi.org/10.15223/policy-017",
+          "https://doi.org/10.15223/policy-029",
+          "https://doi.org/10.15223/policy-037",
+          "https://www.elsevier.com/legal/tdmrep-license",
+          "https://www.elsevier.com/tdm/userlicense/1.0/"
+        ],
+        "numberOfPages": null,
+        "page": "104711",
+        "publisher": "Elsevier BV",
+        "title": "Effects of voluntary slow breathing on heart rate and heart rate variability: A systematic review and a meta-analysis",
+        "volume": "138",
+        "year": 2022,
+        "years": [
+          2022
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "lehrer2014-hrv-biofeedback": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:18Z",
+      "id": "10.3389/fpsyg.2014.00756",
+      "ledger": {
+        "authors": [
+          "Lehrer",
+          "Gevirtz"
+        ],
+        "containerTitle": "Frontiers in Psychology",
+        "edition": null,
+        "issue": null,
+        "numberOfPages": null,
+        "page": "756",
+        "publisher": null,
+        "title": "Heart rate variability biofeedback: how and why does it work?",
+        "volume": "5",
+        "year": 2014,
+        "years": [
+          2014
+        ]
+      },
+      "record": {
+        "alternativeIds": [],
+        "articleNumber": null,
+        "authors": [
+          "Lehrer",
+          "Gevirtz"
+        ],
+        "containerTitle": "Frontiers in Psychology",
+        "edition": null,
+        "issue": null,
+        "license": [],
+        "numberOfPages": null,
+        "page": null,
+        "publisher": "Frontiers Media SA",
+        "title": "Heart rate variability biofeedback: how and why does it work?",
+        "volume": "5",
+        "year": 2014,
+        "years": [
+          2014
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "lehrer2022-my-life-hrvb": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:51:25Z",
+      "id": "10.1007/s10484-022-09535-5",
+      "ledger": {
+        "authors": [
+          "Lehrer"
+        ],
+        "containerTitle": "Applied Psychophysiology and Biofeedback",
+        "edition": null,
+        "issue": "4",
+        "numberOfPages": null,
+        "page": "289",
+        "publisher": null,
+        "title": "My Life in HRV Biofeedback Research",
+        "volume": "47",
+        "year": 2022,
+        "years": [
+          2022
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "9535"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Lehrer"
+        ],
+        "containerTitle": "Applied Psychophysiology and Biofeedback",
+        "edition": null,
+        "issue": "4",
+        "license": [
+          "https://www.springernature.com/gp/researchers/text-and-data-mining"
+        ],
+        "numberOfPages": null,
+        "page": "289",
+        "publisher": "Springer Science and Business Media LLC",
+        "title": "My Life in HRV Biofeedback Research",
+        "volume": "47",
+        "year": 2022,
+        "years": [
+          2022
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "li2016-sigh-circuit": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:51:11Z",
+      "id": "10.1038/nature16964",
+      "ledger": {
+        "authors": [
+          "Li",
+          "Janczewski",
+          "Yackle",
+          "Kam",
+          "Pagliardini",
+          "Krasnow",
+          "Feldman"
+        ],
+        "containerTitle": "Nature",
+        "edition": null,
+        "issue": "7590",
+        "numberOfPages": null,
+        "page": "293",
+        "publisher": null,
+        "title": "The peptidergic control circuit for sighing",
+        "volume": "530",
+        "year": 2016,
+        "years": [
+          2016
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "BFnature16964"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Li",
+          "Janczewski",
+          "Yackle",
+          "Kam",
+          "Pagliardini",
+          "Krasnow",
+          "Feldman"
+        ],
+        "containerTitle": "Nature",
+        "edition": null,
+        "issue": "7590",
+        "license": [
+          "http://www.springer.com/tdm"
+        ],
+        "numberOfPages": null,
+        "page": "293",
+        "publisher": "Springer Science and Business Media LLC",
+        "title": "The peptidergic control circuit for sighing",
+        "volume": "530",
+        "year": 2016,
+        "years": [
+          2016
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "lin2014-equal-ratio-hrv": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:21Z",
+      "id": "10.1016/j.ijpsycho.2013.12.006",
+      "ledger": {
+        "authors": [
+          "Lin",
+          "Tai",
+          "Fan"
+        ],
+        "containerTitle": "International Journal of Psychophysiology",
+        "edition": null,
+        "issue": "3",
+        "numberOfPages": null,
+        "page": "206",
+        "publisher": null,
+        "title": "Breathing at a rate of 5.5 breaths per minute with equal inhalation-to-exhalation ratio increases heart rate variability",
+        "volume": "91",
+        "year": 2014,
+        "years": [
+          2014
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "S0167876013003346"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Lin",
+          "Tai",
+          "Fan"
+        ],
+        "containerTitle": "International Journal of Psychophysiology",
+        "edition": null,
+        "issue": "3",
+        "license": [
+          "https://www.elsevier.com/tdm/userlicense/1.0/"
+        ],
+        "numberOfPages": null,
+        "page": "206",
+        "publisher": "Elsevier BV",
+        "title": "Breathing at a rate of 5.5breaths per minute with equal inhalation-to-exhalation ratio increases heart rate variability",
+        "volume": "91",
+        "year": 2014,
+        "years": [
+          2014
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "linardon2020-app-attrition": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:22Z",
+      "id": "10.1037/ccp0000459",
+      "ledger": {
+        "authors": [
+          "Linardon",
+          "Fuller-Tyszkiewicz"
+        ],
+        "containerTitle": "Journal of Consulting and Clinical Psychology",
+        "edition": null,
+        "issue": "1",
+        "numberOfPages": null,
+        "page": "1",
+        "publisher": null,
+        "title": "Attrition and adherence in smartphone-delivered interventions for mental health problems: A systematic and meta-analytic review",
+        "volume": "88",
+        "year": 2020,
+        "years": [
+          2020
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "2019-66487-001",
+          "31697093"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Linardon",
+          "Fuller-Tyszkiewicz"
+        ],
+        "containerTitle": "Journal of Consulting and Clinical Psychology",
+        "edition": null,
+        "issue": "1",
+        "license": [],
+        "numberOfPages": null,
+        "page": "1",
+        "publisher": "American Psychological Association (APA)",
+        "title": "Attrition and adherence in smartphone-delivered interventions for mental health problems: A systematic and meta-analytic review.",
+        "volume": "88",
+        "year": 2020,
+        "years": [
+          2020
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "little2025-a52-breath-method": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:23Z",
+      "id": "10.1002/smi.70098",
+      "ledger": {
+        "authors": [
+          "Little"
+        ],
+        "containerTitle": "Stress and Health",
+        "edition": null,
+        "issue": "4",
+        "numberOfPages": null,
+        "page": "e70098",
+        "publisher": null,
+        "title": "The A52 Breath Method: A Narrative Review of Breathwork for Mental Health and Stress Resilience",
+        "volume": "41",
+        "year": 2025,
+        "years": [
+          2025
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1002/smi.70098"
+        ],
+        "articleNumber": "e70098",
+        "authors": [
+          "Little"
+        ],
+        "containerTitle": "Stress and Health",
+        "edition": null,
+        "issue": "4",
+        "license": [
+          "http://creativecommons.org/licenses/by-nc/4.0/",
+          "http://doi.wiley.com/10.1002/tdm_license_1.1"
+        ],
+        "numberOfPages": null,
+        "page": "e70098",
+        "publisher": "Wiley",
+        "title": "The A52 Breath Method: A Narrative Review of Breathwork for Mental Health and Stress Resilience",
+        "volume": "41",
+        "year": 2025,
+        "years": [
+          2025
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "marchant2025-square-478-six": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:24Z",
+      "id": "10.1007/s10484-025-09688-z",
+      "ledger": {
+        "authors": [
+          "Marchant",
+          "Khazan",
+          "Cressman",
+          "Steffen"
+        ],
+        "containerTitle": "Applied Psychophysiology and Biofeedback",
+        "edition": null,
+        "issue": "2",
+        "numberOfPages": null,
+        "page": "261",
+        "publisher": null,
+        "title": "Comparing the Effects of Square, 4-7-8, and 6 Breaths-per-Minute Breathing Conditions on Heart Rate Variability, CO2 Levels, and Mood",
+        "volume": "50",
+        "year": 2025,
+        "years": [
+          2025
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "9688"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Marchant",
+          "Khazan",
+          "Cressman",
+          "Steffen"
+        ],
+        "containerTitle": "Applied Psychophysiology and Biofeedback",
+        "edition": null,
+        "issue": "2",
+        "license": [
+          "https://www.springernature.com/gp/researchers/text-and-data-mining"
+        ],
+        "numberOfPages": null,
+        "page": "261",
+        "publisher": "Springer Science and Business Media LLC",
+        "title": "Comparing the Effects of Square, 4–7-8, and 6 Breaths-per-Minute Breathing Conditions on Heart Rate Variability, CO2 Levels, and Mood",
+        "volume": "50",
+        "year": 2025,
+        "years": [
+          2025
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "meehan2024-longer-exhalations": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:26Z",
+      "id": "10.1007/s10484-024-09637-2",
+      "ledger": {
+        "authors": [
+          "Meehan",
+          "Shaffer"
+        ],
+        "containerTitle": "Applied Psychophysiology and Biofeedback",
+        "edition": null,
+        "issue": "3",
+        "numberOfPages": null,
+        "page": "407",
+        "publisher": null,
+        "title": "Do Longer Exhalations Increase HRV During Slow-Paced Breathing?",
+        "volume": "49",
+        "year": 2024,
+        "years": [
+          2024
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "9637"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Meehan",
+          "Shaffer"
+        ],
+        "containerTitle": "Applied Psychophysiology and Biofeedback",
+        "edition": null,
+        "issue": "3",
+        "license": [
+          "https://creativecommons.org/licenses/by/4.0"
+        ],
+        "numberOfPages": null,
+        "page": "407",
+        "publisher": "Springer Science and Business Media LLC",
+        "title": "Do Longer Exhalations Increase HRV During Slow-Paced Breathing?",
+        "volume": "49",
+        "year": 2024,
+        "years": [
+          2024
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "moraveji2011-peripheral-paced-respiration": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:27Z",
+      "id": "10.1145/2047196.2047250",
+      "ledger": {
+        "authors": [
+          "Moraveji",
+          "Olson",
+          "Nguyen",
+          "Saadat",
+          "Khalighi",
+          "Pea",
+          "Heer"
+        ],
+        "containerTitle": "Proceedings of the 24th Annual ACM Symposium on User Interface Software and Technology (UIST '11)",
+        "edition": null,
+        "issue": null,
+        "numberOfPages": null,
+        "page": "423",
+        "publisher": null,
+        "title": "Peripheral paced respiration: influencing user physiology during information work",
+        "volume": null,
+        "year": 2011,
+        "years": [
+          2011
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1145/2047196",
+          "10.1145/2047196.2047250"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Moraveji",
+          "Olson",
+          "Nguyen",
+          "Saadat",
+          "Khalighi",
+          "Pea",
+          "Heer"
+        ],
+        "containerTitle": "Proceedings of the 24th annual ACM symposium on User interface software and technology",
+        "edition": null,
+        "issue": null,
+        "license": [
+          "https://www.acm.org/publications/policies/copyright_policy#Background"
+        ],
+        "numberOfPages": null,
+        "page": "423",
+        "publisher": "ACM",
+        "title": "Peripheral paced respiration",
+        "volume": null,
+        "year": 2011,
+        "years": [
+          2011
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "muktibodhananda1998-hatha-yoga-pradipika": {
+      "agrees": {
+        "authors": true,
+        "edition": true,
+        "numberOfPages": true,
+        "publisher": true,
+        "title": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:43:54Z",
+      "id": "9788185787381",
+      "ledger": {
+        "authors": [
+          "Muktibodhananda"
+        ],
+        "containerTitle": null,
+        "edition": "3rd ed.",
+        "issue": null,
+        "numberOfPages": "642",
+        "page": null,
+        "publisher": "Bihar School of Yoga",
+        "title": "Hatha Yoga Pradipika",
+        "volume": null,
+        "year": 1998,
+        "years": [
+          1998
+        ]
+      },
+      "record": {
+        "authors": [
+          "Swami Muktibodhananda"
+        ],
+        "containerTitle": null,
+        "edition": "3rd edition",
+        "issue": null,
+        "numberOfPages": "642",
+        "page": null,
+        "publisher": "Bihar School of Yoga",
+        "title": "Hatha Yoga Pradipika",
+        "volume": null,
+        "year": 1998,
+        "years": [
+          1998
+        ]
+      },
+      "registry": "openlibrary",
+      "status": 200,
+      "updates": []
+    },
+    "rosenfield2011-computer-vision-syndrome": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:28Z",
+      "id": "10.1111/j.1475-1313.2011.00834.x",
+      "ledger": {
+        "authors": [
+          "Rosenfield"
+        ],
+        "containerTitle": "Ophthalmic and Physiological Optics",
+        "edition": null,
+        "issue": "5",
+        "numberOfPages": null,
+        "page": "502",
+        "publisher": null,
+        "title": "Computer vision syndrome: a review of ocular causes and potential treatments",
+        "volume": "31",
+        "year": 2011,
+        "years": [
+          2011
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1111/j.1475-1313.2011.00834.x"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Rosenfield"
+        ],
+        "containerTitle": "Ophthalmic and Physiological Optics",
+        "edition": null,
+        "issue": "5",
+        "license": [
+          "http://onlinelibrary.wiley.com/termsAndConditions#vor"
+        ],
+        "numberOfPages": null,
+        "page": "502",
+        "publisher": "Springer Science and Business Media LLC",
+        "title": "Computer vision syndrome: a review of ocular causes and potential treatments",
+        "volume": "31",
+        "year": 2011,
+        "years": [
+          2011
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "russo2017-slow-breathing-physiology": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:30Z",
+      "id": "10.1183/20734735.009817",
+      "ledger": {
+        "authors": [
+          "Russo",
+          "Santarelli",
+          "O'Rourke"
+        ],
+        "containerTitle": "Breathe",
+        "edition": null,
+        "issue": "4",
+        "numberOfPages": null,
+        "page": "298",
+        "publisher": null,
+        "title": "The physiological effects of slow breathing in the healthy human",
+        "volume": "13",
+        "year": 2017,
+        "years": [
+          2017
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1183/20734735.009817"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Russo",
+          "Santarelli",
+          "O’Rourke"
+        ],
+        "containerTitle": "Breathe",
+        "edition": null,
+        "issue": "4",
+        "license": [],
+        "numberOfPages": null,
+        "page": "298",
+        "publisher": "European Respiratory Society (ERS)",
+        "title": "The physiological effects of slow breathing in the healthy human",
+        "volume": "13",
+        "year": 2017,
+        "years": [
+          2017
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "satyananda1999-apmb": {
+      "agrees": {
+        "authors": true,
+        "edition": true,
+        "numberOfPages": true,
+        "publisher": true,
+        "title": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:43:55Z",
+      "id": "9788186336144",
+      "ledger": {
+        "authors": [
+          "Satyananda Saraswati"
+        ],
+        "containerTitle": null,
+        "edition": "3rd rev. ed.",
+        "issue": null,
+        "numberOfPages": "553",
+        "page": null,
+        "publisher": "Yoga Publications Trust",
+        "title": "Asana Pranayama Mudra Bandha",
+        "volume": null,
+        "year": 1999,
+        "years": [
+          1999
+        ]
+      },
+      "record": {
+        "authors": [
+          "Satyananda Saraswati Swami"
+        ],
+        "containerTitle": null,
+        "edition": "3rd rev ed / by Bihar Yoga Bharati with permission of Bihar School of Yoga.",
+        "issue": null,
+        "numberOfPages": "553",
+        "page": null,
+        "publisher": "Yoga Publications Trust",
+        "title": "Asana, pranayama, mudra, bandha",
+        "volume": null,
+        "year": 1999,
+        "years": [
+          1999
+        ]
+      },
+      "registry": "openlibrary",
+      "status": 200,
+      "updates": []
+    },
+    "schleifer1994-vdt-petco2": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:31Z",
+      "id": "10.1080/00140139408963642",
+      "ledger": {
+        "authors": [
+          "Schleifer",
+          "Ley"
+        ],
+        "containerTitle": "Ergonomics",
+        "edition": null,
+        "issue": "2",
+        "numberOfPages": null,
+        "page": "245",
+        "publisher": null,
+        "title": "End-tidal PCO2 as an index of psychophysiological activity during VDT data-entry work and relaxation",
+        "volume": "37",
+        "year": 1994,
+        "years": [
+          1994
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1080/00140139408963642"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "SCHLEIFER",
+          "LEY"
+        ],
+        "containerTitle": "Ergonomics",
+        "edition": null,
+        "issue": "2",
+        "license": [],
+        "numberOfPages": null,
+        "page": "245",
+        "publisher": "Informa UK Limited",
+        "title": "End-tidal PCO2as an index of psychophysiological activity during VDT data-entry work and relaxation∗",
+        "volume": "37",
+        "year": 1994,
+        "years": [
+          1994
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "schleifer2002-hyperventilation-job-stress": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:32Z",
+      "id": "10.1002/ajim.10061",
+      "ledger": {
+        "authors": [
+          "Schleifer",
+          "Ley",
+          "Spalding"
+        ],
+        "containerTitle": "American Journal of Industrial Medicine",
+        "edition": null,
+        "issue": "5",
+        "numberOfPages": null,
+        "page": "420",
+        "publisher": null,
+        "title": "A hyperventilation theory of job stress and musculoskeletal disorders",
+        "volume": "41",
+        "year": 2002,
+        "years": [
+          2002
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1002/ajim.10061"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Schleifer",
+          "Ley",
+          "Spalding"
+        ],
+        "containerTitle": "American Journal of Industrial Medicine",
+        "edition": null,
+        "issue": "5",
+        "license": [
+          "http://onlinelibrary.wiley.com/termsAndConditions#vor"
+        ],
+        "numberOfPages": null,
+        "page": "420",
+        "publisher": "Wiley",
+        "title": "A hyperventilation theory of job stress and musculoskeletal disorders*",
+        "volume": "41",
+        "year": 2002,
+        "years": [
+          2002
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "schleifer2008-emg-gaps-computer-work": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:33Z",
+      "id": "10.1111/j.1469-8986.2008.00645.x",
+      "ledger": {
+        "authors": [
+          "Schleifer",
+          "Spalding",
+          "Kerick",
+          "Cram",
+          "Ley",
+          "Hatfield"
+        ],
+        "containerTitle": "Psychophysiology",
+        "edition": null,
+        "issue": "3",
+        "numberOfPages": null,
+        "page": "356",
+        "publisher": null,
+        "title": "Mental stress and trapezius muscle activation under psychomotor challenge: A focus on EMG gaps during computer work",
+        "volume": "45",
+        "year": 2008,
+        "years": [
+          2008
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1111/j.1469-8986.2008.00645.x"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Schleifer",
+          "Spalding",
+          "Kerick",
+          "Cram",
+          "Ley",
+          "Hatfield"
+        ],
+        "containerTitle": "Psychophysiology",
+        "edition": null,
+        "issue": "3",
+        "license": [
+          "http://onlinelibrary.wiley.com/termsAndConditions#vor"
+        ],
+        "numberOfPages": null,
+        "page": "356",
+        "publisher": "Wiley",
+        "title": "Mental stress and trapezius muscle activation under psychomotor challenge: A focus on EMG gaps during computer work",
+        "volume": "45",
+        "year": 2008,
+        "years": [
+          2008
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "sevozcouche2022-coherence-resonance": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:34Z",
+      "id": "10.1016/j.neubiorev.2022.104576",
+      "ledger": {
+        "authors": [
+          "Sevoz-Couche",
+          "Laborde"
+        ],
+        "containerTitle": "Neuroscience & Biobehavioral Reviews",
+        "edition": null,
+        "issue": null,
+        "numberOfPages": null,
+        "page": "104576",
+        "publisher": null,
+        "title": "Heart rate variability and slow-paced breathing: when coherence meets resonance",
+        "volume": "135",
+        "year": 2022,
+        "years": [
+          2022
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "S0149763422000653"
+        ],
+        "articleNumber": "104576",
+        "authors": [
+          "Sevoz-Couche",
+          "Laborde"
+        ],
+        "containerTitle": "Neuroscience & Biobehavioral Reviews",
+        "edition": null,
+        "issue": null,
+        "license": [
+          "http://www.elsevier.com/open-access/userlicense/1.0/",
+          "https://doi.org/10.15223/policy-004",
+          "https://doi.org/10.15223/policy-012",
+          "https://doi.org/10.15223/policy-017",
+          "https://doi.org/10.15223/policy-029",
+          "https://doi.org/10.15223/policy-037",
+          "https://www.elsevier.com/legal/tdmrep-license",
+          "https://www.elsevier.com/tdm/userlicense/1.0/"
+        ],
+        "numberOfPages": null,
+        "page": "104576",
+        "publisher": "Elsevier BV",
+        "title": "Heart rate variability and slow-paced breathing:when coherence meets resonance",
+        "volume": "135",
+        "year": 2022,
+        "years": [
+          2022
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "shaffer2020-resonance-frequency-assessment": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:36Z",
+      "id": "10.3389/fnins.2020.570400",
+      "ledger": {
+        "authors": [
+          "Shaffer",
+          "Meehan"
+        ],
+        "containerTitle": "Frontiers in Neuroscience",
+        "edition": null,
+        "issue": null,
+        "numberOfPages": null,
+        "page": "570400",
+        "publisher": null,
+        "title": "A Practical Guide to Resonance Frequency Assessment for Heart Rate Variability Biofeedback",
+        "volume": "14",
+        "year": 2020,
+        "years": [
+          2020
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.3389/fnins.2020.570400"
+        ],
+        "articleNumber": "570400",
+        "authors": [
+          "Shaffer",
+          "Meehan"
+        ],
+        "containerTitle": "Frontiers in Neuroscience",
+        "edition": null,
+        "issue": null,
+        "license": [
+          "https://creativecommons.org/licenses/by/4.0/"
+        ],
+        "numberOfPages": null,
+        "page": "570400",
+        "publisher": "Frontiers Media SA",
+        "title": "A Practical Guide to Resonance Frequency Assessment for Heart Rate Variability Biofeedback",
+        "volume": "14",
+        "year": 2020,
+        "years": [
+          2020
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": [
+        {
+          "date": "2020-12-01",
+          "doi": "10.3389/fnins.2020.627512",
+          "type": "corrigendum"
+        }
+      ]
+    },
+    "sheppard2018-digital-eye-strain": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:37Z",
+      "id": "10.1136/bmjophth-2018-000146",
+      "ledger": {
+        "authors": [
+          "Sheppard",
+          "Wolffsohn"
+        ],
+        "containerTitle": "BMJ Open Ophthalmology",
+        "edition": null,
+        "issue": "1",
+        "numberOfPages": null,
+        "page": "e000146",
+        "publisher": null,
+        "title": "Digital eye strain: prevalence, measurement and amelioration",
+        "volume": "3",
+        "year": 2018,
+        "years": [
+          2018
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1136/bmjophth-2018-000146"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Sheppard",
+          "Wolffsohn"
+        ],
+        "containerTitle": "BMJ Open Ophthalmology",
+        "edition": null,
+        "issue": "1",
+        "license": [],
+        "numberOfPages": null,
+        "page": "e000146",
+        "publisher": "BMJ",
+        "title": "Digital eye strain: prevalence, measurement and amelioration",
+        "volume": "3",
+        "year": 2018,
+        "years": [
+          2018
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "szulczewski2019-antihyperventilation-instruction": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:38Z",
+      "id": "10.1007/s10484-019-09438-y",
+      "ledger": {
+        "authors": [
+          "Szulczewski"
+        ],
+        "containerTitle": "Applied Psychophysiology and Biofeedback",
+        "edition": null,
+        "issue": "3",
+        "numberOfPages": null,
+        "page": "247",
+        "publisher": null,
+        "title": "An Anti-hyperventilation Instruction Decreases the Drop in End-tidal CO2 and Symptoms of Hyperventilation During Breathing at 0.1 Hz",
+        "volume": "44",
+        "year": 2019,
+        "years": [
+          2019
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "9438"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Szulczewski"
+        ],
+        "containerTitle": "Applied Psychophysiology and Biofeedback",
+        "edition": null,
+        "issue": "3",
+        "license": [
+          "https://creativecommons.org/licenses/by/4.0"
+        ],
+        "numberOfPages": null,
+        "page": "247",
+        "publisher": "Springer Science and Business Media LLC",
+        "title": "An Anti-hyperventilation Instruction Decreases the Drop in End-tidal CO2 and Symptoms of Hyperventilation During Breathing at 0.1 Hz",
+        "volume": "44",
+        "year": 2019,
+        "years": [
+          2019
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": [
+        {
+          "date": "2019-05-22",
+          "doi": "10.1007/s10484-019-09441-3",
+          "type": "correction"
+        }
+      ]
+    },
+    "szulczewski2019-training-relaxation": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:39Z",
+      "id": "10.1371/journal.pone.0218550",
+      "ledger": {
+        "authors": [
+          "Szulczewski"
+        ],
+        "containerTitle": "PLOS ONE",
+        "edition": null,
+        "issue": "6",
+        "numberOfPages": null,
+        "page": "e0218550",
+        "publisher": null,
+        "title": "Training of paced breathing at 0.1 Hz improves CO2 homeostasis and relaxation during a paced breathing task",
+        "volume": "14",
+        "year": 2019,
+        "years": [
+          2019
+        ]
+      },
+      "record": {
+        "alternativeIds": [],
+        "articleNumber": null,
+        "authors": [
+          "Szulczewski"
+        ],
+        "containerTitle": "PLOS ONE",
+        "edition": null,
+        "issue": "6",
+        "license": [
+          "http://creativecommons.org/licenses/by/4.0/"
+        ],
+        "numberOfPages": null,
+        "page": "e0218550",
+        "publisher": "Public Library of Science (PLoS)",
+        "title": "Training of paced breathing at 0.1 Hz improves CO2 homeostasis and relaxation during a paced breathing task",
+        "volume": "14",
+        "year": 2019,
+        "years": [
+          2019
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "tabor2022-guided-breathing-design": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:41Z",
+      "id": "10.3389/fcomp.2022.926649",
+      "ledger": {
+        "authors": [
+          "Tabor",
+          "Bateman",
+          "Scheme",
+          "schraefel"
+        ],
+        "containerTitle": "Frontiers in Computer Science",
+        "edition": null,
+        "issue": null,
+        "numberOfPages": null,
+        "page": "926649",
+        "publisher": null,
+        "title": "Comparing heart rate variability biofeedback and simple paced breathing to inform the design of guided breathing technologies",
+        "volume": "4",
+        "year": 2022,
+        "years": [
+          2022
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.3389/fcomp.2022.926649"
+        ],
+        "articleNumber": "926649",
+        "authors": [
+          "Tabor",
+          "Bateman",
+          "Scheme",
+          "schraefel"
+        ],
+        "containerTitle": "Frontiers in Computer Science",
+        "edition": null,
+        "issue": null,
+        "license": [
+          "https://creativecommons.org/licenses/by/4.0/"
+        ],
+        "numberOfPages": null,
+        "page": "926649",
+        "publisher": "Frontiers Media SA",
+        "title": "Comparing heart rate variability biofeedback and simple paced breathing to inform the design of guided breathing technologies",
+        "volume": "4",
+        "year": 2022,
+        "years": [
+          2022
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "tsubota1993-vdt-blink": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:42Z",
+      "id": "10.1056/NEJM199302253280817",
+      "ledger": {
+        "authors": [
+          "Tsubota",
+          "Nakamori"
+        ],
+        "containerTitle": "New England Journal of Medicine",
+        "edition": null,
+        "issue": "8",
+        "numberOfPages": null,
+        "page": "584",
+        "publisher": null,
+        "title": "Dry Eyes and Video Display Terminals",
+        "volume": "328",
+        "year": 1993,
+        "years": [
+          1993
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1056/NEJM199302253280817"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Tsubota",
+          "Nakamori"
+        ],
+        "containerTitle": "New England Journal of Medicine",
+        "edition": null,
+        "issue": "8",
+        "license": [],
+        "numberOfPages": null,
+        "page": "584",
+        "publisher": "Massachusetts Medical Society",
+        "title": "Dry Eyes and Video Display Terminals",
+        "volume": "328",
+        "year": 1993,
+        "years": [
+          1993
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "vandiest2014-ie-ratio-relaxation": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:43Z",
+      "id": "10.1007/s10484-014-9253-x",
+      "ledger": {
+        "authors": [
+          "Van Diest",
+          "Verstappen",
+          "Aubert",
+          "Widjaja",
+          "Vansteenwegen",
+          "Vlemincx"
+        ],
+        "containerTitle": "Applied Psychophysiology and Biofeedback",
+        "edition": null,
+        "issue": "3-4",
+        "numberOfPages": null,
+        "page": "171",
+        "publisher": null,
+        "title": "Inhalation/Exhalation Ratio Modulates the Effect of Slow Breathing on Heart Rate Variability and Relaxation",
+        "volume": "39",
+        "year": 2014,
+        "years": [
+          2014
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "9253"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Van Diest",
+          "Verstappen",
+          "Aubert",
+          "Widjaja",
+          "Vansteenwegen",
+          "Vlemincx"
+        ],
+        "containerTitle": "Applied Psychophysiology and Biofeedback",
+        "edition": null,
+        "issue": "3-4",
+        "license": [
+          "http://www.springer.com/tdm"
+        ],
+        "numberOfPages": null,
+        "page": "171",
+        "publisher": "Springer Science and Business Media LLC",
+        "title": "Inhalation/Exhalation Ratio Modulates the Effect of Slow Breathing on Heart Rate Variability and Relaxation",
+        "volume": "39",
+        "year": 2014,
+        "years": [
+          2014
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "vandijk2018-close-the-book": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:44Z",
+      "id": "10.1080/08037051.2018.1435260",
+      "ledger": {
+        "authors": [
+          "van Dijk",
+          "van Hateren",
+          "Kleefstra",
+          "Landman"
+        ],
+        "containerTitle": "Blood Pressure",
+        "edition": null,
+        "issue": "3",
+        "numberOfPages": null,
+        "page": "181",
+        "publisher": null,
+        "title": "It is time to close the book on device-guided slow breathing",
+        "volume": "27",
+        "year": 2018,
+        "years": [
+          2018
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1080/08037051.2018.1435260"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "van Dijk",
+          "van Hateren",
+          "Kleefstra",
+          "Landman"
+        ],
+        "containerTitle": "Blood Pressure",
+        "edition": null,
+        "issue": "3",
+        "license": [],
+        "numberOfPages": null,
+        "page": "181",
+        "publisher": "Informa UK Limited",
+        "title": "It is time to close the book on device-guided slow breathing",
+        "volume": "27",
+        "year": 2018,
+        "years": [
+          2018
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "vlemincx2013-sigh-reset-model": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:46Z",
+      "id": "10.1016/j.biopsycho.2012.12.001",
+      "ledger": {
+        "authors": [
+          "Vlemincx",
+          "Abelson",
+          "Lehrer",
+          "Davenport",
+          "Van Diest",
+          "Van den Bergh"
+        ],
+        "containerTitle": "Biological Psychology",
+        "edition": null,
+        "issue": "1",
+        "numberOfPages": null,
+        "page": "24",
+        "publisher": null,
+        "title": "Respiratory variability and sighing: A psychophysiological reset model",
+        "volume": "93",
+        "year": 2013,
+        "years": [
+          2013
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "S0301051112002633"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Vlemincx",
+          "Abelson",
+          "Lehrer",
+          "Davenport",
+          "Van Diest",
+          "Van den Bergh"
+        ],
+        "containerTitle": "Biological Psychology",
+        "edition": null,
+        "issue": "1",
+        "license": [
+          "https://www.elsevier.com/tdm/userlicense/1.0/"
+        ],
+        "numberOfPages": null,
+        "page": "24",
+        "publisher": "Elsevier BV",
+        "title": "Respiratory variability and sighing: A psychophysiological reset model",
+        "volume": "93",
+        "year": 2013,
+        "years": [
+          2013
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "vlemincx2016-sigh-relief": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:47Z",
+      "id": "10.1016/j.physbeh.2016.07.004",
+      "ledger": {
+        "authors": [
+          "Vlemincx",
+          "Van Diest",
+          "Van den Bergh"
+        ],
+        "containerTitle": "Physiology & Behavior",
+        "edition": null,
+        "issue": null,
+        "numberOfPages": null,
+        "page": "127",
+        "publisher": null,
+        "title": "A sigh of relief or a sigh to relieve: The psychological and physiological relief effect of deep breaths",
+        "volume": "165",
+        "year": 2016,
+        "years": [
+          2016
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "S0031938416305121"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Vlemincx",
+          "Van Diest",
+          "Van den Bergh"
+        ],
+        "containerTitle": "Physiology & Behavior",
+        "edition": null,
+        "issue": null,
+        "license": [
+          "https://www.elsevier.com/tdm/userlicense/1.0/"
+        ],
+        "numberOfPages": null,
+        "page": "127",
+        "publisher": "Elsevier BV",
+        "title": "A sigh of relief or a sigh to relieve: The psychological and physiological relief effect of deep breaths",
+        "volume": "165",
+        "year": 2016,
+        "years": [
+          2016
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "wongsuphasawat2012-cant-force-calm": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:48Z",
+      "id": "10.1145/2380296.2380326",
+      "ledger": {
+        "authors": [
+          "Wongsuphasawat",
+          "Gamburg",
+          "Moraveji"
+        ],
+        "containerTitle": "Adjunct Proceedings of the 25th Annual ACM Symposium on User Interface Software and Technology (UIST '12 Adjunct)",
+        "edition": null,
+        "issue": null,
+        "numberOfPages": null,
+        "page": "69",
+        "publisher": null,
+        "title": "You can't force calm: designing and evaluating respiratory regulating interfaces for calming technology",
+        "volume": null,
+        "year": 2012,
+        "years": [
+          2012
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1145/2380296",
+          "10.1145/2380296.2380326"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Wongsuphasawat",
+          "Gamburg",
+          "Moraveji"
+        ],
+        "containerTitle": "Adjunct proceedings of the 25th annual ACM symposium on User interface software and technology",
+        "edition": null,
+        "issue": null,
+        "license": [
+          "https://www.acm.org/publications/policies/copyright_policy#Background"
+        ],
+        "numberOfPages": null,
+        "page": "69",
+        "publisher": "ACM",
+        "title": "You can't force calm",
+        "volume": null,
+        "year": 2012,
+        "years": [
+          2012
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "yackle2017-breathing-arousal-neurons": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:51:13Z",
+      "id": "10.1126/science.aai7984",
+      "ledger": {
+        "authors": [
+          "Yackle",
+          "Schwarz",
+          "Kam",
+          "Sorokin",
+          "Huguenard",
+          "Feldman",
+          "Luo",
+          "Krasnow"
+        ],
+        "containerTitle": "Science",
+        "edition": null,
+        "issue": "6332",
+        "numberOfPages": null,
+        "page": "1411",
+        "publisher": null,
+        "title": "Breathing control center neurons that promote arousal in mice",
+        "volume": "355",
+        "year": 2017,
+        "years": [
+          2017
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1126/science.aai7984"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Yackle",
+          "Schwarz",
+          "Kam",
+          "Sorokin",
+          "Huguenard",
+          "Feldman",
+          "Luo",
+          "Krasnow"
+        ],
+        "containerTitle": "Science",
+        "edition": null,
+        "issue": "6332",
+        "license": [],
+        "numberOfPages": null,
+        "page": "1411",
+        "publisher": "American Association for the Advancement of Science (AAAS)",
+        "title": "Breathing control center neurons that promote arousal in mice",
+        "volume": "355",
+        "year": 2017,
+        "years": [
+          2017
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "yasuma2004-rsa": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:51Z",
+      "id": "10.1378/chest.125.2.683",
+      "ledger": {
+        "authors": [
+          "Yasuma",
+          "Hayano"
+        ],
+        "containerTitle": "Chest",
+        "edition": null,
+        "issue": "2",
+        "numberOfPages": null,
+        "page": "683",
+        "publisher": null,
+        "title": "Respiratory Sinus Arrhythmia: Why Does the Heartbeat Synchronize With Respiratory Rhythm?",
+        "volume": "125",
+        "year": 2004,
+        "years": [
+          2004
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "S001236921531878X"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Yasuma",
+          "Hayano"
+        ],
+        "containerTitle": "Chest",
+        "edition": null,
+        "issue": "2",
+        "license": [
+          "https://www.elsevier.com/tdm/userlicense/1.0/"
+        ],
+        "numberOfPages": null,
+        "page": "683",
+        "publisher": "Elsevier BV",
+        "title": "Respiratory Sinus Arrhythmia",
+        "volume": "125",
+        "year": 2004,
+        "years": [
+          2004
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "you2023-respiratory-frequency": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:52Z",
+      "id": "10.1007/s10484-023-09605-2",
+      "ledger": {
+        "authors": [
+          "You",
+          "Laborde",
+          "Ackermann",
+          "Borges",
+          "Dosseville",
+          "Mosley"
+        ],
+        "containerTitle": "Applied Psychophysiology and Biofeedback",
+        "edition": null,
+        "issue": "1",
+        "numberOfPages": null,
+        "page": "133",
+        "publisher": null,
+        "title": "Influence of Respiratory Frequency of Slow-Paced Breathing on Vagally-Mediated Heart Rate Variability",
+        "volume": "49",
+        "year": 2023,
+        "years": [
+          2023
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "9605"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "You",
+          "Laborde",
+          "Ackermann",
+          "Borges",
+          "Dosseville",
+          "Mosley"
+        ],
+        "containerTitle": "Applied Psychophysiology and Biofeedback",
+        "edition": null,
+        "issue": "1",
+        "license": [
+          "https://www.springernature.com/gp/researchers/text-and-data-mining"
+        ],
+        "numberOfPages": null,
+        "page": "133",
+        "publisher": "Springer Science and Business Media LLC",
+        "title": "Influence of Respiratory Frequency of Slow-Paced Breathing on Vagally-Mediated Heart Rate Variability",
+        "volume": "49",
+        "year": 2023,
+        "years": [
+          2023,
+          2024
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "zaccaro2018-slow-breathing-review": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:53Z",
+      "id": "10.3389/fnhum.2018.00353",
+      "ledger": {
+        "authors": [
+          "Zaccaro",
+          "Piarulli",
+          "Laurino",
+          "Garbella",
+          "Menicucci",
+          "Neri",
+          "Gemignani"
+        ],
+        "containerTitle": "Frontiers in Human Neuroscience",
+        "edition": null,
+        "issue": null,
+        "numberOfPages": null,
+        "page": "353",
+        "publisher": null,
+        "title": "How Breath-Control Can Change Your Life: A Systematic Review on Psycho-Physiological Correlates of Slow Breathing",
+        "volume": "12",
+        "year": 2018,
+        "years": [
+          2018
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.3389/fnhum.2018.00353"
+        ],
+        "articleNumber": "353",
+        "authors": [
+          "Zaccaro",
+          "Piarulli",
+          "Laurino",
+          "Garbella",
+          "Menicucci",
+          "Neri",
+          "Gemignani"
+        ],
+        "containerTitle": "Frontiers in Human Neuroscience",
+        "edition": null,
+        "issue": null,
+        "license": [
+          "https://creativecommons.org/licenses/by/4.0/"
+        ],
+        "numberOfPages": null,
+        "page": "353",
+        "publisher": "Frontiers Media SA",
+        "title": "How Breath-Control Can Change Your Life: A Systematic Review on Psycho-Physiological Correlates of Slow Breathing",
+        "volume": "12",
+        "year": 2018,
+        "years": [
+          2018
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    },
+    "zelano2016-nasal-respiration-limbic": {
+      "agrees": {
+        "authors": true,
+        "containerTitle": true,
+        "issue": true,
+        "page": true,
+        "title": true,
+        "volume": true,
+        "year": true
+      },
+      "checked": "2026-10-18T20:44:54Z",
+      "id": "10.1523/JNEUROSCI.2586-16.2016",
+      "ledger": {
+        "authors": [
+          "Zelano",
+          "Jiang",
+          "Zhou",
+          "Arora",
+          "Schuele",
+          "Rosenow",
+          "Gottfried"
+        ],
+        "containerTitle": "The Journal of Neuroscience",
+        "edition": null,
+        "issue": "49",
+        "numberOfPages": null,
+        "page": "12448",
+        "publisher": null,
+        "title": "Nasal Respiration Entrains Human Limbic Oscillations and Modulates Cognitive Function",
+        "volume": "36",
+        "year": 2016,
+        "years": [
+          2016
+        ]
+      },
+      "record": {
+        "alternativeIds": [
+          "10.1523/JNEUROSCI.2586-16.2016"
+        ],
+        "articleNumber": null,
+        "authors": [
+          "Zelano",
+          "Jiang",
+          "Zhou",
+          "Arora",
+          "Schuele",
+          "Rosenow",
+          "Gottfried"
+        ],
+        "containerTitle": "The Journal of Neuroscience",
+        "edition": null,
+        "issue": "49",
+        "license": [
+          "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+        ],
+        "numberOfPages": null,
+        "page": "12448",
+        "publisher": "Society for Neuroscience",
+        "title": "Nasal Respiration Entrains Human Limbic Oscillations and Modulates Cognitive Function",
+        "volume": "36",
+        "year": 2016,
+        "years": [
+          2016
+        ]
+      },
+      "registry": "crossref",
+      "status": 200,
+      "updates": []
+    }
+  }
+}

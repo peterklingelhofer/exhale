@@ -20,6 +20,9 @@ target/
 *.rs.bk
 *.pdb
 
+# Python
+__pycache__/
+
 # Editors / IDE
 .vscode/
 .idea/
