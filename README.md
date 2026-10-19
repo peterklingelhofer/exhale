@@ -103,18 +103,21 @@ uv run --no-project scripts/generate-citations.py --check   # fail if stale
 
 `--check` also validates citekey format, enum values, every anchor link the gaps ledger makes into
 the corpus, the source counts quoted in this file, and the deep link the app itself compiles in, so a
-renamed entry or a stale number breaks the build. It also refuses a short list of claims the corpus
-doesn't support on the surfaces that assert claims: the Rust sources, the Snap description and the
-Microsoft Store listing copy. The README and the gaps ledger can still name those claims, because
-they discuss them.
+renamed entry or a stale number breaks the build. Links from this file and from
+[`docs/for-researchers.md`](docs/for-researchers.md) into the corpus have to name an entry or a
+heading that exists. It also refuses a short list of claims the corpus doesn't support on the
+surfaces that assert claims: the Rust sources, the Snap description, the Microsoft Store listing copy
+and [`CITATION.cff`](CITATION.cff). The README and the gaps ledger can still name those claims,
+because they discuss them.
 
 Every claim from a source that was read sits above the source's own words in the corpus, and each
 quote carries a receipt in [`docs/CITATIONS.receipts.json`](docs/CITATIONS.receipts.json) showing it
 was found in the source's text. `--check` fails when a quote changes after it was checked, when quote
 marks in this file or the corpus surround words that no quote of the cited source has, when a figure
 this file attributes to a source isn't printed in one of that source's quotes, and when the tested
-range the app reports stops matching the sentence it comes from. The source texts stay out of the
-repository, so receipts and the registry snapshot are written on a machine that has them:
+range the app reports stops matching the sentence it comes from. The same quote-mark and figure
+rules hold for `docs/for-researchers.md`. The source texts stay out of the repository, so receipts
+and the registry snapshot are written on a machine that has them:
 
 ```sh
 uv run --no-project scripts/check-quotes.py --write-receipts   # look up every quote, record receipts
