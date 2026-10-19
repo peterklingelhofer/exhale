@@ -143,12 +143,16 @@ signed binary takes a store review. Four sources are flagged
 at one of them.
 
 **For researchers.** [`docs/for-researchers.md`](docs/for-researchers.md) is a reference for a lab
-considering exhale as a study stimulus: parameters and defaults, study mode, and the evidence
-corpus's own limits. Study mode locks a participant's pacing from a `study.toml` file the lab
-provides and hides the Timing, Randomization and Timers cards (with the presets and the rate
-readout) and the *Research* item. A local session log the participant exports by hand covers app,
-animation and phase timing. [`CITATION.cff`](CITATION.cff) at the repo root has the software's own
-citation.
+considering exhale as a study stimulus: parameters and defaults, study mode, the session log and
+the evidence corpus's own limits. Study mode locks a participant's pacing from a `study.toml` file
+the lab provides. The same file can also fix the appearance and the display, including a
+full-screen window on the primary display. Settings then hides the Timing, Randomization and
+Timers cards (with the presets and the rate readout), every Appearance row but Show In, and the
+*Research* item. A file that can't be used keeps the animation still and shows an error card. A
+local session log, one file per participant, covers app, animation and phase timing, and the
+participant exports it by hand. The Mac App Store build's sandbox blocks Export to the Desktop, so
+a macOS study uses a build from source. [`CITATION.cff`](CITATION.cff) at the repo root has the
+software's own citation.
 
 Nothing in this section is medical advice. See the [disclaimer](#disclaimer) above.
 
@@ -185,11 +189,13 @@ The **Display** row in the Appearance card chooses how exhale shows the animatio
 - **Overlay** is the default. One translucent window per monitor floats above your other windows and lets clicks through.
 - **Window** is one regular window named "exhale" that you can move, resize or make full screen. It remembers its size and position, shows up in Alt-Tab and the taskbar or Dock, and leaves your other windows alone.
 
-In Window mode the Stop button, the Stop shortcut and the window's close button all hide the window, and Start brings it back. Full screen comes from your system's own controls: the green button on macOS, maximize on Windows and your window manager on Linux. On macOS, Windows and X11 the settings panel floats above the window, so you can keep adjusting while you watch.
+In Window mode the Stop button, the Stop shortcut and the window's close button all hide the window, and Start brings it back. Full screen comes from your system's own controls: the green button on macOS, maximize on Windows and your window manager on Linux. On macOS, Stop first leaves full screen and then hides the window, so no empty full-screen Space stays behind. On macOS, Windows and X11 the settings panel floats above the window, so you can keep adjusting while you watch.
 
 A window has nothing behind it to see through to, so it draws your colors at full strength. The Overlay Opacity row is disabled while a window is showing, and the background color is drawn solid whatever its alpha. Both settings keep their values and apply again when you switch to Overlay.
 
 On a Wayland session, or where the graphics driver can't draw a see-through overlay, exhale always shows a window. The Display row is then locked to Window, and the setting you last chose stays stored.
+
+A study file can fix the Display setting, and the Display row is then hidden. When the file sets Window, the window opens full screen and borderless on the primary display. On macOS that full screen stays in the current Space and auto-hides the menu bar and the Dock. Stop takes the window out of full screen and hides it, so the menu bar comes back, and Start returns it to full screen. [`docs/for-researchers.md`](docs/for-researchers.md) covers the study file.
 
 ### Global keyboard shortcuts
 
@@ -212,6 +218,8 @@ Press **Esc** in the capture overlay to cancel. "Reset Shortcut to Default" in t
 2. Close Preferences from the menu bar or tray.
 3. Re-open Preferences in the current workspace and adjust Opacity.
 4. Switch back.
+
+In a study, the file locks the opacity. Reset leaves it alone and the Opacity row is hidden.
 
 ## Architecture
 
@@ -320,11 +328,11 @@ Settings are saved as TOML under the platform config dir (via the `directories` 
 | macOS (dev / standalone) | `~/Library/Application Support/com.peterklingelhofer.exhale/settings.toml` |
 | macOS (Mac App Store)    | `~/Library/Containers/peterklingelhofer.exhale/Data/Library/Application Support/com.peterklingelhofer.exhale/settings.toml` |
 | Windows  | `%APPDATA%\peterklingelhofer\exhale\config\settings.toml` |
-| Linux    | `~/.config/exhale/settings.toml` |
+| Linux    | `~/.config/exhale/settings.toml`, or `$XDG_CONFIG_HOME/exhale/settings.toml` when `XDG_CONFIG_HOME` is set |
 
 The MAS path differs because the App Store build runs sandboxed: the sandbox redirects `~/Library/Application Support` writes into the per-app container. Settings are reloaded on launch and persisted on every change via a debounced background writer thread. Corrupt TOML is logged and the file is rewritten with defaults.
 
-A `study.toml` beside `settings.toml` locks the pacing fields for a study, covered in [`docs/for-researchers.md`](docs/for-researchers.md).
+A `study.toml` beside `settings.toml` locks the pacing, appearance and display fields for a study, covered in [`docs/for-researchers.md`](docs/for-researchers.md).
 
 ## Platform notes
 
@@ -332,7 +340,7 @@ A `study.toml` beside `settings.toml` locks the pacing fields for a study, cover
 - **Windows**: the overlay uses `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST`. `AppVisibility` toggles `WS_EX_APPWINDOW` / `WS_EX_TOOLWINDOW` on the settings window so "DockOnly" shows a taskbar entry and "TopBarOnly" hides it. Tested + recommended on **Windows 11**. Some Windows 10 GPU + driver combinations report only `Opaque` alpha modes to Vulkan, in which case exhale falls back to the Window mode described below.
 - **Linux (X11)**: click-through via `XFixesSetWindowShapeRegion` with an empty input region, always-on-top via `_NET_WM_STATE_ABOVE`, and workspace-spanning via `_NET_WM_STATE_STICKY`. `AppVisibility` toggles `_NET_WM_STATE_SKIP_TASKBAR` / `SKIP_PAGER` on the settings window.
 - **Linux (Wayland)**: Wayland has no standard way for an app to keep an overlay on top, so on a Wayland session exhale always runs in the **Window mode** described below. For the full topmost, click-through overlay on Linux, log out and pick an X11 session at the login screen.
-- **Window mode** (the Display setting, and also what exhale falls back to on Wayland sessions, some Windows 10 + Vulkan combinations, WARP / Microsoft Basic Render Driver and remote-desktop sessions, where the Display row is locked to Window): the breath animation runs in a **movable, resizable "exhale" window** that opens at 480×360 points and has normal decorations and full window-manager participation (Alt-Tab, taskbar, native close button). It draws at full strength on an opaque surface. It stays at the normal window level, so on macOS, Windows and X11 the settings panel floats above it. You can use it two ways: (1) **as a foreground window**, watching the breath animation directly the same way you'd watch any other app, or (2) **as an edge-strip overlay**, by sending the window behind your other apps (Alt-Tab past it / click on the window manager to lower it), switching exhale to **Rectangle mode**, and narrowing the windows in front so the animation shows through the side / bottom strips you've left open. The Stop button (and the global Stop hotkey, if bound) hides this window, and clicking the window's native close X does the same thing. Both halt the animation but leave the tray icon and settings panel running, so Start brings the animation window back. The settings panel is still the way to fully quit (Quit button, or close the settings window on Linux).
+- **Window mode** (the Display setting, and also what exhale falls back to on Wayland sessions, some Windows 10 + Vulkan combinations, WARP / Microsoft Basic Render Driver and remote-desktop sessions, where the Display row is locked to Window): the breath animation runs in a **movable, resizable "exhale" window** that opens at 480×360 points and has normal decorations and full window-manager participation (Alt-Tab, taskbar, native close button). It draws at full strength on an opaque surface. It stays at the normal window level, so on macOS, Windows and X11 the settings panel floats above it. You can use it two ways: (1) **as a foreground window**, watching the breath animation directly the same way you'd watch any other app, or (2) **as an edge-strip overlay**, by sending the window behind your other apps (Alt-Tab past it / click on the window manager to lower it), switching exhale to **Rectangle mode**, and narrowing the windows in front so the animation shows through the side / bottom strips you've left open. The Stop button (and the global Stop hotkey, if bound) hides this window, and clicking the window's native close X does the same thing. Both halt the animation but leave the tray icon and settings panel running, so Start brings the animation window back. The settings panel is still the way to fully quit (Quit button, or close the settings window on Linux). In a study, the file can open this window full screen and borderless on the primary display, without the 480×360 size or the decorations (see [Overlay or window](#overlay-or-window)).
 
 ## Performance vs the legacy Swift build
 

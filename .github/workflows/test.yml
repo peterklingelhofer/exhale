@@ -66,10 +66,12 @@ jobs:
   # tier enums, and every anchor link the gaps ledger makes into the
   # corpus, so a renamed entry fails here instead of rotting in the docs.
   # It also holds each quote to its receipt, the figures pinned in the Rust
-  # sources to the corpus, and the registry snapshot to the ledger.  The two
+  # sources to the corpus, and the registry snapshot to the ledger.  The
   # self-checks come first because those rules live in scripts/verbatim.py
-  # and scripts/registry.py.  Stdlib only, no Rust toolchain, no network and
-  # no research cache, so it costs seconds
+  # and scripts/registry.py.  The one for scripts/pacing-validation.py sits
+  # with them because the researchers' guide tells a lab to run that script
+  # on its logs.  Stdlib only, no Rust toolchain, no network and no research
+  # cache, so it costs seconds
   citations:
     runs-on: ubuntu-latest
     steps:
@@ -87,6 +89,9 @@ jobs:
 
       - name: Self-check the HTTP client the weekly job uses
         run: python3 scripts/fetching.py
+
+      - name: Self-check the pacing-validation script
+        run: python3 scripts/pacing-validation.py --self-check
 
       - name: Check generated citations are current
         run: python3 scripts/generate-citations.py --check
