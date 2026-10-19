@@ -130,6 +130,12 @@ pub struct OverlayHandle {
     /// asked for.  The settings panel reads it to lock the Display
     /// row, and a display-mode change leaves such a session alone
     pub window_only: bool,
+    /// `true` when a study holds this window full screen on the primary
+    /// display: see [`study_fills_display`].  Start fills the display and
+    /// Stop gives it back.  The window's placement is never saved: the
+    /// participant doesn't place it, and the frame it comes back to after
+    /// a full-screen cycle isn't always the one it had
+    fills_display: bool,
     /// Render dispatch: per-window thread (macOS / Windows / Linux
     /// X11) or main-thread synchronous rendering (Wayland)
     mode:        HandleMode,
@@ -292,11 +298,13 @@ impl OverlayHandle {
             // request lands on the main thread's event queue and
             // fires as soon as resumed() returns
             window.request_redraw();
+            let fills_display = study_fills_display(&settings.read_or_recover());
             return Ok(Self {
                 window,
                 monitor_key,
                 alpha_capable,
                 window_only: true,
+                fills_display,
                 mode: HandleMode::MainThread(Box::new(MainThreadState {
                     renderer: Mutex::new(renderer),
                     state,
@@ -312,7 +320,10 @@ impl OverlayHandle {
         // directly, the way the fallback builds the one it settles
         // for.  Otherwise the overlay comes first and the fallback
         // only when the probe finds no per-pixel alpha
-        let window_mode = settings.read_or_recover().display_mode == DisplayMode::Window;
+        let (window_mode, fills_display) = {
+            let s = settings.read_or_recover();
+            (s.display_mode == DisplayMode::Window, study_fills_display(&s))
+        };
         let (window, mut renderer, alpha_capable) = if window_mode {
             create_windowed_app(event_loop, &gpu, monitor.as_ref(), &settings)?
         } else {
@@ -338,6 +349,7 @@ impl OverlayHandle {
             monitor_key,
             alpha_capable,
             window_only: !window_mode && !alpha_capable,
+            fills_display,
             mode: HandleMode::Threaded { msg_tx, thread: Some(thread) },
         })
     }
@@ -384,18 +396,36 @@ impl OverlayHandle {
     /// "stopped" clear frame.  So we gate this on
     /// `alpha_capable`: threaded overlays ignore the toggle, the
     /// windowed-app shows / hides
+    ///
+    /// Every path that shows or hides the window comes through here: Start
+    /// and Stop from the panel, the tray, a hotkey and auto-stop, the
+    /// launch, and a display-mode swap.  So this is where a study's window
+    /// fills the primary display on Start and gives it back on Stop, and
+    /// where a window the user took into native full screen leaves it
+    /// before it hides.  The platform layer does the work, which differs
+    /// by OS (see `platform::show_animation_window`)
     pub fn set_animation_visible(&self, visible: bool) {
         if self.alpha_capable {
             return;
         }
-        self.window.set_visible(visible);
         if visible {
+            platform::show_animation_window(&self.window, self.fills_display);
             // Wayland needs an explicit redraw request after a
             // hide -> show cycle to re-commit a buffer.  Without it
             // the xdg_toplevel comes back to the dock but the
             // surface stays unattached
             self.window.request_redraw();
+        } else {
+            platform::hide_animation_window(&self.window);
         }
+    }
+
+    /// Whether the window's frame is the screen's and not the user's: it
+    /// is full screen now, or a study holds it full screen and it sits
+    /// hidden between a Stop and a Start.  The window's placement is only
+    /// worth saving while this is false
+    pub fn is_full_screen(&self) -> bool {
+        self.fills_display || platform::is_full_screen(&self.window)
     }
 
     /// Render synchronously on the calling thread.  No-op for
@@ -503,6 +533,16 @@ fn initial_window_size(placement: &WindowPlacement) -> Size {
         (Some(w), Some(h)) => PhysicalSize::new(w, h).into(),
         _                  => LogicalSize::new(DEFAULT_W, DEFAULT_H).into(),
     }
+}
+
+/// Whether a study holds the animation window full screen on the primary
+/// display: a locked study whose file asks for Window mode
+///
+/// The file's `display_mode` is one of the locked fields, so a study that
+/// leaves it out locks the shipped default, Overlay, and gets no window
+/// to fill the display with
+fn study_fills_display(settings: &Settings) -> bool {
+    settings.study.is_some() && settings.display_mode == DisplayMode::Window
 }
 
 /// Try the platform-specific fullscreen overlay path (click-through,
@@ -796,6 +836,46 @@ mod coalesce_tests {
             latest_resize: None,
             should_quit:   false,
         });
+    }
+}
+
+#[cfg(test)]
+mod full_screen_tests {
+    use super::*;
+    use crate::test_support::{Folder, STUDY_FILE};
+
+    /// The settings a manager loads from a study file that adds `extra`
+    /// lines to the shared one
+    fn study_settings(tag: &str, extra: &str) -> Settings {
+        let folder = Folder::new(tag, Some(&format!("{STUDY_FILE}{extra}")));
+        let loaded = folder.manager.settings.read().expect("settings lock").clone();
+        loaded
+    }
+
+    #[test]
+    fn a_study_that_locks_window_mode_holds_the_window_full_screen() {
+        let s = study_settings("fills-window", "display_mode = \"window\"\n");
+        assert_eq!(s.display_mode, DisplayMode::Window);
+        assert!(study_fills_display(&s));
+    }
+
+    #[test]
+    fn a_study_that_leaves_the_display_to_its_default_has_no_window_to_fill() {
+        // The file leaves `display_mode` out, which locks Overlay
+        let s = study_settings("fills-overlay", "");
+        assert!(s.study.is_some());
+        assert_eq!(s.display_mode, DisplayMode::Overlay);
+        assert!(!study_fills_display(&s));
+
+        let s = study_settings("fills-overlay-explicit", "display_mode = \"overlay\"\n");
+        assert!(!study_fills_display(&s));
+    }
+
+    #[test]
+    fn window_mode_outside_a_study_is_the_users_to_place() {
+        let s = Settings { display_mode: DisplayMode::Window, ..Settings::default() };
+        assert!(s.study.is_none());
+        assert!(!study_fills_display(&s));
     }
 }
 

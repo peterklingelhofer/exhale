@@ -89,7 +89,14 @@ impl Timers {
     /// Returns `true` if the animation should be stopped (auto-stop deadline hit)
     /// Returns `true` if a reminder notification should fire
     /// Caller is responsible for applying the stop and sending the notification
-    pub fn tick(&mut self, settings: &Settings) -> TimerEvents {
+    ///
+    /// `reminders` is false while a study can't run. The overlay is held
+    /// still and the window shows an error, so a notification asking the
+    /// participant to breathe would point at nothing. A reminder that comes
+    /// due in that state is still used up: the interval starts over and
+    /// `next_deadline` moves on. Left due, it would stay in the past and
+    /// wake the event loop in a spin
+    pub fn tick(&mut self, settings: &Settings, reminders: bool) -> TimerEvents {
         let now = Instant::now();
         let mut events = TimerEvents::default();
 
@@ -109,7 +116,7 @@ impl Timers {
                 .is_some_and(|due| now >= due);
             if due {
                 self.last_reminder = Some(now);
-                events.reminder = true;
+                events.reminder = reminders;
             }
         }
 
@@ -338,7 +345,7 @@ mod tests {
         // Use a tiny duration we can wait past.  We can't sleep in
         // tests reliably, so backdate the deadline directly
         t.auto_stop_deadline = Some(Instant::now() - Duration::from_millis(1));
-        let events = t.tick(&settings_with(5.0, 0.0, true));
+        let events = t.tick(&settings_with(5.0, 0.0, true), true);
         assert!(events.auto_stop, "auto-stop event must fire when deadline passed");
         assert!(t.auto_stop_deadline.is_none(), "deadline cleared after firing");
     }
@@ -347,7 +354,7 @@ mod tests {
     fn tick_does_not_fire_auto_stop_early() {
         let mut t = Timers::new();
         t.auto_stop_deadline = Some(Instant::now() + Duration::from_secs(60));
-        let events = t.tick(&settings_with(5.0, 0.0, true));
+        let events = t.tick(&settings_with(5.0, 0.0, true), true);
         assert!(!events.auto_stop);
         assert!(t.auto_stop_deadline.is_some());
     }
@@ -358,7 +365,7 @@ mod tests {
         // Backdate so the interval has just passed
         t.last_reminder = Some(Instant::now() - Duration::from_secs(61));
         let s = settings_with(0.0, 1.0, true);
-        let events = t.tick(&s);
+        let events = t.tick(&s, true);
         assert!(events.reminder, "reminder fires after 1-min interval elapsed");
         let new_last = t.last_reminder.expect("reset");
         assert!(new_last > Instant::now() - Duration::from_secs(1),
@@ -366,11 +373,39 @@ mod tests {
     }
 
     #[test]
+    fn a_muted_reminder_is_used_up_and_never_fires() {
+        let mut t = Timers::new();
+        t.last_reminder = Some(Instant::now() - Duration::from_secs(61));
+        let s = settings_with(0.0, 1.0, true);
+
+        let events = t.tick(&s, false);
+
+        assert!(!events.reminder, "a study that can't run sends no reminder");
+        // Used up: the clock started over, so the next one is most of an
+        // interval away and the event loop isn't woken for one already due
+        let next = t.next_deadline(&s).expect("the interval is still counting");
+        assert!(next > Instant::now() + Duration::from_secs(50), "{next:?}");
+        assert!(!t.tick(&s, false).reminder, "and nothing is due on the next tick");
+    }
+
+    #[test]
+    fn muting_the_reminders_leaves_the_auto_stop_alone() {
+        let mut t = Timers::new();
+        t.auto_stop_deadline = Some(Instant::now() - Duration::from_millis(1));
+        t.last_reminder      = Some(Instant::now() - Duration::from_secs(61));
+
+        let events = t.tick(&settings_with(5.0, 1.0, true), false);
+
+        assert!(events.auto_stop, "the mute is for reminders only");
+        assert!(!events.reminder);
+    }
+
+    #[test]
     fn tick_does_not_fire_reminder_when_interval_is_off() {
         let mut t = Timers::new();
         t.last_reminder = Some(Instant::now() - Duration::from_secs(3600));
         let s = settings_with(0.0, 0.0, true); // reminder = off
-        let events = t.tick(&s);
+        let events = t.tick(&s, true);
         assert!(!events.reminder);
     }
 
@@ -397,17 +432,17 @@ mod tests {
         // that nothing panics and that a timer that far out never fires
         let mut t = Timers::new();
         t.reschedule_auto_stop(&settings_with(2e17, 0.0, true));
-        assert!(!t.tick(&settings_with(2e17, 0.0, true)).auto_stop, "a deadline that far out never arrives");
+        assert!(!t.tick(&settings_with(2e17, 0.0, true), true).auto_stop, "a deadline that far out never arrives");
 
         let s = settings_with(0.0, 2e17, true);
         t.reschedule_reminder(&s);
         let _ = t.next_deadline(&s);
-        assert!(!t.tick(&s).reminder, "an interval that long never elapses");
+        assert!(!t.tick(&s, true).reminder, "an interval that long never elapses");
 
         // Backdated so a sum that did fit would be long overdue
         t.last_reminder = Some(Instant::now() - Duration::from_secs(3600));
         let _ = t.next_deadline(&s);
-        assert!(!t.tick(&s).reminder);
+        assert!(!t.tick(&s, true).reminder);
     }
 
     #[test]
@@ -500,7 +535,7 @@ mod tests {
             let s = settings_with(0.0, bad_interval, true);
             assert!(t.next_deadline(&s).is_none(),
                 "bad interval {bad_interval} must not panic, contributes no deadline");
-            let events = t.tick(&s);
+            let events = t.tick(&s, true);
             assert!(!events.reminder, "bad interval {bad_interval} must not panic or fire");
         }
     }

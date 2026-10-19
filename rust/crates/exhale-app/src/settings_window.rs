@@ -732,6 +732,9 @@ impl Drop for SettingsWindow {
 //   • Timing: 4 phase durations
 //   • Randomization: 4 jitter sliders + drift
 //   • Timers: reminder + auto-stop
+//
+// In a study the Appearance card keeps visibility alone, and the Study card
+// stands in for the last three
 
 /// Attach the right-click "Change Shortcut…" / "Reset to Default"
 /// menu to a control-button `Response`.  Lives next to the buttons
@@ -1013,8 +1016,12 @@ fn reset_text(study: bool) -> &'static ResetText {
 
 /// Said under the Export button when new lines have arrived since the
 /// last export, which is when Clear isn't offered
+///
+/// A running animation writes a line at every phase, so an export taken
+/// while it runs is already behind by the time the card redraws. The hint
+/// says Stop first, which is what makes the next export the last one
 const CLEAR_WITHHELD_HINT: &str =
-    "New lines arrived since the export. Export again to clear the log.";
+    "New lines arrived since the export. Stop, then export again to clear the log.";
 
 /// Start's tooltip while the study can't run
 const STUDY_START_HELP: &str = "The study can't start. Tell whoever runs the study.";
@@ -1044,6 +1051,115 @@ fn study_error_card(ui: &mut egui::Ui, err: &StudyError) {
         );
         ui.label(egui::RichText::new("Tell whoever runs the study.").color(warning));
     });
+}
+
+/// The Appearance card
+///
+/// A study file locks every row here but Show In, so while the pace is
+/// kept from the participant (any status but `Off`, as for the pacing
+/// cards) the card shows that row alone. The locked rows are hidden and
+/// not disabled: a control the file overrides would only invite presses
+/// that do nothing, and a disabled widget breaks Tab for the controls after
+/// it (see the Background Color comment below)
+///
+/// Split out of [`settings_ui`] so a test can lay the card out on its own
+///
+/// Returns true when something in it changed the settings
+fn appearance_card(
+    ui:                &mut egui::Ui,
+    settings:          &mut Settings,
+    status:            &StudyStatus,
+    overlay_available: bool,
+    picker_column_w:   f32,
+) -> bool {
+    let mut dirty = false;
+    section(ui, "Appearance", |ui| {
+        if !crate::hides_pacing(status) {
+            // Inhale color: no alpha (Swift: supportsOpacity: false)
+            if color_row(
+                ui, "Inhale Color", "Choose the color for the inhale phase.",
+                &mut settings.inhale_color, egui::color_picker::Alpha::Opaque,
+            ) { dirty = true; }
+
+            // Exhale color: no alpha (Swift: supportsOpacity: false)
+            if color_row(
+                ui, "Exhale Color", "Choose the color for the exhale phase.",
+                &mut settings.exhale_color, egui::color_picker::Alpha::Opaque,
+            ) { dirty = true; }
+
+            // Background color (with alpha).  Only visually meaningful
+            // when `shape != Fullscreen`, but we render the picker
+            // enabled regardless.  Wrapping it in
+            // `add_enabled_ui(false, ...)` made egui call
+            // `surrender_focus` on the disabled widget every
+            // time Tab landed there.  Focus was lost mid-cycle
+            // and the next Tab wrapped back to the first
+            // focusable widget (Start button), so users with
+            // `shape = Fullscreen` saw Tab go button-button-
+            // button-button-Inhale-Exhale-Background-Start
+            // instead of continuing through Overlay Opacity
+            // and the rest of the panel.  The tooltip tells the
+            // user when the setting has no effect
+            if color_row(
+                ui, "Background Color",
+                "Choose the background color. No effect when Shape is Fullscreen.",
+                &mut settings.background_color, egui::color_picker::Alpha::OnlyBlend,
+            ) { dirty = true; }
+
+            // Overlay opacity: disabled while a window is showing
+            let window = window_showing(settings, overlay_available);
+            if opacity_row(ui, settings, window) {
+                dirty = true;
+            }
+
+            if display_row(ui, settings, overlay_available, picker_column_w) {
+                dirty = true;
+            }
+
+            // Shape
+            if segmented_row(
+                ui, "Shape",
+                "Shape of the animation: Fullscreen, Rectangle, or Circle.",
+                picker_column_w,
+                &mut settings.shape,
+                SHAPE_OPTIONS,
+            ) { dirty = true; }
+
+            if segmented_row(
+                ui, "Gradient",
+                "Gradient color effect. No effect when Shape is Fullscreen.",
+                picker_column_w,
+                &mut settings.color_fill_gradient,
+                GRADIENT_OPTIONS,
+            ) { dirty = true; }
+
+            if segmented_row(
+                ui, "Animation",
+                "Sinusoidal eases in/out naturally. Linear is constant speed.",
+                picker_column_w,
+                &mut settings.animation_mode,
+                ANIMATION_OPTIONS,
+            ) { dirty = true; }
+
+            if segmented_row(
+                ui, "Hold Ripple",
+                "Hold phase ripple: Gradient (smooth glow), Stark (solid edge), or Off.",
+                picker_column_w,
+                &mut settings.hold_ripple_mode,
+                RIPPLE_OPTIONS,
+            ) { dirty = true; }
+        }
+
+        // App visibility (macOS concept, show on all platforms for settings parity)
+        if segmented_row(
+            ui, "Show In",
+            "Where exhale appears: Top Bar, Dock, or Both.",
+            picker_column_w,
+            &mut settings.app_visibility,
+            VISIBILITY_OPTIONS,
+        ) { dirty = true; }
+    });
+    dirty
 }
 
 /// The cards under Appearance: Timing, Randomization and Timers when no
@@ -1648,90 +1764,9 @@ fn settings_ui(
             });
 
             // ── Appearance ───────────────────────────────────────────────────
-            section(ui, "Appearance", |ui| {
-                // Inhale color: no alpha (Swift: supportsOpacity: false)
-                if color_row(
-                    ui, "Inhale Color", "Choose the color for the inhale phase.",
-                    &mut settings.inhale_color, egui::color_picker::Alpha::Opaque,
-                ) { dirty = true; }
-
-                // Exhale color: no alpha (Swift: supportsOpacity: false)
-                if color_row(
-                    ui, "Exhale Color", "Choose the color for the exhale phase.",
-                    &mut settings.exhale_color, egui::color_picker::Alpha::Opaque,
-                ) { dirty = true; }
-
-                // Background color (with alpha).  Only visually meaningful
-                // when `shape != Fullscreen`, but we render the picker
-                // enabled regardless.  Wrapping it in
-                // `add_enabled_ui(false, ...)` made egui call
-                // `surrender_focus` on the disabled widget every
-                // time Tab landed there.  Focus was lost mid-cycle
-                // and the next Tab wrapped back to the first
-                // focusable widget (Start button), so users with
-                // `shape = Fullscreen` saw Tab go button-button-
-                // button-button-Inhale-Exhale-Background-Start
-                // instead of continuing through Overlay Opacity
-                // and the rest of the panel.  The tooltip tells the
-                // user when the setting has no effect
-                if color_row(
-                    ui, "Background Color",
-                    "Choose the background color. No effect when Shape is Fullscreen.",
-                    &mut settings.background_color, egui::color_picker::Alpha::OnlyBlend,
-                ) { dirty = true; }
-
-                // Overlay opacity: disabled while a window is showing
-                let window = window_showing(settings, overlay_available);
-                if opacity_row(ui, settings, window) {
-                    dirty = true;
-                }
-
-                if display_row(ui, settings, overlay_available, picker_column_w) {
-                    dirty = true;
-                }
-
-                // Shape
-                if segmented_row(
-                    ui, "Shape",
-                    "Shape of the animation: Fullscreen, Rectangle, or Circle.",
-                    picker_column_w,
-                    &mut settings.shape,
-                    SHAPE_OPTIONS,
-                ) { dirty = true; }
-
-                if segmented_row(
-                    ui, "Gradient",
-                    "Gradient color effect. No effect when Shape is Fullscreen.",
-                    picker_column_w,
-                    &mut settings.color_fill_gradient,
-                    GRADIENT_OPTIONS,
-                ) { dirty = true; }
-
-                if segmented_row(
-                    ui, "Animation",
-                    "Sinusoidal eases in/out naturally. Linear is constant speed.",
-                    picker_column_w,
-                    &mut settings.animation_mode,
-                    ANIMATION_OPTIONS,
-                ) { dirty = true; }
-
-                if segmented_row(
-                    ui, "Hold Ripple",
-                    "Hold phase ripple: Gradient (smooth glow), Stark (solid edge), or Off.",
-                    picker_column_w,
-                    &mut settings.hold_ripple_mode,
-                    RIPPLE_OPTIONS,
-                ) { dirty = true; }
-
-                // App visibility (macOS concept, show on all platforms for settings parity)
-                if segmented_row(
-                    ui, "Show In",
-                    "Where exhale appears: Top Bar, Dock, or Both.",
-                    picker_column_w,
-                    &mut settings.app_visibility,
-                    VISIBILITY_OPTIONS,
-                ) { dirty = true; }
-            });
+            if appearance_card(ui, settings, &study_status, overlay_available, picker_column_w) {
+                dirty = true;
+            }
 
             if body_cards(ui, settings, &study_status, session_log, study_note) {
                 dirty = true;
@@ -2690,6 +2725,154 @@ mod tests {
         StudyStatus::Broken(StudyError::log_unavailable(&std::io::Error::other("x")))
     }
 
+    // ── The Appearance card ───────────────────────────────────────
+
+    /// One frame of the Appearance card on its own, with a button after it
+    /// to count Tab stops against. Returns what it drew, whether it changed
+    /// the settings, and the button's id
+    fn run_appearance_frame(
+        ctx:      &Context,
+        raw_in:   RawInput,
+        settings: &mut exhale_core::settings::Settings,
+        status:   &StudyStatus,
+    ) -> (Drawn, bool, egui::Id) {
+        let (mut changed, mut next) = (false, egui::Id::NULL);
+        let out = ctx.run(raw_in, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let column_w = picker_column_width(ui);
+                changed = appearance_card(ui, settings, status, true, column_w);
+                next = ui.button("Next").id;
+            });
+        });
+        (Drawn::of(&out), changed, next)
+    }
+
+    /// For each row the study file locks, one text that only that row draws
+    const LOCKED_ROWS: [(&str, &str); 9] = [
+        ("Inhale Color",     "Inhale Color"),
+        ("Exhale Color",     "Exhale Color"),
+        ("Background Color", "Background Color"),
+        ("Overlay Opacity",  "Overlay Opacity (%)"),
+        ("Display",          "Display"),
+        ("Shape",            "Shape"),
+        // The row's own label is also an option of Hold Ripple
+        ("Gradient",         "Inner"),
+        ("Animation",        "Animation"),
+        ("Hold Ripple",      "Hold Ripple"),
+    ];
+
+    /// The three options of the Show In row
+    const SHOW_IN_OPTIONS: [&str; 3] = ["Top Bar", "Dock", "Both"];
+
+    #[test]
+    fn without_a_study_the_appearance_card_shows_every_row() {
+        let ctx = Context::default();
+        let mut open = exhale_core::settings::Settings::default();
+        let (drawn, _, _) = run_appearance_frame(&ctx, tall_input(), &mut open, &StudyStatus::Off);
+
+        assert_eq!(drawn.count("APPEARANCE"), 1, "{}", drawn.dump());
+        for (row, text) in LOCKED_ROWS {
+            assert_eq!(drawn.count(text), 1, "the {row} row is missing: {}", drawn.dump());
+        }
+        assert_eq!(drawn.count("Show In"), 1, "{}", drawn.dump());
+        for option in SHOW_IN_OPTIONS {
+            assert_eq!(drawn.count(option), 1, "{option}: {}", drawn.dump());
+        }
+    }
+
+    #[test]
+    fn while_the_pace_is_hidden_the_appearance_card_shows_show_in_alone() {
+        // A locked study, and a broken one both ways: a file that failed
+        // at load locks nothing, a log that failed after launch keeps the lock
+        for (how, mut settings, status) in [
+            ("locked",              locked_settings(),                          StudyStatus::Locked),
+            ("broken at load",      exhale_core::settings::Settings::default(), broken_at_load()),
+            ("broken after launch", locked_settings(),                          broken_at_load()),
+        ] {
+            let ctx = Context::default();
+            let (drawn, _, _) = run_appearance_frame(&ctx, tall_input(), &mut settings, &status);
+
+            assert_eq!(drawn.count("APPEARANCE"), 1, "{how}: the card is still there: {}", drawn.dump());
+            for (row, text) in LOCKED_ROWS {
+                assert_eq!(drawn.count(text), 0, "{how}: the {row} row is showing: {}", drawn.dump());
+            }
+            // The options of the hidden pickers, which labels alone could miss
+            for option in ["Overlay", "Window", "Rectangle", "Circle", "Full", "Linear", "Sinusoidal", "Stark"] {
+                assert_eq!(drawn.count(option), 0, "{how}: {option} is showing: {}", drawn.dump());
+            }
+            assert_eq!(drawn.count("Show In"), 1, "{how}: {}", drawn.dump());
+            for option in SHOW_IN_OPTIONS {
+                assert_eq!(drawn.count(option), 1, "{how}: {option}: {}", drawn.dump());
+            }
+        }
+    }
+
+    #[test]
+    fn the_window_gives_the_appearance_card_the_study_status_it_read() {
+        // The whole window, with the status coming from a manager as it does
+        // at launch: a locked study and one that can't run both leave Show In
+        for (tag, file) in [
+            ("appearance-locked", crate::test_support::STUDY_FILE),
+            ("appearance-broken", crate::test_support::BROKEN_STUDY_FILE),
+        ] {
+            let (folder, mut settings) = study_folder(tag, file);
+            let ctx = Context::default();
+
+            let drawn = run_window_frame(
+                &ctx, tall_input(), &mut settings, &folder.manager, &mut false, &None, &mut None,
+            );
+
+            assert_eq!(drawn.count("APPEARANCE"), 1, "{tag}: {}", drawn.dump());
+            for (row, text) in LOCKED_ROWS {
+                assert_eq!(drawn.count(text), 0, "{tag}: the {row} row is showing: {}", drawn.dump());
+            }
+            assert_eq!(drawn.count("Show In"), 1, "{tag}: {}", drawn.dump());
+        }
+    }
+
+    #[test]
+    fn show_in_still_takes_a_click_in_a_study_and_nothing_else_moves() {
+        let ctx = Context::default();
+        let mut settings = locked_settings();
+        let mut want = settings.clone();
+        want.app_visibility = AppVisibility::DockOnly;
+
+        let (drawn, _, _) = run_appearance_frame(&ctx, tall_input(), &mut settings, &StudyStatus::Locked);
+        let dock = drawn.rect("Dock");
+        let (_, changed, _) = run_appearance_frame(
+            &ctx, tall_click(dock.center()), &mut settings, &StudyStatus::Locked,
+        );
+
+        assert!(changed, "the one row a study leaves is still editable");
+        assert_ne!(AppVisibility::DockOnly, locked_settings().app_visibility, "so the click had something to change");
+        assert_eq!(format!("{settings:?}"), format!("{want:?}"), "and the lock is where the file put it");
+    }
+
+    #[test]
+    fn tab_still_walks_the_controls_that_remain() {
+        // Presses of Tab it takes to get from the top of the card to the
+        // button after it
+        let presses = |status: &StudyStatus| {
+            let ctx = Context::default();
+            let mut settings = locked_settings();
+            let (_, _, next) = run_appearance_frame(&ctx, tall_input(), &mut settings, status);
+            for presses in 1..=40 {
+                let _ = run_appearance_frame(&ctx, tall_key(egui::Key::Tab), &mut settings, status);
+                if ctx.memory(|m| m.focused()) == Some(next) {
+                    return presses;
+                }
+            }
+            usize::MAX
+        };
+
+        // Show In is three stops, one for each of its options, and the
+        // button is the one after
+        assert_eq!(presses(&StudyStatus::Locked), 4);
+        assert_eq!(presses(&broken_at_load()), 4);
+        // Each of the other rows is a stop too, which is what the study hides
+        assert!(presses(&StudyStatus::Off) > 4);
+    }
+
     // ── The cards under Appearance ────────────────────────────────
 
     #[test]
@@ -2873,6 +3056,11 @@ mod tests {
         let drawn = card.frame(tall_input());
         assert_eq!(drawn.count("Clear log"), 0, "{}", drawn.dump());
         assert!(drawn.says("Exported to"), "the card still says where the export went");
+        assert_eq!(
+            CLEAR_WITHHELD_HINT,
+            "New lines arrived since the export. Stop, then export again to clear the log.",
+            "the guide quotes these words",
+        );
         // One line, at the width the card has
         card.note = Some(StudyNote::Cleared);
         let one_line = card.frame(tall_input()).rect("Log cleared.").height();

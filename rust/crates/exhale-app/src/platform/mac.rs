@@ -129,6 +129,189 @@ use super::*;
         ns_win.setCollectionBehavior(NSWindowCollectionBehavior::FullScreenPrimary);
     }
 
+    // ─── Showing and hiding the window of Window mode ─────────────────────────
+    //
+    // Two kinds of full screen reach this window.  A study that locks Window
+    // mode gets simple full screen, which stays in the current Space, covers
+    // the screen it's on and auto-hides the menu bar and the Dock.  A user
+    // can also press the green button, which is native full screen: an
+    // animated move into a Space of its own
+
+    /// Windows that are to be hidden the moment they've left native full
+    /// screen, by the address of their `NSWindow`, which the exit
+    /// notification carries
+    static HIDE_ON_EXIT: std::sync::Mutex<Vec<usize>> = std::sync::Mutex::new(Vec::new());
+
+    /// Add `key` to the windows waiting to be hidden, and say whether it
+    /// wasn't on the list already
+    fn note_hide_on_exit(pending: &mut Vec<usize>, key: usize) -> bool {
+        if pending.contains(&key) {
+            return false;
+        }
+        pending.push(key);
+        true
+    }
+
+    /// Take `key` off the list, and say whether it was on it
+    fn take_hide_on_exit(pending: &mut Vec<usize>, key: usize) -> bool {
+        let before = pending.len();
+        pending.retain(|&k| k != key);
+        pending.len() != before
+    }
+
+    /// The address `HIDE_ON_EXIT` knows `window` by
+    fn hide_key(window: &Window) -> Option<usize> {
+        get_ns_window(window).map(|ns_win| objc2::rc::Retained::as_ptr(&ns_win) as usize)
+    }
+
+    /// Show the window of Window mode, and with `fill_display` fill the
+    /// primary display with it in simple full screen
+    ///
+    /// Simple full screen covers the screen the window is on, so a window
+    /// elsewhere moves to the primary one first.  A hide that is still
+    /// waiting on a full-screen exit is called off, because the window is
+    /// wanted again
+    pub fn show_animation_window(window: &Window, fill_display: bool) {
+        use exhale_core::poison::MutexPoisonExt;
+        use winit::platform::macos::WindowExtMacOS;
+
+        if let Some(key) = hide_key(window) {
+            take_hide_on_exit(&mut HIDE_ON_EXIT.lock_or_recover(), key);
+        }
+        window.set_visible(true);
+        if !fill_display || window.simple_fullscreen() {
+            return;
+        }
+        if let Some(primary) = window.primary_monitor() {
+            if window.current_monitor().as_ref() != Some(&primary) {
+                // Logical, because the monitor's own scale factor is the one
+                // that reads its corner back correctly
+                window.set_outer_position(
+                    primary.position().to_logical::<f64>(primary.scale_factor()),
+                );
+            }
+        }
+        if !window.set_simple_fullscreen(true) {
+            log::warn!("animation window: simple full screen was refused");
+        }
+    }
+
+    /// Hide the window of Window mode
+    ///
+    /// Simple full screen goes first, which gives the menu bar and the Dock
+    /// back, and then the window hides
+    ///
+    /// `orderOut:` on a window in native full screen leaves its Space open
+    /// and empty, so that window leaves full screen first and hides once it
+    /// has.  winit has no event for the end of that exit, and
+    /// `Window::fullscreen` already reads `None` the moment the exit is
+    /// asked for, so the hide waits for AppKit's own
+    /// `NSWindowDidExitFullScreenNotification`.  `set_fullscreen` queues
+    /// the exit when a transition is under way, and the notification
+    /// follows it
+    pub fn hide_animation_window(window: &Window) {
+        use exhale_core::poison::MutexPoisonExt;
+        use winit::platform::macos::WindowExtMacOS;
+
+        if window.simple_fullscreen() {
+            window.set_simple_fullscreen(false);
+        }
+        let key = hide_key(window);
+        // A second Stop while the exit runs mustn't hide the window early
+        if let Some(key) = key {
+            if HIDE_ON_EXIT.lock_or_recover().contains(&key) {
+                return;
+            }
+        }
+        match key {
+            // Without the observer nothing would ever hide the window, so
+            // a failed install falls back to the plain hide
+            Some(key) if window.fullscreen().is_some() && register_full_screen_exit_observer() => {
+                note_hide_on_exit(&mut HIDE_ON_EXIT.lock_or_recover(), key);
+                window.set_fullscreen(None);
+            }
+            _ => window.set_visible(false),
+        }
+    }
+
+    /// Whether the window is full screen in either way, or on its way out
+    /// of native full screen to be hidden
+    ///
+    /// The last case counts because `Window::fullscreen` reads `None` the
+    /// moment the exit is asked for, while the window still reports the
+    /// frames of the animation
+    pub fn is_full_screen(window: &Window) -> bool {
+        use exhale_core::poison::MutexPoisonExt;
+        use winit::platform::macos::WindowExtMacOS;
+
+        window.fullscreen().is_some()
+            || window.simple_fullscreen()
+            || hide_key(window).is_some_and(|key| HIDE_ON_EXIT.lock_or_recover().contains(&key))
+    }
+
+    /// Install, once, the observer that hides a window the moment it has
+    /// left native full screen, if [`hide_animation_window`] asked for that
+    ///
+    /// Returns whether the observer is in place
+    fn register_full_screen_exit_observer() -> bool {
+        use exhale_core::poison::MutexPoisonExt;
+        use objc2::msg_send;
+        use objc2::runtime::AnyObject;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Once;
+
+        extern "C" fn handle_exit(
+            _this:  &AnyObject,
+            _cmd:   objc2::runtime::Sel,
+            notif:  *mut AnyObject,
+        ) {
+            unsafe {
+                // The notification's object is the `NSWindow` that left
+                let win: *mut AnyObject = msg_send![notif, object];
+                if win.is_null() { return; }
+                let asked = take_hide_on_exit(&mut HIDE_ON_EXIT.lock_or_recover(), win as usize);
+                if asked {
+                    log::debug!("animation window left native full screen, hiding it");
+                    let _: () = msg_send![win, orderOut: std::ptr::null::<AnyObject>()];
+                }
+            }
+        }
+
+        static INIT: Once = Once::new();
+        static INSTALLED: AtomicBool = AtomicBool::new(false);
+        INIT.call_once(|| unsafe {
+            // `v@:@`: void return, (self, _cmd, NSNotification* notif)
+            let exit_sel = objc2::sel!(windowDidExitFullScreen:);
+            let exit_imp: objc2::runtime::Imp = std::mem::transmute(handle_exit as *const ());
+
+            // Leaked for the reason the menu tracker's is: the center holds
+            // its observers weakly
+            let Some(instance) = leak_handler(c"ExhaleFullScreenExit", &[(exit_sel, exit_imp, c"v@:@")]) else {
+                return;
+            };
+            let Some(nc_cls) = objc2::runtime::AnyClass::get(c"NSNotificationCenter") else {
+                log::warn!("full screen observer: NSNotificationCenter class not found");
+                return;
+            };
+            let nc: *mut AnyObject = msg_send![nc_cls, defaultCenter];
+            if nc.is_null() {
+                log::warn!("full screen observer: NSNotificationCenter defaultCenter returned null");
+                return;
+            }
+            // `object: null` matches every window, and the handler picks
+            // out the ones that asked
+            let _: () = msg_send![
+                nc,
+                addObserver: instance,
+                selector:    exit_sel,
+                name:        objc2_app_kit::NSWindowDidExitFullScreenNotification,
+                object:      std::ptr::null::<AnyObject>(),
+            ];
+            INSTALLED.store(true, Ordering::SeqCst);
+        });
+        INSTALLED.load(Ordering::SeqCst)
+    }
+
     pub fn setup_settings_window(window: &Window) {
         // Window level only: the vibrancy install runs post-wgpu-surface via
         // `install_settings_vibrancy` so we don't re-parent winit's NSView
@@ -1818,6 +2001,68 @@ use super::*;
             // class pair twice would fail. Two calls, no panic
             register_reopen_handler();
             register_reopen_handler();
+        }
+
+        #[test]
+        fn a_hide_is_noted_once_and_taken_once() {
+            let mut pending = vec![7];
+
+            assert!(note_hide_on_exit(&mut pending, 9), "a window that wasn't waiting is now");
+            assert!(!note_hide_on_exit(&mut pending, 9), "and a second Stop doesn't add it again");
+            assert_eq!(pending, [7, 9]);
+
+            assert!(take_hide_on_exit(&mut pending, 9), "its exit finds it waiting");
+            assert!(!take_hide_on_exit(&mut pending, 9), "and only once");
+            assert!(!take_hide_on_exit(&mut pending, 4), "a window that never asked isn't found");
+            assert_eq!(pending, [7], "the others wait on");
+        }
+
+        #[test]
+        fn a_window_that_asked_is_hidden_when_it_leaves_full_screen_and_one_that_didnt_is_left_alone() {
+            use exhale_core::poison::MutexPoisonExt;
+            use objc2::{class, msg_send};
+            use objc2::runtime::{AnyObject, Imp, Sel};
+            use std::sync::atomic::{AtomicUsize, Ordering};
+
+            // A stand-in for the `NSWindow`: all the observer does to it is
+            // send `orderOut:`, and a class of our own can count those
+            static HIDDEN: AtomicUsize = AtomicUsize::new(0);
+            extern "C" fn order_out(_this: &AnyObject, _cmd: Sel, _sender: *mut AnyObject) {
+                HIDDEN.fetch_add(1, Ordering::SeqCst);
+            }
+
+            unsafe {
+                let imp: Imp = std::mem::transmute(order_out as *const ());
+                let asked = leak_handler(c"ExhaleTestWindow", &[(objc2::sel!(orderOut:), imp, c"v@:@")])
+                    .expect("a stand-in window");
+                // Any other object: it takes no `orderOut:`, so a wrong
+                // send to it would raise an exception and abort the test
+                let bystander: *mut AnyObject = msg_send![class!(NSObject), new];
+
+                assert!(register_full_screen_exit_observer(), "the observer installs");
+                assert!(register_full_screen_exit_observer(), "and a second call finds it in place");
+                let center: *mut AnyObject = msg_send![class!(NSNotificationCenter), defaultCenter];
+                let leave = |window: *mut AnyObject| {
+                    let _: () = msg_send![
+                        center,
+                        postNotificationName: objc2_app_kit::NSWindowDidExitFullScreenNotification,
+                        object:               window,
+                    ];
+                };
+
+                leave(bystander);
+                leave(asked);
+                assert_eq!(HIDDEN.load(Ordering::SeqCst), 0, "nothing was waiting on either");
+
+                assert!(note_hide_on_exit(&mut HIDE_ON_EXIT.lock_or_recover(), asked as usize));
+                leave(bystander);
+                assert_eq!(HIDDEN.load(Ordering::SeqCst), 0, "another window's exit doesn't hide this one");
+                leave(asked);
+                assert_eq!(HIDDEN.load(Ordering::SeqCst), 1, "the exit hides the window that asked");
+                assert!(!HIDE_ON_EXIT.lock_or_recover().contains(&(asked as usize)));
+                leave(asked);
+                assert_eq!(HIDDEN.load(Ordering::SeqCst), 1, "and an exit later on doesn't hide it again");
+            }
         }
 
         #[test]

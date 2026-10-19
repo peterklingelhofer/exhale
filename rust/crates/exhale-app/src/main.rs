@@ -501,6 +501,16 @@ impl App {
         }
     }
 
+    /// Put a new Show In value into effect: the platform's own presence
+    /// (macOS activation policy, the Windows taskbar entry, the Linux
+    /// taskbar and pager hints) and the tray icon.  The settings panel
+    /// and the tray's Reset both come through here
+    fn apply_visibility(&mut self, vis: exhale_core::types::AppVisibility) {
+        let settings_win = self.settings_win.as_ref().map(|sw| sw.window.as_ref());
+        platform::apply_app_visibility(vis, settings_win);
+        self.sync_tray_to_visibility(vis);
+    }
+
     /// Matches Swift AppDelegate.applyAppVisibility: DockOnly removes the
     /// status-bar item.  TopBarOnly / Both show it
     fn sync_tray_to_visibility(&mut self, vis: exhale_core::types::AppVisibility) {
@@ -549,6 +559,12 @@ impl App {
         // cheap no-op
         #[cfg(feature = "global-hotkeys")]
         self.do_rebind_hotkeys();
+        // Show In goes back to its default as well, and it takes effect
+        // here the way it does when the panel changes it.  After the
+        // rebind, so a tray this builds starts from the reset shortcuts
+        if diff.visibility_changed {
+            self.apply_visibility(diff.new_visibility);
+        }
         // Reset puts the display back to Overlay, so a session showing
         // the window of Window mode swaps back.  The new windows then
         // get what an appearance change in the panel gives them: the
@@ -1099,7 +1115,10 @@ impl ApplicationHandler<AppEvent> for App {
         platform::register_reopen_handler();
 
         // ── Notification permission (macOS-only internally, no-op elsewhere) ──
-        if self.settings.read_or_recover().reminder_interval_minutes > 0.0 {
+        // Not asked for in a study that can't run: it sends no reminders
+        if self.settings.read_or_recover().reminder_interval_minutes > 0.0
+            && !self.study_broken()
+        {
             platform::request_notification_permission();
         }
 
@@ -1299,9 +1318,7 @@ impl ApplicationHandler<AppEvent> for App {
                         // Apply platform-specific visibility: macOS activation policy,
                         // Windows taskbar entry, Linux SKIP_TASKBAR/SKIP_PAGER
                         if diff.visibility_changed {
-                            let settings_win = self.settings_win.as_ref().map(|sw| sw.window.as_ref());
-                            platform::apply_app_visibility(diff.new_visibility, settings_win);
-                            self.sync_tray_to_visibility(diff.new_visibility);
+                            self.apply_visibility(diff.new_visibility);
                         }
 
                         // Restart animation from inhale-phase-0 when visual settings
@@ -1387,17 +1404,18 @@ impl ApplicationHandler<AppEvent> for App {
             // hot-plug: already handled by `rescan_monitors`,
             // doesn't need to bleed into the placement file
             //
-            // The window of Window mode can also go full screen through
-            // the OS's own control.  Skip the capture then: the rectangle
-            // it reports is the whole monitor, and the next launch would
-            // open at that size instead of where the user left it
+            // The window of Window mode can also go full screen: through
+            // the OS's own control, or because a study holds it there.
+            // Skip the capture then, simple full screen on macOS included.
+            // The rectangle it reports is the whole monitor, and the next
+            // launch would open the window at that size
             let is_windowed_mode = !handle.alpha_capable;
             let persist_placement = is_windowed_mode
-                && handle.window.fullscreen().is_none()
                 && matches!(
                     &event,
                     WindowEvent::Moved(_) | WindowEvent::Resized(_),
-                );
+                )
+                && !handle.is_full_screen();
             // In windowed-fallback mode (Wayland, Windows 10 Vulkan
             // without alpha support, WARP / remote-desktop) the
             // overlay is a regular OS window with title-bar X / Alt-
@@ -1439,7 +1457,7 @@ impl ApplicationHandler<AppEvent> for App {
         }
     }
 
-    /// The shutdown work: the `app_stop` line, the controller, the last
+    /// The shutdown work: the controller, the `app_stop` line, the last
     /// settings write
     ///
     /// winit calls it once as the loop ends, from `applicationWillTerminate:`
@@ -1535,10 +1553,11 @@ impl ApplicationHandler<AppEvent> for App {
             }
         }
 
-        // Tick timers
+        // Tick timers.  A study that can't run sends no reminders
+        let reminders = !self.study_broken();
         let events = {
             let s = self.settings.read_or_recover();
-            self.timers.tick(&s)
+            self.timers.tick(&s, reminders)
         };
         if events.auto_stop {
             // Before `do_stop`, so the log reads in the order the two
@@ -1613,12 +1632,14 @@ impl App {
     }
 }
 
-/// The shutdown work, once: the `app_stop` line, the controller, the last
+/// The shutdown work, once: the controller, the `app_stop` line, the last
 /// settings write
 ///
 /// `done` is the flag that makes a second call do nothing, so a loop that
-/// ends twice writes one `app_stop`. The line comes first, so a hung join
-/// can't cost the log its last event
+/// ends twice writes one `app_stop`. The controller stops first, because it
+/// writes a `phase_end` line from its own thread at every phase boundary
+/// and `app_stop` has to be the last line the log gets. `stop` joins the
+/// thread, so no later line can follow
 fn shut_down(
     done:       &mut bool,
     log:        Option<&SessionLog>,
@@ -1629,8 +1650,8 @@ fn shut_down(
         return;
     }
     info!("shutting down, flushing settings");
-    if let Some(log) = log { log.record("app_stop", &[]); }
     if let Some(c) = controller { c.stop(); }
+    if let Some(log) = log { log.record("app_stop", &[]); }
     if let Err(e) = manager.flush_sync() { error!("flush: {e}"); }
 }
 
@@ -1969,6 +1990,48 @@ mod tests {
     }
 
     #[test]
+    fn app_stop_is_the_last_line_even_when_a_phase_ends_as_the_app_quits() {
+        let folder = Folder::new("shutdown-order", Some(STUDY_FILE));
+        let log = open_session_log(&folder.manager).expect("the log opens");
+        {
+            // The shortest phases the controller runs, so one ends at once
+            let mut s = folder.manager.settings.write_or_recover();
+            s.inhale_duration           = 0.1;
+            s.post_inhale_hold_duration = 0.1;
+            s.exhale_duration           = 0.1;
+            s.post_exhale_hold_duration = 0.1;
+        }
+        // An observer that's still writing when the shutdown starts: it
+        // says it has begun, then takes its time, as a slow disk would
+        let (begun_tx, begun_rx) = std::sync::mpsc::channel();
+        let observer: PhaseObserver = {
+            let log = Arc::clone(&log);
+            Arc::new(move |e: PhaseEnd| {
+                let _ = begun_tx.send(());
+                std::thread::sleep(Duration::from_millis(150));
+                log.record("phase_end", &[("phase", Value::Str(e.phase.name()))]);
+            })
+        };
+        let mut controller = BreathingController::start(
+            Arc::clone(&folder.manager.settings),
+            Arc::new(std::sync::Mutex::new(None)),
+            Arc::new(|| {}),
+            Some(observer),
+        );
+        begun_rx.recv_timeout(Duration::from_secs(5)).expect("a phase ended");
+        let mut done = false;
+
+        shut_down(&mut done, Some(&log), Some(&mut controller), &folder.manager);
+
+        let written = events(&log);
+        assert_eq!(written.last().map(String::as_str), Some("app_stop"), "{written:?}");
+        assert!(
+            written.iter().any(|e| e == "phase_end"),
+            "the phase end that was under way lands before it: {written:?}",
+        );
+    }
+
+    #[test]
     fn shutting_down_an_ordinary_install_writes_no_log_and_still_flushes() {
         let folder = Folder::new("shutdown-plain", None);
         let mut done = false;
@@ -1993,6 +2056,23 @@ mod tests {
         let last = last.lines().last().expect("a line");
         assert!(last.ends_with("\"event\":\"reset\"}"), "no fields after the event: {last}");
         assert_same(&s, &locked, "Show In is back and the lock stands");
+    }
+
+    #[test]
+    fn a_reset_reports_the_show_in_change_that_the_tray_puts_into_effect() {
+        let folder = Folder::new("reset-visibility", Some(STUDY_FILE));
+        let mut s = folder.manager.settings.read_or_recover().clone();
+        s.app_visibility = exhale_core::types::AppVisibility::DockOnly;
+        let before = s.clone();
+
+        reset_settings(&mut s, None);
+        let diff = SettingsDiff::from(&before, &s);
+
+        // `do_reset` applies this with `apply_visibility`, as the panel does
+        assert!(diff.visibility_changed);
+        assert_eq!(diff.new_visibility, exhale_core::types::AppVisibility::Both);
+        // The lock stands, so nothing else the diff reports needs a window swap or a restart
+        assert!(!diff.display_mode_changed && !diff.timing_changed && !diff.visual_changed);
     }
 
     #[test]

@@ -5,6 +5,9 @@
 //!     spans every workspace/Space
 //!   - `setup_animation_window`: let the OS's full-screen control work on the
 //!     window of Window mode (macOS only, a no-op elsewhere)
+//!   - `show_animation_window` / `hide_animation_window` / `is_full_screen`:
+//!     show and hide the window of Window mode, which a study can hold full
+//!     screen on the primary display
 //!   - `setup_settings_window`: float above overlay, don't appear in taskbar
 //!   - `apply_app_visibility`: TopBarOnly/DockOnly/Both (tray vs taskbar)
 //!   - `request_notification_permission`: no-op off macOS
@@ -82,6 +85,7 @@ pub use mac::{
     uninstall_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, running_in_app_bundle, setup_animation_window,
     setup_overlay_window, setup_settings_window,
+    hide_animation_window, is_full_screen, show_animation_window,
 };
 
 #[cfg(target_os = "windows")]
@@ -118,6 +122,36 @@ pub fn install_main_menu(_show_research: bool) {}
 /// the Linux window manager's own controls need nothing from us
 #[cfg(not(target_os = "macos"))]
 pub fn setup_animation_window(_window: &Window) {}
+
+/// Show the window of Window mode, and with `fill_display` fill the primary
+/// display with it
+///
+/// Borderless full screen on the primary monitor, or on the monitor the
+/// window is on when the system names no primary.  A Stop hides the window
+/// and leaves it full screen, so the next Start finds that state set and
+/// winit does nothing.  macOS fills the display another way, in
+/// `platform/mac.rs`
+#[cfg(not(target_os = "macos"))]
+pub fn show_animation_window(window: &Window, fill_display: bool) {
+    window.set_visible(true);
+    if fill_display {
+        window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(
+            window.primary_monitor(),
+        )));
+    }
+}
+
+/// Hide the window of Window mode
+#[cfg(not(target_os = "macos"))]
+pub fn hide_animation_window(window: &Window) {
+    window.set_visible(false);
+}
+
+/// Whether the window is full screen
+#[cfg(not(target_os = "macos"))]
+pub fn is_full_screen(window: &Window) -> bool {
+    window.fullscreen().is_some()
+}
 
 /// Non-macOS stub for `render_sf_symbol`: SF Symbols are AppKit-only.
 /// Callers fall back to Unicode glyphs when this returns `None`
