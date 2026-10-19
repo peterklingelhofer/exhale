@@ -2,18 +2,18 @@
 //!
 //! A `study.toml` next to the settings file pins the eleven numeric
 //! pacing fields and marks the running app as a study build. The file is
-//! the only source of the lock, so deleting it unlocks the app on the
+//! the only source of the lock, so deleting it lifts the lock on the
 //! next launch and no uninstall is needed
 //!
-//! Nothing here interprets the `condition` code. It is an opaque string
+//! Nothing here interprets the `condition` code. It's an opaque string
 //! the lab assigns, carried into the session log so a log can be matched
-//! back to an arm without the app knowing which arm it is running
+//! back to an arm without the app knowing which arm it's running
 
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::settings::Settings;
+use crate::{controller::MAX_PHASE_SECS, settings::Settings};
 
 /// Name of the study file, read from the directory that holds `settings.toml`
 pub const STUDY_FILE_NAME: &str = "study.toml";
@@ -23,9 +23,9 @@ fn default_drift() -> f64 { 1.0 }
 /// One lab's assigned configuration for one participant
 ///
 /// Required in the file: `participant_id`, `condition` and the four
-/// durations. Everything else defaults. `deny_unknown_fields` is
-/// deliberate: a misspelt optional field is a silently wrong pace for a
-/// whole session, so it fails at load instead
+/// durations. Everything else defaults. `deny_unknown_fields` makes a
+/// misspelled optional field fail at load, because it would otherwise
+/// be a silently wrong pace for a whole session
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StudyConfig {
@@ -68,10 +68,9 @@ impl StudyConfig {
     /// Check every field a lab could get wrong, naming the field and the
     /// value it holds
     ///
-    /// Returning the first problem rather than a list is the right shape
-    /// here: the message goes into a log line and a one-line card in the
-    /// settings window, and a file with two mistakes gets fixed twice
-    /// either way
+    /// Returns only the first problem: the message goes into a log line
+    /// and a one-line card in the settings window, and a file with two
+    /// mistakes gets fixed twice either way
     pub fn validate(&self) -> Result<(), String> {
         if self.participant_id.trim().is_empty() {
             return Err("study.toml: participant_id is empty".to_string());
@@ -92,11 +91,16 @@ impl StudyConfig {
                     "study.toml: {name} is {value}, which has to be a number 0 or more"
                 ));
             }
+            if value > MAX_PHASE_SECS {
+                return Err(format!(
+                    "study.toml: {name} is {value}, which has to be {MAX_PHASE_SECS} or less"
+                ));
+            }
         }
         let cycle: f64 = durations.iter().map(|(_, v)| v).sum();
         if cycle <= 0.0 {
             return Err(
-                "study.toml: the four durations add up to 0, which is not a pace".to_string()
+                "study.toml: the four durations add up to 0, which isn't a pace".to_string()
             );
         }
 
@@ -165,7 +169,7 @@ impl StudyConfig {
 
 /// Read the study file at `path`
 ///
-/// `Ok(None)` when there is no file, which is every build that isn't
+/// `Ok(None)` when there's no file, which is every build that isn't
 /// running in a study. Anything else that goes wrong is an `Err` the
 /// caller shows the participant: a lab file that failed to parse has to
 /// be loud, because the alternative is a session run at the wrong pace
@@ -173,9 +177,12 @@ pub fn load(path: &Path) -> Result<Option<StudyConfig>, String> {
     let contents = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(format!("study.toml: {} could not be read: {e}", path.display())),
+        Err(e) => return Err(format!("study.toml: {} couldn't be read: {e}", path.display())),
     };
-    let cfg: StudyConfig = toml::from_str(&contents).map_err(|e| format!("study.toml: {e}"))?;
+    // A parse error ends in a newline, which the log line and the Study
+    // card would both carry
+    let cfg: StudyConfig = toml::from_str(&contents)
+        .map_err(|e| format!("study.toml: {}", e.to_string().trim_end()))?;
     cfg.validate()?;
     Ok(Some(cfg))
 }
@@ -314,7 +321,7 @@ mod tests {
             (StudyConfig { reminder_interval_minutes: f64::NAN, ..valid() }, "reminder_interval_minutes"),
         ];
         for (cfg, field) in cases {
-            let err = cfg.validate().expect_err("expected {field} to be rejected");
+            let err = cfg.validate().err().unwrap_or_else(|| panic!("expected {field} to be rejected"));
             assert!(err.starts_with("study.toml: "), "{field}: {err}");
             assert!(err.contains(field), "expected {field} in the message, got {err}");
         }
@@ -330,7 +337,28 @@ mod tests {
             ..valid()
         };
         let err = cfg.validate().expect_err("all-zero durations are rejected");
-        assert_eq!(err, "study.toml: the four durations add up to 0, which is not a pace");
+        assert_eq!(err, "study.toml: the four durations add up to 0, which isn't a pace");
+    }
+
+    #[test]
+    fn a_duration_past_the_controller_cap_is_rejected() {
+        let over = MAX_PHASE_SECS + 1.0;
+        let cases = [
+            (StudyConfig { inhale_duration: over,           ..valid() }, "inhale_duration"),
+            (StudyConfig { post_inhale_hold_duration: over, ..valid() }, "post_inhale_hold_duration"),
+            (StudyConfig { exhale_duration: over,           ..valid() }, "exhale_duration"),
+            (StudyConfig { post_exhale_hold_duration: over, ..valid() }, "post_exhale_hold_duration"),
+        ];
+        for (cfg, field) in cases {
+            assert_eq!(
+                cfg.validate(),
+                Err(format!("study.toml: {field} is {over}, which has to be {MAX_PHASE_SECS} or less")),
+            );
+        }
+
+        // The cap itself is a pace the controller runs as written
+        let at_cap = StudyConfig { exhale_duration: MAX_PHASE_SECS, ..valid() };
+        assert_eq!(at_cap.validate(), Ok(()));
     }
 
     #[test]
@@ -352,7 +380,7 @@ mod tests {
             "randomised_timing_inhale = 0.2\n",
         )).expect("write study file");
 
-        let err = load(&path).expect_err("a misspelt field fails loudly");
+        let err = load(&path).expect_err("a misspelled field fails loudly");
         assert!(err.starts_with("study.toml: "), "{err}");
         assert!(err.contains("randomised_timing_inhale"), "{err}");
     }

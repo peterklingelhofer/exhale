@@ -131,9 +131,9 @@ pub(crate) fn header_fields(settings: &Settings) -> Vec<(&'static str, Value<'_>
 /// The five fields that decide what the next cycle looks like, written
 /// with every `animation_start`
 ///
-/// Repeated on each start rather than inferred from the header, because
-/// a participant can restart mid-session and a reader shouldn't have to
-/// scan backwards to find out at what pace
+/// Repeated on each start, because a participant can restart
+/// mid-session and a reader shouldn't have to scan backwards to the
+/// header to find out at what pace
 fn animation_fields(settings: &Settings) -> [(&'static str, Value<'_>); 5] {
     [
         ("inhale_duration",           Value::Num(settings.inhale_duration)),
@@ -1037,10 +1037,9 @@ impl ApplicationHandler<AppEvent> for App {
                         *self.settings.write_or_recover() = settings.clone();
 
                         // Study log: the panel's own Start / Stop / Pause
-                        // land here rather than in `do_start` / `do_stop`,
-                        // which the tray, the hotkeys and the close button
-                        // go through, so neither path logs the other's
-                        // event twice
+                        // land here. The tray, the hotkeys and the close
+                        // button go through `do_start` / `do_stop`, so
+                        // neither path logs the other's event twice
                         if let Some(log) = &self.session_log {
                             if diff.animating_changed {
                                 if settings.is_animating {

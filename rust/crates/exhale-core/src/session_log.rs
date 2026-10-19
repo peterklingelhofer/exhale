@@ -2,7 +2,7 @@
 //!
 //! One flat object per line, written only when a study file locked the
 //! app. The log stays on the machine until the participant presses
-//! Export, which copies it somewhere they can find it. There is no
+//! Export, which copies it somewhere they can find it. There's no
 //! network code in exhale and this module adds none
 //!
 //! The emitter is hand-written. `serde_json` isn't in the dependency
@@ -19,13 +19,15 @@ use std::{
 
 use log::warn;
 
+use crate::poison::MutexPoisonExt;
+
 /// Name of the log file, written beside `settings.toml`
 pub const LOG_FILE_NAME: &str = "exhale-log.jsonl";
 
 /// One field value in a log line
 ///
-/// `Int` and `Num` are separate so a cycle count reads as `3` rather
-/// than risking a float rendering, and so a duration keeps its decimals
+/// `Int` and `Num` are separate so a cycle count prints as the integer
+/// `3`, and so a duration keeps its decimals
 #[derive(Clone, Copy, Debug)]
 pub enum Value<'a> {
     Str(&'a str),
@@ -74,8 +76,8 @@ pub fn json_line(unix_ms: u64, mono_ms: u64, event: &str, fields: &[(&str, Value
             Value::Str(s)  => escape_into(&mut out, s),
             // `{}` prints 5 for 5.0 and 2.5 for 2.5, both valid JSON
             // numbers. A non-finite value has no JSON spelling at all,
-            // so it becomes null rather than the bare `NaN` that would
-            // make the whole file unparseable
+            // so it becomes null, because a bare `NaN` would make the
+            // whole file unparseable
             Value::Num(n)  => {
                 if n.is_finite() { out.push_str(&n.to_string()); } else { out.push_str("null"); }
             }
@@ -130,11 +132,8 @@ impl SessionLog {
         let line = json_line(unix_ms_now(), mono_ms, event, fields);
         // A poisoned lock means another thread panicked mid-write. The
         // file handle itself is still usable, so recover the guard
-        // rather than propagating a panic into the controller thread
-        let mut file = match self.file.lock() {
-            Ok(g)  => g,
-            Err(e) => e.into_inner(),
-        };
+        // and keep the panic out of the controller thread
+        let mut file = self.file.lock_or_recover();
         if let Err(e) = writeln!(file, "{line}") {
             warn!("session log write failed: {e}");
         }
@@ -145,7 +144,9 @@ impl SessionLog {
     /// The copy is named after the participant and the wall clock so a
     /// lab receiving several files can tell them apart. An `export`
     /// event goes into the live log afterwards, so the copy never
-    /// contains a record of itself
+    /// contains a record of itself. The event writes the path through
+    /// `logged_path`, which keeps the account's home folder name out of
+    /// the log
     pub fn export_to(&self, dir: &Path, participant_id: &str) -> std::io::Result<PathBuf> {
         let secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -158,14 +159,13 @@ impl SessionLog {
         // Flush under the lock so the copy can't catch a half-written
         // line from another thread
         {
-            let mut file = match self.file.lock() {
-                Ok(g)  => g,
-                Err(e) => e.into_inner(),
-            };
+            let mut file = self.file.lock_or_recover();
             file.flush()?;
             std::fs::copy(&self.path, &target)?;
         }
-        self.record("export", &[("path", Value::Str(&target.to_string_lossy()))]);
+        let dirs   = directories::UserDirs::new();
+        let logged = logged_path(&target, dirs.as_ref().map(|d| d.home_dir()));
+        self.record("export", &[("path", Value::Str(&logged))]);
         Ok(target)
     }
 
@@ -174,10 +174,7 @@ impl SessionLog {
     /// The caller records a fresh header afterwards so a cleared log
     /// still says which pace produced the lines below it
     pub fn clear(&self) -> std::io::Result<()> {
-        let mut file = match self.file.lock() {
-            Ok(g)  => g,
-            Err(e) => e.into_inner(),
-        };
+        let mut file = self.file.lock_or_recover();
         file.flush()?;
         file.set_len(0)?;
         Ok(())
@@ -194,6 +191,22 @@ fn sanitise(s: &str) -> String {
         .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
         .collect();
     if cleaned.is_empty() { "participant".to_string() } else { cleaned }
+}
+
+/// How an exported copy's location is written to the log
+///
+/// The home folder is named after the OS account, and the log carries
+/// no identity beyond the id the lab assigned. A path under `home`
+/// becomes `~` plus the rest, joined with the platform's separator.
+/// Any other path, or no known home, keeps only the file name
+fn logged_path(path: &Path, home: Option<&Path>) -> String {
+    match home.and_then(|h| path.strip_prefix(h).ok()) {
+        Some(rest) => Path::new("~").join(rest).to_string_lossy().into_owned(),
+        None => path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+    }
 }
 
 /// Where an exported log should go: Desktop, else Documents, else
@@ -337,7 +350,32 @@ mod tests {
 
         let after = std::fs::read_to_string(&path).expect("read log again");
         assert_eq!(after.lines().count(), 2, "the export event lands in the live log");
-        assert!(after.lines().nth(1).expect("second line").contains(r#""event":"export""#));
+        let export_line = after.lines().nth(1).expect("second line");
+        assert!(export_line.contains(r#""event":"export""#));
+        assert!(
+            !export_line.contains(&*out.to_string_lossy()),
+            "the export event shortens the path: {export_line}",
+        );
+        assert!(export_line.ends_with(&format!("{name}\"}}")), "{export_line}");
+    }
+
+    #[test]
+    fn the_logged_path_hides_the_home_folder_name() {
+        let sep     = std::path::MAIN_SEPARATOR;
+        let tmp     = std::env::temp_dir();
+        let home    = tmp.join("someone");
+        let file    = "exhale-log-P07-1758400420.jsonl";
+        let inside  = home.join("Desktop").join(file);
+        let sibling = tmp.join("someone-else").join(file);
+        let outside = tmp.join("lab").join(file);
+
+        assert_eq!(
+            logged_path(&inside, Some(&home)),
+            format!("~{sep}Desktop{sep}{file}"),
+        );
+        assert_eq!(logged_path(&outside, Some(&home)), file);
+        assert_eq!(logged_path(&sibling, Some(&home)), file, "a sibling with a longer name is outside home");
+        assert_eq!(logged_path(&inside, None), file, "without a known home only the file name is kept");
     }
 
     #[test]
@@ -370,7 +408,7 @@ mod tests {
         let log = SessionLog::open(dir.join(LOG_FILE_NAME)).expect("open");
         log.record("app_start", &[]);
         let text = std::fs::read_to_string(log.path()).expect("read");
-        // Not a timing assertion, just that the field is there and small
+        // Checks only that the field is there and small
         let mono = text
             .split("\"mono_ms\":").nth(1).expect("mono_ms field")
             .split(',').next().expect("its value")

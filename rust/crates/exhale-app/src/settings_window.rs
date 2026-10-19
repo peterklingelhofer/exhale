@@ -854,7 +854,7 @@ fn control_slot_width(avail: f32) -> f32 {
     ((avail - CONTROL_GAP * (SLOTS - 1.0)) / SLOTS).floor().max(1.0)
 }
 
-/// The colour the panel says something has gone wrong in
+/// The color the panel says something has gone wrong in
 ///
 /// One definition for the reset confirmation and the study-file
 /// warning, so the two can't drift apart. Pastel red on dark has enough
@@ -873,9 +873,9 @@ fn warning_color(ui: &egui::Ui) -> egui::Color32 {
 ///
 /// A locked build shows none of the three, and no preset chips and no
 /// pacing readout with them: a participant who can read the rate, or
-/// change it, isn't blinded any more. Hidden rather than disabled,
-/// because a read-only stepper showing 5 and 5 names the rate just as
-/// well as an editable one does
+/// change it, isn't blinded any more. The cards are hidden because a
+/// read-only stepper showing 5 and 5 names the rate as well as an
+/// editable one does
 ///
 /// Split out of [`settings_ui`] so a test can prove that without
 /// standing up a `SettingsManager` and its writer thread
@@ -991,10 +991,9 @@ fn body_cards(
                     None => "Export failed: no folder to export to".to_string(),
                 });
             }
-            // Appears only after an export has landed, and appears
-            // rather than sitting there disabled: a disabled egui
-            // widget surrenders focus mid-Tab and breaks the
-            // traversal for every control after it (see the
+            // Appears only after an export has landed. Shown disabled
+            // before that, an egui widget surrenders focus mid-Tab and
+            // breaks the traversal for every control after it (see the
             // Background Color comment)
             if *exported_this_session && ui.button("Clear log").clicked() {
                 *study_status = Some(match log.clear() {
@@ -1019,8 +1018,8 @@ fn body_cards(
 
 /// One "label: value" line in the Study card
 ///
-/// Wraps rather than truncates, because a lab can hand out participant
-/// ids of any length and a clipped one is worse than a two-line one
+/// Wraps long values, because a lab can hand out participant ids of
+/// any length and a clipped one is worse than a two-line one
 fn study_line(ui: &mut egui::Ui, label: &str, value: &str) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
@@ -1132,10 +1131,10 @@ fn settings_ui(
                 section(ui, "Study", |ui| {
                     let warning = warning_color(ui);
                     ui.label(
-                        egui::RichText::new(format!("Study file could not be used: {msg}"))
+                        egui::RichText::new(format!("Study file couldn't be used: {msg}"))
                             .color(warning),
                     );
-                    ui.label(egui::RichText::new("Pacing is not locked.").color(warning));
+                    ui.label(egui::RichText::new("Pacing isn't locked.").color(warning));
                 });
             }
 
@@ -2046,7 +2045,7 @@ mod tests {
         let mut open = exhale_core::settings::Settings::default();
         let _ = run_body_cards_frame(&ctx, &mut open);
         let rects = super::widgets::test_hooks::take_chip_rects()
-            .expect("an unlocked build lays out the Timing card");
+            .expect("a build without a study file lays out the Timing card");
         assert_eq!(rects.len(), exhale_core::presets::PRESETS.len());
     }
 

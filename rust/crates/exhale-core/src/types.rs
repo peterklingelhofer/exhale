@@ -89,8 +89,7 @@ impl BreathingPhase {
     /// Name written into the session log's `phase_end` lines
     ///
     /// Snake case and stable: a lab's analysis script matches on these
-    /// strings, so they're part of the log format rather than a display
-    /// detail
+    /// strings, so they're part of the log format
     pub fn name(self) -> &'static str {
         match self {
             Self::Inhale          => "inhale",

@@ -81,9 +81,9 @@ impl SettingsManager {
 
     /// `Some(message)` when a study file was present and unusable
     ///
-    /// The app runs unlocked in that case, so the message has to reach
-    /// the screen: a silent fallback would hand a participant the
-    /// shipped default pace while the lab believes they're on an arm
+    /// The app runs without the lock in that case, so the message has
+    /// to reach the screen: a silent fallback would hand a participant
+    /// the shipped default pace while the lab believes they're on an arm
     pub fn study_error(&self) -> Option<&str> {
         self.study_error.as_deref()
     }
@@ -154,7 +154,7 @@ pub fn load_with_study(settings_path: &Path) -> (Settings, Option<String>) {
         }
         Ok(None) => (settings, None),
         Err(msg) => {
-            warn!("{msg}; pacing is not locked");
+            warn!("{msg}. Pacing isn't locked");
             (settings, Some(msg))
         }
     }

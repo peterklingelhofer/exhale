@@ -46,10 +46,9 @@ pub struct PhaseEnd {
 
 /// Called from the controller thread at every phase boundary
 ///
-/// `Arc<dyn Fn>` rather than a channel: the only consumer appends a
-/// line to a file, which is quicker than the send would be, and a
-/// channel nobody drains would grow without bound in a build that has
-/// no log
+/// An `Arc<dyn Fn>` because the only consumer appends a line to a
+/// file, which is quicker than a channel send would be, and a channel
+/// nobody drains would grow without bound in a build that has no log
 pub type PhaseObserver = Arc<dyn Fn(PhaseEnd) + Send + Sync>;
 
 // ─── Cadence ─────────────────────────────────────────────────────────────────
@@ -105,6 +104,7 @@ impl BreathingController {
     /// thread whenever a new frame should be rendered. Wire it to the
     /// overlays' render-thread channels so frame signals bypass the
     /// main thread's message pump entirely
+    ///
     /// `on_phase_end` is called at every phase boundary when present.
     /// `None` in every build that isn't logging a study session, which
     /// keeps the per-tick cost at one `Option` check
@@ -265,7 +265,13 @@ fn run_controller(
     }
 }
 
-/// Clamp a phase length to 0.1 s .. 86_400 s (one day) before it reaches
+/// Longest phase the controller schedules, in seconds (one day)
+///
+/// `phase_secs` clamps to it, and a study file that asks for more is
+/// rejected at load
+pub(crate) const MAX_PHASE_SECS: f64 = 86_400.0;
+
+/// Clamp a phase length to 0.1 s .. `MAX_PHASE_SECS` before it reaches
 /// `Duration::from_secs_f64`, which panics on inf, NaN or anything past
 /// `Duration::MAX`. `.max(0.1)` runs first, and `f64::max` returns the
 /// non-NaN operand, so NaN floors to 0.1 s same as any other non-positive
@@ -273,7 +279,7 @@ fn run_controller(
 /// out, which `Duration::from_secs_f64` panics on all the same
 #[allow(clippy::manual_clamp)]
 fn phase_secs(secs: f64) -> f64 {
-    secs.max(0.1).min(86_400.0)
+    secs.max(0.1).min(MAX_PHASE_SECS)
 }
 
 fn fresh_inner(now: Instant, inhale_dur: f64) -> Inner {
@@ -503,17 +509,17 @@ fn compute_state_with_easing(
     }
 }
 
-/// Hand the phase that just ran to the observer, if there is one
+/// Hand the phase that just ran to the observer, if there's one
 ///
 /// Called with `inner` still describing the phase that ended, which is
-/// why it sits immediately before every `advance_phase` inside `tick`
-/// rather than inside `advance_phase` itself: the restart path builds a
-/// fresh `Inner` instead, and a phase the user cut short by pressing
-/// Start is not a phase that ran its length.  A zero-length phase never
-/// ran either: `advance_phase` passes those over without coming back
-/// here, and the one that can reach here, a zero inhale on a fresh
-/// start, is skipped for the same reason, so every `phase_end` line in
-/// the log is a phase that took time
+/// why it sits immediately before every `advance_phase` inside `tick`.
+/// The restart path builds a fresh `Inner` and never calls it, because
+/// a phase the user cut short by pressing Start isn't a phase that ran
+/// its length.  A zero-length phase never ran either: `advance_phase`
+/// passes those over without coming back here, and the one that can
+/// reach here, a zero inhale on a fresh start, is skipped for the same
+/// reason, so every `phase_end` line in the log is a phase that took
+/// time
 fn report_phase_end(on_phase_end: &Option<PhaseObserver>, inner: &Inner, now: Instant) {
     if inner.phase_duration.is_zero() {
         return;
@@ -1077,7 +1083,7 @@ mod tests {
 
         let seen = seen.lock_or_recover();
         assert_eq!(seen.len(), 1, "one boundary, one report");
-        assert_eq!(seen[0].phase, BreathingPhase::Inhale, "the phase that ENDED, not the next one");
+        assert_eq!(seen[0].phase, BreathingPhase::Inhale, "the report names the phase that ended");
         assert_eq!(seen[0].cycle, 0);
         assert_eq!(seen[0].scheduled, Duration::from_millis(100));
         assert!(
@@ -1087,7 +1093,7 @@ mod tests {
         );
         // The default pattern has no post-inhale hold, so the phase that
         // follows is the exhale: a zero-length hold is passed over and
-        // is not reported
+        // isn't reported
         assert_eq!(inner.phase, BreathingPhase::Exhale, "and the phase still advanced");
     }
 
@@ -1122,7 +1128,8 @@ mod tests {
         assert!(seen.lock_or_recover().is_empty());
     }
 
-    /// Two arms of a study differ in rate and in nothing else
+    /// Two arms of a study on the same appearance settings differ in
+    /// rate and in nothing else
     ///
     /// The overlay eases each phase across its own duration, so the
     /// shape a participant watches at 2.5 s is the shape they watch at
@@ -1170,7 +1177,7 @@ mod tests {
         let mut inner = fresh_inner(Instant::now(), 0.0);
         assert_eq!(inner.phase_duration, Duration::ZERO);
 
-        // A phase that never ran is not reported as having ended
+        // A phase that never ran isn't reported as having ended
         let (observer, seen) = recording_observer();
         tick(&mut inner, &settings, &easing, &observer);
         assert_eq!(inner.phase, BreathingPhase::HoldAfterInhale);

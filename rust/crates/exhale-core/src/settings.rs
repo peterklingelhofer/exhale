@@ -101,14 +101,14 @@ pub struct Settings {
     // ── Study lock ───────────────────────────────────────────────────────
     /// Present when a study file locked the pacing fields at load. Never
     /// written to settings.toml: the study file is its only source, so
-    /// removing that file unlocks the app on the next launch
+    /// removing that file lifts the lock on the next launch
     ///
-    /// The locked VALUES are still persisted by the writer thread like
+    /// The locked values are still persisted by the writer thread like
     /// any other setting, so a machine that later loses its study file
     /// keeps the study pace until someone changes it. That's documented
-    /// in docs/for-researchers.md rather than worked around: a
-    /// participant who deletes the file mid-study shouldn't silently
-    /// drop back to the shipped default pace
+    /// in docs/for-researchers.md and left alone: a participant who
+    /// deletes the file mid-study shouldn't silently drop back to the
+    /// shipped default pace
     #[serde(skip)]
     pub study: Option<crate::study::StudyConfig>,
 }
@@ -1029,7 +1029,7 @@ mod tests {
         assert_eq!(s.shape, Settings::default().shape);
         assert_eq!(s.overlay_opacity, Settings::default().overlay_opacity);
         assert_eq!(s.keyboard_shortcuts, KeyboardShortcuts::default());
-        // The eleven locked fields and the lock itself did not
+        // The eleven locked fields and the lock itself didn't
         assert_eq!(s.inhale_duration,           4.0);
         assert_eq!(s.post_inhale_hold_duration, 1.0);
         assert_eq!(s.exhale_duration,           6.0);
@@ -1047,7 +1047,7 @@ mod tests {
     #[test]
     fn the_lock_never_reaches_settings_toml() {
         // The study file is the only source of the lock, which is what
-        // makes deleting it enough to unlock the app
+        // makes deleting it enough to lift the lock
         let mut s = Settings::default();
         crate::study::StudyConfig {
             participant_id: "P07".to_string(),
@@ -1065,11 +1065,11 @@ mod tests {
             reminder_interval_minutes: 0.0,
         }.apply(&mut s);
 
-        let text = toml::to_string(&s).expect("serialise");
+        let text = toml::to_string(&s).expect("serialize");
         assert!(!text.contains("study"),  "settings.toml carries no study block: {text}");
         assert!(!text.contains("P07"),    "and no participant id: {text}");
 
-        let back: Settings = toml::from_str(&text).expect("deserialise");
+        let back: Settings = toml::from_str(&text).expect("deserialize");
         assert!(back.study.is_none(), "reading settings.toml back never locks anything");
     }
 
