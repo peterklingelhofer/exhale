@@ -60,7 +60,7 @@ def read_events(log_path):
         except json.JSONDecodeError as error:
             sys.exit(
                 f"pacing-validation: {log_path}:{line_number} isn't valid JSON ({error}), "
-                "not a JSON Lines log"
+                "so the file isn't a JSON Lines log"
             )
     return events
 
@@ -124,7 +124,7 @@ def main(argv=None):
 
     numbers = sorted(complete)
     # Every phase the cycle logged, so a log from a build that still ran
-    # 0.1 s holds is measured as it ran rather than as it was configured
+    # 0.1 s holds is measured as it ran
     durations = {
         n: sum(line["actual_ms"] for line in complete[n].values()) / 1000.0 for n in numbers
     }

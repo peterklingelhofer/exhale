@@ -136,17 +136,19 @@ panel says it's 3.8 breaths a minute, slower than anything tested directly. Pres
 or rankings. The numbers under them are computed live for whichever one is selected, so they can't
 go stale.
 
-**For researchers.** [`docs/for-researchers.md`](docs/for-researchers.md) is a reference for a lab
-considering exhale as a study stimulus: parameters and defaults, study mode, and the evidence
-corpus's own limits. Study mode locks a participant's pacing from a `study.toml` file the lab
-provides, and a local session log the participant exports by hand covers app, animation and phase
-timing. [`CITATION.cff`](CITATION.cff) at the repo root has the software's own citation.
-
 The app itself shows only the computed rate and the tested range, and makes no health claims. The
 evidence lives in this repo because a correction here takes an afternoon, and pulling a claim from a
 signed binary takes a store review. Four sources are flagged
 `inAppCitable: false` in the corpus for that reason, and the build fails if a shipped preset points
 at one of them.
+
+**For researchers.** [`docs/for-researchers.md`](docs/for-researchers.md) is a reference for a lab
+considering exhale as a study stimulus: parameters and defaults, study mode, and the evidence
+corpus's own limits. Study mode locks a participant's pacing from a `study.toml` file the lab
+provides and hides the Timing, Randomization and Timers cards (with the presets and the rate
+readout) and the *Research* item. A local session log the participant exports by hand covers app,
+animation and phase timing. [`CITATION.cff`](CITATION.cff) at the repo root has the software's own
+citation.
 
 Nothing in this section is medical advice. See the [disclaimer](#disclaimer) above.
 
@@ -211,7 +213,7 @@ Single Rust workspace (`rust/`) producing one cross-platform binary.
 
 ### Crates
 
-- `exhale-core`: settings + `SettingsDiff`, breathing controller (deadline-scheduled background thread), poison-tolerant lock helpers, easing tables. Zero GUI deps.
+- `exhale-core`: settings + `SettingsDiff`, breathing controller (deadline-scheduled background thread), poison-tolerant lock helpers, easing tables, `study` (the `study.toml` lock) and `session_log` (the JSON Lines log study builds write). Zero GUI deps.
 - `exhale-render`: `wgpu` renderer + WGSL fragment shader, headless benchmarking harness (`cargo run --example cpu_bench`).
 - `exhale-app`: winit event loop, split egui settings panel (`settings_window.rs` + `widgets.rs` + `theme.rs`), per-overlay render thread, tray, hotkeys, platform glue (`objc2` / `windows-sys` / `x11-dl`).
 
