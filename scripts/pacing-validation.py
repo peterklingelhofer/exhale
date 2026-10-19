@@ -15,6 +15,11 @@ cycle count back to 0. Each run gets a table of its own, headed "Run 1 of
 3" and so on when there's more than one. A log with a single run prints
 one table with no heading
 
+A Start while the animation runs restarts it, and the phase_end line of the
+run it cuts short can land just after the new animation_start line. Between
+an animation_start and the first line with cycle 0, a line with a cycle
+above 0 belongs to the run before, so it doesn't make a run of its own
+
 A phase configured as 0 is passed over by the app and logs nothing, so a
 cycle counts as complete once every phase with a non-zero configured
 duration has been logged for it: two lines per cycle at 5/0/5/0, four at
@@ -27,8 +32,10 @@ error. The configured-cycle row says when the header sets either
 
 A line that isn't valid JSON is skipped with a warning on stderr and a
 count. A write cut short (an app killed mid-line, a full disk) leaves one,
-and it shouldn't cost the rest of the log. A cycle that lost a line to it
-counts as incomplete
+and it shouldn't cost the rest of the log. A phase_end line that is valid
+JSON but lacks a whole-number cycle, a known phase, or a number in mono_ms,
+scheduled_ms or actual_ms is skipped and counted the same way. A cycle that
+lost a line to either counts as incomplete
 
 Example:
     uv run --no-project scripts/pacing-validation.py exhale-log-P07-1758400420.jsonl
@@ -81,8 +88,27 @@ def warn(message):
     print(f"pacing-validation: {message}", file=sys.stderr)
 
 
+def phase_end_problem(event):
+    """What keeps a phase_end line from being scored, as a phrase, or None when nothing does
+
+    The scoring reads these five fields of every phase_end line, so a line that is valid JSON
+    and lacks one of them would stop the script with a KeyError or a TypeError
+    """
+    cycle = event.get("cycle")
+    if not isinstance(cycle, int) or isinstance(cycle, bool):
+        return "with no whole-number cycle"
+    phase = event.get("phase")
+    if not isinstance(phase, str) or phase not in PHASE_ORDER:
+        return "with no known phase"
+    for field in ("mono_ms", "scheduled_ms", "actual_ms"):
+        value = event.get(field)
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return f"with no number in {field}"
+    return None
+
+
 def read_events(log_path):
-    """The log's lines as dicts, in order, without the lines that aren't a JSON object"""
+    """The log's lines as dicts, in order, without the lines that can't be read as log events"""
     try:
         # Bytes that aren't UTF-8 (a write torn inside a character) become U+FFFD, so
         # that line fails as JSON like any other cut line, and the rest still reads
@@ -103,6 +129,11 @@ def read_events(log_path):
             continue
         if not isinstance(event, dict):
             warn(message=f"line {line_number} isn't a JSON object, skipped")
+            skipped += 1
+            continue
+        problem = phase_end_problem(event=event) if event.get("event") == "phase_end" else None
+        if problem:
+            warn(message=f"line {line_number} is a phase_end {problem}, skipped")
             skipped += 1
             continue
         events.append(event)
@@ -129,15 +160,30 @@ def split_runs(events, header_index):
     increase from one phase_end to the next. Inside a run each phase_end of a cycle comes
     once, later than the one before it, so a line that doesn't follow on is the first of a
     restart that logged nothing
+
+    A Start while the animation runs restarts it. The controller thread can log the cut-short
+    run's last phase_end after the new animation_start line, because the two threads don't
+    wait for each other. Every run starts at cycle 0, so from an animation_start to the first
+    line with cycle 0, a line with a cycle above 0 is that straggler and joins the run the
+    animation_start ended. A straggler with cycle 0, from a restart in a run's first cycle,
+    looks like the new run's first line and starts the new run
     """
     runs, current, previous = [], [], None
+    # The run an animation_start ended, and whether no line of the run it began has come yet.
+    # A straggler can only join a run that ended with a line of its own
+    ended, starting = None, False
     for event in events[header_index + 1 :]:
         kind = event.get("event")
         if kind == "animation_start":
             if current:
                 runs.append(current)
-            current, previous = [], None
+                ended = current
+            current, previous, starting = [], None, True
         elif kind == "phase_end":
+            if starting and event["cycle"] > 0 and ended is not None:
+                ended.append(event)
+                continue
+            starting = False
             key = (event["cycle"], PHASE_ORDER[event["phase"]])
             if previous is not None and key <= previous:
                 runs.append(current)
@@ -484,6 +530,34 @@ def check_runs(directory):
     events = [header_line(event="log_cleared"), *cleared, start, *later]
     assert run_script(text=to_text(events=events), directory=directory)[1].count("### Run") == 2
 
+    # A Start while the animation runs: the controller thread can log the cut-short run's last
+    # phase_end after the new animation_start. That line stays with the run it ended, which it
+    # completes, and makes no run of its own
+    one, mono = make_run(durations=durations, cycles=4, mono_ms=100, extra_ms=1.0)
+    late = one.pop()
+    assert (late["cycle"], late["phase"]) == (3, "exhale")
+    two, _ = make_run(durations=durations, cycles=6, mono_ms=mono + 5, extra_ms=5.0)
+    events = [header_line(), start, *one, start, late, *two]
+    runs = split_runs(events=events, header_index=0)
+    assert [len(run) for run in runs] == [8, 12] and runs[0][-1] is late, runs
+    status, out, err = run_script(text=to_text(events=events), directory=directory)
+    assert (status, err) == (0, ""), (status, err)
+    assert out.count("### Run") == 2 and "### Run 3" not in out, out
+    run_1, run_2 = out.split("\n### Run 2 of 2\n")
+    assert "| Cycles measured | 4 (complete cycles only) |" in run_1, out
+    assert "| Cycles measured | 6 (complete cycles only) |" in run_2, out
+
+    # Two Starts in a row change nothing: the line still goes to the last run that had lines
+    events = [header_line(), start, *one, start, start, late, *two]
+    assert [len(run) for run in split_runs(events=events, header_index=0)] == [8, 12]
+    # Only up to the new run's first line: after it, a line with cycle above 0 is that run's own
+    events = [header_line(), start, *one, start, *two[:2], late]
+    runs = split_runs(events=events, header_index=0)
+    assert [len(run) for run in runs] == [7, 3] and runs[1][-1] is late, runs
+    # With no run before the start there is nothing for a late line to join
+    events = [header_line(), start, late, *two]
+    assert [len(run) for run in split_runs(events=events, header_index=0)] == [1, 12]
+
 
 def check_schedule(directory):
     # Drift 1.01 lengthens every cycle by 1%, so the 12th is 4.5 s and the cycle that follows
@@ -566,6 +640,32 @@ def check_lines(directory):
     status, out, err = run_script(text=mixed, directory=directory)
     assert status == 0 and err.count("isn't a JSON object") == 2, err
     assert "skipped 2 lines that" in err and out == clean[1], (err, out)
+
+    # A phase_end that is valid JSON and can't be scored is skipped and counted with the cut
+    # lines, and the rest of the log still scores. Each of these used to stop the script in a
+    # traceback
+    whole = lines[1]
+    unscorable = [
+        ({key: value for key, value in whole.items() if key != "cycle"}, "with no whole-number cycle"),
+        ({**whole, "cycle": "3"}, "with no whole-number cycle"),
+        ({**whole, "cycle": True}, "with no whole-number cycle"),
+        ({key: value for key, value in whole.items() if key != "phase"}, "with no known phase"),
+        ({**whole, "phase": "sleep"}, "with no known phase"),
+        ({**whole, "phase": ["exhale"]}, "with no known phase"),
+        ({key: value for key, value in whole.items() if key != "actual_ms"}, "with no number in actual_ms"),
+        ({**whole, "scheduled_ms": None}, "with no number in scheduled_ms"),
+        ({**whole, "mono_ms": "7"}, "with no number in mono_ms"),
+    ]
+    events = [header_line(durations=durations), lines[0], *(bad for bad, _ in unscorable), *lines[1:]]
+    status, out, err = run_script(text=to_text(events=events), directory=directory)
+    assert status == 0 and out == clean[1], (status, out)
+    for number, (_, problem) in enumerate(unscorable, start=3):
+        assert f"line {number} is a phase_end {problem}, skipped" in err, err
+    assert f"skipped {len(unscorable)} lines that couldn't be read as log events" in err, err
+    assert "Traceback" not in err and "isn't valid JSON" not in err, err
+    # Other events are none of its business, whatever fields they lack
+    events = [header_line(durations=durations), {"event": "reminder"}, {"event": "auto_stop"}, *lines]
+    assert run_script(text=to_text(events=events), directory=directory) == clean
 
     # Bytes that aren't UTF-8 cost their line and not the log
     torn = "\n".join(good[:3]).encode("utf-8") + b'\n{"t":1,"note":"\xe2\x82\n' + "\n".join(good[3:]).encode("utf-8")

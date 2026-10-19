@@ -420,6 +420,36 @@ impl OverlayHandle {
         }
     }
 
+    /// Put a window that was just created into the state the session is
+    /// in: shown while it animates, hidden while it's stopped (see
+    /// [`Self::set_animation_visible`]), and a stopped session gets one
+    /// clear frame as well
+    ///
+    /// The controller sends frames only while it animates. A window that
+    /// opens stopped (a launch with a study that can't run, a monitor
+    /// plugged in while stopped) would otherwise never be drawn to, and a
+    /// layered window on Windows or an ARGB window on X11 that has never
+    /// been drawn to shows undefined content. A session that animates needs
+    /// nothing: the controller's next tick draws, and a frame sent from here
+    /// could paint the state left over from before a restart
+    pub fn settle(&self, animating: bool) {
+        self.set_animation_visible(animating);
+        if !animating {
+            self.wake_render();
+        }
+    }
+
+    /// Put back what a change of Show In may have taken from a window a
+    /// study holds full screen: on macOS the menu bar and Dock hiding of
+    /// its simple full screen (see
+    /// [`platform::reassert_full_screen_presentation`]). Does nothing for
+    /// any other window
+    pub fn reassert_full_screen(&self, reactivate: bool) {
+        if self.fills_display {
+            platform::reassert_full_screen_presentation(&self.window, reactivate);
+        }
+    }
+
     /// Whether the window's frame is the screen's and not the user's: it
     /// is full screen now, or a study holds it full screen and it sits
     /// hidden between a Stop and a Start.  The window's placement is only
@@ -466,9 +496,9 @@ fn create_windowed_app(
     monitor:    Option<&MonitorHandle>,
     settings:   &Arc<RwLock<Settings>>,
 ) -> Result<(Arc<Window>, OverlayRenderer, bool)> {
-    let (placement, animating) = {
+    let (placement, animating, fills_display) = {
         let s = settings.read_or_recover();
-        (s.animation_window_placement(), s.is_animating)
+        (s.animation_window_placement(), s.is_animating, study_fills_display(&s))
     };
     let win_attrs = Window::default_attributes()
         .with_title("exhale")
@@ -482,8 +512,10 @@ fn create_windowed_app(
         .with_window_icon(crate::app_icon::window_icon());
 
     let window  = Arc::new(event_loop.create_window(win_attrs)?);
-    // Lets the OS's own full-screen control work on this window
-    platform::setup_animation_window(&window);
+    // Lets the OS's own full-screen control work on this window, unless a
+    // study fills the display with it another way: native full screen on
+    // top of that would put the window in a Space of its own
+    platform::setup_animation_window(&window, fills_display);
 
     // Apply the saved position before creating the wgpu surface so
     // any compositor that re-runs configure on outer-position
@@ -524,14 +556,16 @@ fn create_windowed_app(
 /// that many pixels.  The default is logical points, so a Retina or
 /// scaled display gets the same 480 by 360 window an unscaled one does
 /// instead of half of it.  Half a saved size (one of the two numbers
-/// missing from a hand-edited `settings.toml`) counts as none
+/// missing from a hand-edited `settings.toml`) counts as none, and so
+/// does a 0 in either, which an earlier build saved from a minimized
+/// window on Windows
 fn initial_window_size(placement: &WindowPlacement) -> Size {
     const DEFAULT_W: u32 = 480;
     const DEFAULT_H: u32 = 360;
 
     match (placement.width, placement.height) {
-        (Some(w), Some(h)) => PhysicalSize::new(w, h).into(),
-        _                  => LogicalSize::new(DEFAULT_W, DEFAULT_H).into(),
+        (Some(w), Some(h)) if w > 0 && h > 0 => PhysicalSize::new(w, h).into(),
+        _                                    => LogicalSize::new(DEFAULT_W, DEFAULT_H).into(),
     }
 }
 
@@ -912,5 +946,19 @@ mod window_size_tests {
         let default = initial_window_size(&placement(None, None));
         assert_eq!(initial_window_size(&placement(Some(960), None)), default);
         assert_eq!(initial_window_size(&placement(None, Some(720))), default);
+    }
+
+    #[test]
+    fn a_saved_zero_counts_as_none() {
+        // What an earlier build saved from a minimized window on Windows: 0 by 0
+        let default = initial_window_size(&placement(None, None));
+        assert_eq!(initial_window_size(&placement(Some(0), Some(0))), default);
+        assert_eq!(initial_window_size(&placement(Some(0), Some(720))), default);
+        assert_eq!(initial_window_size(&placement(Some(960), Some(0))), default);
+        // The smallest size there is stays a size
+        assert_eq!(
+            initial_window_size(&placement(Some(1), Some(1))),
+            Size::Physical(PhysicalSize::new(1, 1)),
+        );
     }
 }

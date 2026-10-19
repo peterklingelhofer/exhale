@@ -23,6 +23,21 @@ use crate::platform;
 /// `widgets` can stay concentric with the same radius
 pub(super) const TEXT_EDIT_RADIUS: f32 = 5.0;
 
+/// Widest a tooltip's text gets, in points
+///
+/// egui wraps a tooltip's text at `spacing.tooltip_width`, which is 500 by
+/// default, and the settings window is 360 wide. A tooltip longer than the
+/// window lost its end past the right edge: the Reset button's said "...to
+/// their defaults. The study" and no more. The popup frame adds 6 points of
+/// margin and a stroke of 1 on each side, so 330 leaves the whole tooltip
+/// inside the window with a little over
+pub(super) const TOOLTIP_TEXT_WIDTH: f32 = 330.0;
+
+/// Make every tooltip of the window wrap inside it, in both themes
+pub(crate) fn fit_tooltips_to_window(ctx: &egui::Context) {
+    ctx.all_styles_mut(|style| style.spacing.tooltip_width = TOOLTIP_TEXT_WIDTH);
+}
+
 /// Load the OS-native UI font and register it as the default proportional
 /// font on the egui context.  Each platform's system-preferences app uses a
 /// specific typeface (SF Pro on macOS, Segoe UI on Windows, Ubuntu/Cantarell

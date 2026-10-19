@@ -101,11 +101,28 @@ pub fn apply_placement(
 /// relative to the monitor the window's centre currently lies on, so
 /// a saved placement survives the monitor being moved in the OS
 /// display-arrangement panel
+///
+/// `None` while the window has no frame worth keeping: see
+/// [`frame_is_worth_saving`].  The caller leaves the saved placement
+/// as it was
 pub fn capture_placement(
     event_loop: &ActiveEventLoop,
     window:     &Window,
-) -> WindowPlacement {
-    capture_placement_impl(event_loop, window, false)
+) -> Option<WindowPlacement> {
+    frame_is_worth_saving(window.is_minimized(), window.inner_size())
+        .then(|| capture_placement_impl(event_loop, window, false))
+}
+
+/// Whether a window's frame is one to save as the user's placement
+///
+/// Windows reports a minimized window as 0 by 0 at (-32000, -32000),
+/// through the same `Resized` and `Moved` events a drag sends.  Saved,
+/// that frame opens the next launch with a window of no size, so a
+/// minimized window, or one with an empty side, keeps the placement it
+/// had.  `minimized` is `Window::is_minimized`, `None` where the system
+/// can't say
+pub(crate) fn frame_is_worth_saving(minimized: Option<bool>, size: PhysicalSize<u32>) -> bool {
+    minimized != Some(true) && size.width > 0 && size.height > 0
 }
 
 /// Like [`capture_placement`] but writes height in logical points
@@ -341,5 +358,24 @@ mod tests {
         let (nx, ny) = clamp_position_against_monitors(50, 100, 400, 900, &mons, Some(mons[0]));
         assert_eq!(nx, 50);
         assert_eq!(ny, 0);
+    }
+
+    #[test]
+    fn a_minimized_window_or_one_with_no_size_has_no_frame_worth_saving() {
+        let size = |w, h| PhysicalSize::new(w, h);
+
+        assert!(frame_is_worth_saving(Some(false), size(960, 720)));
+        assert!(frame_is_worth_saving(None, size(960, 720)), "a system that can't say is taken at its size");
+
+        // What Windows sends on a minimize: `Resized(0, 0)`, with the window
+        // reported minimized
+        assert!(!frame_is_worth_saving(Some(true), size(0, 0)));
+        // Minimized with a size left over, as some systems report it
+        assert!(!frame_is_worth_saving(Some(true), size(960, 720)));
+        // Not minimized, and still no frame: one empty side is enough
+        assert!(!frame_is_worth_saving(Some(false), size(0, 0)));
+        assert!(!frame_is_worth_saving(None, size(0, 720)));
+        assert!(!frame_is_worth_saving(None, size(960, 0)));
+        assert!(frame_is_worth_saving(None, size(1, 1)));
     }
 }

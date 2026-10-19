@@ -90,10 +90,10 @@ randomized_timing_exhale = 0.0             # 0.0 to 1.0, jitter on the exhale ph
 randomized_timing_post_exhale_hold = 0.0   # 0.0 to 1.0, jitter on the post-exhale hold
 auto_stop_minutes = 30.0                   # minutes before the overlay stops itself, 0 is off
 reminder_interval_minutes = 0.0            # minutes between reminder notifications, 0 is off
-inhale_color = [1.0, 0.0, 0.0, 1.0]        # red, green, blue, alpha, each 0.0 to 1.0
-exhale_color = [0.0, 0.0, 1.0, 1.0]        # red, green, blue, alpha, each 0.0 to 1.0
+inhale_color = [1.0, 0.0, 0.0, 1.0]        # red, green, blue, alpha, each 0.0 to 1.0, alpha above 0.0
+exhale_color = [0.0, 0.0, 1.0, 1.0]        # red, green, blue, alpha, each 0.0 to 1.0, alpha above 0.0
 background_color = [0.0, 0.0, 0.0, 0.0]    # red, green, blue, alpha, each 0.0 to 1.0
-overlay_opacity = 0.25                     # 0.0 to 1.0
+overlay_opacity = 0.25                     # above 0.0, up to 1.0
 shape = "rectangle"                        # fullscreen, rectangle or circle
 color_fill_gradient = "on"                 # off, inner or on
 animation_mode = "sinusoidal"              # linear or sinusoidal
@@ -124,10 +124,10 @@ same thing.
 
 | Field | Values | Default | What it sets |
 |---|---|---|---|
-| `inhale_color` | four numbers, `[red, green, blue, alpha]`, each 0.0 to 1.0 | `[1.0, 0.0, 0.0, 1.0]` (red) | Color of the inhale phase |
-| `exhale_color` | four numbers, `[red, green, blue, alpha]`, each 0.0 to 1.0 | `[0.0, 0.0, 1.0, 1.0]` (blue) | Color of the exhale phase |
+| `inhale_color` | four numbers, `[red, green, blue, alpha]`, each 0.0 to 1.0, alpha above 0.0 | `[1.0, 0.0, 0.0, 1.0]` (red) | Color of the inhale phase |
+| `exhale_color` | four numbers, `[red, green, blue, alpha]`, each 0.0 to 1.0, alpha above 0.0 | `[0.0, 0.0, 1.0, 1.0]` (blue) | Color of the exhale phase |
 | `background_color` | four numbers, `[red, green, blue, alpha]`, each 0.0 to 1.0 | `[0.0, 0.0, 0.0, 0.0]` (clear) | Background tint. Its alpha sets how opaque the tint is, and a window draws it solid whatever the alpha. No effect when `shape` is `"fullscreen"` |
-| `overlay_opacity` | 0.0 to 1.0 | `0.25` | Opacity of the overlay. A window draws at full strength, so the field has no effect when `display_mode` is `"window"` |
+| `overlay_opacity` | above 0.0, up to 1.0 | `0.25` | Opacity of the overlay. A window draws at full strength, so the field has no effect when `display_mode` is `"window"`, and a value of 0 is rejected there as well |
 | `shape` | `"fullscreen"`, `"rectangle"`, `"circle"` | `"rectangle"` | Shape of the animation |
 | `color_fill_gradient` | `"off"`, `"inner"`, `"on"` | `"on"` | Gradient style of the fill, where `"off"` is a solid color. No effect when `shape` is `"fullscreen"` |
 | `animation_mode` | `"linear"`, `"sinusoidal"` | `"sinusoidal"` | Easing of each inhale and exhale. `"linear"` moves at a constant speed, and `"sinusoidal"` eases in and out |
@@ -139,11 +139,21 @@ and it stays the participant's.
 
 With `display_mode = "window"` the app opens the animation window full screen and borderless on
 the primary display at launch. Where the system names no primary display, the window fills the
-display it opens on. On macOS that full screen stays in the current Space and auto-hides the menu
-bar and the Dock. Stop takes the window out of full screen and hides it, so the menu bar comes
-back, and Start shows the window and returns it to full screen. A Wayland session, or a machine
-whose graphics driver can't draw a see-through overlay, shows a window whatever `display_mode`
-says, and only `"window"` makes that window full screen.
+display it opens on. What Stop and Start do to the window depends on the platform:
+
+- macOS: the full screen stays in the current Space and auto-hides the menu bar and the Dock. Stop
+  takes the window out of full screen and hides it, so the menu bar comes back, and Start shows
+  the window and returns it to full screen. The window refuses native full screen, so fn-F and
+  Ctrl-Cmd-F can't put it in a Space of its own.
+- Windows: Stop hides the window, and Start shows it again, still full screen.
+- Linux with X11: Stop takes the window out of full screen and hides it, and Start shows it and
+  returns it to full screen.
+- Linux with Wayland: the app has no way to hide a window there. Stop takes the window out of full
+  screen and leaves it in place as a normal window showing the stopped frame, and Start returns it
+  to full screen.
+
+A Wayland session, or a machine whose graphics driver can't draw a see-through overlay, shows a
+window whatever `display_mode` says, and only `"window"` makes that window full screen.
 
 To choose a look, set it in the app on a machine that has no `study.toml`, then copy the nine
 lines from `settings.toml`. In the current format they're the lines above `app_visibility`. Each
@@ -197,7 +207,12 @@ mistakes needs two fixes:
 - `auto_stop_minutes`: 0 (off) or from 0.1 to 10080 (one week)
 - `reminder_interval_minutes`: 0 (off) or from 1 to 10080
 - Each color: exactly four numbers, each from 0.0 to 1.0
-- `overlay_opacity`: from 0.0 to 1.0
+- `inhale_color` and `exhale_color`: an alpha above 0.0, the fourth number. A phase color with an
+  alpha of 0 draws nothing, in an overlay and in a window alike. `background_color` can keep its
+  default alpha of 0, which is a clear tint
+- `overlay_opacity`: above 0.0 and up to 1.0. An opacity of 0 draws nothing, so the app rejects it
+  even with `display_mode = "window"`, where a window draws at full strength and the field has no
+  effect. A file that works in one display mode then works in the other
 - `shape = "fullscreen"` needs two different colors. The app rejects the file, on `exhale_color`,
   when every component of the inhale and exhale colors differs by less than 0.001. It compares
   the colors the participant would see, so a color the file leaves out counts at its shipped
@@ -227,8 +242,9 @@ fields. The interface then changes in these ways:
 - About and the Start, Stop, Reset and Quit buttons stay as they are.
 - Reset restores Show In and the keyboard shortcuts to their defaults, and it forgets the saved
   position of the animation window. The twenty locked fields keep the file's values. The button's
-  tooltip reads "Reset the keyboard shortcuts and Show In to their defaults. The study locks
-  everything else." and its confirmation asks "Reset the keyboard shortcuts and Show In?"
+  tooltip reads "Reset the keyboard shortcuts and Show In to their defaults." and, on a second
+  line, "The study locks everything else." Its confirmation asks "Reset the keyboard shortcuts and
+  Show In?"
 
 After you install a file and launch the app, open Settings. A Study card with the participant id
 means the lock took effect. A card that starts "Study can't start" means it didn't (see
@@ -299,6 +315,8 @@ examples, where the line numbers depend on the file:
 | A required field is missing | `study.toml, field exhale_duration: is required but missing` |
 | A misspelled or unknown field | `study.toml, line 7, field exhale_duraton: isn't a field exhale knows` |
 | A value outside its range | `study.toml, line 8, field drift: has to be 1.0 or more` |
+| An overlay opacity of 0 | `study.toml, line 8, field overlay_opacity: has to be above 0 and at most 1` |
+| A phase color with an alpha of 0 | `study.toml, line 6, field inhale_color: has to have an alpha above 0` |
 | A name that isn't one of the allowed values | `study.toml, line 7, field shape: has to be one of fullscreen, rectangle, circle` |
 | All four durations are 0 | `study.toml: the four durations can't all be 0` |
 | Fullscreen with matching colors | `study.toml, line 9, field exhale_color: has to differ from inhale_color when the shape is fullscreen` |
@@ -450,8 +468,8 @@ the cumulative drift row further down adds those delays up.
 - `app_stop` is best effort. The app writes it on every normal quit: the Quit button, the tray's
   Quit, the Linux window's close box, and on macOS Cmd-Q, the app menu's Quit and the Dock's Quit.
   It's the last line the log gets, so no `phase_end` follows it. It's missing after a crash, a
-  force quit, a logoff or shutdown on Windows, and SIGTERM on Linux. An `app_start` with no
-  `app_stop` before the next `app_start` marks a session that ended one of those ways.
+  force quit, a logoff or shutdown on Windows, and SIGTERM on macOS and Linux. An `app_start` with
+  no `app_stop` before the next `app_start` marks a session that ended one of those ways.
 - A process killed while it writes can leave the last line cut short. The next launch starts a
   new line, and `pacing-validation.py` skips the cut line with a warning.
 - Computer sleep changes the clocks. `t` is the wall clock and runs through sleep on every
@@ -520,19 +538,23 @@ uv run --no-project scripts/pacing-validation.py <exported file>
 The script scores the log's last session, which is everything after the final `app_start` or
 `log_cleared` line. It splits that session into runs. A run ends at the next `animation_start`
 line, and wherever the cycle number and the phase order stop increasing, which marks a restart
-that wrote no line. The script prints one Markdown table per run. A log with one run prints one
-table. A log with more prints a table for each run under a "Run N of M" heading. Each table lists
-platform and version, the configured cycle length, how many complete cycles it measured, the mean
-cycle length and its error, the single worst cycle and its error, cumulative drift across the run,
-and the mean overshoot of each phase in milliseconds.
+that wrote no line. A restart can write the last `phase_end` line of the run it cuts short just
+after the new `animation_start`. Until the first line with `cycle` 0, a line with a `cycle` above 0
+stays with the run before, so it doesn't count as a run of its own. The script prints one Markdown
+table per run. A log with one run prints one table. A log with more prints a table for each run
+under a "Run N of M" heading. Each table lists platform and version, the configured cycle length,
+how many complete cycles it measured, the mean cycle length and its error, the single worst cycle
+and its error, cumulative drift across the run, and the mean overshoot of each phase in
+milliseconds.
 
 The script compares each cycle with its scheduled length, the sum of the `scheduled_ms` of that
 cycle's own lines. Drift and randomized timing change what the app schedules, so neither counts as
 timing error. When the header sets either one, the configured-cycle row says so.
 
-The script skips a line that isn't valid JSON, such as a line cut short when the app was killed.
-It prints a warning on stderr with a count of the skipped lines, and a cycle that lost a line
-counts as incomplete.
+The script skips a line that isn't valid JSON, such as a line cut short when the app was killed,
+and a `phase_end` line that lacks a whole-number `cycle`, a known `phase`, or a number in `mono_ms`,
+`scheduled_ms` or `actual_ms`. It prints a warning on stderr with a count of the skipped lines, and
+a cycle that lost a line counts as incomplete.
 
 `--self-check` runs the script's own tests on built-in logs and needs no log file. It prints
 `pacing-validation self-check passed` when the tests pass. The `citations` job in CI runs it beside

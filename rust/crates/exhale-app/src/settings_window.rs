@@ -6,8 +6,8 @@ use std::{path::PathBuf, sync::Arc};
 use anyhow::{Context, Result};
 
 use theme::{
-    clear_color_for_theme, install_system_ui_font, theme_preference,
-    visuals_for_theme, PANEL_FILL_DARK, PANEL_FILL_LIGHT,
+    clear_color_for_theme, fit_tooltips_to_window, install_system_ui_font,
+    theme_preference, visuals_for_theme, PANEL_FILL_DARK, PANEL_FILL_LIGHT,
 };
 // Star import is intentional: `settings_ui` references ~12 widget
 // helpers and half a dozen layout constants, and the widget submodule
@@ -95,6 +95,10 @@ pub struct SettingsWindow {
     session_log: Option<Arc<SessionLog>>,
     /// Last thing the Study card's buttons did, shown under them
     study_note: Option<StudyNote>,
+    /// The status lines the Study card drew last frame, so a frame that
+    /// draws others can tell that the card's height changed. The window
+    /// then grows to fit them (see `render`)
+    study_lines: Vec<String>,
     /// Last value passed to `set_max_inner_size` so we can no-op when
     /// the natural content height hasn't changed.  Calling
     /// `set_max_inner_size` every frame translates on macOS to
@@ -198,6 +202,48 @@ pub(super) const SETTINGS_WIDTH: u32 = 360;
 /// drag.  Matches Swift's "resize this far if you want" behaviour
 /// while leaving a tighter floor than the previous 428 pt cap
 const SETTINGS_MIN_HEIGHT: u32 = 100;
+
+/// Points kept clear below the window for a Dock or a taskbar, which winit
+/// can't measure. A window that grows to fit its content stops this far
+/// above the bottom of the monitor
+const SCREEN_BOTTOM_RESERVE: f64 = 80.0;
+
+/// The height, in logical points, a window should grow to when its content
+/// is `natural` tall and it is `current` tall now, or `None` when it stays
+///
+/// `room` is the most the screen leaves it, when that's known. A window
+/// that's as tall as that already, or taller, stays as it is: a user who
+/// put it there wanted it there
+fn grown_height(current: u32, natural: u32, room: Option<u32>) -> Option<u32> {
+    let target = natural.min(room.unwrap_or(natural));
+    (target > current).then_some(target)
+}
+
+/// The most height, in logical points, a window can have from its top edge
+/// down to the bottom of its monitor, less the title bar and the room kept
+/// for a Dock or a taskbar
+///
+/// `monitor_top` and `window_top` are physical pixels on the same screen
+/// coordinates, `monitor_h` and `chrome` physical pixels, and `scale` the
+/// monitor's scale factor. A window whose top sits below the monitor's
+/// bottom has no room
+fn room_below(monitor_top: i32, monitor_h: u32, window_top: i32, chrome: u32, scale: f64) -> u32 {
+    let bottom = monitor_top as i64 + monitor_h as i64;
+    let below  = (bottom - window_top as i64 - chrome as i64).max(0) as f64;
+    (below / scale - SCREEN_BOTTOM_RESERVE).max(0.0) as u32
+}
+
+/// [`room_below`] for a live window, `None` when it has no monitor
+///
+/// Wayland doesn't say where a window is, so the top of the monitor stands
+/// in, which is the most room the window could have
+fn room_below_window(window: &winit::window::Window) -> Option<u32> {
+    let monitor     = window.current_monitor()?;
+    let monitor_top = monitor.position().y;
+    let window_top  = window.outer_position().map_or(monitor_top, |p| p.y);
+    let chrome      = window.outer_size().height.saturating_sub(window.inner_size().height);
+    Some(room_below(monitor_top, monitor.size().height, window_top, chrome, window.scale_factor()))
+}
 
 impl SettingsWindow {
     pub fn new(
@@ -369,6 +415,8 @@ impl SettingsWindow {
         // back to egui's default Ubuntu font if the platform's system font
         // isn't locatable: nothing critical breaks
         install_system_ui_font(&egui_ctx);
+        // Tooltips wrap at a width that fits the 360 pt window
+        fit_tooltips_to_window(&egui_ctx);
 
         // Pre-populate both style buckets with our custom visuals.  egui owns
         // separate dark_style / light_style slots and picks one per-frame
@@ -424,8 +472,28 @@ impl SettingsWindow {
             icon_cache,
             session_log,
             study_note: None,
+            study_lines: Vec::new(),
             last_max_height: None,
         })
+    }
+
+    /// Make the window as tall as its content, or as tall as the screen
+    /// leaves room for when that's less. Never shorter than it is
+    ///
+    /// Raises the height only. The maximum height set from the content
+    /// already brings the window down when the content shrinks
+    fn grow_to_content(&self, natural_h: u32) {
+        let scale   = self.window.scale_factor();
+        let current = (self.window.inner_size().height as f64 / scale).round() as u32;
+        let room    = room_below_window(&self.window);
+        if let Some(height) = grown_height(current, natural_h, room) {
+            // The size comes back at once on some platforms and later on
+            // the others, with a `Resized` event either way, which
+            // reconfigures the surface
+            let _ = self.window.request_inner_size(
+                winit::dpi::LogicalSize::new(SETTINGS_WIDTH, height),
+            );
+        }
     }
 
     /// Forward a window event to egui.
@@ -563,6 +631,7 @@ impl SettingsWindow {
         let pixels_per_point = self.window.scale_factor() as f32;
 
         let mut content_height: f32 = 0.0;
+        let mut study_lines: Vec<String> = Vec::new();
         // `full_output.platform_output.copied_text` is taken on
         // macOS only (clipboard hand-off).  On other platforms the
         // binding is read-only, hence the cross-cfg `unused_mut`
@@ -577,6 +646,7 @@ impl SettingsWindow {
                 &self.icon_cache,
                 &self.session_log,
                 &mut self.study_note,
+                &mut study_lines,
                 overlay_available,
             );
         });
@@ -622,7 +692,17 @@ impl SettingsWindow {
                 ));
                 self.last_max_height = Some(natural_h);
             }
+            // A raised maximum doesn't raise the window, which opened
+            // clamped to the content it had. When the Study card's status
+            // lines change, an export or the log growing since, they land
+            // below the bottom edge and the window has to scroll to show
+            // them. So it grows to its content the way it opened at it,
+            // after the new maximum is in place
+            if study_lines != self.study_lines {
+                self.grow_to_content(natural_h);
+            }
         }
+        self.study_lines = study_lines;
 
         // On macOS: bypass `handle_platform_output` entirely and pipe only
         // the clipboard update through.  `handle_platform_output` internally
@@ -999,7 +1079,7 @@ const RESET_TEXT: ResetText = ResetText {
 /// them back to the file's values, so all it restores is what the file
 /// leaves to the participant
 const RESET_TEXT_STUDY: ResetText = ResetText {
-    help:   "Reset the keyboard shortcuts and Show In to their defaults. \
+    help:   "Reset the keyboard shortcuts and Show In to their defaults.\n\
              The study locks everything else.",
     title:  "Reset the keyboard shortcuts and Show In?",
     detail: "This restores the keyboard shortcuts and Show In. The study \
@@ -1177,6 +1257,9 @@ fn appearance_card(
 /// Split out of [`settings_ui`] so a test can prove that without
 /// standing up a `SettingsManager` and its writer thread
 ///
+/// `lines` is left holding the status lines the Study card drew, and
+/// empty when it drew none
+///
 /// Returns true when something in it changed the settings
 fn body_cards(
     ui:          &mut egui::Ui,
@@ -1184,7 +1267,9 @@ fn body_cards(
     status:      &StudyStatus,
     session_log: &Option<Arc<SessionLog>>,
     note:        &mut Option<StudyNote>,
+    lines:       &mut Vec<String>,
 ) -> bool {
+    lines.clear();
     if !crate::hides_pacing(status) {
         let mut dirty = false;
         // ── Timing ─────────────────────────────────────────────────────
@@ -1305,37 +1390,48 @@ fn body_cards(
                 });
             }
         });
-        study_note_lines(ui, note.as_ref(), clear_offered);
+        *lines = study_status_lines(note.as_ref(), clear_offered);
+        study_note_lines(ui, lines);
     });
     false
+}
+
+/// The lines the Study card says under its buttons, in order
+///
+/// After an export, `clear_offered` false means the log has grown since,
+/// and a second line says so. The one place that decides what they are:
+/// [`study_note_lines`] draws them, and [`SettingsWindow::render`] compares
+/// one frame's against the last to see when the window's height has to
+/// follow
+fn study_status_lines(note: Option<&StudyNote>, clear_offered: bool) -> Vec<String> {
+    match note {
+        Some(StudyNote::Exported(path)) => {
+            let mut lines = vec![format!("Exported to {}", path.display())];
+            if !clear_offered {
+                lines.push(CLEAR_WITHHELD_HINT.to_string());
+            }
+            lines
+        }
+        Some(StudyNote::Cleared)     => vec!["Log cleared.".to_string()],
+        Some(StudyNote::Failed(why)) => vec![why.clone()],
+        None                         => Vec::new(),
+    }
 }
 
 /// What the Study card says under its buttons
 ///
 /// Each line wraps inside the card, because an export path or an OS error
-/// can be longer than the card is wide. After an export, `clear_offered`
-/// false means the log has grown since, and the card says so
-fn study_note_lines(ui: &mut egui::Ui, note: Option<&StudyNote>, clear_offered: bool) {
-    fn small(ui: &mut egui::Ui, text: String) {
+/// can be longer than the card is wide
+fn study_note_lines(ui: &mut egui::Ui, lines: &[String]) {
+    for line in lines {
         ui.add(
             egui::Label::new(
-                egui::RichText::new(text)
+                egui::RichText::new(line)
                     .small()
                     .color(ui.visuals().weak_text_color()),
             )
             .wrap(),
         );
-    }
-    match note {
-        Some(StudyNote::Exported(path)) => {
-            small(ui, format!("Exported to {}", path.display()));
-            if !clear_offered {
-                small(ui, CLEAR_WITHHELD_HINT.to_string());
-            }
-        }
-        Some(StudyNote::Cleared)     => small(ui, "Log cleared.".to_string()),
-        Some(StudyNote::Failed(why)) => small(ui, why.clone()),
-        None                         => {}
     }
 }
 
@@ -1352,7 +1448,8 @@ fn study_line(ui: &mut egui::Ui, label: &str, value: &str) {
 }
 
 /// Returns the natural (fully-expanded) content height in logical points so
-/// the caller can clamp the window's max size
+/// the caller can clamp the window's max size. `study_lines` is left
+/// holding the Study card's status lines, as [`body_cards`] documents
 #[allow(clippy::too_many_arguments)]
 fn settings_ui(
     ctx:                    &egui::Context,
@@ -1365,6 +1462,7 @@ fn settings_ui(
     icons:                  &IconCache,
     session_log:            &Option<Arc<SessionLog>>,
     study_note:             &mut Option<StudyNote>,
+    study_lines:            &mut Vec<String>,
     overlay_available:      bool,
 ) -> f32 {
     let mut dirty = false;
@@ -1768,7 +1866,7 @@ fn settings_ui(
                 dirty = true;
             }
 
-            if body_cards(ui, settings, &study_status, session_log, study_note) {
+            if body_cards(ui, settings, &study_status, session_log, study_note, study_lines) {
                 dirty = true;
             }
 
@@ -2554,6 +2652,92 @@ mod tests {
         assert_eq!(OPACITY_HELP, "Transparency of the overlay. Lower = more transparent.");
     }
 
+    // ── Tooltips ──────────────────────────────────────────────────
+
+    /// Where the text of the tooltip on a button at `at` lands in a window
+    /// of the settings window's width, set up the way the window sets up
+    /// its tooltips. The pointer rests on the button for a few frames
+    fn tooltip_rect(help: &str, at: Pos2) -> Rect {
+        let ctx = Context::default();
+        fit_tooltips_to_window(&ctx);
+        ctx.style_mut(|style| {
+            style.interaction.tooltip_delay = 0.0;
+            style.interaction.show_tooltips_only_when_still = false;
+        });
+        let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(SETTINGS_WIDTH as f32, 800.0));
+        let mut found = None;
+        for frame in 0..4 {
+            let raw = RawInput {
+                screen_rect: Some(screen),
+                time:        Some(frame as f64 * 0.2),
+                events:      vec![Event::PointerMoved(at)],
+                ..Default::default()
+            };
+            let out = ctx.run(raw, |ctx| {
+                egui::CentralPanel::default().frame(egui::Frame::none()).show(ctx, |ui| {
+                    ui.add_space(at.y - 8.0);
+                    ui.horizontal(|ui| {
+                        ui.add_space(at.x - 8.0);
+                        ui.button("x").on_hover_text(help);
+                    });
+                });
+            });
+            if let Some((_, rect)) = Drawn::of(&out).0.into_iter().find(|(text, _)| text == help) {
+                found = Some(rect);
+            }
+        }
+        found.unwrap_or_else(|| panic!("no tooltip for {help:?}"))
+    }
+
+    #[test]
+    fn a_study_resets_tooltip_says_its_second_sentence_on_a_line_of_its_own() {
+        assert_eq!(
+            RESET_TEXT_STUDY.help,
+            "Reset the keyboard shortcuts and Show In to their defaults.\n\
+             The study locks everything else.",
+            "the guide quotes these words, one sentence to a line",
+        );
+        // Outside a study the one sentence stays as it was
+        assert!(!RESET_TEXT.help.contains('\n'));
+    }
+
+    #[test]
+    fn every_tooltip_the_study_and_the_display_row_add_stays_inside_the_window() {
+        // egui wraps a tooltip at `tooltip_width`, 500 by default, so one
+        // longer than the 360 pt window ran off its right edge
+        let ctx = Context::default();
+        fit_tooltips_to_window(&ctx);
+        ctx.all_styles_mut(|style| {
+            // 6 pt of popup margin on each side, and a stroke outside that
+            assert!(style.spacing.tooltip_width + 14.0 <= SETTINGS_WIDTH as f32, "{}", style.spacing.tooltip_width);
+        });
+
+        let tooltips = [
+            ("the study's Reset", RESET_TEXT_STUDY.help),
+            ("Start, while the study can't start", STUDY_START_HELP),
+            ("Overlay Opacity, while a window shows", OPACITY_WINDOW_HELP),
+            ("Display", DISPLAY_HELP),
+            ("Display, locked", DISPLAY_LOCKED_HELP),
+            ("a long one from before", "Lengthens every cycle by this much, compounding, for pranayama-style graded extension. Off by default. Type a value for finer control than the arrows give."),
+        ];
+        // At the left and at the right of the window: the tooltip opens under
+        // the control, and has to be pulled back in from the right edge
+        for (name, help) in tooltips {
+            for x in [20.0, 200.0, 320.0] {
+                let rect = tooltip_rect(help, Pos2::new(x, 100.0));
+                assert!(rect.min.x >= 0.0, "{name} at {x}: starts at {}", rect.min.x);
+                assert!(
+                    rect.max.x + 6.0 <= SETTINGS_WIDTH as f32,
+                    "{name} at {x}: runs to {} in a window {} wide", rect.max.x, SETTINGS_WIDTH,
+                );
+                assert!(rect.width() <= super::theme::TOOLTIP_TEXT_WIDTH + 0.5, "{name} at {x}: {} wide", rect.width());
+            }
+        }
+        // The text that follows the break sits under the first sentence
+        let reset = tooltip_rect(RESET_TEXT_STUDY.help, Pos2::new(20.0, 100.0));
+        assert!(reset.height() >= 2.0 * 12.0, "two lines at least: {reset:?}");
+    }
+
     // ── Study mode ────────────────────────────────────────────────
 
     fn locked_settings() -> exhale_core::settings::Settings {
@@ -2681,7 +2865,7 @@ mod tests {
     ) -> Drawn {
         let out = ctx.run(raw_in, |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                let _ = body_cards(ui, settings, status, log, note);
+                let _ = body_cards(ui, settings, status, log, note, &mut Vec::new());
             });
         });
         Drawn::of(&out)
@@ -2704,7 +2888,7 @@ mod tests {
         let out = ctx.run(raw_in, |ctx| {
             settings_ui(
                 ctx, settings, manager, pending_reset, &mut capturing,
-                &|| {}, &|| {}, &icons, log, note, true,
+                &|| {}, &|| {}, &icons, log, note, &mut Vec::new(), true,
             );
         });
         Drawn::of(&out)
@@ -3124,6 +3308,125 @@ mod tests {
         let failed = drawn.rect(&reason);
         assert!(failed.max.x <= limit, "the reason runs to {} in a card that ends at {limit}", failed.max.x);
         assert!(failed.height() >= 2.0 * one_line, "and takes several lines: {failed:?}");
+    }
+
+    // ── The window follows the Study card's status lines ──────────
+
+    /// The status lines the Study card drew in one frame
+    fn drawn_status_lines(card: &mut StudyCard) -> Vec<String> {
+        let mut lines = Vec::new();
+        let log = Some(Arc::clone(&card.log));
+        let _ = card.ctx.run(tall_input(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let _ = body_cards(
+                    ui, &mut card.settings, &StudyStatus::Locked, &log, &mut card.note, &mut lines,
+                );
+            });
+        });
+        lines
+    }
+
+    #[test]
+    fn the_status_lines_are_what_each_note_says() {
+        let path = std::path::PathBuf::from("/exports/exhale-log-P07-1.jsonl");
+        let exported = StudyNote::Exported(path);
+
+        assert!(study_status_lines(None, true).is_empty());
+        assert!(study_status_lines(None, false).is_empty(), "a log that grew says nothing before an export");
+        assert_eq!(
+            study_status_lines(Some(&exported), true),
+            ["Exported to /exports/exhale-log-P07-1.jsonl"],
+        );
+        assert_eq!(
+            study_status_lines(Some(&exported), false),
+            ["Exported to /exports/exhale-log-P07-1.jsonl".to_string(), CLEAR_WITHHELD_HINT.to_string()],
+        );
+        assert_eq!(study_status_lines(Some(&StudyNote::Cleared), false), ["Log cleared."]);
+        assert_eq!(
+            study_status_lines(Some(&StudyNote::Failed("Export failed: no folder".to_string())), true),
+            ["Export failed: no folder"],
+        );
+    }
+
+    #[test]
+    fn the_card_hands_back_the_lines_it_drew_and_they_change_with_its_height() {
+        let mut card = StudyCard::new("lines-drawn");
+
+        assert!(drawn_status_lines(&mut card).is_empty(), "before any export");
+
+        // An export adds a line, with Clear offered
+        card.export();
+        let exported = drawn_status_lines(&mut card);
+        assert_eq!(exported.len(), 1, "{exported:?}");
+        assert!(exported[0].starts_with("Exported to "));
+
+        // The log grows, which the card says in a second line
+        card.log.record("phase_end", &[]);
+        let withheld = drawn_status_lines(&mut card);
+        assert_eq!(withheld.len(), 2, "{withheld:?}");
+        assert_eq!(withheld[1], CLEAR_WITHHELD_HINT);
+        assert_ne!(withheld, exported, "so the window sees a change");
+
+        // The card draws exactly the lines it handed back
+        let drawn = card.frame(tall_input());
+        for line in &withheld {
+            assert!(drawn.says(line), "{line:?} missing: {}", drawn.dump());
+        }
+
+        // Another export takes the second line away, and nothing changes
+        // between two frames of the same state
+        card.export();
+        assert_eq!(drawn_status_lines(&mut card).len(), 1);
+        assert_eq!(drawn_status_lines(&mut card), drawn_status_lines(&mut card));
+    }
+
+    #[test]
+    fn a_card_that_is_not_drawn_hands_back_no_lines() {
+        let mut locked = locked_settings();
+        let ctx = Context::default();
+        let mut lines = vec!["left over".to_string()];
+        let mut note = Some(StudyNote::Cleared);
+        for status in [StudyStatus::Off, broken_at_load()] {
+            let _ = ctx.run(tall_input(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    let _ = body_cards(ui, &mut locked, &status, &None, &mut note, &mut lines);
+                });
+            });
+            assert!(lines.is_empty(), "{status:?}: {lines:?}");
+        }
+        // A locked study with no log draws the participant and no status
+        let _ = ctx.run(tall_input(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let _ = body_cards(ui, &mut locked, &StudyStatus::Locked, &None, &mut note, &mut lines);
+            });
+        });
+        assert!(lines.is_empty(), "{lines:?}");
+    }
+
+    #[test]
+    fn a_window_grows_to_its_content_and_only_as_far_as_the_screen_allows() {
+        // The Study card's lines made the content taller than the window
+        assert_eq!(grown_height(313, 420, None), Some(420));
+        assert_eq!(grown_height(313, 420, Some(700)), Some(420), "room to spare");
+        assert_eq!(grown_height(313, 420, Some(380)), Some(380), "the screen's limit");
+        // No room, or no gain: it stays, and never gets shorter
+        assert_eq!(grown_height(313, 420, Some(313)), None);
+        assert_eq!(grown_height(313, 420, Some(100)), None);
+        assert_eq!(grown_height(420, 420, None), None, "already as tall as its content");
+        assert_eq!(grown_height(600, 420, None), None, "taller than its content: the maximum height brings it down");
+    }
+
+    #[test]
+    fn the_room_below_a_window_stops_short_of_the_dock_and_never_goes_negative() {
+        // A 1440 by 900 point screen at 2x. The window's top edge is 76
+        // pixels down, and its title bar takes 56
+        assert_eq!(room_below(0, 1800, 76, 56, 2.0), ((1800 - 76 - 56) / 2) as u32 - SCREEN_BOTTOM_RESERVE as u32);
+        // A monitor above the primary one, at 1x: its bottom edge is y = 0
+        assert_eq!(room_below(-1080, 1080, -1000, 28, 1.0), (1000 - 28) as u32 - SCREEN_BOTTOM_RESERVE as u32);
+        // Less than the reserve is left, or the window's top is off the monitor
+        assert_eq!(room_below(0, 900, 800, 28, 1.0), 0);
+        assert_eq!(room_below(0, 900, 1000, 28, 1.0), 0);
+        assert_eq!(room_below(0, 900, 2000, 28, 1.0), 0);
     }
 
     #[test]

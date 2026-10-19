@@ -244,14 +244,15 @@ pub struct StudyConfig {
     #[serde(default)]
     pub reminder_interval_minutes: f64,
 
-    // Appearance and display. Linear RGBA, components 0 to 1
+    // Appearance and display. Linear RGBA, components 0 to 1, and an alpha
+    // above 0 for the two phase colors
     #[serde(default, deserialize_with = "four_numbers", skip_serializing_if = "Option::is_none")]
     pub inhale_color:        Option<[f32; 4]>,
     #[serde(default, deserialize_with = "four_numbers", skip_serializing_if = "Option::is_none")]
     pub exhale_color:        Option<[f32; 4]>,
     #[serde(default, deserialize_with = "four_numbers", skip_serializing_if = "Option::is_none")]
     pub background_color:    Option<[f32; 4]>,
-    /// 0 to 1
+    /// Above 0, up to 1
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overlay_opacity:     Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -375,9 +376,24 @@ impl StudyConfig {
                 }
             }
         }
+
+        // The shader multiplies each phase color's alpha by the overlay
+        // opacity, so a 0 in either draws no shape. A window pins the
+        // opacity to 1 and keeps the color's alpha, so a phase color with
+        // an alpha of 0 is invisible there too. A file that locks a pacer
+        // nobody can see is rejected on whichever of the three fields does
+        // it. The background keeps its default alpha of 0, a clear tint.
+        // The range check above has already rejected a NaN
+        for (name, color) in [("inhale_color", self.inhale_color), ("exhale_color", self.exhale_color)] {
+            if let Some(c) = color {
+                if c[3] <= 0.0 {
+                    return Err(StudyError::out_of_range(name, c, "has to have an alpha above 0"));
+                }
+            }
+        }
         if let Some(o) = self.overlay_opacity {
-            if !(0.0..=1.0).contains(&o) {
-                return Err(StudyError::out_of_range("overlay_opacity", o, "has to be between 0 and 1"));
+            if !(o > 0.0 && o <= 1.0) {
+                return Err(StudyError::out_of_range("overlay_opacity", o, "has to be above 0 and at most 1"));
             }
         }
 
@@ -606,14 +622,25 @@ fn line_at(contents: &str, offset: usize) -> usize {
     contents.as_bytes()[..end].iter().filter(|&&b| b == b'\n').count() + 1
 }
 
-/// The key a `key = value` line assigns, when it's a bare key
+/// The key a `key = value` line assigns, when it's a bare key or one in a
+/// single pair of quotes
 ///
-/// `None` for a comment, a table header, a blank line, and a quoted or
-/// dotted key. Bare keys only, so what comes back is made of letters,
-/// digits, `_` and `-` and can't hold a value
+/// TOML reads `"participant_id" = 4` and `'participant_id' = 4` as the same
+/// key as the bare one, so a line that quotes it still names its field.
+/// Without that, the parser's message for such a line would reach the
+/// debug log with the participant id in it. `None` for a comment, a table
+/// header, a blank line, a dotted key, and a quoted key that holds anything
+/// but letters, digits, `_` and `-`. What comes back is made of those
+/// characters alone and can't hold a value
 fn key_in(line: &str) -> Option<&str> {
-    let (key, _) = line.trim_start_matches('\u{feff}').split_once('=')?;
-    let key = key.trim();
+    let line = line.trim_start_matches('\u{feff}').trim_start();
+    let key = match line.chars().next()? {
+        quote @ ('"' | '\'') => {
+            let (key, after) = line[1..].split_once(quote)?;
+            after.trim_start().starts_with('=').then_some(key)?
+        }
+        _ => line.split_once('=')?.0.trim_end(),
+    };
     let bare = !key.is_empty()
         && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
     bare.then_some(key)
@@ -1020,6 +1047,35 @@ mod tests {
     }
 
     #[test]
+    fn a_quoted_participant_id_key_keeps_the_id_out_of_both_texts_too() {
+        // TOML reads `"participant_id"` as the bare key. The parser's message
+        // for a mistyped value is `invalid type: integer `47110000`, expected
+        // a string`, and the debug log gets the detail
+        let dir = tmp_dir("mistyped-quoted-id");
+        for key in ["\"participant_id\"", "'participant_id'", "  \"participant_id\"  "] {
+            let text = MINIMAL.replace("participant_id = \"P01\"", &format!("{key} = 47110000"));
+            let err  = load(&write_study(&dir, &text)).expect_err("a number where a string goes");
+            assert_eq!(err.summary(), "study.toml, line 1, field participant_id: has to be a string", "{key}");
+            assert_eq!(err.field_name(), Some("participant_id"), "{key}");
+            for shown in [err.summary(), err.detail().to_string()] {
+                assert!(!shown.contains("47110000"), "{key}: {shown}");
+            }
+        }
+
+        // A quoted key for any other field is named the same way, and the
+        // detail of a field that isn't the id keeps its value
+        let text = MINIMAL.replace("inhale_duration = 5.0", "\"inhale_duration\" = \"2.5\"");
+        let err  = load(&write_study(&dir, &text)).expect_err("a string where a number goes");
+        assert_eq!(err.summary(), "study.toml, line 3, field inhale_duration: has to be a number");
+        assert!(err.detail().contains("2.5"), "{}", err.detail());
+
+        // And the line of a validation error that quotes its key
+        let text = format!("{MINIMAL}\"drift\" = 0.5\n");
+        let err  = load(&write_study(&dir, &text)).expect_err("drift below 1.0");
+        assert_eq!(err.summary(), "study.toml, line 7, field drift: has to be 1.0 or more");
+    }
+
+    #[test]
     fn a_syntax_error_names_the_line_and_the_key_and_quotes_nothing() {
         let dir = tmp_dir("syntax");
 
@@ -1060,19 +1116,35 @@ mod tests {
     }
 
     #[test]
-    fn the_line_and_key_helpers_read_only_bare_keys() {
+    fn the_line_and_key_helpers_read_bare_keys_and_keys_in_one_pair_of_quotes() {
         assert_eq!(key_in("drift = 1.0"), Some("drift"));
         assert_eq!(key_in("  inhale-duration=5"), Some("inhale-duration"));
         assert_eq!(key_in("\u{feff}participant_id = \"x = y\""), Some("participant_id"));
         assert_eq!(key_in("# drift = 1.0"), None);
         assert_eq!(key_in("[table]"), None);
-        assert_eq!(key_in("\"quoted\" = 1"), None);
         assert_eq!(key_in("a.b = 1"), None);
         assert_eq!(key_in(""), None);
+
+        // TOML reads a quoted key as the bare one, in either kind of quote
+        assert_eq!(key_in("\"participant_id\" = 47110000"), Some("participant_id"));
+        assert_eq!(key_in("'participant_id' = 47110000"), Some("participant_id"));
+        assert_eq!(key_in("  \"inhale_duration\"   =  5.0 # note"), Some("inhale_duration"));
+        assert_eq!(key_in("\u{feff}\"drift\"=1.0"), Some("drift"));
+        assert_eq!(key_in("\"quoted\" = 1"), Some("quoted"));
+        // A quoted key that isn't a plain name, a pair that doesn't close or
+        // match, and text between the closing quote and the equals sign
+        for line in [
+            "\"a b\" = 1", "\"a.b\" = 1", "\"a=b\" = 1", "\"\" = 1", "\" drift\" = 1",
+            "\"participant\\u005fid\" = 1", "\"drift = 1", "\"drift' = 1", "'drift\" = 1",
+            "\"drift\"x = 1", "\"drift\" 1", "\"drift\"", "a.\"b\" = 1", "\"a\".b = 1",
+        ] {
+            assert_eq!(key_in(line), None, "{line}");
+        }
 
         let text = "a = 1\n\nb = 2\r\nc = 3";
         assert_eq!(line_of_key(text, "c"), Some(4));
         assert_eq!(line_of_key(text, "z"), None);
+        assert_eq!(line_of_key("a = 1\n\"b\" = 2\n'c' = 3", "c"), Some(3), "a quoted key is found by its name");
         assert_eq!(line_at(text, 0), 1);
         assert_eq!(line_at(text, 7), 3);
         assert_eq!(line_at(text, 9999), 4, "an offset past the end is the last line");
@@ -1414,7 +1486,7 @@ mod tests {
         }
         assert_eq!(
             StudyConfig { overlay_opacity: Some(1.5), ..valid() }.validate().unwrap_err().summary(),
-            "study.toml, field overlay_opacity: has to be between 0 and 1",
+            "study.toml, field overlay_opacity: has to be above 0 and at most 1",
         );
         assert_eq!(
             StudyConfig { inhale_color: Some([2.0; 4]), ..valid() }.validate().unwrap_err().summary(),
@@ -1424,15 +1496,81 @@ mod tests {
 
     #[test]
     fn the_edges_of_the_appearance_ranges_are_valid() {
+        // The smallest alpha and opacity above 0 count. A background alpha of
+        // 0 is the shipped clear tint
         let cfg = StudyConfig {
-            inhale_color:     Some([0.0, 0.0, 0.0, 0.0]),
+            inhale_color:     Some([0.0, 0.0, 0.0, f32::MIN_POSITIVE]),
             exhale_color:     Some([1.0, 1.0, 1.0, 1.0]),
-            background_color: Some([0.0, 1.0, 0.0, 1.0]),
-            overlay_opacity:  Some(0.0),
+            background_color: Some([0.0, 1.0, 0.0, 0.0]),
+            overlay_opacity:  Some(f32::MIN_POSITIVE),
             ..valid()
         };
         assert_eq!(cfg.validate(), Ok(()));
         assert_eq!(StudyConfig { overlay_opacity: Some(1.0), ..valid() }.validate(), Ok(()));
+        assert_eq!(StudyConfig { background_color: Some([0.0, 1.0, 0.0, 1.0]), ..valid() }.validate(), Ok(()));
+    }
+
+    #[test]
+    fn a_pacer_nobody_can_see_is_rejected_and_the_clear_background_is_not() {
+        // The shader multiplies each phase color's alpha by the overlay
+        // opacity, so a 0 in either field draws no shape, and a window keeps
+        // the color's alpha while it pins the opacity to 1
+        let cases = [
+            (StudyConfig { overlay_opacity: Some(0.0),  ..valid() }, "overlay_opacity", "has to be above 0 and at most 1"),
+            (StudyConfig { overlay_opacity: Some(-0.0), ..valid() }, "overlay_opacity", "has to be above 0 and at most 1"),
+            (StudyConfig { inhale_color: Some([0.9, 0.8, 0.7, 0.0]), ..valid() }, "inhale_color", "has to have an alpha above 0"),
+            (StudyConfig { exhale_color: Some([0.1, 0.2, 0.3, -0.0]), ..valid() }, "exhale_color", "has to have an alpha above 0"),
+            (StudyConfig { inhale_color: Some([0.0; 4]), ..valid() }, "inhale_color", "has to have an alpha above 0"),
+            // A window draws at full strength, so the opacity is moot there,
+            // and the file is rejected all the same: a file that works in
+            // one display mode has to work in the other
+            (
+                StudyConfig { overlay_opacity: Some(0.0), display_mode: Some(DisplayMode::Window), ..valid() },
+                "overlay_opacity",
+                "has to be above 0 and at most 1",
+            ),
+            (
+                StudyConfig { exhale_color: Some([0.1, 0.2, 0.3, 0.0]), display_mode: Some(DisplayMode::Window), ..valid() },
+                "exhale_color",
+                "has to have an alpha above 0",
+            ),
+        ];
+        for (cfg, field, rule) in cases {
+            let err = cfg.validate().expect_err(field);
+            assert_eq!(err.field_name(), Some(field));
+            assert_eq!(err.summary(), format!("study.toml, field {field}: {rule}"));
+            assert!(err.detail().starts_with(&format!("{field} is ")), "{}", err.detail());
+            assert!(err.detail().ends_with(&format!(", which {rule}")), "{}", err.detail());
+        }
+
+        // The detail holds the color, which the summary never does
+        let err = StudyConfig { inhale_color: Some([0.9, 0.8, 0.7, 0.0]), ..valid() }.validate().unwrap_err();
+        assert!(err.detail().contains("0.9"), "{}", err.detail());
+        assert!(!err.summary().contains("0.9"), "{}", err.summary());
+
+        // The rules don't reach the other fields: a clear background, a
+        // translucent phase color, and a faint overlay all validate
+        assert_eq!(StudyConfig { background_color: Some([0.0; 4]), ..valid() }.validate(), Ok(()));
+        assert_eq!(StudyConfig { inhale_color: Some([1.0, 0.0, 0.0, 0.01]), ..valid() }.validate(), Ok(()));
+        assert_eq!(StudyConfig { overlay_opacity: Some(0.01), ..valid() }.validate(), Ok(()));
+        // A color the file leaves out has the shipped alpha of 1
+        assert_eq!(Settings::default().inhale_color[3], 1.0);
+        assert_eq!(Settings::default().exhale_color[3], 1.0);
+    }
+
+    #[test]
+    fn a_pacer_nobody_can_see_gets_the_line_it_is_on_and_never_its_value() {
+        let dir = tmp_dir("invisible-line");
+        let cases = [
+            ("overlay_opacity = 0.0", "study.toml, line 7, field overlay_opacity: has to be above 0 and at most 1"),
+            ("inhale_color = [1, 0, 0, 0]", "study.toml, line 7, field inhale_color: has to have an alpha above 0"),
+            ("exhale_color = [0, 0, 1, 0]", "study.toml, line 7, field exhale_color: has to have an alpha above 0"),
+        ];
+        for (line, shown) in cases {
+            let err = load(&write_study(&dir, &format!("{MINIMAL}{line}\n"))).expect_err(line);
+            assert_eq!(err.summary(), shown);
+            assert_eq!(err.line(), Some(7));
+        }
     }
 
     #[test]

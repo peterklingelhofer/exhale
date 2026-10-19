@@ -4,10 +4,14 @@
 //!   - `setup_overlay_window`: make window click-through, always-on-top,
 //!     spans every workspace/Space
 //!   - `setup_animation_window`: let the OS's full-screen control work on the
-//!     window of Window mode (macOS only, a no-op elsewhere)
+//!     window of Window mode, or keep it from working on a window a study
+//!     holds full screen (macOS only, a no-op elsewhere)
 //!   - `show_animation_window` / `hide_animation_window` / `is_full_screen`:
 //!     show and hide the window of Window mode, which a study can hold full
 //!     screen on the primary display
+//!   - `reassert_full_screen_presentation`: put back the menu bar and Dock
+//!     hiding of that full screen after a change of activation policy
+//!     (macOS only, a no-op elsewhere)
 //!   - `setup_settings_window`: float above overlay, don't appear in taskbar
 //!   - `apply_app_visibility`: TopBarOnly/DockOnly/Both (tray vs taskbar)
 //!   - `request_notification_permission`: no-op off macOS
@@ -85,7 +89,8 @@ pub use mac::{
     uninstall_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, running_in_app_bundle, setup_animation_window,
     setup_overlay_window, setup_settings_window,
-    hide_animation_window, is_full_screen, show_animation_window,
+    hide_animation_window, is_app_active, is_full_screen, reassert_full_screen_presentation,
+    show_animation_window, PRESENTATION_FOLLOW_UPS,
 };
 
 #[cfg(target_os = "windows")]
@@ -119,18 +124,23 @@ pub use linux::{
 pub fn install_main_menu(_show_research: bool) {}
 
 /// Non-macOS stub for `setup_animation_window`.  Windows maximize and
-/// the Linux window manager's own controls need nothing from us
+/// the Linux window manager's own controls need nothing from us, and
+/// `fills_display` only matters to the macOS window, whose full-screen
+/// control is the one the study's own full screen has to keep out
 #[cfg(not(target_os = "macos"))]
-pub fn setup_animation_window(_window: &Window) {}
+pub fn setup_animation_window(_window: &Window, _fills_display: bool) {}
 
 /// Show the window of Window mode, and with `fill_display` fill the primary
 /// display with it
 ///
 /// Borderless full screen on the primary monitor, or on the monitor the
-/// window is on when the system names no primary.  A Stop hides the window
-/// and leaves it full screen, so the next Start finds that state set and
-/// winit does nothing.  macOS fills the display another way, in
-/// `platform/mac.rs`
+/// window is on when the system names no primary, which is the case on
+/// Wayland, where the compositor picks the output.  On Linux every Stop
+/// leaves the window out of full screen (see [`hide_animation_window`]), so
+/// the request made here is a change from what winit has stored, and winit
+/// acts on it.  On Windows a hidden window keeps its full-screen style, the
+/// request finds the state already set, and the window comes back as it
+/// left.  macOS fills the display another way, in `platform/mac.rs`
 #[cfg(not(target_os = "macos"))]
 pub fn show_animation_window(window: &Window, fill_display: bool) {
     window.set_visible(true);
@@ -142,8 +152,33 @@ pub fn show_animation_window(window: &Window, fill_display: bool) {
 }
 
 /// Hide the window of Window mode
+///
+/// Windows hides the window with its full-screen style, and the next show
+/// finds it as it was. Linux takes the window out of full screen first, on
+/// X11 and Wayland alike, for a different reason on each:
+///
+///   - X11: `set_visible(false)` withdraws the window. The window managers
+///     (Mutter and KWin among them) drop `_NET_WM_STATE` from a withdrawn
+///     window, as EWMH asks of them, and the full-screen state goes with
+///     it. winit keeps the state it last sent. The next show's
+///     `set_fullscreen` finds that state equal to its request and returns
+///     without sending the hint (`set_fullscreen_inner` in
+///     `x11/window.rs`, which the replay in `visibility_notify` goes
+///     through), so the window comes back decorated and not full screen.
+///     Leaving full screen before the hide makes the next request a change
+///   - Wayland: winit's `set_visible` does nothing, so the window stays on
+///     screen after Stop. Left full screen, a study's window would keep
+///     covering the display, and the stopped frame clears to transparent,
+///     which an opaque window shows as black. Leaving full screen turns it
+///     back into a normal window with that frame in it, and the desktop is
+///     the participant's again. `fullscreen()` reports what the compositor
+///     last configured, so a Stop that follows a Start within one round
+///     trip to the compositor finds nothing to leave
 #[cfg(not(target_os = "macos"))]
 pub fn hide_animation_window(window: &Window) {
+    if cfg!(all(unix, not(target_os = "macos"))) && window.fullscreen().is_some() {
+        window.set_fullscreen(None);
+    }
     window.set_visible(false);
 }
 
@@ -152,6 +187,26 @@ pub fn hide_animation_window(window: &Window) {
 pub fn is_full_screen(window: &Window) -> bool {
     window.fullscreen().is_some()
 }
+
+/// Non-macOS stub for `reassert_full_screen_presentation`. Only macOS
+/// hides the menu bar and the Dock with presentation options that a change
+/// of activation policy can take away: the full screen of the other
+/// platforms is the window's own, and a window manager keeps it
+#[cfg(not(target_os = "macos"))]
+pub fn reassert_full_screen_presentation(_window: &Window, _reactivate: bool) {}
+
+/// Non-macOS stub for `is_app_active`. A change of Show In doesn't move
+/// focus off macOS, so there's nothing to hand back afterwards
+#[cfg(not(target_os = "macos"))]
+pub fn is_app_active() -> bool {
+    false
+}
+
+/// Delays after a change of Show In at which
+/// `reassert_full_screen_presentation` runs again, none where there's
+/// nothing to put back
+#[cfg(not(target_os = "macos"))]
+pub const PRESENTATION_FOLLOW_UPS: &[std::time::Duration] = &[];
 
 /// Non-macOS stub for `render_sf_symbol`: SF Symbols are AppKit-only.
 /// Callers fall back to Unicode glyphs when this returns `None`

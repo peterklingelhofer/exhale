@@ -204,6 +204,36 @@ fn open_session_log(manager: &SettingsManager) -> Option<Arc<SessionLog>> {
     }
 }
 
+// ─── Display mode ─────────────────────────────────────────────────────────────
+
+/// The windows `build` makes for the display mode the settings hold, or
+/// when that makes none, the windows for `previous`, with the setting put
+/// back to it
+///
+/// A display switch closes the old windows before it builds the new ones,
+/// so a build that comes back empty would leave the session with no
+/// animation window at all. In Window mode the hot-plug rescan returns at
+/// once, and nothing else would build one. Going back to what worked, and
+/// saving that, keeps a session that was showing the animation showing it,
+/// and the panel from naming a mode the session isn't in. A second empty
+/// result is handed back as it is, for the caller to deal with. `build` is
+/// `OverlayHandle::create_all` over the settings the manager holds
+fn build_or_revert<T>(
+    manager:   &SettingsManager,
+    previous:  DisplayMode,
+    mut build: impl FnMut() -> Vec<T>,
+) -> Vec<T> {
+    let built = build();
+    let wanted = manager.settings.read_or_recover().display_mode;
+    if !built.is_empty() || wanted == previous {
+        return built;
+    }
+    error!("display mode change to {wanted:?}: no animation window created, going back to {previous:?}");
+    manager.settings.write_or_recover().display_mode = previous;
+    manager.mark_dirty();
+    build()
+}
+
 // ─── App state ────────────────────────────────────────────────────────────────
 
 struct App {
@@ -298,6 +328,14 @@ struct App {
     // Set once the shutdown work in `exiting` has run, so a loop that
     // ends twice does it once
     shut_down: bool,
+
+    // Times at which a window a study holds full screen gets its menu bar
+    // and Dock hiding put back, after a change of Show In. Earliest first.
+    // Empty off macOS: see `apply_visibility`
+    presentation_passes: Vec<Instant>,
+    // Whether the app was the active one when Show In last changed, which
+    // the passes above hand back to it
+    presentation_reactivate: bool,
 }
 
 impl App {
@@ -333,6 +371,8 @@ impl App {
             timers:           Timers::new(),
             session_log,
             shut_down:        false,
+            presentation_passes: Vec::new(),
+            presentation_reactivate: false,
         }
     }
 
@@ -506,9 +546,31 @@ impl App {
     /// taskbar and pager hints) and the tray icon.  The settings panel
     /// and the tray's Reset both come through here
     fn apply_visibility(&mut self, vis: exhale_core::types::AppVisibility) {
+        let was_active   = platform::is_app_active();
         let settings_win = self.settings_win.as_ref().map(|sw| sw.window.as_ref());
         platform::apply_app_visibility(vis, settings_win);
+        // On macOS the new activation policy can take the menu bar and Dock
+        // hiding of a study's full-screen window with it, and the menu bar
+        // came back about 1.4 s after Show In went to Top Bar. Put it back
+        // now, and at the delays in `PRESENTATION_FOLLOW_UPS`, which
+        // `about_to_wait` runs. None of it waits on anything: the change
+        // itself is made
+        self.presentation_reactivate = was_active;
+        self.reassert_full_screen_presentation();
+        let now = Instant::now();
+        self.presentation_passes = platform::PRESENTATION_FOLLOW_UPS
+            .iter()
+            .map(|delay| now + *delay)
+            .collect();
         self.sync_tray_to_visibility(vis);
+    }
+
+    /// Put the menu bar and Dock hiding back on any window a study holds
+    /// full screen. See [`platform::reassert_full_screen_presentation`]
+    fn reassert_full_screen_presentation(&self) {
+        for h in self.overlays.values() {
+            h.reassert_full_screen(self.presentation_reactivate);
+        }
     }
 
     /// Matches Swift AppDelegate.applyAppVisibility: DockOnly removes the
@@ -570,7 +632,7 @@ impl App {
         // get what an appearance change in the panel gives them: the
         // breath restarts if it's running, and a frame is drawn if not
         if diff.display_mode_changed {
-            self.apply_display_mode(event_loop);
+            self.apply_display_mode(event_loop, before.display_mode);
             let current = self.settings.read_or_recover().clone();
             if diff.should_restart_animation(&current) {
                 if let Some(c) = &self.controller { c.restart(); }
@@ -809,6 +871,7 @@ impl App {
         }
 
         // ── Create overlays for newly connected monitors ─────────────
+        let animating = self.settings.read_or_recover().is_animating;
         let mut added_any = false;
         for m in current.into_iter() {
             let key = overlay::monitor_key(&m);
@@ -820,6 +883,9 @@ impl App {
             ) {
                 Ok(h) => {
                     info!("monitor connected, created overlay {:?}", h.window.id());
+                    // A monitor plugged in while stopped gets its clear
+                    // frame here: no controller tick will send one
+                    h.settle(animating);
                     added_any = true;
                     self.overlays.insert(h.window.id(), h);
                 }
@@ -850,7 +916,13 @@ impl App {
     /// A session that can only show a window (Wayland, or a swap chain
     /// with no per-pixel alpha) has nothing to swap: the setting stays
     /// stored and the window stays
-    fn apply_display_mode(&mut self, event_loop: &ActiveEventLoop) {
+    ///
+    /// `previous` is the mode the session was in. When the new mode builds
+    /// no window, the setting goes back to it and its windows are built
+    /// again, so the session never ends up with none (see
+    /// [`build_or_revert`]). Every caller has the old settings at hand:
+    /// the panel's frame and Reset both diffed against them
+    fn apply_display_mode(&mut self, event_loop: &ActiveEventLoop, previous: DisplayMode) {
         if self.overlays.values().any(|h| h.window_only) { return; }
         let Some(gpu) = self.gpu.as_ref().map(Arc::clone) else { return; };
         let Some(senders) = self.frame_senders.as_ref().map(Arc::clone) else { return; };
@@ -864,18 +936,20 @@ impl App {
 
         // Old windows go first, so the user never sees both sets at once
         self.overlays.clear();
-        let handles = OverlayHandle::create_all(
-            event_loop, gpu, Arc::clone(&self.settings), state,
-            self.primary_max_circle_scale,
-        );
+        let handles = build_or_revert(&self.settings_manager, previous, || {
+            OverlayHandle::create_all(
+                event_loop, Arc::clone(&gpu), Arc::clone(&self.settings),
+                Arc::clone(&state), self.primary_max_circle_scale,
+            )
+        });
         if handles.is_empty() {
             error!("display mode change: no animation window created");
         }
         // Same as at startup: a stopped session keeps its window hidden
-        // until Start
+        // until Start, and has its clear frame drawn
         let animating = self.settings.read_or_recover().is_animating;
         for h in &handles {
-            h.set_animation_visible(animating);
+            h.settle(animating);
         }
         for h in handles {
             self.overlays.insert(h.window.id(), h);
@@ -997,10 +1071,12 @@ impl ApplicationHandler<AppEvent> for App {
         // fallback) should start hidden if the user quit the app
         // while stopped, so they come back to a clean "Stop"-state
         // instead of a window showing the stopped clear frame.  No-op
-        // for threaded fullscreen overlays
+        // for threaded fullscreen overlays.  A launch that starts
+        // stopped, as one with a broken study does, draws the clear
+        // frame once: the controller sends none while stopped
         let initial_animating = self.settings.read_or_recover().is_animating;
         for h in &handles {
-            h.set_animation_visible(initial_animating);
+            h.settle(initial_animating);
         }
         for h in handles {
             self.overlays.insert(h.window.id(), h);
@@ -1129,10 +1205,13 @@ impl ApplicationHandler<AppEvent> for App {
         // Cross-platform: macOS toggles NSApp activation policy.  Windows toggles
         // the settings window's taskbar entry.  Linux toggles SKIP_TASKBAR/PAGER.
         // Applied after the settings window exists so Windows/Linux can see it
+        //
+        // Through `apply_visibility`, as every later change is. On macOS a
+        // study's window is in full screen by now, and the policy change
+        // that Top Bar asks for can take its menu bar hiding away
         {
             let vis = self.settings.read_or_recover().app_visibility;
-            let settings_win = self.settings_win.as_ref().map(|sw| sw.window.as_ref());
-            platform::apply_app_visibility(vis, settings_win);
+            self.apply_visibility(vis);
         }
 
         event_loop.set_control_flow(ControlFlow::Wait);
@@ -1286,7 +1365,7 @@ impl ApplicationHandler<AppEvent> for App {
                         // treats the new windows like any other
                         // appearance change
                         if diff.display_mode_changed {
-                            self.apply_display_mode(event_loop);
+                            self.apply_display_mode(event_loop, before.display_mode);
                         }
                         // Sync windowed-fallback visibility with
                         // `is_animating`.  Settings-panel Start /
@@ -1433,13 +1512,16 @@ impl ApplicationHandler<AppEvent> for App {
                 WindowEvent::RedrawRequested => handle.render_on_main(),
                 _ => {}
             }
+            // `None` while the window is minimized or has no size, which on
+            // Windows is how a minimize arrives: the saved placement stays
             if persist_placement {
-                let placement = placement::capture_placement(
+                if let Some(placement) = placement::capture_placement(
                     event_loop, &handle.window,
-                );
-                let mut s = self.settings.write_or_recover();
-                s.set_animation_window_placement(placement);
-                self.settings_manager.mark_dirty();
+                ) {
+                    let mut s = self.settings.write_or_recover();
+                    s.set_animation_window_placement(placement);
+                    self.settings_manager.mark_dirty();
+                }
             }
             if was_close && is_windowed_mode {
                 // Route through `do_stop` (not raw `set_visible`) so
@@ -1590,6 +1672,14 @@ impl ApplicationHandler<AppEvent> for App {
             }
         }
 
+        // The passes that follow a change of Show In, which put a study
+        // window's menu bar and Dock hiding back (see `apply_visibility`)
+        if self.presentation_passes.first().is_some_and(|due| Instant::now() >= *due) {
+            let now = Instant::now();
+            self.presentation_passes.retain(|due| *due > now);
+            self.reassert_full_screen_presentation();
+        }
+
         // Compute the earliest deadline we need the event loop to wake for: an
         // egui-requested repaint or an auto-stop/reminder firing.  With
         // `ControlFlow::Wait` alone the loop would sleep indefinitely and
@@ -1610,6 +1700,7 @@ impl ApplicationHandler<AppEvent> for App {
             timer_deadline,
             topmost_deadline,
             self.next_monitor_scan,
+            self.presentation_passes.first().copied(),
         ]
             .into_iter()
             .flatten()
@@ -2080,5 +2171,75 @@ mod tests {
         let mut s = Settings { inhale_duration: 9.0, ..Settings::default() };
         reset_settings(&mut s, None);
         assert_eq!(s.inhale_duration, Settings::default().inhale_duration);
+    }
+
+    // ── A display switch that builds nothing ──────────────────────
+
+    /// A manager whose settings already hold `mode`, the way the panel
+    /// commits a switch before `apply_display_mode` runs
+    fn manager_switched_to(tag: &str, mode: DisplayMode) -> Folder {
+        let folder = Folder::new(tag, None);
+        folder.manager.settings.write_or_recover().display_mode = mode;
+        folder
+    }
+
+    #[test]
+    fn a_display_switch_that_builds_windows_keeps_the_new_mode() {
+        let folder = manager_switched_to("switch-ok", DisplayMode::Window);
+        let mut builds = 0;
+        let built = build_or_revert(&folder.manager, DisplayMode::Overlay, || {
+            builds += 1;
+            vec!["the window"]
+        });
+        assert_eq!((built, builds), (vec!["the window"], 1));
+        assert_eq!(folder.manager.settings.read_or_recover().display_mode, DisplayMode::Window);
+    }
+
+    #[test]
+    fn a_display_switch_that_builds_nothing_goes_back_and_builds_the_old_windows() {
+        let folder  = manager_switched_to("switch-empty", DisplayMode::Window);
+        let manager = &folder.manager;
+        // What `create_all` does: it builds for the mode the settings hold
+        let mut tried = Vec::new();
+        let built = build_or_revert(manager, DisplayMode::Overlay, || {
+            let mode = manager.settings.read_or_recover().display_mode;
+            tried.push(mode);
+            match mode {
+                DisplayMode::Window  => Vec::new(),
+                DisplayMode::Overlay => vec!["an overlay per monitor"],
+            }
+        });
+        assert_eq!(tried, [DisplayMode::Window, DisplayMode::Overlay], "the old mode is built second");
+        assert_eq!(built, vec!["an overlay per monitor"]);
+        assert_eq!(
+            manager.settings.read_or_recover().display_mode,
+            DisplayMode::Overlay,
+            "and the setting says the session is back in it",
+        );
+    }
+
+    #[test]
+    fn a_switch_that_cannot_rebuild_the_old_windows_either_still_names_the_old_mode() {
+        let folder = manager_switched_to("switch-none", DisplayMode::Overlay);
+        let mut builds = 0;
+        let built: Vec<&str> = build_or_revert(&folder.manager, DisplayMode::Window, || {
+            builds += 1;
+            Vec::new()
+        });
+        assert_eq!((built.len(), builds), (0, 2), "one try for each mode, and no more");
+        assert_eq!(folder.manager.settings.read_or_recover().display_mode, DisplayMode::Window);
+    }
+
+    #[test]
+    fn a_build_that_fails_without_a_change_of_mode_is_not_tried_again() {
+        // Nothing to go back to: the mode the settings hold is the one the session was in
+        let folder = manager_switched_to("switch-same", DisplayMode::Overlay);
+        let mut builds = 0;
+        let built: Vec<&str> = build_or_revert(&folder.manager, DisplayMode::Overlay, || {
+            builds += 1;
+            Vec::new()
+        });
+        assert_eq!((built.len(), builds), (0, 1));
+        assert_eq!(folder.manager.settings.read_or_recover().display_mode, DisplayMode::Overlay);
     }
 }
