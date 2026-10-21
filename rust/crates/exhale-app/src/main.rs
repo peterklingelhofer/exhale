@@ -33,7 +33,7 @@ use exhale_core::{
     settings::{Settings, SettingsDiff, ShortcutAction},
     settings_manager::{file_label, SettingsManager},
     study::{StudyError, StudyStatus},
-    types::DisplayMode,
+    types::{AppVisibility, DisplayMode},
 };
 use exhale_render::GpuContext;
 #[cfg(feature = "global-hotkeys")]
@@ -170,6 +170,25 @@ fn hold_study(settings: &mut Settings, status: &StudyStatus) {
     }
     if status.error().is_some() {
         settings.is_animating = false;
+    }
+}
+
+/// The Show In the app puts into effect: Both while a study holds the
+/// animation window full screen, and the stored value otherwise
+///
+/// On macOS, Top Bar switches the app to the accessory activation policy,
+/// and over that full-screen window the switch deactivates the app: the
+/// menu bar comes back and the window drops behind other apps' windows.
+/// macOS 14 and later ignore a programmatic re-activation, so the app
+/// can't bring itself back. The rule is the same on every platform, and
+/// the settings panel hides the Appearance card while it holds. The stored
+/// `app_visibility` is kept, and it applies again at the first launch
+/// without the study file
+fn effective_visibility(settings: &Settings) -> AppVisibility {
+    if overlay::study_fills_display(settings) {
+        AppVisibility::Both
+    } else {
+        settings.app_visibility
     }
 }
 
@@ -625,7 +644,8 @@ impl App {
         // here the way it does when the panel changes it.  After the
         // rebind, so a tray this builds starts from the reset shortcuts
         if diff.visibility_changed {
-            self.apply_visibility(diff.new_visibility);
+            let vis = effective_visibility(&self.settings.read_or_recover());
+            self.apply_visibility(vis);
         }
         // Reset puts the display back to Overlay, so a session showing
         // the window of Window mode swaps back.  The new windows then
@@ -1138,7 +1158,7 @@ impl ApplicationHandler<AppEvent> for App {
 
         // ── System tray ───────────────────────────────────────────────────────
         {
-            let vis = self.settings.read_or_recover().app_visibility;
+            let vis = effective_visibility(&self.settings.read_or_recover());
             self.sync_tray_to_visibility(vis);
         }
 
@@ -1210,7 +1230,7 @@ impl ApplicationHandler<AppEvent> for App {
         // study's window is in full screen by now, and the policy change
         // that Top Bar asks for can take its menu bar hiding away
         {
-            let vis = self.settings.read_or_recover().app_visibility;
+            let vis = effective_visibility(&self.settings.read_or_recover());
             self.apply_visibility(vis);
         }
 
@@ -1397,7 +1417,7 @@ impl ApplicationHandler<AppEvent> for App {
                         // Apply platform-specific visibility: macOS activation policy,
                         // Windows taskbar entry, Linux SKIP_TASKBAR/SKIP_PAGER
                         if diff.visibility_changed {
-                            self.apply_visibility(diff.new_visibility);
+                            self.apply_visibility(effective_visibility(&settings));
                         }
 
                         // Restart animation from inhale-phase-0 when visual settings
@@ -1890,6 +1910,12 @@ pub(crate) mod test_support {
                                          exhale_duration = 5.0\n\
                                          post_exhale_hold_duration = 0.0\n";
 
+    /// `STUDY_FILE` with the animation window held full screen on the
+    /// primary display
+    pub(crate) fn window_study_file() -> String {
+        format!("{STUDY_FILE}display_mode = \"window\"\n")
+    }
+
     /// A study file whose inhale is below the shortest phase the
     /// controller runs. The number is one a test can look for on screen
     pub(crate) const BROKEN_STUDY_FILE: &str = "participant_id = \"P07\"\n\
@@ -1945,7 +1971,7 @@ pub(crate) mod test_support {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::test_support::{events, Folder, BROKEN_STUDY_FILE, STUDY_FILE};
+    use super::test_support::{events, window_study_file, Folder, BROKEN_STUDY_FILE, STUDY_FILE};
 
     /// `Settings` has no `PartialEq`, so two are the same when every field
     /// prints the same
@@ -2171,6 +2197,40 @@ mod tests {
         let mut s = Settings { inhale_duration: 9.0, ..Settings::default() };
         reset_settings(&mut s, None);
         assert_eq!(s.inhale_duration, Settings::default().inhale_duration);
+    }
+
+    // ── Show In while a study fills the display ───────────────────
+
+    #[test]
+    fn a_study_that_fills_the_display_shows_in_both_and_keeps_the_stored_show_in() {
+        let folder = Folder::new("show-in-window", Some(&window_study_file()));
+        let mut s = folder.manager.settings.read_or_recover().clone();
+        assert!(s.study.is_some() && s.display_mode == DisplayMode::Window, "the file holds the window full screen");
+        s.app_visibility = AppVisibility::TopBarOnly;
+
+        // What every frame of the panel does to the settings first
+        hold_study(&mut s, &StudyStatus::Locked);
+
+        assert_eq!(effective_visibility(&s), AppVisibility::Both);
+        assert_eq!(s.app_visibility, AppVisibility::TopBarOnly, "Top Bar stays stored, for a launch without the file");
+    }
+
+    #[test]
+    fn show_in_takes_effect_as_stored_with_a_study_that_keeps_the_overlay_or_with_none() {
+        // The last case is a window the participant chose, with no study to hold it full screen
+        for (tag, file, mode) in [
+            ("show-in-overlay",    Some(STUDY_FILE), DisplayMode::Overlay),
+            ("show-in-open",       None,             DisplayMode::Overlay),
+            ("show-in-own-window", None,             DisplayMode::Window),
+        ] {
+            let folder = Folder::new(tag, file);
+            let mut s = folder.manager.settings.read_or_recover().clone();
+            s.display_mode = mode;
+            for stored in [AppVisibility::TopBarOnly, AppVisibility::DockOnly, AppVisibility::Both] {
+                s.app_visibility = stored;
+                assert_eq!(effective_visibility(&s), stored, "{tag}");
+            }
+        }
     }
 
     // ── A display switch that builds nothing ──────────────────────

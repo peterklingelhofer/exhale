@@ -1086,12 +1086,29 @@ const RESET_TEXT_STUDY: ResetText = ResetText {
              locks the pace and the appearance. Can't be undone.",
 };
 
+/// In a study that holds the animation window full screen, Show In is
+/// hidden and the app runs as Both whatever it holds, so the shortcuts are
+/// all that Reset visibly restores
+const RESET_TEXT_STUDY_WINDOW: ResetText = ResetText {
+    help:   "Reset the keyboard shortcuts to their defaults.\n\
+             The study locks everything else.",
+    title:  "Reset the keyboard shortcuts?",
+    detail: "This restores the keyboard shortcuts. The study locks the \
+             pace, the appearance and the display. Can't be undone.",
+};
+
 /// The words for a Reset, true for the settings it will find
 ///
-/// `study` is true when `settings.study` is set, which is when Reset keeps
-/// the lock
-fn reset_text(study: bool) -> &'static ResetText {
-    if study { &RESET_TEXT_STUDY } else { &RESET_TEXT }
+/// A study keeps its lock through Reset (`settings.study` is set), and one
+/// that holds the animation window full screen has Show In hidden as well
+fn reset_text(settings: &Settings) -> &'static ResetText {
+    if crate::overlay::study_fills_display(settings) {
+        &RESET_TEXT_STUDY_WINDOW
+    } else if settings.study.is_some() {
+        &RESET_TEXT_STUDY
+    } else {
+        &RESET_TEXT
+    }
 }
 
 /// Said under the Export button when new lines have arrived since the
@@ -1142,6 +1159,11 @@ fn study_error_card(ui: &mut egui::Ui, err: &StudyError) {
 /// that do nothing, and a disabled widget breaks Tab for the controls after
 /// it (see the Background Color comment below)
 ///
+/// A study that holds the animation window full screen hides Show In as
+/// well, and with it the whole card. The app runs as Both there whatever
+/// the setting holds (see `crate::effective_visibility`), so the row would
+/// only invite presses that do nothing
+///
 /// Split out of [`settings_ui`] so a test can lay the card out on its own
 ///
 /// Returns true when something in it changed the settings
@@ -1152,6 +1174,9 @@ fn appearance_card(
     overlay_available: bool,
     picker_column_w:   f32,
 ) -> bool {
+    if crate::overlay::study_fills_display(settings) {
+        return false;
+    }
     let mut dirty = false;
     section(ui, "Appearance", |ui| {
         if !crate::hides_pacing(status) {
@@ -1590,7 +1615,7 @@ fn settings_ui(
                     );
                     let reset_help = format!(
                         "{}{}",
-                        reset_text(settings.study.is_some()).help,
+                        reset_text(settings).help,
                         shortcut_tooltip_line(settings, ShortcutAction::Reset),
                     );
                     let quit_help = format!(
@@ -1776,7 +1801,7 @@ fn settings_ui(
                 if *pending_reset {
                     ui.add_space(ROW_GAP);
                     let warning_color = warning_color(ui);
-                    let reset = reset_text(settings.study.is_some());
+                    let reset = reset_text(settings);
                     ui.label(egui::RichText::new(reset.title).strong());
                     ui.label(
                         egui::RichText::new(reset.detail)
@@ -2697,6 +2722,12 @@ mod tests {
              The study locks everything else.",
             "the guide quotes these words, one sentence to a line",
         );
+        assert_eq!(
+            RESET_TEXT_STUDY_WINDOW.help,
+            "Reset the keyboard shortcuts to their defaults.\n\
+             The study locks everything else.",
+            "and these, for a study that fills the display",
+        );
         // Outside a study the one sentence stays as it was
         assert!(!RESET_TEXT.help.contains('\n'));
     }
@@ -2714,6 +2745,7 @@ mod tests {
 
         let tooltips = [
             ("the study's Reset", RESET_TEXT_STUDY.help),
+            ("the Reset of a study that fills the display", RESET_TEXT_STUDY_WINDOW.help),
             ("Start, while the study can't start", STUDY_START_HELP),
             ("Overlay Opacity, while a window shows", OPACITY_WINDOW_HELP),
             ("Display", DISPLAY_HELP),
@@ -2734,8 +2766,10 @@ mod tests {
             }
         }
         // The text that follows the break sits under the first sentence
-        let reset = tooltip_rect(RESET_TEXT_STUDY.help, Pos2::new(20.0, 100.0));
-        assert!(reset.height() >= 2.0 * 12.0, "two lines at least: {reset:?}");
+        for help in [RESET_TEXT_STUDY.help, RESET_TEXT_STUDY_WINDOW.help] {
+            let reset = tooltip_rect(help, Pos2::new(20.0, 100.0));
+            assert!(reset.height() >= 2.0 * 12.0, "two lines at least: {reset:?}");
+        }
     }
 
     // ── Study mode ────────────────────────────────────────────────
@@ -2766,6 +2800,16 @@ mod tests {
             display_mode:        None,
         };
         let mut s = exhale_core::settings::Settings::default();
+        study.apply(&mut s);
+        s
+    }
+
+    /// [`locked_settings`] for a study whose file holds the animation
+    /// window full screen: `display_mode = "window"`
+    fn locked_window_settings() -> exhale_core::settings::Settings {
+        let mut s = locked_settings();
+        let mut study = s.study.clone().expect("the lock is recorded");
+        study.display_mode = Some(DisplayMode::Window);
         study.apply(&mut s);
         s
     }
@@ -2989,6 +3033,41 @@ mod tests {
                 assert_eq!(drawn.count(option), 1, "{how}: {option}: {}", drawn.dump());
             }
         }
+    }
+
+    #[test]
+    fn a_study_that_fills_the_display_draws_no_appearance_card() {
+        // Show In was the one row left, and the app runs as Both there
+        // whatever it holds. A log that failed after launch keeps the lock
+        for (how, status) in [
+            ("locked",              StudyStatus::Locked),
+            ("broken after launch", broken_at_load()),
+        ] {
+            let ctx = Context::default();
+            let mut settings = locked_window_settings();
+            let before = format!("{settings:?}");
+            let (drawn, changed, next) = run_appearance_frame(&ctx, tall_input(), &mut settings, &status);
+
+            assert_eq!(drawn.count("APPEARANCE"), 0, "{how}: the card is still there: {}", drawn.dump());
+            assert_eq!(drawn.count("Show In"), 0, "{how}: {}", drawn.dump());
+            for option in SHOW_IN_OPTIONS {
+                assert_eq!(drawn.count(option), 0, "{how}: {option} is showing: {}", drawn.dump());
+            }
+            assert!(!changed, "{how}");
+            assert_eq!(format!("{settings:?}"), before, "{how}: nothing moved");
+            // Nothing is left for Tab to stop at, so one press reaches the button after the card
+            let _ = run_appearance_frame(&ctx, tall_key(egui::Key::Tab), &mut settings, &status);
+            assert_eq!(ctx.memory(|m| m.focused()), Some(next), "{how}");
+        }
+
+        // A file that failed at load locks nothing, so a window the
+        // participant's own settings ask for leaves Show In on the card
+        let mut own_window = exhale_core::settings::Settings {
+            display_mode: DisplayMode::Window,
+            ..Default::default()
+        };
+        let (drawn, _, _) = run_appearance_frame(&Context::default(), tall_input(), &mut own_window, &broken_at_load());
+        assert_eq!(drawn.count("Show In"), 1, "{}", drawn.dump());
     }
 
     #[test]
@@ -3609,7 +3688,7 @@ mod tests {
 
     #[test]
     fn outside_a_study_reset_says_what_it_always_said() {
-        let said = reset_text(false);
+        let said = reset_text(&exhale_core::settings::Settings::default());
         assert_eq!(said.help, "Reset all settings to their default values.");
         assert_eq!(said.title, "Reset all settings to their defaults?");
         assert_eq!(
@@ -3620,7 +3699,7 @@ mod tests {
 
     #[test]
     fn in_a_study_reset_says_it_restores_the_shortcuts_and_show_in_only() {
-        let said = reset_text(true);
+        let said = reset_text(&locked_settings());
         for text in [said.help, said.title, said.detail] {
             assert!(text.contains("keyboard shortcuts") && text.contains("Show In"), "{text}");
             for untrue in ["every appearance", "timing", "all settings"] {
@@ -3628,27 +3707,42 @@ mod tests {
             }
         }
         assert!(said.detail.contains("locks the pace and the appearance"), "{}", said.detail);
+
+        // A study that fills the display hides Show In, so its Reset leaves it unsaid
+        let said = reset_text(&locked_window_settings());
+        for text in [said.help, said.title, said.detail] {
+            assert!(text.contains("keyboard shortcuts") && !text.contains("Show In"), "{text}");
+            for untrue in ["every appearance", "timing", "all settings"] {
+                assert!(!text.contains(untrue), "{text:?} says {untrue:?}");
+            }
+        }
+        assert!(said.detail.contains("locks the pace, the appearance and the display"), "{}", said.detail);
     }
 
     #[test]
     fn the_confirmation_card_uses_the_words_that_are_true_for_the_settings() {
-        for (tag, file, study) in [
-            ("reset-text-study", Some(crate::test_support::STUDY_FILE), true),
-            ("reset-text-open",  None,                                  false),
+        let window_file = crate::test_support::window_study_file();
+        let every_text  = [&RESET_TEXT, &RESET_TEXT_STUDY, &RESET_TEXT_STUDY_WINDOW];
+        for (tag, file, want) in [
+            ("reset-text-window", Some(window_file.as_str()),            &RESET_TEXT_STUDY_WINDOW),
+            ("reset-text-study",  Some(crate::test_support::STUDY_FILE), &RESET_TEXT_STUDY),
+            ("reset-text-open",   None,                                  &RESET_TEXT),
         ] {
             let folder   = crate::test_support::Folder::new(tag, file);
             let mut settings = folder.manager.settings.read().expect("lock").clone();
-            assert_eq!(settings.study.is_some(), study);
+            assert_eq!(reset_text(&settings).title, want.title, "{tag}");
             let ctx = Context::default();
 
             let drawn = run_window_frame(
                 &ctx, tall_input(), &mut settings, &folder.manager, &mut true, &None, &mut None,
             );
 
-            let (said, other) = (reset_text(study), reset_text(!study));
-            assert!(drawn.says(said.title), "{}", drawn.dump());
-            assert!(drawn.says(said.detail), "{}", drawn.dump());
-            assert!(!drawn.says(other.title) && !drawn.says(other.detail), "{}", drawn.dump());
+            // The card says the words it should, and none of the others
+            for text in every_text {
+                let shown = text.title == want.title;
+                assert_eq!(drawn.says(text.title), shown, "{tag}: {}", drawn.dump());
+                assert_eq!(drawn.says(text.detail), shown, "{tag}: {}", drawn.dump());
+            }
         }
     }
 

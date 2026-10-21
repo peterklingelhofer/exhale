@@ -575,7 +575,7 @@ fn initial_window_size(placement: &WindowPlacement) -> Size {
 /// The file's `display_mode` is one of the locked fields, so a study that
 /// leaves it out locks the shipped default, Overlay, and gets no window
 /// to fill the display with
-fn study_fills_display(settings: &Settings) -> bool {
+pub(crate) fn study_fills_display(settings: &Settings) -> bool {
     settings.study.is_some() && settings.display_mode == DisplayMode::Window
 }
 
