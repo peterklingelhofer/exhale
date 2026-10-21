@@ -134,8 +134,10 @@ same thing.
 | `hold_ripple_mode` | `"off"`, `"stark"`, `"gradient"` | `"gradient"` | Ripple around the screen perimeter during holds: none, a hard-edged band (`"stark"`) or a soft glow (`"gradient"`) |
 | `display_mode` | `"overlay"`, `"window"` | `"overlay"` | `"overlay"` is one translucent, click-through window per monitor. `"window"` is one regular window, full screen on the primary display |
 
-Integers work in a color, as in `[1, 0, 0, 1]`. Show In (`app_visibility`) isn't one of the nine,
-and it stays the participant's.
+Integers work in a color, as in `[1, 0, 0, 1]`. Show In (`app_visibility`) isn't one of the nine.
+It stays the participant's with `display_mode = "overlay"`. With `"window"` exhale shows in both
+the top bar and the Dock whatever Show In holds, and Show In applies again at the first launch
+without the file.
 
 With `display_mode = "window"` the app opens the animation window full screen and borderless on
 the primary display at launch. Where the system names no primary display, the window fills the
@@ -236,15 +238,22 @@ fields. The interface then changes in these ways:
   pacing readout. It shows the participant id and the Export and Clear buttons (see [Export and
   clear](#export-and-clear)). The condition code stays in the file and the log and doesn't appear
   on screen.
-- The Appearance card shows Show In and nothing else. Show In (Top Bar, Dock or Both) and the
-  keyboard shortcuts stay the participant's.
+- With `display_mode = "overlay"`, the default, the Appearance card shows Show In and nothing
+  else. Show In (Top Bar, Dock or Both) and the keyboard shortcuts stay the participant's.
+- With `display_mode = "window"` the Appearance card is gone, and exhale shows in both the top bar
+  and the Dock whatever Show In holds, because on macOS a switch to Top Bar deactivates the app
+  and brings the menu bar and other windows over the full screen. The keyboard shortcuts stay the
+  participant's.
 - The Research item disappears from the tray and, on macOS, the app menu.
 - About and the Start, Stop, Reset and Quit buttons stay as they are.
 - Reset restores Show In and the keyboard shortcuts to their defaults, and it forgets the saved
   position of the animation window. The twenty locked fields keep the file's values. The button's
   tooltip reads "Reset the keyboard shortcuts and Show In to their defaults." and, on a second
   line, "The study locks everything else." Its confirmation asks "Reset the keyboard shortcuts and
-  Show In?"
+  Show In?" With `display_mode = "window"` the tooltip reads "Reset the keyboard shortcuts to
+  their defaults." and, on a second line, "The study locks everything else." The confirmation asks
+  "Reset the keyboard shortcuts?" The stored Show In still returns to Both, with no visible effect
+  until the app launches without the file.
 
 After you install a file and launch the app, open Settings. A Study card with the participant id
 means the lock took effect. A card that starts "Study can't start" means it didn't (see
@@ -298,7 +307,9 @@ In that state the app:
 - disables the Start button in the panel (its tooltip reads "The study can't start. Tell whoever
   runs the study.") and in the tray menu, and the Start hotkey does nothing
 - hides the Timing, Randomization and Timers cards, the presets, the rate readout, every
-  Appearance row but Show In, and the Research item, as a locked study does
+  Appearance row but Show In, and the Research item, as a locked study does. A session log that
+  won't open leaves the file's lock in force, so with `display_mode = "window"` the whole
+  Appearance card is gone and exhale shows in both the top bar and the Dock
 - holds the animation still from launch on
 - sends no reminders
 - writes no session log, so the lab learns of the failure from the participant

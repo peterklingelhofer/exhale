@@ -148,11 +148,12 @@ the evidence corpus's own limits. Study mode locks a participant's pacing from a
 the lab provides. The same file can also fix the appearance and the display, including a
 full-screen window on the primary display. Settings then hides the Timing, Randomization and
 Timers cards (with the presets and the rate readout), every Appearance row but Show In, and the
-*Research* item. A file that can't be used keeps the animation still and shows an error card. A
-local session log, one file per participant, covers app, animation and phase timing, and the
-participant exports it by hand. The Mac App Store build's sandbox blocks Export to the Desktop, so
-a macOS study uses a build from source. [`CITATION.cff`](CITATION.cff) at the repo root has the
-software's own citation.
+*Research* item. When the file asks for that full-screen window, the whole Appearance card is
+hidden and exhale shows in both the top bar and the Dock. A file that can't be used keeps the
+animation still and shows an error card. A local session log, one file per participant, covers
+app, animation and phase timing, and the participant exports it by hand. The Mac App Store build's
+sandbox blocks Export to the Desktop, so a macOS study uses a build from source.
+[`CITATION.cff`](CITATION.cff) at the repo root has the software's own citation.
 
 Nothing in this section is medical advice. See the [disclaimer](#disclaimer) above.
 
