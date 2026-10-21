@@ -350,99 +350,6 @@ use super::*;
             || hide_key(window).is_some_and(|key| EXITS.lock_or_recover().exit_in_flight(key))
     }
 
-    /// The presentation options that simple full screen puts in effect: the
-    /// menu bar and the Dock hide until the pointer reaches their edge
-    ///
-    /// The value winit sets in `set_simple_fullscreen` for a window that
-    /// isn't a "borderless game", which none of exhale's is
-    fn simple_full_screen_presentation() -> objc2_app_kit::NSApplicationPresentationOptions {
-        use objc2_app_kit::NSApplicationPresentationOptions as Options;
-
-        Options::AutoHideDock | Options::AutoHideMenuBar
-    }
-
-    /// Whether the presentation options of simple full screen are in force:
-    /// `stored` is what the app holds, `in_effect` what the system applies
-    /// now, and `wanted` what the full screen needs
-    fn presentation_holds(
-        stored:    objc2_app_kit::NSApplicationPresentationOptions,
-        in_effect: objc2_app_kit::NSApplicationPresentationOptions,
-        wanted:    objc2_app_kit::NSApplicationPresentationOptions,
-    ) -> bool {
-        stored == wanted && in_effect.contains(wanted)
-    }
-
-    /// Whether the app is the frontmost one
-    ///
-    /// Read before a change of activation policy, to hand
-    /// [`reassert_full_screen_presentation`] what the change may take away
-    pub fn is_app_active() -> bool {
-        use objc2_app_kit::NSApplication;
-        use objc2_foundation::MainThreadMarker;
-
-        MainThreadMarker::new().is_some_and(|mtm| NSApplication::sharedApplication(mtm).isActive())
-    }
-
-    /// Put back the presentation options of simple full screen, if `window`
-    /// is in it and they're gone
-    ///
-    /// winit sets them once, as the window enters simple full screen. A
-    /// change of activation policy, Show In = Top Bar among them, was seen to
-    /// take them away: the menu bar came back over the full-screen window
-    /// about 1.4 s later. The options belong to the app only while it's the
-    /// active one, so the change may have taken them by deactivating it.
-    /// `reactivate` says the app was active before the change, and it's
-    /// activated again if it no longer is. The app calls this right after
-    /// every such change and again at the intervals of
-    /// [`PRESENTATION_FOLLOW_UPS`], and it does nothing while the options
-    /// hold. AppKit may skip a `setPresentationOptions:` that matches what it
-    /// stored, so the options go in through the ones that hide the bar for
-    /// good first, and the menu bar stays hidden between the two calls
-    pub fn reassert_full_screen_presentation(window: &Window, reactivate: bool) {
-        use objc2::msg_send;
-        use objc2_app_kit::{NSApplication, NSApplicationPresentationOptions as Options};
-        use objc2_foundation::MainThreadMarker;
-        use winit::platform::macos::WindowExtMacOS;
-
-        if !window.simple_fullscreen() {
-            return;
-        }
-        let Some(mtm) = MainThreadMarker::new() else { return; };
-        let app       = NSApplication::sharedApplication(mtm);
-        if reactivate && !app.isActive() {
-            log::info!("full screen presentation: the app was deactivated, activating it again");
-            // The selector the rest of this file uses: the typed binding is
-            // deprecated, and its replacement doesn't exist before macOS 14
-            // SAFETY: a message `NSApplication` answers on every macOS
-            unsafe {
-                let _: () = msg_send![&*app, activateIgnoringOtherApps: true];
-            }
-        }
-        let wanted    = simple_full_screen_presentation();
-        let stored    = app.presentationOptions();
-        let in_effect = app.currentSystemPresentationOptions();
-        if presentation_holds(stored, in_effect, wanted) {
-            return;
-        }
-        log::info!(
-            "full screen presentation options are gone (held {stored:?}, in effect {in_effect:?}, \
-             app active: {}), putting them back",
-            app.isActive(),
-        );
-        app.setPresentationOptions(Options::HideDock | Options::HideMenuBar);
-        app.setPresentationOptions(wanted);
-    }
-
-    /// Delays after a change of activation policy at which
-    /// [`reassert_full_screen_presentation`] runs again. The drop it puts
-    /// right was seen about 1.4 s after the change, so the first pass
-    /// right after it may come too soon
-    pub const PRESENTATION_FOLLOW_UPS: &[std::time::Duration] = &[
-        std::time::Duration::from_millis(500),
-        std::time::Duration::from_millis(1500),
-        std::time::Duration::from_millis(3000),
-    ];
-
     /// Seconds an exit from native full screen gets before the hide stops
     /// waiting on it
     ///
@@ -2299,34 +2206,6 @@ use super::*;
             // class pair twice would fail. Two calls, no panic
             register_reopen_handler();
             register_reopen_handler();
-        }
-
-        #[test]
-        fn the_presentation_options_of_simple_full_screen_hold_only_when_stored_and_in_effect() {
-            use objc2_app_kit::NSApplicationPresentationOptions as Options;
-
-            let wanted = simple_full_screen_presentation();
-            assert_eq!(wanted, Options::AutoHideDock | Options::AutoHideMenuBar, "what winit sets");
-
-            assert!(presentation_holds(wanted, wanted, wanted));
-            assert!(presentation_holds(wanted, wanted | Options::FullScreen, wanted), "extras are fine");
-            // A policy change that clears what the app holds, and one that
-            // leaves it held and drops the effect
-            assert!(!presentation_holds(Options::empty(), wanted, wanted));
-            assert!(!presentation_holds(wanted, Options::empty(), wanted));
-            assert!(!presentation_holds(wanted, Options::AutoHideDock, wanted), "half of it is gone");
-            assert!(!presentation_holds(Options::HideDock | Options::HideMenuBar, wanted, wanted));
-        }
-
-        #[test]
-        fn the_presentation_follow_ups_run_in_order_and_inside_a_few_seconds() {
-            let delays = PRESENTATION_FOLLOW_UPS;
-            assert!(!delays.is_empty());
-            assert!(delays.windows(2).all(|pair| pair[0] < pair[1]), "later each time: {delays:?}");
-            assert!(delays[0] > std::time::Duration::ZERO);
-            // One past the 1.4 s the drop was seen at, and not much more than a few seconds
-            assert!(delays.iter().any(|d| d.as_secs_f64() > 1.4));
-            assert!(delays.last().is_some_and(|d| d.as_secs() <= 5));
         }
 
         // ── Leaving native full screen ────────────────────────────────

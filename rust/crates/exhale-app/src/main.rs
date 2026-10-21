@@ -347,14 +347,6 @@ struct App {
     // Set once the shutdown work in `exiting` has run, so a loop that
     // ends twice does it once
     shut_down: bool,
-
-    // Times at which a window a study holds full screen gets its menu bar
-    // and Dock hiding put back, after a change of Show In. Earliest first.
-    // Empty off macOS: see `apply_visibility`
-    presentation_passes: Vec<Instant>,
-    // Whether the app was the active one when Show In last changed, which
-    // the passes above hand back to it
-    presentation_reactivate: bool,
 }
 
 impl App {
@@ -390,8 +382,6 @@ impl App {
             timers:           Timers::new(),
             session_log,
             shut_down:        false,
-            presentation_passes: Vec::new(),
-            presentation_reactivate: false,
         }
     }
 
@@ -562,34 +552,14 @@ impl App {
 
     /// Put a new Show In value into effect: the platform's own presence
     /// (macOS activation policy, the Windows taskbar entry, the Linux
-    /// taskbar and pager hints) and the tray icon.  The settings panel
-    /// and the tray's Reset both come through here
+    /// taskbar and pager hints) and the tray icon.  Launch, the settings
+    /// panel and the tray's Reset all come through here, each with the value
+    /// [`effective_visibility`] gives, so a study that holds the animation
+    /// window full screen always runs as Both
     fn apply_visibility(&mut self, vis: exhale_core::types::AppVisibility) {
-        let was_active   = platform::is_app_active();
         let settings_win = self.settings_win.as_ref().map(|sw| sw.window.as_ref());
         platform::apply_app_visibility(vis, settings_win);
-        // On macOS the new activation policy can take the menu bar and Dock
-        // hiding of a study's full-screen window with it, and the menu bar
-        // came back about 1.4 s after Show In went to Top Bar. Put it back
-        // now, and at the delays in `PRESENTATION_FOLLOW_UPS`, which
-        // `about_to_wait` runs. None of it waits on anything: the change
-        // itself is made
-        self.presentation_reactivate = was_active;
-        self.reassert_full_screen_presentation();
-        let now = Instant::now();
-        self.presentation_passes = platform::PRESENTATION_FOLLOW_UPS
-            .iter()
-            .map(|delay| now + *delay)
-            .collect();
         self.sync_tray_to_visibility(vis);
-    }
-
-    /// Put the menu bar and Dock hiding back on any window a study holds
-    /// full screen. See [`platform::reassert_full_screen_presentation`]
-    fn reassert_full_screen_presentation(&self) {
-        for h in self.overlays.values() {
-            h.reassert_full_screen(self.presentation_reactivate);
-        }
     }
 
     /// Matches Swift AppDelegate.applyAppVisibility: DockOnly removes the
@@ -1226,9 +1196,9 @@ impl ApplicationHandler<AppEvent> for App {
         // the settings window's taskbar entry.  Linux toggles SKIP_TASKBAR/PAGER.
         // Applied after the settings window exists so Windows/Linux can see it
         //
-        // Through `apply_visibility`, as every later change is. On macOS a
-        // study's window is in full screen by now, and the policy change
-        // that Top Bar asks for can take its menu bar hiding away
+        // Through `apply_visibility`, as every later change is, and with the
+        // value of `effective_visibility`: a study that holds the animation
+        // window full screen runs as Both whatever Show In holds
         {
             let vis = effective_visibility(&self.settings.read_or_recover());
             self.apply_visibility(vis);
@@ -1692,14 +1662,6 @@ impl ApplicationHandler<AppEvent> for App {
             }
         }
 
-        // The passes that follow a change of Show In, which put a study
-        // window's menu bar and Dock hiding back (see `apply_visibility`)
-        if self.presentation_passes.first().is_some_and(|due| Instant::now() >= *due) {
-            let now = Instant::now();
-            self.presentation_passes.retain(|due| *due > now);
-            self.reassert_full_screen_presentation();
-        }
-
         // Compute the earliest deadline we need the event loop to wake for: an
         // egui-requested repaint or an auto-stop/reminder firing.  With
         // `ControlFlow::Wait` alone the loop would sleep indefinitely and
@@ -1720,7 +1682,6 @@ impl ApplicationHandler<AppEvent> for App {
             timer_deadline,
             topmost_deadline,
             self.next_monitor_scan,
-            self.presentation_passes.first().copied(),
         ]
             .into_iter()
             .flatten()

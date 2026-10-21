@@ -9,9 +9,6 @@
 //!   - `show_animation_window` / `hide_animation_window` / `is_full_screen`:
 //!     show and hide the window of Window mode, which a study can hold full
 //!     screen on the primary display
-//!   - `reassert_full_screen_presentation`: put back the menu bar and Dock
-//!     hiding of that full screen after a change of activation policy
-//!     (macOS only, a no-op elsewhere)
 //!   - `setup_settings_window`: float above overlay, don't appear in taskbar
 //!   - `apply_app_visibility`: TopBarOnly/DockOnly/Both (tray vs taskbar)
 //!   - `request_notification_permission`: no-op off macOS
@@ -89,8 +86,7 @@ pub use mac::{
     uninstall_settings_vibrancy, update_settings_vibrancy, register_reopen_handler,
     request_notification_permission, running_in_app_bundle, setup_animation_window,
     setup_overlay_window, setup_settings_window,
-    hide_animation_window, is_app_active, is_full_screen, reassert_full_screen_presentation,
-    show_animation_window, PRESENTATION_FOLLOW_UPS,
+    hide_animation_window, is_full_screen, show_animation_window,
 };
 
 #[cfg(target_os = "windows")]
@@ -187,26 +183,6 @@ pub fn hide_animation_window(window: &Window) {
 pub fn is_full_screen(window: &Window) -> bool {
     window.fullscreen().is_some()
 }
-
-/// Non-macOS stub for `reassert_full_screen_presentation`. Only macOS
-/// hides the menu bar and the Dock with presentation options that a change
-/// of activation policy can take away: the full screen of the other
-/// platforms is the window's own, and a window manager keeps it
-#[cfg(not(target_os = "macos"))]
-pub fn reassert_full_screen_presentation(_window: &Window, _reactivate: bool) {}
-
-/// Non-macOS stub for `is_app_active`. A change of Show In doesn't move
-/// focus off macOS, so there's nothing to hand back afterwards
-#[cfg(not(target_os = "macos"))]
-pub fn is_app_active() -> bool {
-    false
-}
-
-/// Delays after a change of Show In at which
-/// `reassert_full_screen_presentation` runs again, none where there's
-/// nothing to put back
-#[cfg(not(target_os = "macos"))]
-pub const PRESENTATION_FOLLOW_UPS: &[std::time::Duration] = &[];
 
 /// Non-macOS stub for `render_sf_symbol`: SF Symbols are AppKit-only.
 /// Callers fall back to Unicode glyphs when this returns `None`

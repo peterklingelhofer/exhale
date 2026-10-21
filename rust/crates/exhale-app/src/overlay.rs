@@ -439,17 +439,6 @@ impl OverlayHandle {
         }
     }
 
-    /// Put back what a change of Show In may have taken from a window a
-    /// study holds full screen: on macOS the menu bar and Dock hiding of
-    /// its simple full screen (see
-    /// [`platform::reassert_full_screen_presentation`]). Does nothing for
-    /// any other window
-    pub fn reassert_full_screen(&self, reactivate: bool) {
-        if self.fills_display {
-            platform::reassert_full_screen_presentation(&self.window, reactivate);
-        }
-    }
-
     /// Whether the window's frame is the screen's and not the user's: it
     /// is full screen now, or a study holds it full screen and it sits
     /// hidden between a Stop and a Start.  The window's placement is only
