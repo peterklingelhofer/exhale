@@ -169,7 +169,18 @@ fn submenu_label(action: ShortcutAction, shortcuts: &KeyboardShortcuts) -> Strin
 /// bound to what without leaving the menu.  Pass the same struct back
 /// to [`TrayMenuIds::refresh_labels`] when bindings change to keep
 /// the menu in sync
-pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuIds)> {
+///
+/// `show_research` is false while the pace is hidden (see
+/// `crate::hides_pacing`), a study that can't run included, which leaves
+/// the Research item out of the menu.  Nothing a participant can reach
+/// may point at the evidence: a blinded arm that reads what the rates are
+/// studied for is no longer blinded.  The `research` handle in
+/// [`TrayMenuIds`] stays put either way, and an item that isn't in a
+/// menu never fires
+pub fn build_tray(
+    shortcuts:     &KeyboardShortcuts,
+    show_research: bool,
+) -> Result<(TrayIcon, TrayMenuIds)> {
     #[cfg(all(unix, not(target_os = "macos")))]
     {
         if !appindicator_available() {
@@ -228,7 +239,9 @@ pub fn build_tray(shortcuts: &KeyboardShortcuts) -> Result<(TrayIcon, TrayMenuId
 
     let menu = Menu::new();
     menu.append(ids.top_item(ShortcutAction::Preferences))?;
-    menu.append(&ids.research)?;
+    if show_research {
+        menu.append(&ids.research)?;
+    }
     menu.append(&PredefinedMenuItem::separator())?;
     menu.append(ids.top_item(ShortcutAction::Start))?;
     menu.append(ids.top_item(ShortcutAction::Stop))?;

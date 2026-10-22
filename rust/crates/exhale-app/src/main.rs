@@ -27,10 +27,13 @@ use std::{
 
 use anyhow::Result;
 use exhale_core::{
-    controller::BreathingController,
+    controller::{BreathingController, PhaseEnd, PhaseObserver},
     poison::RwLockPoisonExt,
-    settings::{Settings, ShortcutAction},
-    settings_manager::SettingsManager,
+    session_log::{self, SessionLog, Value},
+    settings::{Settings, SettingsDiff, ShortcutAction},
+    settings_manager::{file_label, SettingsManager},
+    study::{StudyError, StudyStatus},
+    types::{AppVisibility, DisplayMode},
 };
 use exhale_render::GpuContext;
 #[cfg(feature = "global-hotkeys")]
@@ -94,6 +97,162 @@ fn event_for(action: ShortcutAction) -> AppEvent {
     }
 }
 
+// ─── Session-log field lists ───────────────────────────────────────────
+
+/// The fields of an `app_start` or `log_cleared` line, which
+/// `exhale_core::session_log::header_fields` builds and documents
+///
+/// Written at `app_start` and again after Clear, so a cleared log is
+/// still self-describing.  This wrapper supplies the app's own version:
+/// the core crate has a number of its own.  `pub(crate)` because the
+/// settings window's Clear button writes the second one
+pub(crate) fn header_fields(settings: &Settings) -> Vec<(&'static str, Value<'_>)> {
+    session_log::header_fields(env!("CARGO_PKG_VERSION"), settings)
+}
+
+/// The five fields that decide what the next cycle looks like, written
+/// with every `animation_start`
+///
+/// Repeated on each start, because a participant can restart
+/// mid-session and a reader shouldn't have to scan backwards to the
+/// header to find out at what pace
+fn animation_fields(settings: &Settings) -> [(&'static str, Value<'_>); 5] {
+    [
+        ("inhale_duration",           Value::Num(settings.inhale_duration)),
+        ("post_inhale_hold_duration", Value::Num(settings.post_inhale_hold_duration)),
+        ("exhale_duration",           Value::Num(settings.exhale_duration)),
+        ("post_exhale_hold_duration", Value::Num(settings.post_exhale_hold_duration)),
+        ("drift",                     Value::Num(settings.drift)),
+    ]
+}
+
+// ─── Study mode ───────────────────────────────────────────────────────
+
+/// Whether the pace is kept from the participant: any study status but
+/// `Off`
+///
+/// This is "study mode" for every surface that hides something. A locked
+/// study hides the pace so the participant stays blinded. A study that
+/// can't run (a file that failed to load, a log that won't open) hides it
+/// for the same reason: the pace it would show is whatever `settings.toml`
+/// held, and the lab hasn't assigned that. `pub(crate)` because the
+/// settings window decides its cards by it
+pub(crate) fn hides_pacing(status: &StudyStatus) -> bool {
+    !matches!(status, StudyStatus::Off)
+}
+
+/// Reset `settings` to their defaults and write the study log's `reset`
+/// line
+///
+/// Every Reset goes through here: the settings panel's button after its
+/// confirmation, which the hotkey raises as well, and the tray item. In a
+/// study the lock outlives it (see `Settings::reset_preserving_runtime_state`),
+/// so what comes back is Show In and the shortcuts. The line has no
+/// fields, only the time the participant pressed Reset. `pub(crate)`
+/// because the panel's button calls it
+pub(crate) fn reset_settings(settings: &mut Settings, log: Option<&SessionLog>) {
+    settings.reset_preserving_runtime_state();
+    if let Some(log) = log {
+        log.record("reset", &[]);
+    }
+}
+
+/// Put back what a study holds fixed, after the settings panel has had
+/// its turn
+///
+/// The panel works on a copy of the settings and the copy is committed
+/// when its frame ends. Re-applying the lock to the copy first means
+/// nothing the panel does can move a locked field, and a study that can't
+/// run stays stopped whatever a widget did to `is_animating`
+fn hold_study(settings: &mut Settings, status: &StudyStatus) {
+    if let Some(study) = settings.study.clone() {
+        study.apply(settings);
+    }
+    if status.error().is_some() {
+        settings.is_animating = false;
+    }
+}
+
+/// The Show In the app puts into effect: Both while a study holds the
+/// animation window full screen, and the stored value otherwise
+///
+/// On macOS, Top Bar switches the app to the accessory activation policy,
+/// and over that full-screen window the switch deactivates the app: the
+/// menu bar comes back and the window drops behind other apps' windows.
+/// macOS 14 and later ignore a programmatic re-activation, so the app
+/// can't bring itself back. The rule is the same on every platform, and
+/// the settings panel hides the Appearance card while it holds. The stored
+/// `app_visibility` is kept, and it applies again at the first launch
+/// without the study file
+fn effective_visibility(settings: &Settings) -> AppVisibility {
+    if overlay::study_fills_display(settings) {
+        AppVisibility::Both
+    } else {
+        settings.app_visibility
+    }
+}
+
+/// Open the participant's session log, when a study locked the app
+///
+/// Writes the `app_start` header and returns the log. `None` when no study
+/// file locked the pacing, so an ordinary install writes nothing and has
+/// nothing to export. `None` as well when the log can't be opened, and
+/// then the study is Broken: a study without its log is a lost
+/// measurement, so the card says so and Start does nothing until the
+/// problem is fixed and the app relaunched. The debug log gets the
+/// reason, with no participant id and no folder
+fn open_session_log(manager: &SettingsManager) -> Option<Arc<SessionLog>> {
+    let opened = {
+        let s = manager.settings.read_or_recover();
+        let study = s.study.as_ref()?;
+        SessionLog::open(manager.config_dir(), &study.participant_id).map(|log| {
+            log.record("app_start", &header_fields(&s));
+            Arc::new(log)
+        })
+        // `s` drops here, because `mark_study_broken` takes the write lock
+    };
+    match opened {
+        Ok(log) => {
+            info!("study session log opened");
+            Some(log)
+        }
+        Err(e) => {
+            manager.mark_study_broken(StudyError::log_unavailable(&e));
+            None
+        }
+    }
+}
+
+// ─── Display mode ─────────────────────────────────────────────────────────────
+
+/// The windows `build` makes for the display mode the settings hold, or
+/// when that makes none, the windows for `previous`, with the setting put
+/// back to it
+///
+/// A display switch closes the old windows before it builds the new ones,
+/// so a build that comes back empty would leave the session with no
+/// animation window at all. In Window mode the hot-plug rescan returns at
+/// once, and nothing else would build one. Going back to what worked, and
+/// saving that, keeps a session that was showing the animation showing it,
+/// and the panel from naming a mode the session isn't in. A second empty
+/// result is handed back as it is, for the caller to deal with. `build` is
+/// `OverlayHandle::create_all` over the settings the manager holds
+fn build_or_revert<T>(
+    manager:   &SettingsManager,
+    previous:  DisplayMode,
+    mut build: impl FnMut() -> Vec<T>,
+) -> Vec<T> {
+    let built = build();
+    let wanted = manager.settings.read_or_recover().display_mode;
+    if !built.is_empty() || wanted == previous {
+        return built;
+    }
+    error!("display mode change to {wanted:?}: no animation window created, going back to {previous:?}");
+    manager.settings.write_or_recover().display_mode = previous;
+    manager.mark_dirty();
+    build()
+}
+
 // ─── App state ────────────────────────────────────────────────────────────────
 
 struct App {
@@ -108,7 +267,8 @@ struct App {
     // GPU context: shared across all renderers
     gpu: Option<Arc<GpuContext>>,
 
-    // One overlay per monitor
+    // One overlay per monitor, or the one animation window in Window
+    // mode and on a session that can only show a window
     overlays:            HashMap<WindowId, OverlayHandle>,
 
     // Shared frame-sender list the controller's `request_draw` closure
@@ -178,10 +338,23 @@ struct App {
 
     // Timers
     timers: Timers,
+
+    // Study builds only: the append-only session log the participant
+    // hands back to the lab.  `None` in every ordinary build, and in a
+    // study that can't run, which opens no log (see `open_session_log`)
+    session_log: Option<Arc<SessionLog>>,
+
+    // Set once the shutdown work in `exiting` has run, so a loop that
+    // ends twice does it once
+    shut_down: bool,
 }
 
 impl App {
-    fn new(proxy: EventLoopProxy<AppEvent>, settings_manager: Arc<SettingsManager>) -> Self {
+    fn new(
+        proxy:            EventLoopProxy<AppEvent>,
+        settings_manager: Arc<SettingsManager>,
+        session_log:      Option<Arc<SessionLog>>,
+    ) -> Self {
         let settings = Arc::clone(&settings_manager.settings);
         Self {
             proxy,
@@ -207,6 +380,8 @@ impl App {
             #[cfg(feature = "global-hotkeys")]
             hotkey_ids:       None,
             timers:           Timers::new(),
+            session_log,
+            shut_down:        false,
         }
     }
 
@@ -250,6 +425,7 @@ impl App {
             let on_rebind_hotkeys = Box::new(|| {});
             match SettingsWindow::new(
                 event_loop, Arc::clone(gpu), &settings_snap, on_quit, on_rebind_hotkeys,
+                self.session_log.clone(),
             ) {
                 Ok(sw) => {
                     self.settings_win_id = Some(sw.window.id());
@@ -306,36 +482,84 @@ impl App {
                 c.restart();
             }
         }
-        // Windowed-mode (Wayland fallback): Start brings the animation
-        // window back if Stop had hidden it, and Stop hides it so Stop
-        // closes it from the user's perspective.  No-op on threaded
-        // fullscreen-overlay windows: they stay mapped, and after Stop
-        // they render the "stopped" clear frame `do_stop` forces
+        // Windowed-mode (Window mode, Wayland, the opaque fallback):
+        // Start brings the animation window back if Stop had hidden
+        // it, and Stop hides it so Stop closes it from the user's
+        // perspective.  No-op on threaded fullscreen-overlay windows:
+        // they stay mapped, and after Stop they render the "stopped"
+        // clear frame `do_stop` forces
         for h in self.overlays.values() {
             h.set_animation_visible(on);
         }
     }
 
+    /// Whether the study can't run, so Start has to do nothing
+    fn study_broken(&self) -> bool {
+        self.settings_manager.study_status().error().is_some()
+    }
+
+    /// Whether the Research item may show in the tray and the macOS app
+    /// menu.  Nothing a participant can reach may point at the evidence
+    /// while the pace is hidden: a blinded arm that reads what the rates
+    /// are studied for is no longer blinded
+    fn show_research(&self) -> bool {
+        !hides_pacing(&self.settings_manager.study_status())
+    }
+
     fn do_start(&mut self) {
+        // The tray item and the panel button are disabled, and this is
+        // the hotkey's guard
+        if self.study_broken() {
+            info!("start ignored: the study can't run");
+            return;
+        }
         self.set_animating(true);
+        // Logged every time: a Start while running restarts the breath,
+        // and the log has to show the restart
+        if let Some(log) = &self.session_log {
+            let s = self.settings.read_or_recover();
+            log.record("animation_start", &animation_fields(&s));
+        }
         self.request_settings_redraw();
     }
 
     fn do_stop(&mut self) {
+        let was_animating = self.settings.read_or_recover().is_animating;
         self.set_animating(false);
         // Force one final render so the shader sees display_mode=STOPPED and
         // clears to transparent, matches Swift `window.backgroundColor = .clear`
         for h in self.overlays.values() { h.wake_render(); }
+        // Logged only when it stopped something: a Stop hotkey pressed
+        // while stopped would otherwise write a second `animation_stop`
+        if was_animating {
+            if let Some(log) = &self.session_log {
+                log.record("animation_stop", &[]);
+            }
+        }
         self.request_settings_redraw();
     }
 
     fn update_tray_state(&self, s: &exhale_core::settings::Settings) {
         if let Some(ids) = &self.tray_ids {
-            // Start disabled while animating (matches Swift AppDelegate)
-            ids.top_item(ShortcutAction::Start).set_enabled(!s.is_animating);
+            // Start disabled while animating (matches Swift AppDelegate),
+            // and for good in a study that can't run
+            ids.top_item(ShortcutAction::Start)
+                .set_enabled(!s.is_animating && !self.study_broken());
             // Stop enabled when animating or paused (matches Swift AppDelegate)
             ids.top_item(ShortcutAction::Stop).set_enabled(s.is_animating || s.is_paused);
         }
+    }
+
+    /// Put a new Show In value into effect: the platform's own presence
+    /// (macOS activation policy, the Windows taskbar entry, the Linux
+    /// taskbar and pager hints) and the tray icon.  Launch, the settings
+    /// panel and the tray's Reset all come through here, each with the value
+    /// [`effective_visibility`] gives, so a study that holds the animation
+    /// window full screen always runs as Both
+    fn apply_visibility(&mut self, vis: exhale_core::types::AppVisibility) {
+        let settings_win = self.settings_win.as_ref().map(|sw| sw.window.as_ref());
+        platform::apply_app_visibility(vis, settings_win);
+        self.sync_tray_to_visibility(vis);
     }
 
     /// Matches Swift AppDelegate.applyAppVisibility: DockOnly removes the
@@ -346,7 +570,7 @@ impl App {
         let has_tray   = self._tray.is_some();
         if needs_tray && !has_tray {
             let shortcuts = self.settings.read_or_recover().keyboard_shortcuts.clone();
-            match tray::build_tray(&shortcuts) {
+            match tray::build_tray(&shortcuts, self.show_research()) {
                 Ok((t, ids)) => {
                     let s = self.settings.read_or_recover();
                     self._tray    = Some(t);
@@ -361,11 +585,14 @@ impl App {
         }
     }
 
-    fn do_reset(&mut self) {
+    fn do_reset(&mut self, event_loop: &ActiveEventLoop) {
         let mut s = self.settings.write_or_recover();
-        s.reset_preserving_runtime_state();
-        self.timers.reschedule_auto_stop(&s);
-        self.timers.reschedule_reminder(&s);
+        let before = s.clone();
+        reset_settings(&mut s, self.session_log.as_deref());
+        let diff = SettingsDiff::from(&before, &s);
+        // Only the timers whose setting changed, as the panel does: in a
+        // study neither does, and a Reset mustn't restart the countdown
+        self.timers.reschedule_for(&diff, &s);
         self.settings_manager.mark_dirty();
         self.update_tray_state(&s);
         drop(s);
@@ -383,6 +610,26 @@ impl App {
         // cheap no-op
         #[cfg(feature = "global-hotkeys")]
         self.do_rebind_hotkeys();
+        // Show In goes back to its default as well, and it takes effect
+        // here the way it does when the panel changes it.  After the
+        // rebind, so a tray this builds starts from the reset shortcuts
+        if diff.visibility_changed {
+            let vis = effective_visibility(&self.settings.read_or_recover());
+            self.apply_visibility(vis);
+        }
+        // Reset puts the display back to Overlay, so a session showing
+        // the window of Window mode swaps back.  The new windows then
+        // get what an appearance change in the panel gives them: the
+        // breath restarts if it's running, and a frame is drawn if not
+        if diff.display_mode_changed {
+            self.apply_display_mode(event_loop, before.display_mode);
+            let current = self.settings.read_or_recover().clone();
+            if diff.should_restart_animation(&current) {
+                if let Some(c) = &self.controller { c.restart(); }
+            } else {
+                for h in self.overlays.values() { h.wake_render(); }
+            }
+        }
         self.request_settings_redraw();
     }
 
@@ -511,12 +758,18 @@ impl App {
     /// any overlay) is already at the top of z-order: skipping the
     /// SetWindowPos round-trip avoids the per-second `WM_WINDOWPOSCHANGED`
     /// that DWM otherwise composites as a brief frame-edge flicker
+    ///
+    /// Click-through overlays only.  The window of Window mode, and
+    /// the windowed fallback, are ordinary windows: they stay out of the
+    /// topmost band, so the settings window, which sits in it, stays
+    /// above them
     #[cfg(target_os = "windows")]
     fn maybe_reassert_topmost(&mut self) {
         let now = Instant::now();
         let due = self.next_topmost_reassert.is_none_or(|t| now >= t);
         if !due { return; }
         self.next_topmost_reassert = Some(now + Duration::from_secs(1));
+        if !self.overlays.values().any(|h| h.alpha_capable) { return; }
 
         // Determine which of our windows should be at the top: if
         // settings is visible, settings should be above the overlay
@@ -527,14 +780,16 @@ impl App {
         let expected_top: Option<&Window> = self.settings_win.as_ref()
             .filter(|sw| sw.is_shown())
             .map(|sw| sw.window.as_ref())
-            .or_else(|| self.overlays.values().next().map(|h| h.window.as_ref()));
+            .or_else(|| {
+                self.overlays.values().find(|h| h.alpha_capable).map(|h| h.window.as_ref())
+            });
         if let Some(top) = expected_top {
             if platform::is_topmost_top(top) {
                 return;
             }
         }
 
-        for handle in self.overlays.values() {
+        for handle in self.overlays.values().filter(|h| h.alpha_capable) {
             platform::reassert_overlay_topmost(&handle.window);
         }
         if let Some(sw) = &self.settings_win {
@@ -571,8 +826,17 @@ impl App {
     /// that resolves in microseconds, and when the monitor set is
     /// unchanged this function does a single HashSet diff and exits
     /// without touching any locks
+    ///
+    /// Only per-monitor overlays have anything to reconcile.  Window
+    /// mode, and any session that can only show a window, has one
+    /// window whatever the monitor count, so this returns at once
     fn rescan_monitors(&mut self, event_loop: &ActiveEventLoop) {
         use std::collections::HashSet;
+        if self.settings.read_or_recover().display_mode == DisplayMode::Window
+            || self.overlays.values().any(|h| !h.alpha_capable)
+        {
+            return;
+        }
         let Some(gpu) = self.gpu.as_ref().map(Arc::clone) else { return; };
         let Some(senders) = self.frame_senders.as_ref().map(Arc::clone) else { return; };
         let Some(state) = self.breathing_state.as_ref().map(Arc::clone) else { return; };
@@ -597,6 +861,7 @@ impl App {
         }
 
         // ── Create overlays for newly connected monitors ─────────────
+        let animating = self.settings.read_or_recover().is_animating;
         let mut added_any = false;
         for m in current.into_iter() {
             let key = overlay::monitor_key(&m);
@@ -608,6 +873,9 @@ impl App {
             ) {
                 Ok(h) => {
                     info!("monitor connected, created overlay {:?}", h.window.id());
+                    // A monitor plugged in while stopped gets its clear
+                    // frame here: no controller tick will send one
+                    h.settle(animating);
                     added_any = true;
                     self.overlays.insert(h.window.id(), h);
                 }
@@ -620,6 +888,72 @@ impl App {
             let mut w = senders.write_or_recover();
             *w = self.overlays.values().map(|h| h.frame_sender()).collect();
         }
+    }
+
+    /// Swap the animation windows for the set `settings.display_mode`
+    /// now asks for.  Overlay to Window drops every per-monitor overlay
+    /// and opens the one window.  Window to Overlay closes the window
+    /// and builds the overlays again, probe and fallback included
+    ///
+    /// Goes through [`OverlayHandle::create_all`], the path startup
+    /// uses, and through the teardown hot-plug uses: dropping a handle
+    /// joins its render thread and closes its window.  The controller's
+    /// shared sender list is rebuilt before this returns, so its next
+    /// tick draws into the new windows.  Restarting the breath or
+    /// drawing a frame is up to the caller, which knows what else
+    /// changed along with the mode
+    ///
+    /// A session that can only show a window (Wayland, or a swap chain
+    /// with no per-pixel alpha) has nothing to swap: the setting stays
+    /// stored and the window stays
+    ///
+    /// `previous` is the mode the session was in. When the new mode builds
+    /// no window, the setting goes back to it and its windows are built
+    /// again, so the session never ends up with none (see
+    /// [`build_or_revert`]). Every caller has the old settings at hand:
+    /// the panel's frame and Reset both diffed against them
+    fn apply_display_mode(&mut self, event_loop: &ActiveEventLoop, previous: DisplayMode) {
+        if self.overlays.values().any(|h| h.window_only) { return; }
+        let Some(gpu) = self.gpu.as_ref().map(Arc::clone) else { return; };
+        let Some(senders) = self.frame_senders.as_ref().map(Arc::clone) else { return; };
+        let Some(state) = self.breathing_state.as_ref().map(Arc::clone) else { return; };
+
+        // A new window takes focus when it opens.  Note whether the panel
+        // held it, so the click that asked for the switch keeps working
+        let panel_had_focus = self.settings_win
+            .as_ref()
+            .is_some_and(|sw| sw.window.has_focus());
+
+        // Old windows go first, so the user never sees both sets at once
+        self.overlays.clear();
+        let handles = build_or_revert(&self.settings_manager, previous, || {
+            OverlayHandle::create_all(
+                event_loop, Arc::clone(&gpu), Arc::clone(&self.settings),
+                Arc::clone(&state), self.primary_max_circle_scale,
+            )
+        });
+        if handles.is_empty() {
+            error!("display mode change: no animation window created");
+        }
+        // Same as at startup: a stopped session keeps its window hidden
+        // until Start, and has its clear frame drawn
+        let animating = self.settings.read_or_recover().is_animating;
+        for h in &handles {
+            h.settle(animating);
+        }
+        for h in handles {
+            self.overlays.insert(h.window.id(), h);
+        }
+        *senders.write_or_recover() =
+            self.overlays.values().map(|h| h.frame_sender()).collect();
+        info!("display mode changed, {} animation window(s) created", self.overlays.len());
+
+        if panel_had_focus {
+            if let Some(sw) = &self.settings_win { sw.window.focus_window(); }
+        }
+        // The Display row locks when an Overlay request fell back to a
+        // window, so give the panel a frame to show it
+        self.request_settings_redraw();
     }
 }
 
@@ -694,6 +1028,9 @@ impl ApplicationHandler<AppEvent> for App {
 
         // ── Create overlay windows (one per monitor) ──────────────────────────
         //
+        // In Window mode `create_all` builds the one animation window
+        // instead, with no overlay probe
+        //
         // Each overlay handle spawns a dedicated render thread that owns
         // its renderer.  The controller writes its state snapshot to a
         // shared Arc and signals the render threads via channels: that
@@ -720,14 +1057,16 @@ impl ApplicationHandler<AppEvent> for App {
         let initial_senders: Vec<FrameSender> =
             handles.iter().map(|h| h.frame_sender()).collect();
         // Honour the persisted `is_animating` flag on startup:
-        // windowed-mode overlays (Wayland fallback) should start
-        // hidden if the user quit the app while stopped, so they
-        // come back to a clean "Stop"-state instead of a window
-        // showing the stopped clear frame.  No-op for threaded
-        // fullscreen overlays
+        // windowed-mode overlays (Window mode, Wayland, the opaque
+        // fallback) should start hidden if the user quit the app
+        // while stopped, so they come back to a clean "Stop"-state
+        // instead of a window showing the stopped clear frame.  No-op
+        // for threaded fullscreen overlays.  A launch that starts
+        // stopped, as one with a broken study does, draws the clear
+        // frame once: the controller sends none while stopped
         let initial_animating = self.settings.read_or_recover().is_animating;
         for h in &handles {
-            h.set_animation_visible(initial_animating);
+            h.settle(initial_animating);
         }
         for h in handles {
             self.overlays.insert(h.window.id(), h);
@@ -746,6 +1085,21 @@ impl ApplicationHandler<AppEvent> for App {
         // controller thread
         let frame_senders = Arc::new(RwLock::new(initial_senders));
         let senders_for_cb = Arc::clone(&frame_senders);
+        // Study builds log every phase boundary from the controller
+        // thread.  `actual_ms` is the wall-clock length including the
+        // tick latency, which is the number a pacing-validation run is
+        // there to measure
+        let on_phase_end: Option<PhaseObserver> = self.session_log.as_ref().map(|log| {
+            let log = Arc::clone(log);
+            Arc::new(move |e: PhaseEnd| {
+                log.record("phase_end", &[
+                    ("phase",        Value::Str(e.phase.name())),
+                    ("cycle",        Value::Int(e.cycle as i64)),
+                    ("scheduled_ms", Value::Num(e.scheduled.as_secs_f64() * 1000.0)),
+                    ("actual_ms",    Value::Num(e.actual.as_secs_f64() * 1000.0)),
+                ]);
+            }) as PhaseObserver
+        });
         self.controller = Some(BreathingController::start(
             Arc::clone(&self.settings),
             breathing_state,
@@ -754,7 +1108,18 @@ impl ApplicationHandler<AppEvent> for App {
                     tx.send_frame();
                 }
             }),
+            on_phase_end,
         ));
+        // The app always comes up animating (`load_or_default` forces
+        // it), and the log has to say so: every later `animation_stop`
+        // needs a start to pair with, or a reader can't tell a stopped
+        // session from one that never ran
+        if let Some(log) = &self.session_log {
+            let s = self.settings.read_or_recover();
+            if s.is_animating {
+                log.record("animation_start", &animation_fields(&s));
+            }
+        }
         self.frame_senders = Some(frame_senders);
         // Schedule the first hot-plug scan ~2 s out so startup isn't
         // doing redundant work.  Subsequent scans are paced inside
@@ -763,7 +1128,7 @@ impl ApplicationHandler<AppEvent> for App {
 
         // ── System tray ───────────────────────────────────────────────────────
         {
-            let vis = self.settings.read_or_recover().app_visibility;
+            let vis = effective_visibility(&self.settings.read_or_recover());
             self.sync_tray_to_visibility(vis);
         }
 
@@ -810,13 +1175,16 @@ impl ApplicationHandler<AppEvent> for App {
         // Cmd-X/Cmd-C/etc all stop working.  Closes a Swift-parity gap
         // that's invisible until you try to copy text from a settings
         // field.  No-op on Windows / Linux
-        platform::install_main_menu();
+        platform::install_main_menu(self.show_research());
 
         // ── Dock-icon reopen handler (macOS-only internally, no-op elsewhere) ─
         platform::register_reopen_handler();
 
         // ── Notification permission (macOS-only internally, no-op elsewhere) ──
-        if self.settings.read_or_recover().reminder_interval_minutes > 0.0 {
+        // Not asked for in a study that can't run: it sends no reminders
+        if self.settings.read_or_recover().reminder_interval_minutes > 0.0
+            && !self.study_broken()
+        {
             platform::request_notification_permission();
         }
 
@@ -827,10 +1195,13 @@ impl ApplicationHandler<AppEvent> for App {
         // Cross-platform: macOS toggles NSApp activation policy.  Windows toggles
         // the settings window's taskbar entry.  Linux toggles SKIP_TASKBAR/PAGER.
         // Applied after the settings window exists so Windows/Linux can see it
+        //
+        // Through `apply_visibility`, as every later change is, and with the
+        // value of `effective_visibility`: a study that holds the animation
+        // window full screen runs as Both whatever Show In holds
         {
-            let vis = self.settings.read_or_recover().app_visibility;
-            let settings_win = self.settings_win.as_ref().map(|sw| sw.window.as_ref());
-            platform::apply_app_visibility(vis, settings_win);
+            let vis = effective_visibility(&self.settings.read_or_recover());
+            self.apply_visibility(vis);
         }
 
         event_loop.set_control_flow(ControlFlow::Wait);
@@ -841,7 +1212,7 @@ impl ApplicationHandler<AppEvent> for App {
             AppEvent::ShowSettings   => self.toggle_settings(event_loop),
             AppEvent::StartAnimation => self.do_start(),
             AppEvent::StopAnimation  => self.do_stop(),
-            AppEvent::ResetDefaults  => self.do_reset(),
+            AppEvent::ResetDefaults  => self.do_reset(event_loop),
             #[cfg(feature = "global-hotkeys")]
             AppEvent::ResetDefaultsWithConfirm => self.do_reset_with_confirm(event_loop),
             #[cfg(feature = "global-hotkeys")]
@@ -916,10 +1287,18 @@ impl ApplicationHandler<AppEvent> for App {
                         let before = self.settings.read_or_recover().clone();
                         let mut settings = before.clone();
 
-                        let repaint_delay = match sw.render(&mut settings, &self.settings_manager) {
+                        // The Display row locks when this session can only
+                        // show a window
+                        let overlay_available = !self.overlays.values().any(|h| h.window_only);
+                        let repaint_delay = match sw.render(&mut settings, &self.settings_manager, overlay_available) {
                             Ok(d)  => d,
                             Err(e) => { error!("settings render: {e}"); std::time::Duration::MAX }
                         };
+
+                        // Whatever the panel did, a study's lock stands and a
+                        // study that can't run stays stopped.  Before the
+                        // diff, so the diff describes what's committed
+                        hold_study(&mut settings, &self.settings_manager.study_status());
 
                         // Quit-button clicks dispatch directly through the
                         // `on_quit` callback passed in at SettingsWindow
@@ -928,12 +1307,32 @@ impl ApplicationHandler<AppEvent> for App {
                         // Diff before/after in one pass.  Adding a new
                         // setting is a one-line edit to
                         // `SettingsDiff::from` in exhale-core
-                        let diff = exhale_core::settings::SettingsDiff::from(&before, &settings);
+                        let diff = SettingsDiff::from(&before, &settings);
 
                         // Commit the (possibly-mutated) snapshot back.  The
                         // write lock is held only for a struct assignment: brief
                         // compared to the whole paint pass
                         *self.settings.write_or_recover() = settings.clone();
+
+                        // Study log: the panel's own Start / Stop / Pause
+                        // land here. The tray, the hotkeys and the close
+                        // button go through `do_start` / `do_stop`, so
+                        // neither path logs the other's event twice
+                        if let Some(log) = &self.session_log {
+                            if diff.animating_changed {
+                                if settings.is_animating {
+                                    log.record("animation_start", &animation_fields(&settings));
+                                } else {
+                                    log.record("animation_stop", &[]);
+                                }
+                            }
+                            if diff.paused_changed {
+                                log.record(
+                                    if settings.is_paused { "pause" } else { "resume" },
+                                    &[],
+                                );
+                            }
+                        }
 
                         // Schedule egui's requested next repaint via a
                         // deadline checked in about_to_wait.  `MAX` means
@@ -946,9 +1345,17 @@ impl ApplicationHandler<AppEvent> for App {
                         };
 
                         // Reschedule timers if relevant settings changed
+                        self.timers.reschedule_for(&diff, &settings);
                         if diff.auto_stop_changed || diff.animating_changed {
-                            self.timers.reschedule_auto_stop(&settings);
                             self.update_tray_state(&settings);
+                        }
+                        // Display changed: swap the animation windows for
+                        // the new mode before the steps below act on
+                        // them.  The restart-or-redraw further down then
+                        // treats the new windows like any other
+                        // appearance change
+                        if diff.display_mode_changed {
+                            self.apply_display_mode(event_loop, before.display_mode);
                         }
                         // Sync windowed-fallback visibility with
                         // `is_animating`.  Settings-panel Start /
@@ -968,13 +1375,10 @@ impl ApplicationHandler<AppEvent> for App {
                                 h.set_animation_visible(settings.is_animating);
                             }
                         }
-                        if diff.reminder_changed {
-                            self.timers.reschedule_reminder(&settings);
-                            // Request notification permission when reminders are first enabled
-                            // (macOS-only, no-op elsewhere)
-                            if settings.reminder_interval_minutes > 0.0 {
-                                platform::request_notification_permission();
-                            }
+                        // Request notification permission when reminders are first enabled
+                        // (macOS-only, no-op elsewhere)
+                        if diff.reminder_changed && settings.reminder_interval_minutes > 0.0 {
+                            platform::request_notification_permission();
                         }
 
                         let should_restart = diff.should_restart_animation(&settings);
@@ -983,9 +1387,7 @@ impl ApplicationHandler<AppEvent> for App {
                         // Apply platform-specific visibility: macOS activation policy,
                         // Windows taskbar entry, Linux SKIP_TASKBAR/SKIP_PAGER
                         if diff.visibility_changed {
-                            let settings_win = self.settings_win.as_ref().map(|sw| sw.window.as_ref());
-                            platform::apply_app_visibility(diff.new_visibility, settings_win);
-                            self.sync_tray_to_visibility(diff.new_visibility);
+                            self.apply_visibility(effective_visibility(&settings));
                         }
 
                         // Restart animation from inhale-phase-0 when visual settings
@@ -1070,11 +1472,19 @@ impl ApplicationHandler<AppEvent> for App {
             // their `Moved` / `Resized` only fires on monitor
             // hot-plug: already handled by `rescan_monitors`,
             // doesn't need to bleed into the placement file
+            //
+            // The window of Window mode can also go full screen: through
+            // the OS's own control, or because a study holds it there.
+            // Skip the capture then, simple full screen on macOS included.
+            // The rectangle it reports is the whole monitor, and the next
+            // launch would open the window at that size
             let is_windowed_mode = !handle.alpha_capable;
-            let persist_placement = is_windowed_mode && matches!(
-                &event,
-                WindowEvent::Moved(_) | WindowEvent::Resized(_),
-            );
+            let persist_placement = is_windowed_mode
+                && matches!(
+                    &event,
+                    WindowEvent::Moved(_) | WindowEvent::Resized(_),
+                )
+                && !handle.is_full_screen();
             // In windowed-fallback mode (Wayland, Windows 10 Vulkan
             // without alpha support, WARP / remote-desktop) the
             // overlay is a regular OS window with title-bar X / Alt-
@@ -1092,13 +1502,16 @@ impl ApplicationHandler<AppEvent> for App {
                 WindowEvent::RedrawRequested => handle.render_on_main(),
                 _ => {}
             }
+            // `None` while the window is minimized or has no size, which on
+            // Windows is how a minimize arrives: the saved placement stays
             if persist_placement {
-                let placement = placement::capture_placement(
+                if let Some(placement) = placement::capture_placement(
                     event_loop, &handle.window,
-                );
-                let mut s = self.settings.write_or_recover();
-                s.set_animation_window_placement(placement);
-                self.settings_manager.mark_dirty();
+                ) {
+                    let mut s = self.settings.write_or_recover();
+                    s.set_animation_window_placement(placement);
+                    self.settings_manager.mark_dirty();
+                }
             }
             if was_close && is_windowed_mode {
                 // Route through `do_stop` (not raw `set_visible`) so
@@ -1114,6 +1527,22 @@ impl ApplicationHandler<AppEvent> for App {
         if let WindowEvent::CloseRequested = event {
             self.shutdown(event_loop);
         }
+    }
+
+    /// The shutdown work: the controller, the `app_stop` line, the last
+    /// settings write
+    ///
+    /// winit calls it once as the loop ends, from `applicationWillTerminate:`
+    /// on macOS as well, which is how Cmd-Q, the app menu's Quit and the
+    /// Dock's get an `app_stop` line and a settings flush.  The flag keeps a
+    /// second call from writing a second line
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        shut_down(
+            &mut self.shut_down,
+            self.session_log.as_deref(),
+            self.controller.as_mut(),
+            &self.settings_manager,
+        );
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
@@ -1196,15 +1625,21 @@ impl ApplicationHandler<AppEvent> for App {
             }
         }
 
-        // Tick timers
+        // Tick timers.  A study that can't run sends no reminders
+        let reminders = !self.study_broken();
         let events = {
             let s = self.settings.read_or_recover();
-            self.timers.tick(&s)
+            self.timers.tick(&s, reminders)
         };
         if events.auto_stop {
+            // Before `do_stop`, so the log reads in the order the two
+            // things happened: the timer fired, then the animation
+            // stopped
+            if let Some(log) = &self.session_log { log.record("auto_stop", &[]); }
             self.do_stop();
         }
         if events.reminder {
+            if let Some(log) = &self.session_log { log.record("reminder", &[]); }
             timers::send_reminder();
         }
 
@@ -1259,12 +1694,37 @@ impl ApplicationHandler<AppEvent> for App {
 }
 
 impl App {
-    fn shutdown(&mut self, event_loop: &ActiveEventLoop) {
-        info!("shutting down, flushing settings");
-        if let Some(c) = self.controller.as_mut() { c.stop(); }
-        if let Err(e) = self.settings_manager.flush_sync() { error!("flush: {e}"); }
+    /// Ask the event loop to end.  The shutdown work runs in
+    /// [`ApplicationHandler::exiting`], which every way out reaches: the
+    /// Quit button, the tray, the Linux window's close box, and on macOS
+    /// Cmd-Q, the app menu's Quit and the Dock's, which end in
+    /// `terminate:` and never come through here
+    fn shutdown(&self, event_loop: &ActiveEventLoop) {
         event_loop.exit();
     }
+}
+
+/// The shutdown work, once: the controller, the `app_stop` line, the last
+/// settings write
+///
+/// `done` is the flag that makes a second call do nothing, so a loop that
+/// ends twice writes one `app_stop`. The controller stops first, because it
+/// writes a `phase_end` line from its own thread at every phase boundary
+/// and `app_stop` has to be the last line the log gets. `stop` joins the
+/// thread, so no later line can follow
+fn shut_down(
+    done:       &mut bool,
+    log:        Option<&SessionLog>,
+    controller: Option<&mut BreathingController>,
+    manager:    &SettingsManager,
+) {
+    if std::mem::replace(done, true) {
+        return;
+    }
+    info!("shutting down, flushing settings");
+    if let Some(c) = controller { c.stop(); }
+    if let Some(log) = log { log.record("app_stop", &[]); }
+    if let Err(e) = manager.flush_sync() { error!("flush: {e}"); }
 }
 
 // ─── main ─────────────────────────────────────────────────────────────────────
@@ -1272,7 +1732,7 @@ impl App {
 
 fn main() -> Result<()> {
     use bootstrap::{
-        install_panic_logger, pick_log_path, single_instance_guard,
+        install_panic_logger, pick_log_path, reset_log_file, single_instance_guard,
         InstanceGuard, TeeLogWriter,
     };
 
@@ -1308,13 +1768,10 @@ fn main() -> Result<()> {
     // Open without truncating: a second launch runs this same open while
     // the first instance is still writing, and truncating would zero the
     // file under it.  The truncation happens below, once
-    // `single_instance_guard` says this process owns the lock.
-    // `log_file_reset` is a second handle kept for `set_len`, since `file`
-    // moves into the logger
+    // `single_instance_guard` says this process owns the lock
     let log_file = std::fs::OpenOptions::new()
         .create(true).append(true)
         .open(&log_path);
-    let log_file_reset = log_file.as_ref().ok().and_then(|f| f.try_clone().ok());
     if let Ok(file) = log_file {
         builder.target(env_logger::Target::Pipe(
             Box::new(TeeLogWriter { file }),
@@ -1333,16 +1790,16 @@ fn main() -> Result<()> {
     // launch leaves the running instance's log intact, apart from the
     // guard's one line about it
     if !matches!(guard, InstanceGuard::Secondary) {
-        if let Some(f) = &log_file_reset {
-            let _ = f.set_len(0);
-        }
+        reset_log_file(&log_path);
     }
     let _instance_guard = match guard {
         InstanceGuard::First(g)    => Some(g),
         InstanceGuard::Secondary   => return Ok(()),
         InstanceGuard::Unavailable => None,
     };
-    info!("logging to {}", log_path.display());
+    // File names alone: the folders above them include the home folder,
+    // which is named after the OS account
+    info!("logging to {}", file_label(&log_path));
 
     // Linux: initialise GTK before anything in the tray-icon path runs.
     // `tray-icon` builds on top of GTK + libayatana-appindicator on
@@ -1358,14 +1815,452 @@ fn main() -> Result<()> {
     }
 
     let settings_manager = Arc::new(SettingsManager::new()?);
-    info!("settings: {}", settings_manager.config_path().display());
+    info!("settings: {}", file_label(settings_manager.config_path()));
+
+    // Study builds keep a local session log beside settings.toml.  It
+    // is opened only when a study file locked the pacing, so an
+    // ordinary install writes nothing and has nothing to export.  A log
+    // that won't open puts the study in the Broken state, where the
+    // overlay stays still and the window says why
+    let session_log = open_session_log(&settings_manager);
 
     let event_loop = EventLoop::<AppEvent>::with_user_event().build()?;
     let proxy      = event_loop.create_proxy();
 
-    let mut app = App::new(proxy, settings_manager);
+    let mut app = App::new(proxy, settings_manager, session_log);
     event_loop.run_app(&mut app)?;
     // A fatal failure in `resumed()` exits the loop the way a quit does,
     // so hand it back here for a non-zero exit status
     app.fatal.map_or(Ok(()), Err)
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+/// A settings folder with a study file in it, shared with the settings
+/// window's tests
+#[cfg(test)]
+pub(crate) mod test_support {
+    use std::{
+        path::PathBuf,
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        },
+    };
+
+    use exhale_core::{session_log::SessionLog, settings_manager::SettingsManager};
+
+    /// The log's lines, each as the event name it wrote
+    pub(crate) fn events(log: &SessionLog) -> Vec<String> {
+        std::fs::read_to_string(log.path())
+            .expect("read the log")
+            .lines()
+            .map(|line| {
+                let after = line.split("\"event\":\"").nth(1).expect("an event field");
+                after.split('"').next().expect("a closing quote").to_string()
+            })
+            .collect()
+    }
+
+    /// A study file that locks the pace at 5 and 5 for participant `P07`
+    /// on arm `arm-blue-7`, a code a test can look for on screen
+    pub(crate) const STUDY_FILE: &str = "participant_id = \"P07\"\n\
+                                         condition = \"arm-blue-7\"\n\
+                                         inhale_duration = 5.0\n\
+                                         post_inhale_hold_duration = 0.0\n\
+                                         exhale_duration = 5.0\n\
+                                         post_exhale_hold_duration = 0.0\n";
+
+    /// `STUDY_FILE` with the animation window held full screen on the
+    /// primary display
+    pub(crate) fn window_study_file() -> String {
+        format!("{STUDY_FILE}display_mode = \"window\"\n")
+    }
+
+    /// A study file whose inhale is below the shortest phase the
+    /// controller runs. The number is one a test can look for on screen
+    pub(crate) const BROKEN_STUDY_FILE: &str = "participant_id = \"P07\"\n\
+                                                condition = \"arm-blue-7\"\n\
+                                                inhale_duration = 0.0731\n\
+                                                post_inhale_hold_duration = 0.0\n\
+                                                exhale_duration = 5.0\n\
+                                                post_exhale_hold_duration = 0.0\n";
+
+    /// A settings folder of its own, with a manager over it. The study
+    /// file, when given, decides the manager's status the way it does at
+    /// launch
+    pub(crate) struct Folder {
+        pub(crate) dir:     PathBuf,
+        pub(crate) manager: Arc<SettingsManager>,
+    }
+
+    impl Folder {
+        pub(crate) fn new(tag: &str, study_file: Option<&str>) -> Self {
+            match study_file {
+                Some(text) => Self::with_files(tag, &[("study.toml", text)]),
+                None       => Self::with_files(tag, &[]),
+            }
+        }
+
+        /// A folder holding these `(name, contents)` files before the
+        /// manager reads it
+        pub(crate) fn with_files(tag: &str, files: &[(&str, &str)]) -> Self {
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            let dir = std::env::temp_dir().join(format!(
+                "exhale-app-test-{tag}-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed),
+            ));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).expect("create the settings folder");
+            for (name, text) in files {
+                std::fs::write(dir.join(name), text).expect("write a file into the folder");
+            }
+            let manager = SettingsManager::with_config_path(dir.join("settings.toml"))
+                .expect("a manager over the folder");
+            Self { dir, manager: Arc::new(manager) }
+        }
+    }
+
+    impl Drop for Folder {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::test_support::{events, window_study_file, Folder, BROKEN_STUDY_FILE, STUDY_FILE};
+
+    /// `Settings` has no `PartialEq`, so two are the same when every field
+    /// prints the same
+    fn assert_same(a: &Settings, b: &Settings, why: &str) {
+        assert_eq!(format!("{a:?}"), format!("{b:?}"), "{why}");
+    }
+
+    // ── Which status hides the pace ───────────────────────────────
+
+    #[test]
+    fn every_status_but_off_hides_the_pace() {
+        let broken = StudyStatus::Broken(StudyError::log_unavailable(&std::io::Error::other("x")));
+        assert!(!hides_pacing(&StudyStatus::Off));
+        assert!(hides_pacing(&StudyStatus::Locked));
+        assert!(hides_pacing(&broken), "a study that can't run hides it too");
+    }
+
+    // ── The session log opens, or the study breaks ────────────────
+
+    #[test]
+    fn a_study_opens_its_log_and_writes_the_header() {
+        let folder = Folder::new("open", Some(STUDY_FILE));
+        assert_eq!(folder.manager.study_status(), StudyStatus::Locked);
+
+        let log = open_session_log(&folder.manager).expect("the log opens");
+
+        assert_eq!(folder.manager.study_status(), StudyStatus::Locked);
+        assert_eq!(events(&log), ["app_start"]);
+        assert!(log.path().ends_with("exhale-log-P07.jsonl"));
+        let header = std::fs::read_to_string(log.path()).expect("read");
+        assert!(header.contains("\"participant_id\":\"P07\""), "{header}");
+    }
+
+    #[test]
+    fn no_study_opens_no_log() {
+        let folder = Folder::new("nostudy", None);
+        assert_eq!(folder.manager.study_status(), StudyStatus::Off);
+
+        assert!(open_session_log(&folder.manager).is_none());
+
+        let listing: Vec<_> = std::fs::read_dir(&folder.dir).expect("list").flatten().collect();
+        assert!(
+            listing.iter().all(|e| !e.file_name().to_string_lossy().starts_with("exhale-log")),
+            "an ordinary install writes no log"
+        );
+    }
+
+    #[test]
+    fn a_log_that_will_not_open_breaks_the_study_and_leaves_the_animation_stopped() {
+        let folder = Folder::new("blocked", Some(STUDY_FILE));
+        // A directory where the log file belongs: the open fails
+        std::fs::create_dir(folder.dir.join("exhale-log-P07.jsonl")).expect("block the log");
+        assert_eq!(folder.manager.study_status(), StudyStatus::Locked);
+        assert!(folder.manager.settings.read_or_recover().is_animating, "a locked app starts running");
+
+        assert!(open_session_log(&folder.manager).is_none());
+
+        let status = folder.manager.study_status();
+        let err = status.error().expect("the study is broken");
+        assert!(err.summary().contains("session log"), "{}", err.summary());
+        let s = folder.manager.settings.read_or_recover();
+        assert!(!s.is_animating, "the overlay stays still");
+        assert!(s.study.is_some(), "the lock itself stays in force");
+    }
+
+    // ── What the panel can't move ─────────────────────────────────
+
+    #[test]
+    fn holding_a_study_puts_every_locked_field_back_and_leaves_the_rest() {
+        let folder = Folder::new("hold", Some(STUDY_FILE));
+        let locked = folder.manager.settings.read_or_recover().clone();
+        let mut s = locked.clone();
+        s.inhale_duration = 9.0;
+        s.drift           = 1.5;
+        s.shape           = exhale_core::types::AnimationShape::Circle;
+        s.inhale_color    = [0.3, 0.3, 0.3, 1.0];
+        s.display_mode    = DisplayMode::Window;
+        s.auto_stop_minutes = 3.0;
+        s.app_visibility  = exhale_core::types::AppVisibility::DockOnly;
+
+        hold_study(&mut s, &StudyStatus::Locked);
+
+        let mut want = locked.clone();
+        want.app_visibility = exhale_core::types::AppVisibility::DockOnly;
+        assert_same(&s, &want, "everything the file locks is back, and Show In stays the participant's");
+    }
+
+    #[test]
+    fn holding_leaves_an_ordinary_install_alone() {
+        let mut s = Settings { inhale_duration: 9.0, is_animating: true, ..Settings::default() };
+        let before = s.clone();
+        hold_study(&mut s, &StudyStatus::Off);
+        assert_same(&s, &before, "no study, nothing to put back");
+    }
+
+    #[test]
+    fn a_study_that_cannot_run_cannot_be_started_by_the_panel() {
+        let folder = Folder::new("hold-broken", Some(BROKEN_STUDY_FILE));
+        let status = folder.manager.study_status();
+        assert!(status.error().is_some());
+        let mut s = folder.manager.settings.read_or_recover().clone();
+        assert!(!s.is_animating);
+        // What a Start button would have done
+        s.is_animating = true;
+
+        hold_study(&mut s, &status);
+
+        assert!(!s.is_animating);
+    }
+
+    // ── Shutdown ──────────────────────────────────────────────────
+
+    #[test]
+    fn shutting_down_twice_writes_one_app_stop_and_flushes_the_settings() {
+        let folder = Folder::new("shutdown", Some(STUDY_FILE));
+        let log = open_session_log(&folder.manager).expect("the log opens");
+        let settings = folder.dir.join("settings.toml");
+        assert!(!settings.exists(), "nothing has written the settings yet");
+        // A running controller, which the shutdown has to stop and join
+        let mut controller = BreathingController::start(
+            Arc::clone(&folder.manager.settings),
+            Arc::new(std::sync::Mutex::new(None)),
+            Arc::new(|| {}),
+            None,
+        );
+        let mut done = false;
+
+        shut_down(&mut done, Some(&log), Some(&mut controller), &folder.manager);
+        shut_down(&mut done, Some(&log), Some(&mut controller), &folder.manager);
+
+        assert_eq!(events(&log), ["app_start", "app_stop"], "one app_stop, however often the loop ends");
+        assert!(settings.exists(), "the settings were flushed");
+    }
+
+    #[test]
+    fn app_stop_is_the_last_line_even_when_a_phase_ends_as_the_app_quits() {
+        let folder = Folder::new("shutdown-order", Some(STUDY_FILE));
+        let log = open_session_log(&folder.manager).expect("the log opens");
+        {
+            // The shortest phases the controller runs, so one ends at once
+            let mut s = folder.manager.settings.write_or_recover();
+            s.inhale_duration           = 0.1;
+            s.post_inhale_hold_duration = 0.1;
+            s.exhale_duration           = 0.1;
+            s.post_exhale_hold_duration = 0.1;
+        }
+        // An observer that's still writing when the shutdown starts: it
+        // says it has begun, then takes its time, as a slow disk would
+        let (begun_tx, begun_rx) = std::sync::mpsc::channel();
+        let observer: PhaseObserver = {
+            let log = Arc::clone(&log);
+            Arc::new(move |e: PhaseEnd| {
+                let _ = begun_tx.send(());
+                std::thread::sleep(Duration::from_millis(150));
+                log.record("phase_end", &[("phase", Value::Str(e.phase.name()))]);
+            })
+        };
+        let mut controller = BreathingController::start(
+            Arc::clone(&folder.manager.settings),
+            Arc::new(std::sync::Mutex::new(None)),
+            Arc::new(|| {}),
+            Some(observer),
+        );
+        begun_rx.recv_timeout(Duration::from_secs(5)).expect("a phase ended");
+        let mut done = false;
+
+        shut_down(&mut done, Some(&log), Some(&mut controller), &folder.manager);
+
+        let written = events(&log);
+        assert_eq!(written.last().map(String::as_str), Some("app_stop"), "{written:?}");
+        assert!(
+            written.iter().any(|e| e == "phase_end"),
+            "the phase end that was under way lands before it: {written:?}",
+        );
+    }
+
+    #[test]
+    fn shutting_down_an_ordinary_install_writes_no_log_and_still_flushes() {
+        let folder = Folder::new("shutdown-plain", None);
+        let mut done = false;
+        shut_down(&mut done, None, None, &folder.manager);
+        assert!(folder.dir.join("settings.toml").exists());
+    }
+
+    // ── Reset ─────────────────────────────────────────────────────
+
+    #[test]
+    fn reset_writes_a_line_with_no_fields_and_keeps_the_lock() {
+        let folder = Folder::new("reset", Some(STUDY_FILE));
+        let log = open_session_log(&folder.manager).expect("the log opens");
+        let mut s = folder.manager.settings.read_or_recover().clone();
+        let locked = s.clone();
+        s.app_visibility = exhale_core::types::AppVisibility::DockOnly;
+
+        reset_settings(&mut s, Some(&log));
+
+        assert_eq!(events(&log), ["app_start", "reset"]);
+        let last = std::fs::read_to_string(log.path()).expect("read");
+        let last = last.lines().last().expect("a line");
+        assert!(last.ends_with("\"event\":\"reset\"}"), "no fields after the event: {last}");
+        assert_same(&s, &locked, "Show In is back and the lock stands");
+    }
+
+    #[test]
+    fn a_reset_reports_the_show_in_change_that_the_tray_puts_into_effect() {
+        let folder = Folder::new("reset-visibility", Some(STUDY_FILE));
+        let mut s = folder.manager.settings.read_or_recover().clone();
+        s.app_visibility = exhale_core::types::AppVisibility::DockOnly;
+        let before = s.clone();
+
+        reset_settings(&mut s, None);
+        let diff = SettingsDiff::from(&before, &s);
+
+        // `do_reset` applies this with `apply_visibility`, as the panel does
+        assert!(diff.visibility_changed);
+        assert_eq!(diff.new_visibility, exhale_core::types::AppVisibility::Both);
+        // The lock stands, so nothing else the diff reports needs a window swap or a restart
+        assert!(!diff.display_mode_changed && !diff.timing_changed && !diff.visual_changed);
+    }
+
+    #[test]
+    fn reset_without_a_log_writes_nothing_and_still_resets() {
+        let mut s = Settings { inhale_duration: 9.0, ..Settings::default() };
+        reset_settings(&mut s, None);
+        assert_eq!(s.inhale_duration, Settings::default().inhale_duration);
+    }
+
+    // ── Show In while a study fills the display ───────────────────
+
+    #[test]
+    fn a_study_that_fills_the_display_shows_in_both_and_keeps_the_stored_show_in() {
+        let folder = Folder::new("show-in-window", Some(&window_study_file()));
+        let mut s = folder.manager.settings.read_or_recover().clone();
+        assert!(s.study.is_some() && s.display_mode == DisplayMode::Window, "the file holds the window full screen");
+        s.app_visibility = AppVisibility::TopBarOnly;
+
+        // What every frame of the panel does to the settings first
+        hold_study(&mut s, &StudyStatus::Locked);
+
+        assert_eq!(effective_visibility(&s), AppVisibility::Both);
+        assert_eq!(s.app_visibility, AppVisibility::TopBarOnly, "Top Bar stays stored, for a launch without the file");
+    }
+
+    #[test]
+    fn show_in_takes_effect_as_stored_with_a_study_that_keeps_the_overlay_or_with_none() {
+        // The last case is a window the participant chose, with no study to hold it full screen
+        for (tag, file, mode) in [
+            ("show-in-overlay",    Some(STUDY_FILE), DisplayMode::Overlay),
+            ("show-in-open",       None,             DisplayMode::Overlay),
+            ("show-in-own-window", None,             DisplayMode::Window),
+        ] {
+            let folder = Folder::new(tag, file);
+            let mut s = folder.manager.settings.read_or_recover().clone();
+            s.display_mode = mode;
+            for stored in [AppVisibility::TopBarOnly, AppVisibility::DockOnly, AppVisibility::Both] {
+                s.app_visibility = stored;
+                assert_eq!(effective_visibility(&s), stored, "{tag}");
+            }
+        }
+    }
+
+    // ── A display switch that builds nothing ──────────────────────
+
+    /// A manager whose settings already hold `mode`, the way the panel
+    /// commits a switch before `apply_display_mode` runs
+    fn manager_switched_to(tag: &str, mode: DisplayMode) -> Folder {
+        let folder = Folder::new(tag, None);
+        folder.manager.settings.write_or_recover().display_mode = mode;
+        folder
+    }
+
+    #[test]
+    fn a_display_switch_that_builds_windows_keeps_the_new_mode() {
+        let folder = manager_switched_to("switch-ok", DisplayMode::Window);
+        let mut builds = 0;
+        let built = build_or_revert(&folder.manager, DisplayMode::Overlay, || {
+            builds += 1;
+            vec!["the window"]
+        });
+        assert_eq!((built, builds), (vec!["the window"], 1));
+        assert_eq!(folder.manager.settings.read_or_recover().display_mode, DisplayMode::Window);
+    }
+
+    #[test]
+    fn a_display_switch_that_builds_nothing_goes_back_and_builds_the_old_windows() {
+        let folder  = manager_switched_to("switch-empty", DisplayMode::Window);
+        let manager = &folder.manager;
+        // What `create_all` does: it builds for the mode the settings hold
+        let mut tried = Vec::new();
+        let built = build_or_revert(manager, DisplayMode::Overlay, || {
+            let mode = manager.settings.read_or_recover().display_mode;
+            tried.push(mode);
+            match mode {
+                DisplayMode::Window  => Vec::new(),
+                DisplayMode::Overlay => vec!["an overlay per monitor"],
+            }
+        });
+        assert_eq!(tried, [DisplayMode::Window, DisplayMode::Overlay], "the old mode is built second");
+        assert_eq!(built, vec!["an overlay per monitor"]);
+        assert_eq!(
+            manager.settings.read_or_recover().display_mode,
+            DisplayMode::Overlay,
+            "and the setting says the session is back in it",
+        );
+    }
+
+    #[test]
+    fn a_switch_that_cannot_rebuild_the_old_windows_either_still_names_the_old_mode() {
+        let folder = manager_switched_to("switch-none", DisplayMode::Overlay);
+        let mut builds = 0;
+        let built: Vec<&str> = build_or_revert(&folder.manager, DisplayMode::Window, || {
+            builds += 1;
+            Vec::new()
+        });
+        assert_eq!((built.len(), builds), (0, 2), "one try for each mode, and no more");
+        assert_eq!(folder.manager.settings.read_or_recover().display_mode, DisplayMode::Window);
+    }
+
+    #[test]
+    fn a_build_that_fails_without_a_change_of_mode_is_not_tried_again() {
+        // Nothing to go back to: the mode the settings hold is the one the session was in
+        let folder = manager_switched_to("switch-same", DisplayMode::Overlay);
+        let mut builds = 0;
+        let built: Vec<&str> = build_or_revert(&folder.manager, DisplayMode::Overlay, || {
+            builds += 1;
+            Vec::new()
+        });
+        assert_eq!((built.len(), builds), (0, 1));
+        assert_eq!(folder.manager.settings.read_or_recover().display_mode, DisplayMode::Overlay);
+    }
 }

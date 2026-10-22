@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::{
-    AnimationMode, AnimationShape, AppVisibility, ColorFillGradient, HoldRippleMode,
+    AnimationMode, AnimationShape, AppVisibility, ColorFillGradient, DisplayMode,
+    HoldRippleMode,
 };
 
 /// All user-configurable settings for the exhale app
@@ -23,6 +24,11 @@ pub struct Settings {
 
     /// Master opacity of the overlay (0.0 to 1.0)
     pub overlay_opacity: f32,
+
+    /// An overlay on every monitor, or one regular window. A session that
+    /// can't show an overlay (Wayland, or a swap chain with no per-pixel
+    /// alpha) keeps the choice stored and shows the window anyway
+    pub display_mode: DisplayMode,
 
     pub shape: AnimationShape,
     pub color_fill_gradient: ColorFillGradient,
@@ -74,9 +80,9 @@ pub struct Settings {
     // [`Settings::animation_window_placement`]
     //
     // The settings window has a fixed width, so only its height is
-    // persisted (`settings_window_width` doesn't exist).  The animation
-    // window persists both dimensions because the user can resize it
-    // freely
+    // persisted (`settings_window_width` doesn't exist), in logical
+    // points.  The animation window persists both dimensions, in
+    // physical pixels, because the user can resize it freely
     pub settings_window_x: Option<i32>,
     pub settings_window_y: Option<i32>,
     pub settings_window_height: Option<u32>,
@@ -97,6 +103,21 @@ pub struct Settings {
     /// files without this section still load and pick up the defaults
     #[serde(default)]
     pub keyboard_shortcuts: KeyboardShortcuts,
+
+    // ── Study lock ───────────────────────────────────────────────────────
+    /// Present when a study file locked the pacing and the appearance and
+    /// display fields at load. Never written to settings.toml: the study
+    /// file is its only source, so removing that file lifts the lock on
+    /// the next launch
+    ///
+    /// The locked values are still persisted by the writer thread like
+    /// any other setting, so a machine that later loses its study file
+    /// keeps the study pace and look until someone changes them. That's
+    /// documented in docs/for-researchers.md and left alone: a
+    /// participant who deletes the file mid-study shouldn't silently drop
+    /// back to the shipped default pace
+    #[serde(skip)]
+    pub study: Option<crate::study::StudyConfig>,
 }
 
 // ── KeyboardShortcut bitmask constants ────────────────────────────────────────
@@ -294,6 +315,7 @@ impl Default for Settings {
 
             overlay_opacity: 0.25,
 
+            display_mode:        DisplayMode::Overlay,
             shape:               AnimationShape::Rectangle,
             color_fill_gradient: ColorFillGradient::On,
             animation_mode:      AnimationMode::Sinusoidal,
@@ -345,6 +367,8 @@ impl Default for Settings {
             animation_window_screen: None,
 
             keyboard_shortcuts: KeyboardShortcuts::default(),
+
+            study: None,
         }
     }
 }
@@ -371,11 +395,11 @@ impl Settings {
         self.settings_window_screen = p.screen;
     }
 
-    /// Read the persisted placement of the animation (windowed-mode
-    /// fallback) window.  Used only on platforms where the breath
-    /// animation runs as a regular app window instead of as a
-    /// fullscreen click-through overlay (currently Wayland and any
-    /// GPU path that exposes only Opaque alpha)
+    /// Read the persisted placement of the animation (windowed-mode)
+    /// window.  Used only where the breath animation runs as a regular
+    /// app window instead of as a fullscreen click-through overlay:
+    /// Window mode, Wayland and any GPU path that exposes only Opaque
+    /// alpha
     pub fn animation_window_placement(&self) -> WindowPlacement {
         WindowPlacement {
             x:      self.animation_window_x,
@@ -413,20 +437,22 @@ pub(crate) const TIMING_EPS: f64 = 1e-9;
 ///   - `paused_changed`: drives overlay redraw
 ///   - `visibility_changed` / `new_visibility`: drives platform Dock/menu-bar toggle
 ///   - `visual_changed`: drives Swift-parity `triggerAnimationReset()`
+///   - `display_mode_changed`: swaps the per-monitor overlays and the one animation window
 ///   - `timing_changed`: same as visual_changed for timing-related fields
 ///   - `auto_stop_changed`: reschedules the auto-stop deadline
 ///   - `reminder_changed`: reschedules the reminder timer + may prompt for permission
 #[derive(Clone, Copy, Debug)]
 pub struct SettingsDiff {
-    pub animating_started:  bool,
-    pub animating_changed:  bool,
-    pub paused_changed:     bool,
-    pub visibility_changed: bool,
-    pub new_visibility:     crate::types::AppVisibility,
-    pub visual_changed:     bool,
-    pub timing_changed:     bool,
-    pub auto_stop_changed:  bool,
-    pub reminder_changed:   bool,
+    pub animating_started:    bool,
+    pub animating_changed:    bool,
+    pub paused_changed:       bool,
+    pub visibility_changed:   bool,
+    pub new_visibility:       crate::types::AppVisibility,
+    pub visual_changed:       bool,
+    pub display_mode_changed: bool,
+    pub timing_changed:       bool,
+    pub auto_stop_changed:    bool,
+    pub reminder_changed:     bool,
 }
 
 impl SettingsDiff {
@@ -445,6 +471,7 @@ impl SettingsDiff {
             || after.exhale_color        != before.exhale_color
             || after.background_color    != before.background_color
             || (after.overlay_opacity - before.overlay_opacity).abs() > 1e-4;
+        let display_mode_changed = after.display_mode != before.display_mode;
         let timing_changed =
             (after.inhale_duration                       - before.inhale_duration).abs()           > TIMING_EPS
          || (after.post_inhale_hold_duration             - before.post_inhale_hold_duration).abs() > TIMING_EPS
@@ -464,6 +491,7 @@ impl SettingsDiff {
             visibility_changed: after.app_visibility != before.app_visibility,
             new_visibility:     after.app_visibility,
             visual_changed,
+            display_mode_changed,
             timing_changed,
             auto_stop_changed:  (after.auto_stop_minutes        - before.auto_stop_minutes).abs()        > TIMING_EPS,
             reminder_changed:   (after.reminder_interval_minutes - before.reminder_interval_minutes).abs() > TIMING_EPS,
@@ -472,7 +500,11 @@ impl SettingsDiff {
 
     /// Any setting that should trigger an overlay redraw
     pub fn should_redraw_overlay(&self) -> bool {
-        self.paused_changed || self.animating_changed || self.visual_changed || self.timing_changed
+        self.paused_changed
+            || self.animating_changed
+            || self.visual_changed
+            || self.timing_changed
+            || self.display_mode_changed
     }
 
     /// Any setting that, per Swift's `triggerAnimationReset()`,
@@ -480,7 +512,7 @@ impl SettingsDiff {
     /// the animation is actively running and not paused)
     pub fn should_restart_animation(&self, current: &Settings) -> bool {
         self.animating_started
-            || ((self.visual_changed || self.timing_changed)
+            || ((self.visual_changed || self.timing_changed || self.display_mode_changed)
                 && current.is_animating
                 && !current.is_paused)
     }
@@ -495,10 +527,20 @@ impl Settings {
         let was_animating = self.is_animating;
         let was_paused    = self.is_paused;
         let win_placement = self.settings_window_placement();
+        // The study lock outlives Reset. It came from a file the
+        // participant didn't write and can't see, so a Reset press has
+        // to restore Show In, the shortcuts and the other settings the
+        // study leaves alone without handing back control of the pace
+        // or the look. `apply` writes all twenty locked fields, the
+        // appearance ones included, so what comes back is the file's
+        let study         = self.study.take();
         *self = Settings::default();
         self.is_animating = was_animating;
         self.is_paused    = was_paused;
         self.set_settings_window_placement(win_placement);
+        if let Some(study) = study {
+            study.apply(self);
+        }
     }
 
     // ── Derived pacing arithmetic ────────────────────────────────────────
@@ -620,6 +662,7 @@ mod tests {
         assert_eq!(s.color_fill_gradient, ColorFillGradient::On);
         assert_eq!(s.animation_mode, AnimationMode::Sinusoidal);
         assert_eq!(s.hold_ripple_mode, HoldRippleMode::Gradient);
+        assert_eq!(s.display_mode, DisplayMode::Overlay);
         assert!(s.is_animating);
     }
 
@@ -641,6 +684,25 @@ mod tests {
         assert_eq!(s.inhale_duration, 7.0);
         assert_eq!(s.exhale_duration, Settings::default().exhale_duration);
         assert_eq!(s.shape, Settings::default().shape);
+    }
+
+    #[test]
+    fn a_settings_toml_written_before_display_mode_loads_as_overlay() {
+        // Every other key is present, as in a file an older version saved.
+        // Only this one is missing, so the default has to fill it
+        let current = toml::to_string(&Settings::default()).expect("serialise");
+        let older: String = current
+            .lines()
+            .filter(|line| !line.starts_with("display_mode"))
+            .map(|line| format!("{line}\n"))
+            .collect();
+        assert!(!older.contains("display_mode"), "the fixture still names the key");
+        let s: Settings = toml::from_str(&older).expect("deserialise");
+        assert_eq!(s.display_mode, DisplayMode::Overlay);
+
+        // A file that does name it keeps what it says
+        let w: Settings = toml::from_str("display_mode = \"window\"").expect("deserialise");
+        assert_eq!(w.display_mode, DisplayMode::Window);
     }
 
     #[test]
@@ -857,6 +919,16 @@ mod tests {
         assert_eq!(s.exhale_duration, Settings::default().exhale_duration);
     }
 
+    #[test]
+    fn reset_puts_the_display_back_to_overlay() {
+        let mut s = Settings::default();
+        s.display_mode = DisplayMode::Window;
+
+        s.reset_preserving_runtime_state();
+
+        assert_eq!(s.display_mode, DisplayMode::Overlay);
+    }
+
     // ── SettingsDiff ────────────────────────────────────────────────
 
     #[test]
@@ -868,6 +940,7 @@ mod tests {
         assert!(!d.paused_changed);
         assert!(!d.visibility_changed);
         assert!(!d.visual_changed);
+        assert!(!d.display_mode_changed);
         assert!(!d.timing_changed);
         assert!(!d.auto_stop_changed);
         assert!(!d.reminder_changed);
@@ -966,6 +1039,49 @@ mod tests {
     }
 
     #[test]
+    fn diff_detects_a_display_mode_change_in_both_directions() {
+        let before = Settings::default();
+        let mut after = before.clone();
+        after.display_mode = DisplayMode::Window;
+
+        let there = SettingsDiff::from(&before, &after);
+        assert!(there.display_mode_changed);
+        assert!(SettingsDiff::from(&after, &before).display_mode_changed);
+
+        // Nothing else moved with it, so the other flags stay quiet
+        assert!(!there.visual_changed);
+        assert!(!there.timing_changed);
+        assert!(!there.animating_changed);
+        assert!(!there.paused_changed);
+        assert!(!there.visibility_changed);
+    }
+
+    #[test]
+    fn a_display_mode_change_restarts_and_redraws_like_a_visual_one() {
+        let before = Settings::default();
+        let mut running = before.clone();
+        running.display_mode = DisplayMode::Window;
+
+        // Running: the breath starts over from inhale phase 0 in the new window
+        let d = SettingsDiff::from(&before, &running);
+        assert!(d.should_restart_animation(&running));
+        assert!(d.should_redraw_overlay());
+
+        // Paused or stopped: no restart, but the new window still needs a frame
+        let mut paused = running.clone();
+        paused.is_paused = true;
+        let d = SettingsDiff::from(&before, &paused);
+        assert!(!d.should_restart_animation(&paused));
+        assert!(d.should_redraw_overlay());
+
+        let mut stopped = running.clone();
+        stopped.is_animating = false;
+        let d = SettingsDiff::from(&before, &stopped);
+        assert!(!d.should_restart_animation(&stopped));
+        assert!(d.should_redraw_overlay());
+    }
+
+    #[test]
     fn diff_visibility_carries_new_value() {
         let mut before = Settings::default();
         before.app_visibility = AppVisibility::Both;
@@ -974,5 +1090,149 @@ mod tests {
         let d = SettingsDiff::from(&before, &after);
         assert!(d.visibility_changed);
         assert_eq!(d.new_visibility, AppVisibility::TopBarOnly);
+    }
+
+    /// Everything a participant or the app could move off the study's
+    /// values, moved: the locked fields and the unlocked ones alike
+    fn scrambled(mut s: Settings) -> Settings {
+        s.inhale_color         = [0.5, 0.5, 0.5, 1.0];
+        s.exhale_color         = [0.7, 0.7, 0.7, 1.0];
+        s.background_color     = [0.3, 0.3, 0.3, 0.3];
+        s.overlay_opacity      = 0.99;
+        s.shape                = AnimationShape::Fullscreen;
+        s.color_fill_gradient  = ColorFillGradient::Inner;
+        s.animation_mode       = AnimationMode::Sinusoidal;
+        s.hold_ripple_mode     = HoldRippleMode::Off;
+        s.display_mode         = DisplayMode::Overlay;
+        s.inhale_duration      = 9.0;
+        s.exhale_duration      = 9.0;
+        s.drift                = 1.5;
+        s.auto_stop_minutes    = 1.0;
+        s.app_visibility       = AppVisibility::TopBarOnly;
+        s.keyboard_shortcuts.start = Some(KeyboardShortcut::new(KBD_MOD_CTRL | KBD_MOD_SHIFT, "KeyG"));
+        s.animation_window_x      = Some(40);
+        s.animation_window_y      = Some(50);
+        s.animation_window_width  = Some(800);
+        s.animation_window_height = Some(600);
+        s.animation_window_screen = Some("Left".to_string());
+        s
+    }
+
+    #[test]
+    fn reset_in_study_mode_keeps_every_locked_field_and_restores_the_rest() {
+        let study = crate::study::fixtures::everything();
+        let mut s = Settings::default();
+        study.apply(&mut s);
+        let mut s = scrambled(s);
+        // Runtime state and the settings window's frame survive a Reset anywhere
+        s.is_animating           = false;
+        s.is_paused              = true;
+        s.settings_window_x      = Some(10);
+        s.settings_window_y      = Some(20);
+        s.settings_window_height = Some(30);
+        s.settings_window_screen = Some("Right".to_string());
+
+        s.reset_preserving_runtime_state();
+
+        // The nine appearance and display fields are the file's, as are the eleven pacing ones
+        assert_eq!(s.inhale_color,         [0.2, 0.4, 0.6, 1.0]);
+        assert_eq!(s.exhale_color,         [0.9, 0.8, 0.1, 1.0]);
+        assert_eq!(s.background_color,     [0.1, 0.1, 0.1, 0.5]);
+        assert_eq!(s.overlay_opacity,      0.6);
+        assert_eq!(s.shape,                AnimationShape::Circle);
+        assert_eq!(s.color_fill_gradient,  ColorFillGradient::Off);
+        assert_eq!(s.animation_mode,       AnimationMode::Linear);
+        assert_eq!(s.hold_ripple_mode,     HoldRippleMode::Stark);
+        assert_eq!(s.display_mode,         DisplayMode::Window);
+        assert_eq!(s.inhale_duration,           4.0);
+        assert_eq!(s.post_inhale_hold_duration, 1.0);
+        assert_eq!(s.exhale_duration,           6.0);
+        assert_eq!(s.post_exhale_hold_duration, 2.0);
+        assert_eq!(s.drift,                     1.002);
+        assert_eq!(s.randomized_timing_inhale,           0.1);
+        assert_eq!(s.randomized_timing_post_inhale_hold, 0.2);
+        assert_eq!(s.randomized_timing_exhale,           0.3);
+        assert_eq!(s.randomized_timing_post_exhale_hold, 0.4);
+        assert_eq!(s.auto_stop_minutes,         30.0);
+        assert_eq!(s.reminder_interval_minutes, 15.0);
+        assert_eq!(s.study.as_ref(), Some(&study), "and the lock itself");
+
+        // Everything the study doesn't lock went back to the shipped value
+        let shipped = Settings::default();
+        assert_eq!(s.app_visibility,      shipped.app_visibility);
+        assert_eq!(s.keyboard_shortcuts,  KeyboardShortcuts::default());
+        assert_eq!(s.animation_window_placement(), WindowPlacement::default());
+
+        // And the six that Reset has always kept are still there
+        assert!(!s.is_animating);
+        assert!(s.is_paused);
+        assert_eq!(s.settings_window_x,      Some(10));
+        assert_eq!(s.settings_window_y,      Some(20));
+        assert_eq!(s.settings_window_height, Some(30));
+        assert_eq!(s.settings_window_screen, Some("Right".to_string()));
+    }
+
+    #[test]
+    fn reset_in_study_mode_locks_a_field_the_file_leaves_out_at_the_shipped_default() {
+        let mut s = Settings::default();
+        crate::study::fixtures::pace_only().apply(&mut s);
+        let mut s = scrambled(s);
+
+        s.reset_preserving_runtime_state();
+
+        let shipped = Settings::default();
+        assert_eq!(s.inhale_color,         shipped.inhale_color);
+        assert_eq!(s.exhale_color,         shipped.exhale_color);
+        assert_eq!(s.background_color,     shipped.background_color);
+        assert_eq!(s.overlay_opacity,      shipped.overlay_opacity);
+        assert_eq!(s.shape,                shipped.shape);
+        assert_eq!(s.color_fill_gradient,  shipped.color_fill_gradient);
+        assert_eq!(s.animation_mode,       shipped.animation_mode);
+        assert_eq!(s.hold_ripple_mode,     shipped.hold_ripple_mode);
+        assert_eq!(s.display_mode,         shipped.display_mode);
+        assert_eq!(s.inhale_duration, 5.0, "and the pace is the file's");
+        assert!(s.study.is_some());
+    }
+
+    #[test]
+    fn a_locked_study_survives_any_number_of_resets_unchanged() {
+        // Reset applies the file again each time, so nothing a Reset
+        // does can drift. A second Reset finds what the first left
+        let mut s = Settings::default();
+        crate::study::fixtures::everything().apply(&mut s);
+        s = scrambled(s);
+        s.reset_preserving_runtime_state();
+        let once = s.clone();
+        s.reset_preserving_runtime_state();
+        s.reset_preserving_runtime_state();
+        assert_eq!(
+            toml::Value::try_from(&s).expect("serialise"),
+            toml::Value::try_from(&once).expect("serialise"),
+        );
+        assert_eq!(s.study, once.study);
+    }
+
+    #[test]
+    fn the_lock_never_reaches_settings_toml() {
+        // The study file is the only source of the lock, which is what
+        // makes deleting it enough to lift the lock
+        let mut s = Settings::default();
+        crate::study::fixtures::pace_only().apply(&mut s);
+
+        let text = toml::to_string(&s).expect("serialize");
+        assert!(!text.contains("study"),  "settings.toml carries no study block: {text}");
+        assert!(!text.contains("P07"),    "and no participant id: {text}");
+
+        let back: Settings = toml::from_str(&text).expect("deserialize");
+        assert!(back.study.is_none(), "reading settings.toml back never locks anything");
+    }
+
+    #[test]
+    fn reset_without_a_lock_leaves_no_lock() {
+        let mut s = Settings::default();
+        s.inhale_duration = 9.0;
+        s.reset_preserving_runtime_state();
+        assert_eq!(s.inhale_duration, Settings::default().inhale_duration);
+        assert!(s.study.is_none());
     }
 }

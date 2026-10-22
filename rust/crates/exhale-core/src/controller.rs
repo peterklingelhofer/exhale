@@ -26,6 +26,31 @@ pub struct BreathingState {
     pub hold_time: f32,
 }
 
+// ─── Phase-end observer ──────────────────────────────────────────────────────
+
+/// One phase that just finished, reported the moment the controller
+/// notices it has run its scheduled length
+///
+/// `actual` is measured against the wall clock and includes the tick
+/// latency: the controller wakes on a deadline and checks, so a phase
+/// reads a few milliseconds long. That difference is what a pacing
+/// validation run measures, so it isn't smoothed away here
+#[derive(Clone, Copy, Debug)]
+pub struct PhaseEnd {
+    pub phase:     BreathingPhase,
+    /// Completed cycles at the time the phase ended, 0-based
+    pub cycle:     u64,
+    pub scheduled: Duration,
+    pub actual:    Duration,
+}
+
+/// Called from the controller thread at every phase boundary
+///
+/// An `Arc<dyn Fn>` because the only consumer appends a line to a
+/// file, which is quicker than a channel send would be, and a channel
+/// nobody drains would grow without bound in a build that has no log
+pub type PhaseObserver = Arc<dyn Fn(PhaseEnd) + Send + Sync>;
+
 // ─── Cadence ─────────────────────────────────────────────────────────────────
 //
 // 24 fps matches Swift's `MetalBreathingController.swift`
@@ -79,10 +104,15 @@ impl BreathingController {
     /// thread whenever a new frame should be rendered. Wire it to the
     /// overlays' render-thread channels so frame signals bypass the
     /// main thread's message pump entirely
+    ///
+    /// `on_phase_end` is called at every phase boundary when present.
+    /// `None` in every build that isn't logging a study session, which
+    /// keeps the per-tick cost at one `Option` check
     pub fn start(
         settings:     Arc<RwLock<Settings>>,
         state:        Arc<Mutex<Option<BreathingState>>>,
         request_draw: Arc<dyn Fn() + Send + Sync + 'static>,
+        on_phase_end: Option<PhaseObserver>,
     ) -> Self {
         let stop_flag  = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let reset_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -95,7 +125,10 @@ impl BreathingController {
         let handle = thread::Builder::new()
             .name("exhale-controller".to_string())
             .spawn(move || {
-                run_controller(settings_clone, state_clone, request_draw, stop_clone, reset_clone);
+                run_controller(
+                    settings_clone, state_clone, request_draw,
+                    stop_clone, reset_clone, on_phase_end,
+                );
             })
             .expect(
                 "exhale-controller: thread::spawn failed (system thread limit / OOM): \
@@ -161,6 +194,7 @@ fn run_controller(
     request_draw: Arc<dyn Fn() + Send + Sync>,
     stop_flag:    Arc<std::sync::atomic::AtomicBool>,
     reset_flag:   Arc<std::sync::atomic::AtomicBool>,
+    on_phase_end: Option<PhaseObserver>,
 ) {
     let easing = EasingTable::default_ease_in_out();
 
@@ -195,6 +229,7 @@ fn run_controller(
             &mut inner,
             &settings,
             &easing,
+            &on_phase_end,
         );
 
         // Publish the state `tick` computed with the user's `anim_mode` before
@@ -230,15 +265,30 @@ fn run_controller(
     }
 }
 
-/// Clamp a phase length to 0.1 s .. 86_400 s (one day) before it reaches
-/// `Duration::from_secs_f64`, which panics on inf, NaN or anything past
-/// `Duration::MAX`. `.max(0.1)` runs first, and `f64::max` returns the
-/// non-NaN operand, so NaN floors to 0.1 s same as any other non-positive
-/// input. `f64::clamp` reads tidier but hands a NaN input straight back
-/// out, which `Duration::from_secs_f64` panics on all the same
+/// Shortest phase the controller runs, in seconds
+///
+/// A phase the user asked for never runs shorter than this, so a value
+/// below it would run longer than the pace it states. `phase_secs` floors
+/// to it, and a study file that asks for a duration between 0 and this
+/// is rejected at load. A phase set to exactly 0 takes no time at all
+pub(crate) const MIN_PHASE_SECS: f64 = 0.1;
+
+/// Longest phase the controller schedules, in seconds (one day)
+///
+/// `phase_secs` clamps to it, and a study file that asks for more is
+/// rejected at load
+pub(crate) const MAX_PHASE_SECS: f64 = 86_400.0;
+
+/// Clamp a phase length to `MIN_PHASE_SECS` .. `MAX_PHASE_SECS` before it
+/// reaches `Duration::from_secs_f64`, which panics on inf, NaN or
+/// anything past `Duration::MAX`. `.max(MIN_PHASE_SECS)` runs first, and
+/// `f64::max` returns the non-NaN operand, so NaN floors to 0.1 s same as
+/// any other non-positive input. `f64::clamp` reads tidier but hands a
+/// NaN input straight back out, which `Duration::from_secs_f64` panics
+/// on all the same
 #[allow(clippy::manual_clamp)]
 fn phase_secs(secs: f64) -> f64 {
-    secs.max(0.1).min(86_400.0)
+    secs.max(MIN_PHASE_SECS).min(MAX_PHASE_SECS)
 }
 
 fn fresh_inner(now: Instant, inhale_dur: f64) -> Inner {
@@ -267,9 +317,10 @@ fn fresh_inner(now: Instant, inhale_dur: f64) -> Inner {
 // ─── Per-tick logic (exact port of `MetalBreathingController.tick`) ───────────
 
 fn tick(
-    inner:    &mut Inner,
-    settings: &Arc<RwLock<Settings>>,
-    easing:   &EasingTable,
+    inner:        &mut Inner,
+    settings:     &Arc<RwLock<Settings>>,
+    easing:       &EasingTable,
+    on_phase_end: &Option<PhaseObserver>,
 ) -> (Option<BreathingState>, Duration) {
     let now = Instant::now();
 
@@ -343,6 +394,7 @@ fn tick(
         let remaining = inner.phase_duration.saturating_sub(elapsed);
 
         if elapsed >= inner.phase_duration {
+            report_phase_end(on_phase_end, inner, now);
             advance_phase(
                 inner, drift, now,
                 inhale_dur, post_inhale_dur, exhale_dur, post_exhale_dur,
@@ -379,6 +431,7 @@ fn tick(
     // ── Inhale / Exhale ───────────────────────────────────────────────────────
     let elapsed = now.duration_since(inner.phase_start);
     if elapsed >= inner.phase_duration {
+        report_phase_end(on_phase_end, inner, now);
         advance_phase(
             inner, drift, now,
             inhale_dur, post_inhale_dur, exhale_dur, post_exhale_dur,
@@ -462,6 +515,31 @@ fn compute_state_with_easing(
             progress: 0.0,
             hold_time,
         },
+    }
+}
+
+/// Hand the phase that just ran to the observer, if there's one
+///
+/// Called with `inner` still describing the phase that ended, which is
+/// why it sits immediately before every `advance_phase` inside `tick`.
+/// The restart path builds a fresh `Inner` and never calls it, because
+/// a phase the user cut short by pressing Start isn't a phase that ran
+/// its length.  A zero-length phase never ran either: `advance_phase`
+/// passes those over without coming back here, and the one that can
+/// reach here, a zero inhale on a fresh start, is skipped for the same
+/// reason, so every `phase_end` line in the log is a phase that took
+/// time
+fn report_phase_end(on_phase_end: &Option<PhaseObserver>, inner: &Inner, now: Instant) {
+    if inner.phase_duration.is_zero() {
+        return;
+    }
+    if let Some(observe) = on_phase_end {
+        observe(PhaseEnd {
+            phase:     inner.phase,
+            cycle:     inner.cycle_count,
+            scheduled: inner.phase_duration,
+            actual:    now.duration_since(inner.phase_start),
+        });
     }
 }
 
@@ -930,7 +1008,7 @@ mod tests {
         let settings = Arc::new(RwLock::new(s));
         let easing   = EasingTable::default_ease_in_out();
         let mut inner = fresh_inner_at(Instant::now(), Duration::from_secs(5));
-        let (state, next) = tick(&mut inner, &settings, &easing);
+        let (state, next) = tick(&mut inner, &settings, &easing, &None);
         assert!(state.is_none(), "a stopped controller shouldn't request a draw");
         assert!(next >= Duration::from_secs(1), "stopped controller should sleep >=1s, got {next:?}");
     }
@@ -945,11 +1023,11 @@ mod tests {
         // First call: last_draw_time was 1s ago, so this should draw
         // (the paused branch redraws once a second to keep the static
         // frame current against settings changes)
-        let (state_1, _) = tick(&mut inner, &settings, &easing);
+        let (state_1, _) = tick(&mut inner, &settings, &easing, &None);
         assert!(state_1.is_some(), "paused controller draws once per second");
         // Second call immediately after: not yet a second elapsed, so
         // it shouldn't draw and the sleep should be < 1s
-        let (state_2, next_2) = tick(&mut inner, &settings, &easing);
+        let (state_2, next_2) = tick(&mut inner, &settings, &easing, &None);
         assert!(state_2.is_none(), "paused controller doesn't draw twice in a row");
         assert!(next_2 < Duration::from_secs(1));
     }
@@ -968,7 +1046,7 @@ mod tests {
         inner.phase = BreathingPhase::HoldAfterInhale;
         inner.last_draw_time = now - Duration::from_millis(200); // not yet due
 
-        let (state, _) = tick(&mut inner, &settings, &easing);
+        let (state, _) = tick(&mut inner, &settings, &easing, &None);
         // First tick of a fresh hold draws (did_render_hold was false)
         assert!(state.is_some());
     }
@@ -984,10 +1062,111 @@ mod tests {
         let mut inner = fresh_inner_at(now, Duration::from_secs_f64(2.0));
         inner.phase = BreathingPhase::HoldAfterInhale;
 
-        let (state_1, _) = tick(&mut inner, &settings, &easing);
+        let (state_1, _) = tick(&mut inner, &settings, &easing, &None);
         assert!(state_1.is_some(), "first tick of no-ripple hold draws");
-        let (state_2, _) = tick(&mut inner, &settings, &easing);
+        let (state_2, _) = tick(&mut inner, &settings, &easing, &None);
         assert!(state_2.is_none(), "second tick of no-ripple hold sleeps");
+    }
+
+    // ── Phase-end observer ────────────────────────────────────
+
+    /// Collect every `PhaseEnd` a run of `tick` reports
+    fn recording_observer() -> (Option<PhaseObserver>, Arc<Mutex<Vec<PhaseEnd>>>) {
+        let seen: Arc<Mutex<Vec<PhaseEnd>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&seen);
+        let observer: PhaseObserver = Arc::new(move |e: PhaseEnd| {
+            sink.lock_or_recover().push(e);
+        });
+        (Some(observer), seen)
+    }
+
+    #[test]
+    fn a_finished_phase_reaches_the_observer_with_its_timings() {
+        let settings = Arc::new(RwLock::new(Settings::default()));
+        let easing   = EasingTable::default_ease_in_out();
+        let started  = Instant::now() - Duration::from_millis(120);
+        let mut inner = fresh_inner_at(started, Duration::from_millis(100));
+        let (observer, seen) = recording_observer();
+
+        let _ = tick(&mut inner, &settings, &easing, &observer);
+
+        let seen = seen.lock_or_recover();
+        assert_eq!(seen.len(), 1, "one boundary, one report");
+        assert_eq!(seen[0].phase, BreathingPhase::Inhale, "the report names the phase that ended");
+        assert_eq!(seen[0].cycle, 0);
+        assert_eq!(seen[0].scheduled, Duration::from_millis(100));
+        assert!(
+            seen[0].actual >= Duration::from_millis(120),
+            "actual carries the tick latency: {:?}",
+            seen[0].actual,
+        );
+        // The default pattern has no post-inhale hold, so the phase that
+        // follows is the exhale: a zero-length hold is passed over and
+        // isn't reported
+        assert_eq!(inner.phase, BreathingPhase::Exhale, "and the phase still advanced");
+    }
+
+    #[test]
+    fn a_hold_boundary_reports_too() {
+        let mut s = Settings::default();
+        s.post_inhale_hold_duration = 2.0;
+        let settings = Arc::new(RwLock::new(s));
+        let easing   = EasingTable::default_ease_in_out();
+        let started  = Instant::now() - Duration::from_millis(150);
+        let mut inner = fresh_inner_at(started, Duration::from_millis(100));
+        inner.phase = BreathingPhase::HoldAfterInhale;
+        let (observer, seen) = recording_observer();
+
+        let _ = tick(&mut inner, &settings, &easing, &observer);
+
+        let seen = seen.lock_or_recover();
+        assert_eq!(seen.len(), 1);
+        assert_eq!(seen[0].phase, BreathingPhase::HoldAfterInhale);
+        assert_eq!(seen[0].phase.name(), "hold_after_inhale");
+    }
+
+    #[test]
+    fn a_phase_still_running_reports_nothing() {
+        let settings = Arc::new(RwLock::new(Settings::default()));
+        let easing   = EasingTable::default_ease_in_out();
+        let mut inner = fresh_inner_at(Instant::now(), Duration::from_secs(5));
+        let (observer, seen) = recording_observer();
+
+        let _ = tick(&mut inner, &settings, &easing, &observer);
+
+        assert!(seen.lock_or_recover().is_empty());
+    }
+
+    /// Two arms of a study on the same appearance settings differ in
+    /// rate and in nothing else
+    ///
+    /// The overlay eases each phase across its own duration, so the
+    /// shape a participant watches at 2.5 s is the shape they watch at
+    /// 5 s, played at half the length. Without this, a control arm at a
+    /// normal pace would also differ in how the motion looks, and the
+    /// rate would stop being the one thing that varies
+    #[test]
+    fn phase_progress_is_independent_of_phase_duration() {
+        let easing = EasingTable::default_ease_in_out();
+        let now    = Instant::now();
+        for phase in [BreathingPhase::Inhale, BreathingPhase::Exhale] {
+            for mode in [AnimationMode::Linear, AnimationMode::Sinusoidal] {
+                for fraction in [0.1_f64, 0.25, 0.5, 0.9] {
+                    let mut seen: Vec<f32> = Vec::new();
+                    for secs in [2.5_f64, 5.0] {
+                        let mut inner = fresh_inner_at(now, Duration::from_secs_f64(secs));
+                        inner.phase = phase;
+                        let at = now + Duration::from_secs_f64(secs * fraction);
+                        seen.push(compute_state_with_easing(&inner, &easing, mode, at).progress);
+                    }
+                    assert!(
+                        (seen[0] - seen[1]).abs() < 1e-6,
+                        "{phase:?} {mode:?} at {fraction}: 2.5 s gave {} and 5 s gave {}",
+                        seen[0], seen[1],
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -1007,8 +1186,11 @@ mod tests {
         let mut inner = fresh_inner(Instant::now(), 0.0);
         assert_eq!(inner.phase_duration, Duration::ZERO);
 
-        tick(&mut inner, &settings, &easing);
+        // A phase that never ran isn't reported as having ended
+        let (observer, seen) = recording_observer();
+        tick(&mut inner, &settings, &easing, &observer);
         assert_eq!(inner.phase, BreathingPhase::HoldAfterInhale);
+        assert!(seen.lock_or_recover().is_empty(), "a zero-length inhale logged a phase_end");
     }
 
     #[test]
@@ -1025,7 +1207,7 @@ mod tests {
         // One second into a four-second inhale: a quarter of the way through
         let mut inner = fresh_inner_at(now - Duration::from_secs(1), Duration::from_secs(4));
 
-        let (state, _) = tick(&mut inner, &settings, &easing);
+        let (state, _) = tick(&mut inner, &settings, &easing, &None);
         let progress = state.expect("first tick of a fresh phase always draws").progress;
         assert!((progress - 0.25).abs() < 0.02, "linear progress at t=0.25 was {progress}");
     }

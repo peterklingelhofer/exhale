@@ -6,11 +6,12 @@ use std::thread::{self, JoinHandle};
 use anyhow::Result;
 use exhale_core::{
     controller::BreathingState,
-    settings::Settings,
+    settings::{Settings, WindowPlacement},
+    types::DisplayMode,
 };
 use exhale_render::{GpuContext, OverlayRenderer};
 use winit::{
-    dpi::{PhysicalPosition, PhysicalSize},
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Size},
     event_loop::ActiveEventLoop,
     monitor::MonitorHandle,
     window::Window,
@@ -96,7 +97,9 @@ impl FrameSender {
 
 // ─── Public handle (main-thread side) ─────────────────────────────────────────
 
-/// One transparent overlay covering a single monitor
+/// One transparent overlay covering a single monitor, or the one
+/// animation window of Window mode (and of a session that can only
+/// show a window)
 ///
 /// The main thread keeps only the [`Arc<Window>`] and a channel to the
 /// per-overlay render thread.  The render thread owns the
@@ -116,11 +119,23 @@ pub struct OverlayHandle {
     monitor_key: Option<MonitorKey>,
     /// `true` when the swap chain supports per-pixel alpha and the
     /// window is acting as a true click-through overlay.  `false`
-    /// when the compositor / GPU only exposed Opaque alpha and we
-    /// reconfigured the window as a regular windowed app: used by
-    /// `create_all` to avoid spawning duplicate fallback windows on
-    /// every monitor
+    /// when the window is a regular windowed app instead: Window
+    /// mode, the fallback after the compositor / GPU only exposed
+    /// Opaque alpha, or Wayland.  Used by `create_all` to avoid
+    /// spawning duplicate windowed copies on every monitor
     pub alpha_capable: bool,
+    /// `true` when this session can only show a window: Wayland, or
+    /// an overlay probe that found no per-pixel alpha.  `false` for a
+    /// real overlay and for the window of Window mode, which the user
+    /// asked for.  The settings panel reads it to lock the Display
+    /// row, and a display-mode change leaves such a session alone
+    pub window_only: bool,
+    /// `true` when a study holds this window full screen on the primary
+    /// display: see [`study_fills_display`].  Start fills the display and
+    /// Stop gives it back.  The window's placement is never saved: the
+    /// participant doesn't place it, and the frame it comes back to after
+    /// a full-screen cycle isn't always the one it had
+    fills_display: bool,
     /// Render dispatch: per-window thread (macOS / Windows / Linux
     /// X11) or main-thread synchronous rendering (Wayland)
     mode:        HandleMode,
@@ -175,7 +190,10 @@ impl OverlayHandle {
         self.monitor_key
     }
 
-    /// Create one overlay per connected monitor, all sharing `gpu`
+    /// Create one overlay per connected monitor, all sharing `gpu`.  In
+    /// Window mode, create the one animation window instead, with no
+    /// overlay probe.  Startup and a live display-mode change both
+    /// come through here
     pub fn create_all(
         event_loop: &ActiveEventLoop,
         gpu:        Arc<GpuContext>,
@@ -183,7 +201,19 @@ impl OverlayHandle {
         state:      Arc<Mutex<Option<BreathingState>>>,
         max_circle_scale: f32,
     ) -> Vec<Self> {
-        let monitors: Vec<_> = event_loop.available_monitors().collect();
+        // Window mode is one window in total, so only the primary
+        // monitor is visited.  The loop below then stops after that
+        // window the same way it does when the overlay probe falls back,
+        // and the no-monitor fallback after it still covers a machine
+        // that reports none
+        let monitors: Vec<_> = if settings.read_or_recover().display_mode == DisplayMode::Window {
+            event_loop.primary_monitor()
+                .or_else(|| event_loop.available_monitors().next())
+                .into_iter()
+                .collect()
+        } else {
+            event_loop.available_monitors().collect()
+        };
         let mut handles = Vec::with_capacity(monitors.len());
 
         for monitor in monitors {
@@ -195,7 +225,8 @@ impl OverlayHandle {
                     // If the system's swap chain doesn't support
                     // per-pixel alpha, the first overlay reconfigured
                     // itself as a regular windowed app (see
-                    // `create_one`).  Spawning more "overlays" on
+                    // `create_one`).  Window mode builds that same
+                    // window on purpose.  Spawning more "overlays" on
                     // additional monitors in this mode would
                     // produce duplicate windowed copies of the
                     // animation, none of which act as overlays.
@@ -267,10 +298,13 @@ impl OverlayHandle {
             // request lands on the main thread's event queue and
             // fires as soon as resumed() returns
             window.request_redraw();
+            let fills_display = study_fills_display(&settings.read_or_recover());
             return Ok(Self {
                 window,
                 monitor_key,
                 alpha_capable,
+                window_only: true,
+                fills_display,
                 mode: HandleMode::MainThread(Box::new(MainThreadState {
                     renderer: Mutex::new(renderer),
                     state,
@@ -281,8 +315,20 @@ impl OverlayHandle {
         }
 
         // ── Non-Wayland: per-window render thread ──────────────────
-        let (window, mut renderer, alpha_capable) =
-            create_overlay_or_fallback(event_loop, &gpu, monitor.as_ref(), &settings)?;
+        //
+        // Window mode skips the overlay probe and builds its window
+        // directly, the way the fallback builds the one it settles
+        // for.  Otherwise the overlay comes first and the fallback
+        // only when the probe finds no per-pixel alpha
+        let (window_mode, fills_display) = {
+            let s = settings.read_or_recover();
+            (s.display_mode == DisplayMode::Window, study_fills_display(&s))
+        };
+        let (window, mut renderer, alpha_capable) = if window_mode {
+            create_windowed_app(event_loop, &gpu, monitor.as_ref(), &settings)?
+        } else {
+            create_overlay_or_fallback(event_loop, &gpu, monitor.as_ref(), &settings)?
+        };
 
         let (msg_tx, msg_rx) = mpsc::channel::<RenderMsg>();
         let thread = thread::Builder::new()
@@ -302,6 +348,8 @@ impl OverlayHandle {
             window,
             monitor_key,
             alpha_capable,
+            window_only: !window_mode && !alpha_capable,
+            fills_display,
             mode: HandleMode::Threaded { msg_tx, thread: Some(thread) },
         })
     }
@@ -348,18 +396,55 @@ impl OverlayHandle {
     /// "stopped" clear frame.  So we gate this on
     /// `alpha_capable`: threaded overlays ignore the toggle, the
     /// windowed-app shows / hides
+    ///
+    /// Every path that shows or hides the window comes through here: Start
+    /// and Stop from the panel, the tray, a hotkey and auto-stop, the
+    /// launch, and a display-mode swap.  So this is where a study's window
+    /// fills the primary display on Start and gives it back on Stop, and
+    /// where a window the user took into native full screen leaves it
+    /// before it hides.  The platform layer does the work, which differs
+    /// by OS (see `platform::show_animation_window`)
     pub fn set_animation_visible(&self, visible: bool) {
         if self.alpha_capable {
             return;
         }
-        self.window.set_visible(visible);
         if visible {
+            platform::show_animation_window(&self.window, self.fills_display);
             // Wayland needs an explicit redraw request after a
             // hide -> show cycle to re-commit a buffer.  Without it
             // the xdg_toplevel comes back to the dock but the
             // surface stays unattached
             self.window.request_redraw();
+        } else {
+            platform::hide_animation_window(&self.window);
         }
+    }
+
+    /// Put a window that was just created into the state the session is
+    /// in: shown while it animates, hidden while it's stopped (see
+    /// [`Self::set_animation_visible`]), and a stopped session gets one
+    /// clear frame as well
+    ///
+    /// The controller sends frames only while it animates. A window that
+    /// opens stopped (a launch with a study that can't run, a monitor
+    /// plugged in while stopped) would otherwise never be drawn to, and a
+    /// layered window on Windows or an ARGB window on X11 that has never
+    /// been drawn to shows undefined content. A session that animates needs
+    /// nothing: the controller's next tick draws, and a frame sent from here
+    /// could paint the state left over from before a restart
+    pub fn settle(&self, animating: bool) {
+        self.set_animation_visible(animating);
+        if !animating {
+            self.wake_render();
+        }
+    }
+
+    /// Whether the window's frame is the screen's and not the user's: it
+    /// is full screen now, or a study holds it full screen and it sits
+    /// hidden between a Stop and a Start.  The window's placement is only
+    /// worth saving while this is false
+    pub fn is_full_screen(&self) -> bool {
+        self.fills_display || platform::is_full_screen(&self.window)
     }
 
     /// Render synchronously on the calling thread.  No-op for
@@ -385,49 +470,59 @@ impl OverlayHandle {
 
 /// Build a plain decorated / resizable / movable app window that
 /// renders the breath animation as its content.  Used unconditionally
-/// on Wayland (no portable always-on-top there) and as the fallback
+/// on Wayland (no portable always-on-top there), as the fallback
 /// when the overlay probe finds the swap chain is Opaque-only
-/// (WARP / remote-desktop / certain VM GPU paths).  Always returns
+/// (WARP / remote-desktop / certain VM GPU paths), and for Window
+/// mode, where the user asks for it.  Always returns
 /// `alpha_capable = false` so the renderer paints onto the opaque
 /// surface without compositing artefacts
+///
+/// The renderer is [`OverlayRenderer::new_window`] on every one of those
+/// paths: an opaque swap chain, drawn at full strength
 fn create_windowed_app(
     event_loop: &ActiveEventLoop,
     gpu:        &Arc<GpuContext>,
     monitor:    Option<&MonitorHandle>,
     settings:   &Arc<RwLock<Settings>>,
 ) -> Result<(Arc<Window>, OverlayRenderer, bool)> {
-    const DEFAULT_W: u32 = 480;
-    const DEFAULT_H: u32 = 360;
-
-    let placement = settings.read_or_recover().animation_window_placement();
+    let (placement, animating, fills_display) = {
+        let s = settings.read_or_recover();
+        (s.animation_window_placement(), s.is_animating, study_fills_display(&s))
+    };
     let win_attrs = Window::default_attributes()
         .with_title("exhale")
-        .with_inner_size(PhysicalSize::new(
-            placement.width.unwrap_or(DEFAULT_W),
-            placement.height.unwrap_or(DEFAULT_H),
-        ))
+        .with_inner_size(initial_window_size(&placement))
         .with_decorations(true)
         .with_resizable(true)
+        // A stopped session keeps this window hidden until Start (see
+        // `set_animation_visible`), so one built mid-session after a
+        // display-mode change doesn't flash on screen first
+        .with_visible(animating)
         .with_window_icon(crate::app_icon::window_icon());
 
     let window  = Arc::new(event_loop.create_window(win_attrs)?);
+    // Lets the OS's own full-screen control work on this window, unless a
+    // study fills the display with it another way: native full screen on
+    // top of that would put the window in a Space of its own
+    platform::setup_animation_window(&window, fills_display);
 
     // Apply the saved position before creating the wgpu surface so
     // any compositor that re-runs configure on outer-position
     // changes settles into the final geometry before we configure
     // the surface.  Size was already set via `with_inner_size` in
-    // the attrs above using the persisted (or default) physical
-    // pixel dimensions
+    // the attrs above: see `initial_window_size`
     crate::placement::apply_placement(event_loop, &window, &placement);
     if placement.x.is_none() {
         // First launch / no saved position: centre on the assigned
         // monitor explicitly so X11 / Windows / macOS don't fall back
-        // to (0, 0).  Wayland still ignores this
+        // to (0, 0).  Wayland still ignores this.  Centres the window as
+        // it came out, since its physical size depends on the scale
         if let Some(m) = monitor {
-            let mp = m.position();
-            let ms = m.size();
-            let x  = mp.x + (ms.width  as i32 - DEFAULT_W as i32) / 2;
-            let y  = mp.y + (ms.height as i32 - DEFAULT_H as i32) / 2;
+            let mp    = m.position();
+            let ms    = m.size();
+            let outer = window.outer_size();
+            let x     = mp.x + (ms.width  as i32 - outer.width  as i32) / 2;
+            let y     = mp.y + (ms.height as i32 - outer.height as i32) / 2;
             window.set_outer_position(PhysicalPosition::new(
                 x.max(mp.x), y.max(mp.y),
             ));
@@ -436,10 +531,41 @@ fn create_windowed_app(
 
     let size     = window.inner_size();
     let surface  = gpu.instance.create_surface(Arc::clone(&window))?;
-    let renderer = OverlayRenderer::new(
+    let renderer = OverlayRenderer::new_window(
         Arc::clone(gpu), surface, size.width, size.height,
     )?;
     Ok((window, renderer, false))
+}
+
+/// Inner size the animation window opens at: the size the user left
+/// it at, else 480 by 360 logical points
+///
+/// A saved size is physical pixels, which is what
+/// `placement::capture_placement` stores, so it reads back as exactly
+/// that many pixels.  The default is logical points, so a Retina or
+/// scaled display gets the same 480 by 360 window an unscaled one does
+/// instead of half of it.  Half a saved size (one of the two numbers
+/// missing from a hand-edited `settings.toml`) counts as none, and so
+/// does a 0 in either, which an earlier build saved from a minimized
+/// window on Windows
+fn initial_window_size(placement: &WindowPlacement) -> Size {
+    const DEFAULT_W: u32 = 480;
+    const DEFAULT_H: u32 = 360;
+
+    match (placement.width, placement.height) {
+        (Some(w), Some(h)) if w > 0 && h > 0 => PhysicalSize::new(w, h).into(),
+        _                                    => LogicalSize::new(DEFAULT_W, DEFAULT_H).into(),
+    }
+}
+
+/// Whether a study holds the animation window full screen on the primary
+/// display: a locked study whose file asks for Window mode
+///
+/// The file's `display_mode` is one of the locked fields, so a study that
+/// leaves it out locks the shipped default, Overlay, and gets no window
+/// to fill the display with
+pub(crate) fn study_fills_display(settings: &Settings) -> bool {
+    settings.study.is_some() && settings.display_mode == DisplayMode::Window
 }
 
 /// Try the platform-specific fullscreen overlay path (click-through,
@@ -733,5 +859,95 @@ mod coalesce_tests {
             latest_resize: None,
             should_quit:   false,
         });
+    }
+}
+
+#[cfg(test)]
+mod full_screen_tests {
+    use super::*;
+    use crate::test_support::{Folder, STUDY_FILE};
+
+    /// The settings a manager loads from a study file that adds `extra`
+    /// lines to the shared one
+    fn study_settings(tag: &str, extra: &str) -> Settings {
+        let folder = Folder::new(tag, Some(&format!("{STUDY_FILE}{extra}")));
+        let loaded = folder.manager.settings.read().expect("settings lock").clone();
+        loaded
+    }
+
+    #[test]
+    fn a_study_that_locks_window_mode_holds_the_window_full_screen() {
+        let s = study_settings("fills-window", "display_mode = \"window\"\n");
+        assert_eq!(s.display_mode, DisplayMode::Window);
+        assert!(study_fills_display(&s));
+    }
+
+    #[test]
+    fn a_study_that_leaves_the_display_to_its_default_has_no_window_to_fill() {
+        // The file leaves `display_mode` out, which locks Overlay
+        let s = study_settings("fills-overlay", "");
+        assert!(s.study.is_some());
+        assert_eq!(s.display_mode, DisplayMode::Overlay);
+        assert!(!study_fills_display(&s));
+
+        let s = study_settings("fills-overlay-explicit", "display_mode = \"overlay\"\n");
+        assert!(!study_fills_display(&s));
+    }
+
+    #[test]
+    fn window_mode_outside_a_study_is_the_users_to_place() {
+        let s = Settings { display_mode: DisplayMode::Window, ..Settings::default() };
+        assert!(s.study.is_none());
+        assert!(!study_fills_display(&s));
+    }
+}
+
+#[cfg(test)]
+mod window_size_tests {
+    use super::*;
+
+    fn placement(width: Option<u32>, height: Option<u32>) -> WindowPlacement {
+        WindowPlacement { width, height, ..Default::default() }
+    }
+
+    #[test]
+    fn no_saved_size_opens_at_480_by_360_logical_points() {
+        // Logical, so a Retina display gets 960 by 720 pixels and not 480 by 360
+        assert_eq!(
+            initial_window_size(&placement(None, None)),
+            Size::Logical(LogicalSize::new(480.0, 360.0)),
+        );
+        let physical = initial_window_size(&placement(None, None)).to_physical::<u32>(2.0);
+        assert_eq!((physical.width, physical.height), (960, 720));
+    }
+
+    #[test]
+    fn a_saved_size_reads_back_as_the_physical_pixels_it_was_stored_in() {
+        // `capture_placement` stores `window.inner_size()`, which is physical
+        assert_eq!(
+            initial_window_size(&placement(Some(960), Some(720))),
+            Size::Physical(PhysicalSize::new(960, 720)),
+        );
+    }
+
+    #[test]
+    fn half_a_saved_size_counts_as_none() {
+        let default = initial_window_size(&placement(None, None));
+        assert_eq!(initial_window_size(&placement(Some(960), None)), default);
+        assert_eq!(initial_window_size(&placement(None, Some(720))), default);
+    }
+
+    #[test]
+    fn a_saved_zero_counts_as_none() {
+        // What an earlier build saved from a minimized window on Windows: 0 by 0
+        let default = initial_window_size(&placement(None, None));
+        assert_eq!(initial_window_size(&placement(Some(0), Some(0))), default);
+        assert_eq!(initial_window_size(&placement(Some(0), Some(720))), default);
+        assert_eq!(initial_window_size(&placement(Some(960), Some(0))), default);
+        // The smallest size there is stays a size
+        assert_eq!(
+            initial_window_size(&placement(Some(1), Some(1))),
+            Size::Physical(PhysicalSize::new(1, 1)),
+        );
     }
 }

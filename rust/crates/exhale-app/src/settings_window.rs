@@ -1,13 +1,13 @@
 mod theme;
 mod widgets;
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
 
 use theme::{
-    clear_color_for_theme, install_system_ui_font, theme_preference,
-    visuals_for_theme, PANEL_FILL_DARK, PANEL_FILL_LIGHT,
+    clear_color_for_theme, fit_tooltips_to_window, install_system_ui_font,
+    theme_preference, visuals_for_theme, PANEL_FILL_DARK, PANEL_FILL_LIGHT,
 };
 // Star import is intentional: `settings_ui` references ~12 widget
 // helpers and half a dozen layout constants, and the widget submodule
@@ -17,10 +17,13 @@ use widgets::*;
 use egui::ViewportId;
 use egui_wgpu::ScreenDescriptor;
 use exhale_core::{
+    session_log::{export_dirs, SessionLog},
     settings::{KeyboardShortcut, Settings, ShortcutAction},
     settings_manager::SettingsManager,
+    study::{StudyError, StudyStatus},
     types::{
-        AnimationMode, AnimationShape, AppVisibility, ColorFillGradient, HoldRippleMode,
+        AnimationMode, AnimationShape, AppVisibility, ColorFillGradient, DisplayMode,
+        HoldRippleMode,
     },
 };
 use crate::keymap::{egui_key_to_code, egui_modifiers_to_mask};
@@ -86,6 +89,16 @@ pub struct SettingsWindow {
     /// dark and light themes.  None on non-macOS or when the
     /// rasteriser fails: callers fall back to Unicode glyphs
     icon_cache: IconCache,
+    /// Study builds only: the session log the Export and Clear buttons
+    /// in the Study card act on.  `None` everywhere else, and the card
+    /// then shows the participant id with no buttons
+    session_log: Option<Arc<SessionLog>>,
+    /// Last thing the Study card's buttons did, shown under them
+    study_note: Option<StudyNote>,
+    /// The status lines the Study card drew last frame, so a frame that
+    /// draws others can tell that the card's height changed. The window
+    /// then grows to fit them (see `render`)
+    study_lines: Vec<String>,
     /// Last value passed to `set_max_inner_size` so we can no-op when
     /// the natural content height hasn't changed.  Calling
     /// `set_max_inner_size` every frame translates on macOS to
@@ -190,6 +203,48 @@ pub(super) const SETTINGS_WIDTH: u32 = 360;
 /// while leaving a tighter floor than the previous 428 pt cap
 const SETTINGS_MIN_HEIGHT: u32 = 100;
 
+/// Points kept clear below the window for a Dock or a taskbar, which winit
+/// can't measure. A window that grows to fit its content stops this far
+/// above the bottom of the monitor
+const SCREEN_BOTTOM_RESERVE: f64 = 80.0;
+
+/// The height, in logical points, a window should grow to when its content
+/// is `natural` tall and it is `current` tall now, or `None` when it stays
+///
+/// `room` is the most the screen leaves it, when that's known. A window
+/// that's as tall as that already, or taller, stays as it is: a user who
+/// put it there wanted it there
+fn grown_height(current: u32, natural: u32, room: Option<u32>) -> Option<u32> {
+    let target = natural.min(room.unwrap_or(natural));
+    (target > current).then_some(target)
+}
+
+/// The most height, in logical points, a window can have from its top edge
+/// down to the bottom of its monitor, less the title bar and the room kept
+/// for a Dock or a taskbar
+///
+/// `monitor_top` and `window_top` are physical pixels on the same screen
+/// coordinates, `monitor_h` and `chrome` physical pixels, and `scale` the
+/// monitor's scale factor. A window whose top sits below the monitor's
+/// bottom has no room
+fn room_below(monitor_top: i32, monitor_h: u32, window_top: i32, chrome: u32, scale: f64) -> u32 {
+    let bottom = monitor_top as i64 + monitor_h as i64;
+    let below  = (bottom - window_top as i64 - chrome as i64).max(0) as f64;
+    (below / scale - SCREEN_BOTTOM_RESERVE).max(0.0) as u32
+}
+
+/// [`room_below`] for a live window, `None` when it has no monitor
+///
+/// Wayland doesn't say where a window is, so the top of the monitor stands
+/// in, which is the most room the window could have
+fn room_below_window(window: &winit::window::Window) -> Option<u32> {
+    let monitor     = window.current_monitor()?;
+    let monitor_top = monitor.position().y;
+    let window_top  = window.outer_position().map_or(monitor_top, |p| p.y);
+    let chrome      = window.outer_size().height.saturating_sub(window.inner_size().height);
+    Some(room_below(monitor_top, monitor.size().height, window_top, chrome, window.scale_factor()))
+}
+
 impl SettingsWindow {
     pub fn new(
         event_loop:        &ActiveEventLoop,
@@ -197,6 +252,7 @@ impl SettingsWindow {
         settings:          &exhale_core::settings::Settings,
         on_quit:           Box<dyn Fn() + Send + Sync + 'static>,
         on_rebind_hotkeys: Box<dyn Fn() + Send + Sync + 'static>,
+        session_log:       Option<Arc<SessionLog>>,
     ) -> Result<Self> {
         // Width is fixed.  Only height is user-resizable.  Max height is set
         // later (once egui has measured the natural content size) so the
@@ -359,6 +415,8 @@ impl SettingsWindow {
         // back to egui's default Ubuntu font if the platform's system font
         // isn't locatable: nothing critical breaks
         install_system_ui_font(&egui_ctx);
+        // Tooltips wrap at a width that fits the 360 pt window
+        fit_tooltips_to_window(&egui_ctx);
 
         // Pre-populate both style buckets with our custom visuals.  egui owns
         // separate dark_style / light_style slots and picks one per-frame
@@ -412,8 +470,30 @@ impl SettingsWindow {
             theme,
             vev_ptr,
             icon_cache,
+            session_log,
+            study_note: None,
+            study_lines: Vec::new(),
             last_max_height: None,
         })
+    }
+
+    /// Make the window as tall as its content, or as tall as the screen
+    /// leaves room for when that's less. Never shorter than it is
+    ///
+    /// Raises the height only. The maximum height set from the content
+    /// already brings the window down when the content shrinks
+    fn grow_to_content(&self, natural_h: u32) {
+        let scale   = self.window.scale_factor();
+        let current = (self.window.inner_size().height as f64 / scale).round() as u32;
+        let room    = room_below_window(&self.window);
+        if let Some(height) = grown_height(current, natural_h, room) {
+            // The size comes back at once on some platforms and later on
+            // the others, with a `Resized` event either way, which
+            // reconfigures the surface
+            let _ = self.window.request_inner_size(
+                winit::dpi::LogicalSize::new(SETTINGS_WIDTH, height),
+            );
+        }
     }
 
     /// Forward a window event to egui.
@@ -493,10 +573,14 @@ impl SettingsWindow {
     /// Returns the `repaint_delay` egui requests for its next frame, used by
     /// the caller to schedule the next repaint via a deadline instead of
     /// polling every idle tick.  `Duration::MAX` means no scheduled repaint
+    ///
+    /// `overlay_available` is false when this session can only show a
+    /// window, which locks the Display row to Window
     pub fn render(
         &mut self,
-        settings:         &mut Settings,
-        settings_manager: &Arc<SettingsManager>,
+        settings:          &mut Settings,
+        settings_manager:  &Arc<SettingsManager>,
+        overlay_available: bool,
     ) -> Result<std::time::Duration> {
         // Reconcile against the authoritative OS theme every frame.
         // `WindowEvent::ThemeChanged` can coalesce or drop during rapid
@@ -547,6 +631,7 @@ impl SettingsWindow {
         let pixels_per_point = self.window.scale_factor() as f32;
 
         let mut content_height: f32 = 0.0;
+        let mut study_lines: Vec<String> = Vec::new();
         // `full_output.platform_output.copied_text` is taken on
         // macOS only (clipboard hand-off).  On other platforms the
         // binding is read-only, hence the cross-cfg `unused_mut`
@@ -559,6 +644,10 @@ impl SettingsWindow {
                 &*self.on_quit,
                 &*self.on_rebind_hotkeys,
                 &self.icon_cache,
+                &self.session_log,
+                &mut self.study_note,
+                &mut study_lines,
+                overlay_available,
             );
         });
 
@@ -603,7 +692,17 @@ impl SettingsWindow {
                 ));
                 self.last_max_height = Some(natural_h);
             }
+            // A raised maximum doesn't raise the window, which opened
+            // clamped to the content it had. When the Study card's status
+            // lines change, an export or the log growing since, they land
+            // below the bottom edge and the window has to scroll to show
+            // them. So it grows to its content the way it opened at it,
+            // after the new maximum is in place
+            if study_lines != self.study_lines {
+                self.grow_to_content(natural_h);
+            }
         }
+        self.study_lines = study_lines;
 
         // On macOS: bypass `handle_platform_output` entirely and pipe only
         // the clipboard update through.  `handle_platform_output` internally
@@ -713,6 +812,9 @@ impl Drop for SettingsWindow {
 //   • Timing: 4 phase durations
 //   • Randomization: 4 jitter sliders + drift
 //   • Timers: reminder + auto-stop
+//
+// In a study the Appearance card keeps visibility alone, and the Study card
+// stands in for the last three
 
 /// Attach the right-click "Change Shortcut…" / "Reset to Default"
 /// menu to a control-button `Response`.  Lives next to the buttons
@@ -793,6 +895,10 @@ fn shortcut_tooltip_line(
 // both its `segmented_row` and `uniform_picker_column_width`, so the
 // measured column always matches the labels drawn
 
+const DISPLAY_OPTIONS: &[(&str, DisplayMode)] = &[
+    ("Overlay", DisplayMode::Overlay),
+    ("Window",  DisplayMode::Window),
+];
 const SHAPE_OPTIONS: &[(&str, AnimationShape)] = &[
     ("Rectangle", AnimationShape::Rectangle),
     ("Circle",    AnimationShape::Circle),
@@ -823,6 +929,110 @@ const VISIBILITY_OPTIONS: &[(&str, AppVisibility)] = &[
     ("Both",    AppVisibility::Both),
 ];
 
+/// The one column width every picker in the Appearance card shares,
+/// measured over all of them.  Split out of [`settings_ui`] so a layout
+/// test measures the same column the window does
+fn picker_column_width(ui: &egui::Ui) -> f32 {
+    uniform_picker_column_width(ui, &[
+        option_labels(DISPLAY_OPTIONS),
+        option_labels(SHAPE_OPTIONS),
+        option_labels(GRADIENT_OPTIONS),
+        option_labels(ANIMATION_OPTIONS),
+        option_labels(RIPPLE_OPTIONS),
+        option_labels(VISIBILITY_OPTIONS),
+    ])
+}
+
+const DISPLAY_HELP: &str = "Overlay floats above your other windows and lets clicks \
+                            through. Window is a regular window you can move, resize \
+                            or make full screen.";
+/// Shown in its place when the session can't show an overlay
+const DISPLAY_LOCKED_HELP: &str = "This session always shows a window, because Wayland and \
+                                   some graphics drivers can't show an overlay.";
+
+/// The Display row: Overlay or Window
+///
+/// A session that can't show an overlay (Wayland, or a swap chain with
+/// no per-pixel alpha) always shows a window.  The row is then drawn
+/// disabled with Window selected, and nothing it does reaches
+/// `settings`, so the stored choice stays whatever the user last made.
+/// Disabling it with `add_enabled_ui` is safe because `segmented_row`
+/// senses hover only in a disabled `Ui`, which keeps Tab traversal
+/// intact (see the Background Color comment in `settings_ui`)
+///
+/// Returns true when the setting changed
+fn display_row(
+    ui:                &mut egui::Ui,
+    settings:          &mut Settings,
+    overlay_available: bool,
+    column_w:          f32,
+) -> bool {
+    if overlay_available {
+        return segmented_row(
+            ui, "Display", DISPLAY_HELP, column_w,
+            &mut settings.display_mode, DISPLAY_OPTIONS,
+        );
+    }
+    // The picker needs something to write to, and it never will
+    let mut shown = DisplayMode::Window;
+    ui.add_enabled_ui(false, |ui| {
+        segmented_row(
+            ui, "Display", DISPLAY_LOCKED_HELP, column_w,
+            &mut shown, DISPLAY_OPTIONS,
+        );
+    });
+    false
+}
+
+const OPACITY_HELP: &str = "Transparency of the overlay. Lower = more transparent.";
+/// Shown in its place while a window is showing
+const OPACITY_WINDOW_HELP: &str =
+    "A window draws at full strength. Overlay Opacity applies to the overlay.";
+
+/// Whether the animation is a window right now: Window mode, or a session
+/// that can't show an overlay and so shows one whatever is stored
+fn window_showing(settings: &Settings, overlay_available: bool) -> bool {
+    !overlay_available || settings.display_mode == DisplayMode::Window
+}
+
+/// The Overlay Opacity row
+///
+/// A window draws at full strength, so while one is showing the row is
+/// drawn disabled and nothing it does reaches `settings`: the stored
+/// opacity waits for the next time an overlay is showing.  It's disabled
+/// the way the Display row is, with the same Tab-safe widget
+///
+/// Returns true when the setting changed
+fn opacity_row(
+    ui:             &mut egui::Ui,
+    settings:       &mut Settings,
+    window_showing: bool,
+) -> bool {
+    // Swift stores 0.0..1.0, displays 0..100 %.  Wrap with an f64 shim
+    // because ValueScale::Percent operates on `*value / 100.0` and
+    // settings.overlay_opacity is f32
+    let mut opacity_pct = settings.overlay_opacity as f64;
+    if window_showing {
+        ui.add_enabled_ui(false, |ui| {
+            stepper_row(
+                ui, "Overlay Opacity (%)", OPACITY_WINDOW_HELP,
+                None, &mut opacity_pct, 1.0, 0.0, Some(100.0),
+                ValueScale::Percent,
+            );
+        });
+        return false;
+    }
+    if stepper_row(
+        ui, "Overlay Opacity (%)", OPACITY_HELP,
+        None, &mut opacity_pct, 1.0, 0.0, Some(100.0),
+        ValueScale::Percent,
+    ) {
+        settings.overlay_opacity = opacity_pct as f32;
+        return true;
+    }
+    false
+}
+
 /// Gap between the Controls-row buttons, and between the two reset
 /// confirmation buttons under them
 const CONTROL_GAP: f32 = 8.0;
@@ -835,8 +1045,436 @@ fn control_slot_width(avail: f32) -> f32 {
     ((avail - CONTROL_GAP * (SLOTS - 1.0)) / SLOTS).floor().max(1.0)
 }
 
+/// The color the panel says something has gone wrong in
+///
+/// One definition for the reset confirmation and the study-file
+/// warning, so the two can't drift apart. Pastel red on dark has enough
+/// contrast to read as a warning without screaming, and the light
+/// variant is dark enough to stay legible on the near-white card
+fn warning_color(ui: &egui::Ui) -> egui::Color32 {
+    if ui.visuals().dark_mode {
+        egui::Color32::from_rgb(255, 130, 130)
+    } else {
+        egui::Color32::from_rgb(180, 0, 0)
+    }
+}
+
+/// What Reset says it does, in the button's tooltip and in its
+/// confirmation
+struct ResetText {
+    help:   &'static str,
+    title:  &'static str,
+    detail: &'static str,
+}
+
+/// What Reset has always said, true wherever no study lock is in force
+const RESET_TEXT: ResetText = ResetText {
+    help:   "Reset all settings to their default values.",
+    title:  "Reset all settings to their defaults?",
+    detail: "This restores every appearance, timing, and keyboard-shortcut \
+             setting. Can't be undone.",
+};
+
+/// In a study the file locks the pace and the appearance, and Reset puts
+/// them back to the file's values, so all it restores is what the file
+/// leaves to the participant
+const RESET_TEXT_STUDY: ResetText = ResetText {
+    help:   "Reset the keyboard shortcuts and Show In to their defaults.\n\
+             The study locks everything else.",
+    title:  "Reset the keyboard shortcuts and Show In?",
+    detail: "This restores the keyboard shortcuts and Show In. The study \
+             locks the pace and the appearance. Can't be undone.",
+};
+
+/// In a study that holds the animation window full screen, Show In is
+/// hidden and the app runs as Both whatever it holds, so the shortcuts are
+/// all that Reset visibly restores
+const RESET_TEXT_STUDY_WINDOW: ResetText = ResetText {
+    help:   "Reset the keyboard shortcuts to their defaults.\n\
+             The study locks everything else.",
+    title:  "Reset the keyboard shortcuts?",
+    detail: "This restores the keyboard shortcuts. The study locks the \
+             pace, the appearance and the display. Can't be undone.",
+};
+
+/// The words for a Reset, true for the settings it will find
+///
+/// A study keeps its lock through Reset (`settings.study` is set), and one
+/// that holds the animation window full screen has Show In hidden as well
+fn reset_text(settings: &Settings) -> &'static ResetText {
+    if crate::overlay::study_fills_display(settings) {
+        &RESET_TEXT_STUDY_WINDOW
+    } else if settings.study.is_some() {
+        &RESET_TEXT_STUDY
+    } else {
+        &RESET_TEXT
+    }
+}
+
+/// Said under the Export button when new lines have arrived since the
+/// last export, which is when Clear isn't offered
+///
+/// A running animation writes a line at every phase, so an export taken
+/// while it runs is already behind by the time the card redraws. The hint
+/// says Stop first, which is what makes the next export the last one
+const CLEAR_WITHHELD_HINT: &str =
+    "New lines arrived since the export. Stop, then export again to clear the log.";
+
+/// Start's tooltip while the study can't run
+const STUDY_START_HELP: &str = "The study can't start. Tell whoever runs the study.";
+
+/// The last thing the Study card's buttons did, shown under them
+#[derive(Clone, Debug, PartialEq)]
+enum StudyNote {
+    /// The log was copied to this path
+    Exported(PathBuf),
+    /// The live log is empty again
+    Cleared,
+    /// An export or a clear failed, with the sentence that says why
+    Failed(String),
+}
+
+/// The Study card of a study that can't run
+///
+/// `summary` names the file, and the line and the field when it knows
+/// them. It never holds a configured value, so a participant who reads
+/// it learns nothing about the pace. The full detail is in the debug log
+fn study_error_card(ui: &mut egui::Ui, err: &StudyError) {
+    section(ui, "Study", |ui| {
+        let warning = warning_color(ui);
+        ui.label(
+            egui::RichText::new(format!("Study can't start: {}", err.summary()))
+                .color(warning),
+        );
+        ui.label(egui::RichText::new("Tell whoever runs the study.").color(warning));
+    });
+}
+
+/// The Appearance card
+///
+/// A study file locks every row here but Show In, so while the pace is
+/// kept from the participant (any status but `Off`, as for the pacing
+/// cards) the card shows that row alone. The locked rows are hidden and
+/// not disabled: a control the file overrides would only invite presses
+/// that do nothing, and a disabled widget breaks Tab for the controls after
+/// it (see the Background Color comment below)
+///
+/// A study that holds the animation window full screen hides Show In as
+/// well, and with it the whole card. The app runs as Both there whatever
+/// the setting holds (see `crate::effective_visibility`), so the row would
+/// only invite presses that do nothing
+///
+/// Split out of [`settings_ui`] so a test can lay the card out on its own
+///
+/// Returns true when something in it changed the settings
+fn appearance_card(
+    ui:                &mut egui::Ui,
+    settings:          &mut Settings,
+    status:            &StudyStatus,
+    overlay_available: bool,
+    picker_column_w:   f32,
+) -> bool {
+    if crate::overlay::study_fills_display(settings) {
+        return false;
+    }
+    let mut dirty = false;
+    section(ui, "Appearance", |ui| {
+        if !crate::hides_pacing(status) {
+            // Inhale color: no alpha (Swift: supportsOpacity: false)
+            if color_row(
+                ui, "Inhale Color", "Choose the color for the inhale phase.",
+                &mut settings.inhale_color, egui::color_picker::Alpha::Opaque,
+            ) { dirty = true; }
+
+            // Exhale color: no alpha (Swift: supportsOpacity: false)
+            if color_row(
+                ui, "Exhale Color", "Choose the color for the exhale phase.",
+                &mut settings.exhale_color, egui::color_picker::Alpha::Opaque,
+            ) { dirty = true; }
+
+            // Background color (with alpha).  Only visually meaningful
+            // when `shape != Fullscreen`, but we render the picker
+            // enabled regardless.  Wrapping it in
+            // `add_enabled_ui(false, ...)` made egui call
+            // `surrender_focus` on the disabled widget every
+            // time Tab landed there.  Focus was lost mid-cycle
+            // and the next Tab wrapped back to the first
+            // focusable widget (Start button), so users with
+            // `shape = Fullscreen` saw Tab go button-button-
+            // button-button-Inhale-Exhale-Background-Start
+            // instead of continuing through Overlay Opacity
+            // and the rest of the panel.  The tooltip tells the
+            // user when the setting has no effect
+            if color_row(
+                ui, "Background Color",
+                "Choose the background color. No effect when Shape is Fullscreen.",
+                &mut settings.background_color, egui::color_picker::Alpha::OnlyBlend,
+            ) { dirty = true; }
+
+            // Overlay opacity: disabled while a window is showing
+            let window = window_showing(settings, overlay_available);
+            if opacity_row(ui, settings, window) {
+                dirty = true;
+            }
+
+            if display_row(ui, settings, overlay_available, picker_column_w) {
+                dirty = true;
+            }
+
+            // Shape
+            if segmented_row(
+                ui, "Shape",
+                "Shape of the animation: Fullscreen, Rectangle, or Circle.",
+                picker_column_w,
+                &mut settings.shape,
+                SHAPE_OPTIONS,
+            ) { dirty = true; }
+
+            if segmented_row(
+                ui, "Gradient",
+                "Gradient color effect. No effect when Shape is Fullscreen.",
+                picker_column_w,
+                &mut settings.color_fill_gradient,
+                GRADIENT_OPTIONS,
+            ) { dirty = true; }
+
+            if segmented_row(
+                ui, "Animation",
+                "Sinusoidal eases in/out naturally. Linear is constant speed.",
+                picker_column_w,
+                &mut settings.animation_mode,
+                ANIMATION_OPTIONS,
+            ) { dirty = true; }
+
+            if segmented_row(
+                ui, "Hold Ripple",
+                "Hold phase ripple: Gradient (smooth glow), Stark (solid edge), or Off.",
+                picker_column_w,
+                &mut settings.hold_ripple_mode,
+                RIPPLE_OPTIONS,
+            ) { dirty = true; }
+        }
+
+        // App visibility (macOS concept, show on all platforms for settings parity)
+        if segmented_row(
+            ui, "Show In",
+            "Where exhale appears: Top Bar, Dock, or Both.",
+            picker_column_w,
+            &mut settings.app_visibility,
+            VISIBILITY_OPTIONS,
+        ) { dirty = true; }
+    });
+    dirty
+}
+
+/// The cards under Appearance: Timing, Randomization and Timers when no
+/// study is involved, the Study card when a study file locked the
+/// pacing, and nothing for a study that can't run
+///
+/// Any status but `Off` shows none of the three pacing cards, and no
+/// preset chips and no pacing readout with them: a participant who can
+/// read the rate, or change it, isn't blinded any more. The cards are
+/// hidden because a read-only stepper showing 5 and 5 names the rate as
+/// well as an editable one does. A study that can't run hides them too,
+/// since the pace it would show is whatever `settings.toml` held. Its
+/// error card sits at the top of the window
+///
+/// Split out of [`settings_ui`] so a test can prove that without
+/// standing up a `SettingsManager` and its writer thread
+///
+/// `lines` is left holding the status lines the Study card drew, and
+/// empty when it drew none
+///
+/// Returns true when something in it changed the settings
+fn body_cards(
+    ui:          &mut egui::Ui,
+    settings:    &mut Settings,
+    status:      &StudyStatus,
+    session_log: &Option<Arc<SessionLog>>,
+    note:        &mut Option<StudyNote>,
+    lines:       &mut Vec<String>,
+) -> bool {
+    lines.clear();
+    if !crate::hides_pacing(status) {
+        let mut dirty = false;
+        // ── Timing ─────────────────────────────────────────────────────
+        section(ui, "Timing", |ui| {
+            // Above the steppers: the whole point of a
+            // chip is that clicking it visibly moves all four rows
+            // under it, which isn't something the user has to be
+            // told if they can watch it happen
+            if preset_chips(ui, settings) { dirty = true; }
+            if duration_row(ui, "Inhale Duration (s)",  "Duration of the inhale phase, in seconds.",             &mut settings.inhale_duration) { dirty = true; }
+            if duration_row(ui, "Post-Inhale Hold (s)", "Hold/pause duration at the end of inhale, in seconds.", &mut settings.post_inhale_hold_duration) { dirty = true; }
+            if duration_row(ui, "Exhale Duration (s)",  "Duration of the exhale phase, in seconds.",             &mut settings.exhale_duration) { dirty = true; }
+            if duration_row(ui, "Post-Exhale Hold (s)", "Hold/pause duration at the end of exhale, in seconds.", &mut settings.post_exhale_hold_duration) { dirty = true; }
+            // Computed from the four rows above, every frame.  A
+            // rate stored anywhere else would be wrong the moment
+            // one stepper moves, and wrong from the first cycle
+            // whenever Drift is on.  Drift lives in the
+            // Randomization card below, so its projection is
+            // reported here where the cycle it lengthens is
+            // defined, instead of duplicated under the stepper
+            pacing_readout(ui, settings);
+        });
+
+        // ── Randomization ──────────────────────────────────────────────
+        section(ui, "Randomization", |ui| {
+            if pct_row(ui, "Inhale (%)",           "Randomize inhale duration by this percentage.",            &mut settings.randomized_timing_inhale) { dirty = true; }
+            if pct_row(ui, "Post-Inhale Hold (%)", "Randomize post-inhale hold duration by this percentage.",  &mut settings.randomized_timing_post_inhale_hold) { dirty = true; }
+            if pct_row(ui, "Exhale (%)",           "Randomize exhale duration by this percentage.",            &mut settings.randomized_timing_exhale) { dirty = true; }
+            if pct_row(ui, "Post-Exhale Hold (%)", "Randomize post-exhale hold duration by this percentage.",  &mut settings.randomized_timing_post_exhale_hold) { dirty = true; }
+
+            // Drift: stored as a per-cycle multiplier (1.01 = +1 %), displayed
+            // as a percentage above 1.0 so "1" reads as "+1 % per cycle".
+            // Swift's stepper has no upper limit (`max: nil`).  Minimum
+            // stays at 0 % (drift = 1.0) per the `defaultMin` clamp
+            //
+            // Step is 0.1 percentage points: compounding makes whole
+            // percents enormous. 1 % doubles the breath in 70 breaths, which
+            // runs away inside one sitting.  0.1 % takes 693, about 2.8 hours
+            // from the 10 s default. Counted in breaths instead of minutes because
+            // `d^k = 2` has no cycle length in it, so the figure holds
+            // whatever the four steppers above are set to. The useful range
+            // sat entirely below the old minimum step, so whole percents
+            // offered no gentle setting at all. Finer values can still be
+            // typed: `format_num` caps display at three decimals, so 0.001 %
+            // is the finest value the field round-trips
+            //
+            // Display is `(stored - 1) * 100`, so the user reads 0 for "off"
+            // and never sees the multiplier. One step up from off is 0.1 %,
+            // stored as 1.001. See `ValueScale::DriftPercent`
+            if stepper_row(
+                ui, "Drift (%)",
+                "Lengthens every cycle by this much, compounding, for pranayama-style graded extension. Off by default. Type a value for finer control than the arrows give.",
+                None, &mut settings.drift, 0.1, 0.0, None,
+                ValueScale::DriftPercent,
+            ) { dirty = true; }
+        });
+
+        // ── Timers ─────────────────────────────────────────────────────
+        section(ui, "Timers", |ui| {
+            if stepper_row(
+                ui, "Reminder (mins)",
+                "Notification reminder every N minutes. 0 to disable.",
+                Some("0 = off"),
+                &mut settings.reminder_interval_minutes,
+                1.0, 0.0, None,
+                ValueScale::Identity,
+            ) { dirty = true; }
+            if stepper_row(
+                ui, "End After (mins)",
+                "Auto-stop after N minutes. 0 to disable.",
+                Some("0 = off"),
+                &mut settings.auto_stop_minutes,
+                1.0, 0.0, None,
+                ValueScale::Identity,
+            ) { dirty = true; }
+        });
+        return dirty;
+    }
+
+    // A study that can't run shows its error card at the top of the
+    // window and nothing here
+    if *status != StudyStatus::Locked {
+        return false;
+    }
+    // Cloned so the card can read the lock while it also reads the rest of
+    // `settings` for the log header: two short strings and a few floats,
+    // on a window that repaints on input
+    let Some(study) = settings.study.clone() else {
+        return false;
+    };
+
+    // ── Study ───────────────────────────────────────────────────────
+    section(ui, "Study", |ui| {
+        study_line(ui, "Participant", &study.participant_id);
+
+        let Some(log) = session_log else { return; };
+
+        ui.add_space(ROW_GAP);
+        // Set once the Export press, if there is one, has landed
+        let mut clear_offered = false;
+        ui.horizontal(|ui| {
+            if ui.button("Export log").clicked() {
+                *note = Some(match log.export_to(&export_dirs(), &study.participant_id) {
+                    Ok(path) => StudyNote::Exported(path),
+                    Err(e)   => StudyNote::Failed(format!("Export failed: {e}")),
+                });
+            }
+            // Offered only while the log holds nothing an export didn't
+            // copy, so a press can't wipe lines nobody has. Left out
+            // when it can't act, because a disabled egui widget
+            // surrenders focus mid-Tab and breaks the traversal for
+            // every control after it (see the Background Color comment)
+            clear_offered = log.clear_allowed();
+            if clear_offered && ui.button("Clear log").clicked() {
+                *note = Some(match log.clear(&crate::header_fields(settings)) {
+                    Ok(())  => StudyNote::Cleared,
+                    Err(e)  => StudyNote::Failed(format!("Clear failed: {e}")),
+                });
+            }
+        });
+        *lines = study_status_lines(note.as_ref(), clear_offered);
+        study_note_lines(ui, lines);
+    });
+    false
+}
+
+/// The lines the Study card says under its buttons, in order
+///
+/// After an export, `clear_offered` false means the log has grown since,
+/// and a second line says so. The one place that decides what they are:
+/// [`study_note_lines`] draws them, and [`SettingsWindow::render`] compares
+/// one frame's against the last to see when the window's height has to
+/// follow
+fn study_status_lines(note: Option<&StudyNote>, clear_offered: bool) -> Vec<String> {
+    match note {
+        Some(StudyNote::Exported(path)) => {
+            let mut lines = vec![format!("Exported to {}", path.display())];
+            if !clear_offered {
+                lines.push(CLEAR_WITHHELD_HINT.to_string());
+            }
+            lines
+        }
+        Some(StudyNote::Cleared)     => vec!["Log cleared.".to_string()],
+        Some(StudyNote::Failed(why)) => vec![why.clone()],
+        None                         => Vec::new(),
+    }
+}
+
+/// What the Study card says under its buttons
+///
+/// Each line wraps inside the card, because an export path or an OS error
+/// can be longer than the card is wide
+fn study_note_lines(ui: &mut egui::Ui, lines: &[String]) {
+    for line in lines {
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(line)
+                    .small()
+                    .color(ui.visuals().weak_text_color()),
+            )
+            .wrap(),
+        );
+    }
+}
+
+/// One "label: value" line in the Study card
+///
+/// Wraps long values, because a lab can hand out participant ids of
+/// any length and a clipped one is worse than a two-line one
+fn study_line(ui: &mut egui::Ui, label: &str, value: &str) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        paint_label(ui, label);
+        ui.add(egui::Label::new(egui::RichText::new(value).strong()).wrap());
+    });
+}
+
 /// Returns the natural (fully-expanded) content height in logical points so
-/// the caller can clamp the window's max size
+/// the caller can clamp the window's max size. `study_lines` is left
+/// holding the Study card's status lines, as [`body_cards`] documents
 #[allow(clippy::too_many_arguments)]
 fn settings_ui(
     ctx:                    &egui::Context,
@@ -847,9 +1485,17 @@ fn settings_ui(
     on_quit:                &dyn Fn(),
     on_rebind_hotkeys:      &dyn Fn(),
     icons:                  &IconCache,
+    session_log:            &Option<Arc<SessionLog>>,
+    study_note:             &mut Option<StudyNote>,
+    study_lines:            &mut Vec<String>,
+    overlay_available:      bool,
 ) -> f32 {
     let mut dirty = false;
     let mut content_height = 0.0f32;
+    // What the study file amounted to at launch, read once a frame. Every
+    // surface that shows or changes the pace goes by it, and a study that
+    // can't run also keeps Start from doing anything
+    let study_status = settings_manager.study_status();
     // Set on any action that updates `settings.keyboard_shortcuts`, both
     // direct rebinds via the capture overlay and the per-action "Reset to
     // Default" context-menu entry need to fire `on_rebind_hotkeys` so
@@ -917,13 +1563,20 @@ fn settings_ui(
             // every picker lands on the same X, regardless of option count
             // or text length, and the column only extends as far left as
             // the widest picker requires
-            let picker_column_w = uniform_picker_column_width(ui, &[
-                option_labels(SHAPE_OPTIONS),
-                option_labels(GRADIENT_OPTIONS),
-                option_labels(ANIMATION_OPTIONS),
-                option_labels(RIPPLE_OPTIONS),
-                option_labels(VISIBILITY_OPTIONS),
-            ]);
+            let picker_column_w = picker_column_width(ui);
+
+            // ── A study that can't run ────────────────────────────────
+            //
+            // First card in the window, above Controls.  A lab that
+            // installs a file and gets no lock has to find that out
+            // before the participant runs a session at the shipped
+            // default pace believing it's an assigned arm.  The same card
+            // reports a session log that won't open.  The overlay stays
+            // still and every pacing surface stays hidden until the file
+            // is fixed and the app relaunched
+            if let Some(err) = study_status.error() {
+                study_error_card(ui, err);
+            }
 
             // ── Controls (no header, matches Swift's top SectionCard) ───────
             // Swift has only three buttons: Start, Stop, Reset.  Pause is
@@ -944,16 +1597,25 @@ fn settings_ui(
                     // from `settings.keyboard_shortcuts` every frame so the
                     // tooltip stays in sync with whatever the user just
                     // captured in the right-click -> Change Shortcut overlay
-                    let start_help = format!(
-                        "Start the app and re-initialize animation.{}",
-                        shortcut_tooltip_line(settings, ShortcutAction::Start),
-                    );
+                    //
+                    // Start can't do anything in a study that can't run, so
+                    // its tooltip says why in place of what it would do
+                    let start_enabled = study_status.error().is_none();
+                    let start_help = if start_enabled {
+                        format!(
+                            "Start the app and re-initialize animation.{}",
+                            shortcut_tooltip_line(settings, ShortcutAction::Start),
+                        )
+                    } else {
+                        STUDY_START_HELP.to_string()
+                    };
                     let stop_help = format!(
                         "Stop the animation and remove all screen tints.{}",
                         shortcut_tooltip_line(settings, ShortcutAction::Stop),
                     );
                     let reset_help = format!(
-                        "Reset all settings to their default values.{}",
+                        "{}{}",
+                        reset_text(settings).help,
                         shortcut_tooltip_line(settings, ShortcutAction::Reset),
                     );
                     let quit_help = format!(
@@ -961,7 +1623,7 @@ fn settings_ui(
                         shortcut_tooltip_line(settings, ShortcutAction::Quit),
                     );
 
-                    let start_resp = control_button(
+                    let start_resp = ui.add_enabled_ui(start_enabled, |ui| control_button(
                         ui, btn_w,
                         // `icon` is the Unicode fallback when no SF
                         // Symbol texture is available and
@@ -976,12 +1638,18 @@ fn settings_ui(
                         None, 0.0, false, true,
                         "Start",
                         &start_help,
-                    );
+                    )).inner;
+                    // No menu on a disabled Start: `context_menu` gives the
+                    // widget click sense, which makes it focusable again and
+                    // strands Tab on it (see `click_sense`).  A shortcut for a
+                    // Start that can't act isn't worth binding either
                     #[cfg(feature = "global-hotkeys")]
-                    shortcut_context_menu(
-                        &start_resp, ShortcutAction::Start, settings,
-                        capturing_shortcut_for, &mut dirty, &mut rebind_hotkeys,
-                    );
+                    if start_enabled {
+                        shortcut_context_menu(
+                            &start_resp, ShortcutAction::Start, settings,
+                            capturing_shortcut_for, &mut dirty, &mut rebind_hotkeys,
+                        );
+                    }
                     if start_resp.clicked() {
                         settings.is_animating = true;
                         settings.is_paused    = false;
@@ -1132,25 +1800,13 @@ fn settings_ui(
                 // misclick risk
                 if *pending_reset {
                     ui.add_space(ROW_GAP);
-                    let dark_mode = ui.visuals().dark_mode;
-                    let warning_color = if dark_mode {
-                        // Pastel red on dark: enough contrast to
-                        // read as "warning" without screaming
-                        egui::Color32::from_rgb(255, 130, 130)
-                    } else {
-                        egui::Color32::from_rgb(180, 0, 0)
-                    };
+                    let warning_color = warning_color(ui);
+                    let reset = reset_text(settings);
+                    ui.label(egui::RichText::new(reset.title).strong());
                     ui.label(
-                        egui::RichText::new("Reset all settings to their defaults?")
-                            .strong(),
-                    );
-                    ui.label(
-                        egui::RichText::new(
-                            "This restores every appearance, timing, and \
-                             keyboard-shortcut setting. Can't be undone."
-                        )
-                        .small()
-                        .color(ui.visuals().weak_text_color()),
+                        egui::RichText::new(reset.detail)
+                            .small()
+                            .color(ui.visuals().weak_text_color()),
                     );
                     ui.add_space(4.0);
                     // Cancel + Reset are paired, equal-weight
@@ -1200,7 +1856,10 @@ fn settings_ui(
                                     .strong(),
                             ),
                         ).clicked() {
-                            settings.reset_preserving_runtime_state();
+                            // Writes the study log's `reset` line too, as
+                            // the tray's Reset does.  The hotkey comes
+                            // through this card as well
+                            crate::reset_settings(settings, session_log.as_deref());
                             dirty = true;
                             // Defaults include the keyboard-shortcut
                             // block, so the rebind path must fire to
@@ -1228,169 +1887,24 @@ fn settings_ui(
             });
 
             // ── Appearance ───────────────────────────────────────────────────
-            section(ui, "Appearance", |ui| {
-                // Inhale color: no alpha (Swift: supportsOpacity: false)
-                if color_row(
-                    ui, "Inhale Color", "Choose the color for the inhale phase.",
-                    &mut settings.inhale_color, egui::color_picker::Alpha::Opaque,
-                ) { dirty = true; }
+            if appearance_card(ui, settings, &study_status, overlay_available, picker_column_w) {
+                dirty = true;
+            }
 
-                // Exhale color: no alpha (Swift: supportsOpacity: false)
-                if color_row(
-                    ui, "Exhale Color", "Choose the color for the exhale phase.",
-                    &mut settings.exhale_color, egui::color_picker::Alpha::Opaque,
-                ) { dirty = true; }
+            if body_cards(ui, settings, &study_status, session_log, study_note, study_lines) {
+                dirty = true;
+            }
 
-                // Background color (with alpha).  Only visually meaningful
-                // when `shape != Fullscreen`, but we render the picker
-                // enabled regardless.  Wrapping it in
-                // `add_enabled_ui(false, ...)` made egui call
-                // `surrender_focus` on the disabled widget every
-                // time Tab landed there.  Focus was lost mid-cycle
-                // and the next Tab wrapped back to the first
-                // focusable widget (Start button), so users with
-                // `shape = Fullscreen` saw Tab go button-button-
-                // button-button-Inhale-Exhale-Background-Start
-                // instead of continuing through Overlay Opacity
-                // and the rest of the panel.  The tooltip tells the
-                // user when the setting has no effect
-                if color_row(
-                    ui, "Background Color",
-                    "Choose the background color. No effect when Shape is Fullscreen.",
-                    &mut settings.background_color, egui::color_picker::Alpha::OnlyBlend,
-                ) { dirty = true; }
-
-                // Overlay opacity: Swift stores 0.0..1.0, displays 0..100 %.
-                // Wrap with an f64 shim because ValueScale::Percent operates
-                // on `*value / 100.0` and settings.overlay_opacity is f32
-                let mut opacity_pct = settings.overlay_opacity as f64;
-                if stepper_row(
-                    ui, "Overlay Opacity (%)",
-                    "Transparency of the overlay. Lower = more transparent.",
-                    None, &mut opacity_pct, 1.0, 0.0, Some(100.0),
-                    ValueScale::Percent,
-                ) {
-                    settings.overlay_opacity = opacity_pct as f32;
-                    dirty = true;
-                }
-
-                // Shape
-                if segmented_row(
-                    ui, "Shape",
-                    "Shape of the animation: Fullscreen, Rectangle, or Circle.",
-                    picker_column_w,
-                    &mut settings.shape,
-                    SHAPE_OPTIONS,
-                ) { dirty = true; }
-
-                if segmented_row(
-                    ui, "Gradient",
-                    "Gradient color effect. No effect when Shape is Fullscreen.",
-                    picker_column_w,
-                    &mut settings.color_fill_gradient,
-                    GRADIENT_OPTIONS,
-                ) { dirty = true; }
-
-                if segmented_row(
-                    ui, "Animation",
-                    "Sinusoidal eases in/out naturally. Linear is constant speed.",
-                    picker_column_w,
-                    &mut settings.animation_mode,
-                    ANIMATION_OPTIONS,
-                ) { dirty = true; }
-
-                if segmented_row(
-                    ui, "Hold Ripple",
-                    "Hold phase ripple: Gradient (smooth glow), Stark (solid edge), or Off.",
-                    picker_column_w,
-                    &mut settings.hold_ripple_mode,
-                    RIPPLE_OPTIONS,
-                ) { dirty = true; }
-
-                // App visibility (macOS concept, show on all platforms for settings parity)
-                if segmented_row(
-                    ui, "Show In",
-                    "Where exhale appears: Top Bar, Dock, or Both.",
-                    picker_column_w,
-                    &mut settings.app_visibility,
-                    VISIBILITY_OPTIONS,
-                ) { dirty = true; }
-            });
-
-            // ── Timing ───────────────────────────────────────────────────────
-            section(ui, "Timing", |ui| {
-                // Above the steppers: the whole point of a
-                // chip is that clicking it visibly moves all four rows
-                // under it, which isn't something the user has to be
-                // told if they can watch it happen
-                if preset_chips(ui, settings) { dirty = true; }
-                if duration_row(ui, "Inhale Duration (s)",  "Duration of the inhale phase, in seconds.",             &mut settings.inhale_duration) { dirty = true; }
-                if duration_row(ui, "Post-Inhale Hold (s)", "Hold/pause duration at the end of inhale, in seconds.", &mut settings.post_inhale_hold_duration) { dirty = true; }
-                if duration_row(ui, "Exhale Duration (s)",  "Duration of the exhale phase, in seconds.",             &mut settings.exhale_duration) { dirty = true; }
-                if duration_row(ui, "Post-Exhale Hold (s)", "Hold/pause duration at the end of exhale, in seconds.", &mut settings.post_exhale_hold_duration) { dirty = true; }
-                // Computed from the four rows above, every frame.  A
-                // rate stored anywhere else would be wrong the moment
-                // one stepper moves, and wrong from the first cycle
-                // whenever Drift is on.  Drift lives in the
-                // Randomization card below, so its projection is
-                // reported here where the cycle it lengthens is
-                // defined, instead of duplicated under the stepper
-                pacing_readout(ui, settings);
-            });
-
-            // ── Randomization ────────────────────────────────────────────────
-            section(ui, "Randomization", |ui| {
-                if pct_row(ui, "Inhale (%)",           "Randomize inhale duration by this percentage.",            &mut settings.randomized_timing_inhale) { dirty = true; }
-                if pct_row(ui, "Post-Inhale Hold (%)", "Randomize post-inhale hold duration by this percentage.",  &mut settings.randomized_timing_post_inhale_hold) { dirty = true; }
-                if pct_row(ui, "Exhale (%)",           "Randomize exhale duration by this percentage.",            &mut settings.randomized_timing_exhale) { dirty = true; }
-                if pct_row(ui, "Post-Exhale Hold (%)", "Randomize post-exhale hold duration by this percentage.",  &mut settings.randomized_timing_post_exhale_hold) { dirty = true; }
-
-                // Drift: stored as a per-cycle multiplier (1.01 = +1 %), displayed
-                // as a percentage above 1.0 so "1" reads as "+1 % per cycle".
-                // Swift's stepper has no upper limit (`max: nil`).  Minimum
-                // stays at 0 % (drift = 1.0) per the `defaultMin` clamp
-                //
-                // Step is 0.1 percentage points: compounding makes whole
-                // percents enormous. 1 % doubles the breath in 70 breaths, which
-                // runs away inside one sitting.  0.1 % takes 693, about 2.8 hours
-                // from the 10 s default. Counted in breaths instead of minutes because
-                // `d^k = 2` has no cycle length in it, so the figure holds
-                // whatever the four steppers above are set to. The useful range
-                // sat entirely below the old minimum step, so whole percents
-                // offered no gentle setting at all. Finer values can still be
-                // typed: `format_num` caps display at three decimals, so 0.001 %
-                // is the finest value the field round-trips
-                //
-                // Display is `(stored - 1) * 100`, so the user reads 0 for "off"
-                // and never sees the multiplier. One step up from off is 0.1 %,
-                // stored as 1.001. See `ValueScale::DriftPercent`
-                if stepper_row(
-                    ui, "Drift (%)",
-                    "Lengthens every cycle by this much, compounding, for pranayama-style graded extension. Off by default. Type a value for finer control than the arrows give.",
-                    None, &mut settings.drift, 0.1, 0.0, None,
-                    ValueScale::DriftPercent,
-                ) { dirty = true; }
-            });
-
-            // ── Timers ───────────────────────────────────────────────────────
-            section(ui, "Timers", |ui| {
-                if stepper_row(
-                    ui, "Reminder (mins)",
-                    "Notification reminder every N minutes. 0 to disable.",
-                    Some("0 = off"),
-                    &mut settings.reminder_interval_minutes,
-                    1.0, 0.0, None,
-                    ValueScale::Identity,
-                ) { dirty = true; }
-                if stepper_row(
-                    ui, "End After (mins)",
-                    "Auto-stop after N minutes. 0 to disable.",
-                    Some("0 = off"),
-                    &mut settings.auto_stop_minutes,
-                    1.0, 0.0, None,
-                    ValueScale::Identity,
-                ) { dirty = true; }
-            });
+            // Version footer, on every platform and in every build.
+            // Windows and Linux have no About panel, so without this
+            // there's no way to read back which build is running, and a
+            // study that can't name the version its participants ran
+            // can't be replicated
+            ui.label(
+                egui::RichText::new(format!("exhale {}", env!("CARGO_PKG_VERSION")))
+                    .small()
+                    .color(ui.visuals().weak_text_color()),
+            );
         });
         content_height = scroll_out.content_size.y;
     });
@@ -1837,6 +2351,1433 @@ mod tests {
 
         assert!(changed, "clicking a segment should report a change");
         assert_eq!(value, 2);
+    }
+
+    // ── Display row ───────────────────────────────────────────────
+
+    /// One frame of the Display row inside a real Appearance card, at the
+    /// column width the window measures.  Goes through `section` for the
+    /// reason `run_chips_frame` does: a bare panel `Ui` lays out wider
+    /// than the shipped card
+    fn run_display_frame(
+        ctx:               &Context,
+        raw_in:            RawInput,
+        settings:          &mut exhale_core::settings::Settings,
+        overlay_available: bool,
+    ) -> bool {
+        let mut changed = false;
+        let _ = ctx.run(raw_in, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                section(ui, "Appearance", |ui| {
+                    let column_w = picker_column_width(ui);
+                    changed = display_row(ui, settings, overlay_available, column_w);
+                });
+            });
+        });
+        changed
+    }
+
+    #[test]
+    fn clicking_window_in_the_display_row_changes_the_setting() {
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        assert_eq!(settings.display_mode, DisplayMode::Overlay);
+
+        // Warm-up frame registers the two segments
+        let _ = run_display_frame(&ctx, blank_input(), &mut settings, true);
+        let rects = super::widgets::test_hooks::take_seg_rects()
+            .expect("the Display row records its segments");
+        assert_eq!(rects.len(), 2, "Overlay | Window");
+        assert_eq!(super::widgets::test_hooks::take_seg_selected(), Some(0));
+
+        let changed = run_display_frame(
+            &ctx, click_input(rects[1].center()), &mut settings, true,
+        );
+        assert!(changed, "clicking Window should mark settings dirty");
+        assert_eq!(settings.display_mode, DisplayMode::Window);
+
+        let _ = run_display_frame(&ctx, blank_input(), &mut settings, true);
+        assert_eq!(super::widgets::test_hooks::take_seg_selected(), Some(1));
+
+        // And back
+        let changed = run_display_frame(
+            &ctx, click_input(rects[0].center()), &mut settings, true,
+        );
+        assert!(changed);
+        assert_eq!(settings.display_mode, DisplayMode::Overlay);
+    }
+
+    #[test]
+    fn a_session_with_no_overlay_shows_window_selected_and_ignores_every_click() {
+        let ctx = Context::default();
+        // What a Wayland machine has stored: the default, since the row
+        // never lets anyone change it there
+        let mut settings = exhale_core::settings::Settings::default();
+        assert_eq!(settings.display_mode, DisplayMode::Overlay);
+
+        let _ = run_display_frame(&ctx, blank_input(), &mut settings, false);
+        let rects = super::widgets::test_hooks::take_seg_rects()
+            .expect("a disabled row still lays out its segments");
+        assert_eq!(
+            super::widgets::test_hooks::take_seg_selected(), Some(1),
+            "Window is the lit segment whatever is stored",
+        );
+
+        for (i, rect) in rects.iter().enumerate() {
+            let changed = run_display_frame(
+                &ctx, click_input(rect.center()), &mut settings, false,
+            );
+            assert!(!changed, "segment {i} of a disabled row reported a change");
+        }
+        assert_eq!(
+            settings.display_mode, DisplayMode::Overlay,
+            "the stored choice isn't touched",
+        );
+
+        let _ = run_display_frame(&ctx, blank_input(), &mut settings, false);
+        assert_eq!(super::widgets::test_hooks::take_seg_selected(), Some(1));
+    }
+
+    #[test]
+    fn tab_skips_a_disabled_display_row_and_walks_an_enabled_one() {
+        // The display row followed by the next control in Tab order
+        let frame = |ctx: &Context, raw_in: RawInput, overlay_available: bool| {
+            let mut settings = exhale_core::settings::Settings::default();
+            let mut next = egui::Id::NULL;
+            let _ = ctx.run(raw_in, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    section(ui, "Appearance", |ui| {
+                        let column_w = picker_column_width(ui);
+                        display_row(ui, &mut settings, overlay_available, column_w);
+                        next = ui.button("Next").id;
+                    });
+                });
+            });
+            next
+        };
+        let tab_presses = |overlay_available: bool| {
+            let ctx = Context::default();
+            let next = frame(&ctx, blank_input(), overlay_available);
+            for presses in 1..=3 {
+                let _ = frame(&ctx, key_input(egui::Key::Tab), overlay_available);
+                if ctx.memory(|m| m.focused()) == Some(next) {
+                    return presses;
+                }
+            }
+            usize::MAX
+        };
+
+        // An enabled row is two stops, Overlay then Window, before the next control
+        assert_eq!(tab_presses(true), 3);
+        // A disabled row is none. egui hands focus to a disabled widget and
+        // takes it back the same frame, which strands the traversal for
+        // every control after it, so the row has to offer no stop at all
+        assert_eq!(tab_presses(false), 1);
+    }
+
+    #[test]
+    fn the_display_row_lines_up_with_shape_and_stays_in_the_card_in_both_states() {
+        // Display and Shape laid out in one card, as the window does
+        let frame = |ctx: &Context, overlay_available: bool| {
+            let mut settings = exhale_core::settings::Settings::default();
+            let (mut display, mut shape, mut right) = (vec![], vec![], 0.0_f32);
+            let _ = ctx.run(blank_input(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    section(ui, "Appearance", |ui| {
+                        let column_w = picker_column_width(ui);
+                        display_row(ui, &mut settings, overlay_available, column_w);
+                        display = super::widgets::test_hooks::take_seg_rects().unwrap_or_default();
+                        let mut shape_value = settings.shape;
+                        segmented_row(ui, "Shape", "help", column_w, &mut shape_value, SHAPE_OPTIONS);
+                        shape = super::widgets::test_hooks::take_seg_rects().unwrap_or_default();
+                        right = ui.max_rect().right();
+                    });
+                });
+            });
+            (display, shape, right)
+        };
+
+        let ctx = Context::default();
+        let _ = frame(&ctx, true);
+        let (enabled, shape, card_right) = frame(&ctx, true);
+        let ctx = Context::default();
+        let _ = frame(&ctx, false);
+        let (disabled, shape_locked, _) = frame(&ctx, false);
+
+        assert_eq!(enabled.len(), 2);
+        assert_eq!(shape.len(), 3);
+        assert_eq!(enabled, disabled, "locking the row moves nothing");
+        assert_eq!(shape, shape_locked, "and nothing below it either");
+
+        // Same left and right edge as the Shape picker above or below it
+        let (d_left, d_right) = (enabled[0].min.x, enabled[1].max.x);
+        assert!((d_left  - shape[0].min.x).abs() < 0.5, "left edge {d_left} vs Shape {}", shape[0].min.x);
+        assert!((d_right - shape[2].max.x).abs() < 0.5, "right edge {d_right} vs Shape {}", shape[2].max.x);
+
+        // Inside the card, and the segments in order without overlap
+        // (contiguous segments share an edge, so `intersects` would say yes)
+        assert!(d_right <= card_right + 0.5, "the picker overflows the card by {}", d_right - card_right);
+        assert!(
+            enabled[0].max.x <= enabled[1].min.x + 0.5,
+            "Overlay ends at {} but Window starts at {}", enabled[0].max.x, enabled[1].min.x,
+        );
+    }
+
+    // ── Overlay Opacity row ───────────────────────────────────────
+
+    /// One frame of the Overlay Opacity row inside a real Appearance card,
+    /// followed by the next control in Tab order.  Returns whether the row
+    /// changed the setting and where that next control sits
+    fn run_opacity_frame(
+        ctx:            &Context,
+        raw_in:         RawInput,
+        settings:       &mut exhale_core::settings::Settings,
+        window_showing: bool,
+    ) -> (bool, egui::Response) {
+        let mut changed = false;
+        let mut next = None;
+        let _ = ctx.run(raw_in, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                section(ui, "Appearance", |ui| {
+                    changed = opacity_row(ui, settings, window_showing);
+                    next = Some(ui.button("Next"));
+                });
+            });
+        });
+        (changed, next.expect("the frame ran"))
+    }
+
+    /// Where the row's number field sits, from the stepper's two halves
+    fn opacity_field_center(up: egui::Rect, down: egui::Rect) -> egui::Pos2 {
+        egui::pos2(up.left() - 2.0 - STEPPER_FIELD_W / 2.0, (up.top() + down.bottom()) / 2.0)
+    }
+
+    #[test]
+    fn the_opacity_row_follows_what_is_showing() {
+        let settings = |mode| exhale_core::settings::Settings {
+            display_mode: mode,
+            ..Default::default()
+        };
+        // An overlay uses its opacity
+        assert!(!window_showing(&settings(DisplayMode::Overlay), true));
+        // Window mode is a window, and so is a session with no overlay to show,
+        // whatever the stored mode says
+        assert!(window_showing(&settings(DisplayMode::Window),  true));
+        assert!(window_showing(&settings(DisplayMode::Overlay), false));
+        assert!(window_showing(&settings(DisplayMode::Window),  false));
+    }
+
+    #[test]
+    fn the_stepper_edits_the_opacity_only_while_an_overlay_is_showing() {
+        // Overlay: the up half takes 25 % to 26 %
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        assert_eq!(settings.overlay_opacity, 0.25);
+        let _ = run_opacity_frame(&ctx, blank_input(), &mut settings, false);
+        let (up, _) = super::widgets::test_hooks::take_stepper_rects()
+            .expect("the row records its stepper halves");
+        let (changed, _) = run_opacity_frame(&ctx, click_input(up.center()), &mut settings, false);
+        assert!(changed, "the up half should mark settings dirty");
+        assert!((settings.overlay_opacity - 0.26).abs() < 1e-6);
+
+        // Window: neither half does anything, and the stored value stays
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        let _ = run_opacity_frame(&ctx, blank_input(), &mut settings, true);
+        let (up, down) = super::widgets::test_hooks::take_stepper_rects()
+            .expect("a disabled row still lays out its stepper");
+        for (name, target) in [("up", up), ("down", down)] {
+            let (changed, _) = run_opacity_frame(&ctx, click_input(target.center()), &mut settings, true);
+            assert!(!changed, "the {name} half of a disabled stepper reported a change");
+        }
+        assert_eq!(settings.overlay_opacity, 0.25, "the stored opacity is untouched");
+    }
+
+    #[test]
+    fn the_number_field_takes_focus_and_typing_only_while_an_overlay_is_showing() {
+        let typed = |text: &str| RawInput {
+            events: vec![egui::Event::Text(text.to_string())],
+            ..blank_input()
+        };
+
+        // Overlay: a click puts the cursor in the field, which is how the
+        // click below is known to land on it
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        let _ = run_opacity_frame(&ctx, blank_input(), &mut settings, false);
+        let (up, down) = super::widgets::test_hooks::take_stepper_rects().expect("stepper rects");
+        let field = opacity_field_center(up, down);
+        let _ = run_opacity_frame(&ctx, click_input(field), &mut settings, false);
+        assert!(ctx.memory(|m| m.focused()).is_some(), "the click should have focused the field");
+
+        // Window: the same click and keystrokes reach nothing
+        let ctx = Context::default();
+        let mut settings = exhale_core::settings::Settings::default();
+        let _ = run_opacity_frame(&ctx, blank_input(), &mut settings, true);
+        let (up, down) = super::widgets::test_hooks::take_stepper_rects().expect("stepper rects");
+        let field = opacity_field_center(up, down);
+        let _ = run_opacity_frame(&ctx, click_input(field), &mut settings, true);
+        assert!(ctx.memory(|m| m.focused()).is_none(), "a disabled field took focus");
+        let (changed, _) = run_opacity_frame(&ctx, typed("9"), &mut settings, true);
+        assert!(!changed);
+        assert_eq!(settings.overlay_opacity, 0.25);
+    }
+
+    #[test]
+    fn tab_skips_a_disabled_opacity_row_and_walks_an_enabled_one() {
+        let tab_presses = |window_showing: bool| {
+            let ctx = Context::default();
+            let mut settings = exhale_core::settings::Settings::default();
+            let (_, next) = run_opacity_frame(&ctx, blank_input(), &mut settings, window_showing);
+            for presses in 1..=5 {
+                let _ = run_opacity_frame(&ctx, key_input(egui::Key::Tab), &mut settings, window_showing);
+                if ctx.memory(|m| m.focused()) == Some(next.id) {
+                    return presses;
+                }
+            }
+            usize::MAX
+        };
+
+        // An enabled row is three stops, the field then both halves, before the next control
+        assert_eq!(tab_presses(false), 4);
+        // A disabled one is none: see `tab_skips_a_disabled_display_row_and_walks_an_enabled_one`
+        assert_eq!(tab_presses(true), 1);
+    }
+
+    #[test]
+    fn locking_the_opacity_row_moves_nothing() {
+        let layout = |window_showing: bool| {
+            let ctx = Context::default();
+            let mut settings = exhale_core::settings::Settings::default();
+            let _ = run_opacity_frame(&ctx, blank_input(), &mut settings, window_showing);
+            let (_, next) = run_opacity_frame(&ctx, blank_input(), &mut settings, window_showing);
+            let halves = super::widgets::test_hooks::take_stepper_rects().expect("stepper rects");
+            (halves, next.rect)
+        };
+
+        let (enabled_halves, enabled_next) = layout(false);
+        let (locked_halves,  locked_next)  = layout(true);
+        assert_eq!(enabled_halves, locked_halves, "the stepper stays where it was");
+        assert_eq!(enabled_next, locked_next, "and so does the control below it");
+    }
+
+    #[test]
+    fn the_tooltips_say_what_each_row_does_in_each_state() {
+        assert_eq!(
+            DISPLAY_HELP,
+            "Overlay floats above your other windows and lets clicks through. \
+             Window is a regular window you can move, resize or make full screen.",
+        );
+        assert!(DISPLAY_LOCKED_HELP.starts_with("This session always shows a window"));
+        assert_eq!(
+            OPACITY_WINDOW_HELP,
+            "A window draws at full strength. Overlay Opacity applies to the overlay.",
+        );
+        // The overlay's own wording is still true there, so it stays
+        assert_eq!(OPACITY_HELP, "Transparency of the overlay. Lower = more transparent.");
+    }
+
+    // ── Tooltips ──────────────────────────────────────────────────
+
+    /// Where the text of the tooltip on a button at `at` lands in a window
+    /// of the settings window's width, set up the way the window sets up
+    /// its tooltips. The pointer rests on the button for a few frames
+    fn tooltip_rect(help: &str, at: Pos2) -> Rect {
+        let ctx = Context::default();
+        fit_tooltips_to_window(&ctx);
+        ctx.style_mut(|style| {
+            style.interaction.tooltip_delay = 0.0;
+            style.interaction.show_tooltips_only_when_still = false;
+        });
+        let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(SETTINGS_WIDTH as f32, 800.0));
+        let mut found = None;
+        for frame in 0..4 {
+            let raw = RawInput {
+                screen_rect: Some(screen),
+                time:        Some(frame as f64 * 0.2),
+                events:      vec![Event::PointerMoved(at)],
+                ..Default::default()
+            };
+            let out = ctx.run(raw, |ctx| {
+                egui::CentralPanel::default().frame(egui::Frame::none()).show(ctx, |ui| {
+                    ui.add_space(at.y - 8.0);
+                    ui.horizontal(|ui| {
+                        ui.add_space(at.x - 8.0);
+                        ui.button("x").on_hover_text(help);
+                    });
+                });
+            });
+            if let Some((_, rect)) = Drawn::of(&out).0.into_iter().find(|(text, _)| text == help) {
+                found = Some(rect);
+            }
+        }
+        found.unwrap_or_else(|| panic!("no tooltip for {help:?}"))
+    }
+
+    #[test]
+    fn a_study_resets_tooltip_says_its_second_sentence_on_a_line_of_its_own() {
+        assert_eq!(
+            RESET_TEXT_STUDY.help,
+            "Reset the keyboard shortcuts and Show In to their defaults.\n\
+             The study locks everything else.",
+            "the guide quotes these words, one sentence to a line",
+        );
+        assert_eq!(
+            RESET_TEXT_STUDY_WINDOW.help,
+            "Reset the keyboard shortcuts to their defaults.\n\
+             The study locks everything else.",
+            "and these, for a study that fills the display",
+        );
+        // Outside a study the one sentence stays as it was
+        assert!(!RESET_TEXT.help.contains('\n'));
+    }
+
+    #[test]
+    fn every_tooltip_the_study_and_the_display_row_add_stays_inside_the_window() {
+        // egui wraps a tooltip at `tooltip_width`, 500 by default, so one
+        // longer than the 360 pt window ran off its right edge
+        let ctx = Context::default();
+        fit_tooltips_to_window(&ctx);
+        ctx.all_styles_mut(|style| {
+            // 6 pt of popup margin on each side, and a stroke outside that
+            assert!(style.spacing.tooltip_width + 14.0 <= SETTINGS_WIDTH as f32, "{}", style.spacing.tooltip_width);
+        });
+
+        let tooltips = [
+            ("the study's Reset", RESET_TEXT_STUDY.help),
+            ("the Reset of a study that fills the display", RESET_TEXT_STUDY_WINDOW.help),
+            ("Start, while the study can't start", STUDY_START_HELP),
+            ("Overlay Opacity, while a window shows", OPACITY_WINDOW_HELP),
+            ("Display", DISPLAY_HELP),
+            ("Display, locked", DISPLAY_LOCKED_HELP),
+            ("a long one from before", "Lengthens every cycle by this much, compounding, for pranayama-style graded extension. Off by default. Type a value for finer control than the arrows give."),
+        ];
+        // At the left and at the right of the window: the tooltip opens under
+        // the control, and has to be pulled back in from the right edge
+        for (name, help) in tooltips {
+            for x in [20.0, 200.0, 320.0] {
+                let rect = tooltip_rect(help, Pos2::new(x, 100.0));
+                assert!(rect.min.x >= 0.0, "{name} at {x}: starts at {}", rect.min.x);
+                assert!(
+                    rect.max.x + 6.0 <= SETTINGS_WIDTH as f32,
+                    "{name} at {x}: runs to {} in a window {} wide", rect.max.x, SETTINGS_WIDTH,
+                );
+                assert!(rect.width() <= super::theme::TOOLTIP_TEXT_WIDTH + 0.5, "{name} at {x}: {} wide", rect.width());
+            }
+        }
+        // The text that follows the break sits under the first sentence
+        for help in [RESET_TEXT_STUDY.help, RESET_TEXT_STUDY_WINDOW.help] {
+            let reset = tooltip_rect(help, Pos2::new(20.0, 100.0));
+            assert!(reset.height() >= 2.0 * 12.0, "two lines at least: {reset:?}");
+        }
+    }
+
+    // ── Study mode ────────────────────────────────────────────────
+
+    fn locked_settings() -> exhale_core::settings::Settings {
+        let study = exhale_core::StudyConfig {
+            participant_id: "P07".to_string(),
+            condition:      "arm-blue-7".to_string(),
+            inhale_duration:           5.0,
+            post_inhale_hold_duration: 0.0,
+            exhale_duration:           5.0,
+            post_exhale_hold_duration: 0.0,
+            drift:                     1.0,
+            randomized_timing_inhale:           0.0,
+            randomized_timing_post_inhale_hold: 0.0,
+            randomized_timing_exhale:           0.0,
+            randomized_timing_post_exhale_hold: 0.0,
+            auto_stop_minutes:         0.0,
+            reminder_interval_minutes: 0.0,
+            inhale_color:        None,
+            exhale_color:        None,
+            background_color:    None,
+            overlay_opacity:     None,
+            shape:               None,
+            color_fill_gradient: None,
+            animation_mode:      None,
+            hold_ripple_mode:    None,
+            display_mode:        None,
+        };
+        let mut s = exhale_core::settings::Settings::default();
+        study.apply(&mut s);
+        s
+    }
+
+    /// [`locked_settings`] for a study whose file holds the animation
+    /// window full screen: `display_mode = "window"`
+    fn locked_window_settings() -> exhale_core::settings::Settings {
+        let mut s = locked_settings();
+        let mut study = s.study.clone().expect("the lock is recorded");
+        study.display_mode = Some(DisplayMode::Window);
+        study.apply(&mut s);
+        s
+    }
+
+    /// A frame as tall as the whole window can get, at the window's own
+    /// width. egui paints no label that lies wholly outside the clip
+    /// rectangle, so a shorter one would hide the lower cards from every
+    /// test that looks for their text
+    fn tall_input() -> RawInput {
+        RawInput {
+            screen_rect: Some(Rect::from_min_size(
+                Pos2::ZERO,
+                Vec2::new(SETTINGS_WIDTH as f32, 2400.0),
+            )),
+            ..Default::default()
+        }
+    }
+
+    fn tall_click(pos: Pos2) -> RawInput {
+        RawInput { events: click_input(pos).events, ..tall_input() }
+    }
+
+    fn tall_key(key: egui::Key) -> RawInput {
+        RawInput { events: key_input(key).events, ..tall_input() }
+    }
+
+    /// What one frame drew: each piece of text, with the rectangle it
+    /// landed in
+    ///
+    /// The tests read the screen through this, so "the card shows no
+    /// condition" and "the hint wraps inside the card" are claims about
+    /// what a participant sees
+    struct Drawn(Vec<(String, Rect)>);
+
+    impl Drawn {
+        fn of(output: &egui::FullOutput) -> Self {
+            fn visit(shape: &egui::epaint::Shape, found: &mut Vec<(String, Rect)>) {
+                match shape {
+                    egui::epaint::Shape::Text(t) => found.push((
+                        t.galley.text().to_string(),
+                        t.galley.rect.translate(t.pos.to_vec2()),
+                    )),
+                    egui::epaint::Shape::Vec(inner) => {
+                        inner.iter().for_each(|s| visit(s, found));
+                    }
+                    _ => {}
+                }
+            }
+            let mut found = Vec::new();
+            for clipped in &output.shapes {
+                visit(&clipped.shape, &mut found);
+            }
+            Self(found)
+        }
+
+        /// Whether any piece of text contains `needle`
+        fn says(&self, needle: &str) -> bool {
+            self.0.iter().any(|(text, _)| text.contains(needle))
+        }
+
+        /// How many pieces of text are exactly `text`
+        fn count(&self, text: &str) -> usize {
+            self.0.iter().filter(|(t, _)| t == text).count()
+        }
+
+        /// Where the one piece of text that is exactly `text` landed
+        fn rect(&self, text: &str) -> Rect {
+            let hits: Vec<_> = self.0.iter().filter(|(t, _)| t == text).collect();
+            assert_eq!(hits.len(), 1, "expected one {text:?} on screen, saw: {}", self.dump());
+            hits[0].1
+        }
+
+        /// The piece of text that is exactly `text` and lowest on screen
+        fn lowest(&self, text: &str) -> Rect {
+            self.0.iter()
+                .filter(|(t, _)| t == text)
+                .map(|&(_, r)| r)
+                .max_by(|a, b| a.min.y.total_cmp(&b.min.y))
+                .unwrap_or_else(|| panic!("no {text:?} on screen, saw: {}", self.dump()))
+        }
+
+        /// Everything drawn, for a failure message
+        fn dump(&self) -> String {
+            self.0.iter().map(|(t, _)| format!("{t:?}")).collect::<Vec<_>>().join(", ")
+        }
+    }
+
+    /// One frame of the cards under Appearance. No `SettingsManager`, so
+    /// no writer thread and nothing touches a real config directory
+    fn run_body_cards_frame(
+        ctx:      &Context,
+        raw_in:   RawInput,
+        settings: &mut exhale_core::settings::Settings,
+        status:   &StudyStatus,
+        log:      &Option<Arc<SessionLog>>,
+        note:     &mut Option<StudyNote>,
+    ) -> Drawn {
+        let out = ctx.run(raw_in, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let _ = body_cards(ui, settings, status, log, note, &mut Vec::new());
+            });
+        });
+        Drawn::of(&out)
+    }
+
+    /// One frame of the whole settings window, as the app draws it. The
+    /// manager decides what a study file amounted to, and the icons are
+    /// the empty set the Unicode fallback runs on
+    fn run_window_frame(
+        ctx:           &Context,
+        raw_in:        RawInput,
+        settings:      &mut exhale_core::settings::Settings,
+        manager:       &Arc<SettingsManager>,
+        pending_reset: &mut bool,
+        log:           &Option<Arc<SessionLog>>,
+        note:          &mut Option<StudyNote>,
+    ) -> Drawn {
+        let icons = IconCache { handles: Default::default() };
+        let mut capturing = None;
+        let out = ctx.run(raw_in, |ctx| {
+            settings_ui(
+                ctx, settings, manager, pending_reset, &mut capturing,
+                &|| {}, &|| {}, &icons, log, note, &mut Vec::new(), true,
+            );
+        });
+        Drawn::of(&out)
+    }
+
+    /// A study file's status the way the app reads it: a folder with the
+    /// file in it, and the settings the manager loaded
+    fn study_folder(
+        tag:  &str,
+        file: &str,
+    ) -> (crate::test_support::Folder, exhale_core::settings::Settings) {
+        let folder   = crate::test_support::Folder::new(tag, Some(file));
+        let settings = folder.manager.settings.read().expect("settings lock").clone();
+        (folder, settings)
+    }
+
+    fn broken_at_load() -> StudyStatus {
+        StudyStatus::Broken(StudyError::log_unavailable(&std::io::Error::other("x")))
+    }
+
+    // ── The Appearance card ───────────────────────────────────────
+
+    /// One frame of the Appearance card on its own, with a button after it
+    /// to count Tab stops against. Returns what it drew, whether it changed
+    /// the settings, and the button's id
+    fn run_appearance_frame(
+        ctx:      &Context,
+        raw_in:   RawInput,
+        settings: &mut exhale_core::settings::Settings,
+        status:   &StudyStatus,
+    ) -> (Drawn, bool, egui::Id) {
+        let (mut changed, mut next) = (false, egui::Id::NULL);
+        let out = ctx.run(raw_in, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let column_w = picker_column_width(ui);
+                changed = appearance_card(ui, settings, status, true, column_w);
+                next = ui.button("Next").id;
+            });
+        });
+        (Drawn::of(&out), changed, next)
+    }
+
+    /// For each row the study file locks, one text that only that row draws
+    const LOCKED_ROWS: [(&str, &str); 9] = [
+        ("Inhale Color",     "Inhale Color"),
+        ("Exhale Color",     "Exhale Color"),
+        ("Background Color", "Background Color"),
+        ("Overlay Opacity",  "Overlay Opacity (%)"),
+        ("Display",          "Display"),
+        ("Shape",            "Shape"),
+        // The row's own label is also an option of Hold Ripple
+        ("Gradient",         "Inner"),
+        ("Animation",        "Animation"),
+        ("Hold Ripple",      "Hold Ripple"),
+    ];
+
+    /// The three options of the Show In row
+    const SHOW_IN_OPTIONS: [&str; 3] = ["Top Bar", "Dock", "Both"];
+
+    #[test]
+    fn without_a_study_the_appearance_card_shows_every_row() {
+        let ctx = Context::default();
+        let mut open = exhale_core::settings::Settings::default();
+        let (drawn, _, _) = run_appearance_frame(&ctx, tall_input(), &mut open, &StudyStatus::Off);
+
+        assert_eq!(drawn.count("APPEARANCE"), 1, "{}", drawn.dump());
+        for (row, text) in LOCKED_ROWS {
+            assert_eq!(drawn.count(text), 1, "the {row} row is missing: {}", drawn.dump());
+        }
+        assert_eq!(drawn.count("Show In"), 1, "{}", drawn.dump());
+        for option in SHOW_IN_OPTIONS {
+            assert_eq!(drawn.count(option), 1, "{option}: {}", drawn.dump());
+        }
+    }
+
+    #[test]
+    fn while_the_pace_is_hidden_the_appearance_card_shows_show_in_alone() {
+        // A locked study, and a broken one both ways: a file that failed
+        // at load locks nothing, a log that failed after launch keeps the lock
+        for (how, mut settings, status) in [
+            ("locked",              locked_settings(),                          StudyStatus::Locked),
+            ("broken at load",      exhale_core::settings::Settings::default(), broken_at_load()),
+            ("broken after launch", locked_settings(),                          broken_at_load()),
+        ] {
+            let ctx = Context::default();
+            let (drawn, _, _) = run_appearance_frame(&ctx, tall_input(), &mut settings, &status);
+
+            assert_eq!(drawn.count("APPEARANCE"), 1, "{how}: the card is still there: {}", drawn.dump());
+            for (row, text) in LOCKED_ROWS {
+                assert_eq!(drawn.count(text), 0, "{how}: the {row} row is showing: {}", drawn.dump());
+            }
+            // The options of the hidden pickers, which labels alone could miss
+            for option in ["Overlay", "Window", "Rectangle", "Circle", "Full", "Linear", "Sinusoidal", "Stark"] {
+                assert_eq!(drawn.count(option), 0, "{how}: {option} is showing: {}", drawn.dump());
+            }
+            assert_eq!(drawn.count("Show In"), 1, "{how}: {}", drawn.dump());
+            for option in SHOW_IN_OPTIONS {
+                assert_eq!(drawn.count(option), 1, "{how}: {option}: {}", drawn.dump());
+            }
+        }
+    }
+
+    #[test]
+    fn a_study_that_fills_the_display_draws_no_appearance_card() {
+        // Show In was the one row left, and the app runs as Both there
+        // whatever it holds. A log that failed after launch keeps the lock
+        for (how, status) in [
+            ("locked",              StudyStatus::Locked),
+            ("broken after launch", broken_at_load()),
+        ] {
+            let ctx = Context::default();
+            let mut settings = locked_window_settings();
+            let before = format!("{settings:?}");
+            let (drawn, changed, next) = run_appearance_frame(&ctx, tall_input(), &mut settings, &status);
+
+            assert_eq!(drawn.count("APPEARANCE"), 0, "{how}: the card is still there: {}", drawn.dump());
+            assert_eq!(drawn.count("Show In"), 0, "{how}: {}", drawn.dump());
+            for option in SHOW_IN_OPTIONS {
+                assert_eq!(drawn.count(option), 0, "{how}: {option} is showing: {}", drawn.dump());
+            }
+            assert!(!changed, "{how}");
+            assert_eq!(format!("{settings:?}"), before, "{how}: nothing moved");
+            // Nothing is left for Tab to stop at, so one press reaches the button after the card
+            let _ = run_appearance_frame(&ctx, tall_key(egui::Key::Tab), &mut settings, &status);
+            assert_eq!(ctx.memory(|m| m.focused()), Some(next), "{how}");
+        }
+
+        // A file that failed at load locks nothing, so a window the
+        // participant's own settings ask for leaves Show In on the card
+        let mut own_window = exhale_core::settings::Settings {
+            display_mode: DisplayMode::Window,
+            ..Default::default()
+        };
+        let (drawn, _, _) = run_appearance_frame(&Context::default(), tall_input(), &mut own_window, &broken_at_load());
+        assert_eq!(drawn.count("Show In"), 1, "{}", drawn.dump());
+    }
+
+    #[test]
+    fn the_window_gives_the_appearance_card_the_study_status_it_read() {
+        // The whole window, with the status coming from a manager as it does
+        // at launch: a locked study and one that can't run both leave Show In
+        for (tag, file) in [
+            ("appearance-locked", crate::test_support::STUDY_FILE),
+            ("appearance-broken", crate::test_support::BROKEN_STUDY_FILE),
+        ] {
+            let (folder, mut settings) = study_folder(tag, file);
+            let ctx = Context::default();
+
+            let drawn = run_window_frame(
+                &ctx, tall_input(), &mut settings, &folder.manager, &mut false, &None, &mut None,
+            );
+
+            assert_eq!(drawn.count("APPEARANCE"), 1, "{tag}: {}", drawn.dump());
+            for (row, text) in LOCKED_ROWS {
+                assert_eq!(drawn.count(text), 0, "{tag}: the {row} row is showing: {}", drawn.dump());
+            }
+            assert_eq!(drawn.count("Show In"), 1, "{tag}: {}", drawn.dump());
+        }
+    }
+
+    #[test]
+    fn show_in_still_takes_a_click_in_a_study_and_nothing_else_moves() {
+        let ctx = Context::default();
+        let mut settings = locked_settings();
+        let mut want = settings.clone();
+        want.app_visibility = AppVisibility::DockOnly;
+
+        let (drawn, _, _) = run_appearance_frame(&ctx, tall_input(), &mut settings, &StudyStatus::Locked);
+        let dock = drawn.rect("Dock");
+        let (_, changed, _) = run_appearance_frame(
+            &ctx, tall_click(dock.center()), &mut settings, &StudyStatus::Locked,
+        );
+
+        assert!(changed, "the one row a study leaves is still editable");
+        assert_ne!(AppVisibility::DockOnly, locked_settings().app_visibility, "so the click had something to change");
+        assert_eq!(format!("{settings:?}"), format!("{want:?}"), "and the lock is where the file put it");
+    }
+
+    #[test]
+    fn tab_still_walks_the_controls_that_remain() {
+        // Presses of Tab it takes to get from the top of the card to the
+        // button after it
+        let presses = |status: &StudyStatus| {
+            let ctx = Context::default();
+            let mut settings = locked_settings();
+            let (_, _, next) = run_appearance_frame(&ctx, tall_input(), &mut settings, status);
+            for presses in 1..=40 {
+                let _ = run_appearance_frame(&ctx, tall_key(egui::Key::Tab), &mut settings, status);
+                if ctx.memory(|m| m.focused()) == Some(next) {
+                    return presses;
+                }
+            }
+            usize::MAX
+        };
+
+        // Show In is three stops, one for each of its options, and the
+        // button is the one after
+        assert_eq!(presses(&StudyStatus::Locked), 4);
+        assert_eq!(presses(&broken_at_load()), 4);
+        // Each of the other rows is a stop too, which is what the study hides
+        assert!(presses(&StudyStatus::Off) > 4);
+    }
+
+    // ── The cards under Appearance ────────────────────────────────
+
+    #[test]
+    fn a_locked_build_lays_out_no_preset_chips() {
+        let ctx = Context::default();
+        let mut locked = locked_settings();
+        let drawn = run_body_cards_frame(
+            &ctx, tall_input(), &mut locked, &StudyStatus::Locked, &None, &mut None,
+        );
+        assert!(
+            super::widgets::test_hooks::take_chip_rects().is_none(),
+            "study mode renders no Timing card, so no chips are laid out",
+        );
+        assert_eq!(drawn.count("STUDY"), 1, "the Study card still occupies the window");
+        for hidden in ["TIMING", "RANDOMIZATION", "TIMERS"] {
+            assert_eq!(drawn.count(hidden), 0, "{hidden} is hidden in a study");
+        }
+    }
+
+    #[test]
+    fn an_unlocked_build_lays_out_every_chip() {
+        let ctx = Context::default();
+        let mut open = exhale_core::settings::Settings::default();
+        let drawn = run_body_cards_frame(
+            &ctx, tall_input(), &mut open, &StudyStatus::Off, &None, &mut None,
+        );
+        let rects = super::widgets::test_hooks::take_chip_rects()
+            .expect("a build without a study file lays out the Timing card");
+        assert_eq!(rects.len(), exhale_core::presets::PRESETS.len());
+        for shown in ["TIMING", "RANDOMIZATION", "TIMERS"] {
+            assert_eq!(drawn.count(shown), 1, "{shown} shows when no study is involved");
+        }
+        assert_eq!(drawn.count("STUDY"), 0);
+    }
+
+    #[test]
+    fn a_study_that_cannot_run_lays_out_none_of_the_pacing() {
+        // Both ways a study breaks. A file that failed at load locks
+        // nothing, so `settings.study` is empty and the pace is whatever
+        // settings.toml held. A log that failed after launch keeps the lock
+        for (how, mut settings) in [
+            ("at load",       exhale_core::settings::Settings::default()),
+            ("after launch",  locked_settings()),
+        ] {
+            let ctx = Context::default();
+            let drawn = run_body_cards_frame(
+                &ctx, tall_input(), &mut settings, &broken_at_load(), &None, &mut None,
+            );
+            assert!(
+                super::widgets::test_hooks::take_chip_rects().is_none(),
+                "{how}: no preset chips",
+            );
+            assert!(drawn.0.is_empty(), "{how}: nothing here at all, saw {}", drawn.dump());
+        }
+    }
+
+    #[test]
+    fn a_locked_build_keeps_the_pace_it_was_given() {
+        // The card selection is the only blinding mechanism: prove the
+        // durations the study file wrote are still there after a frame
+        // that had no way to change them
+        let ctx = Context::default();
+        let mut locked = locked_settings();
+        let before = (
+            locked.inhale_duration,
+            locked.post_inhale_hold_duration,
+            locked.exhale_duration,
+            locked.post_exhale_hold_duration,
+            locked.drift,
+        );
+        let _ = run_body_cards_frame(
+            &ctx, tall_input(), &mut locked, &StudyStatus::Locked, &None, &mut None,
+        );
+        assert_eq!(
+            (
+                locked.inhale_duration,
+                locked.post_inhale_hold_duration,
+                locked.exhale_duration,
+                locked.post_exhale_hold_duration,
+                locked.drift,
+            ),
+            before,
+        );
+        assert!(locked.study.is_some(), "and the lock survives a frame");
+    }
+
+    #[test]
+    fn the_study_card_shows_the_participant_and_never_the_arm() {
+        let ctx = Context::default();
+        let mut locked = locked_settings();
+        let drawn = run_body_cards_frame(
+            &ctx, tall_input(), &mut locked, &StudyStatus::Locked, &None, &mut None,
+        );
+        assert_eq!(drawn.count("Participant"), 1, "{}", drawn.dump());
+        assert!(drawn.says("P07"));
+        assert!(!drawn.says("Condition"), "no condition row: {}", drawn.dump());
+        assert!(!drawn.says("arm-blue-7"), "no condition code: {}", drawn.dump());
+    }
+
+    #[test]
+    fn a_participant_id_as_long_as_the_study_file_allows_wraps_inside_the_card() {
+        let ctx = Context::default();
+        let mut locked = locked_settings();
+        let id = "P".repeat(exhale_core::session_log::MAX_PARTICIPANT_ID_CHARS);
+        locked.study.as_mut().expect("locked").participant_id = id.clone();
+        let drawn = run_body_cards_frame(
+            &ctx, tall_input(), &mut locked, &StudyStatus::Locked, &None, &mut None,
+        );
+        let label = drawn.rect("Participant");
+        let value = drawn.rect(&id);
+        assert!(
+            value.max.x <= label.min.x + CARD_CONTENT_W + 0.5,
+            "the id runs {} past the card's right edge",
+            value.max.x - (label.min.x + CARD_CONTENT_W),
+        );
+        assert!(value.height() >= 2.0 * label.height(), "and takes several lines: {value:?}");
+    }
+
+    // ── Export and Clear ──────────────────────────────────────────
+
+    /// A study card with a live log, in a folder of its own
+    struct StudyCard {
+        folder:   crate::test_support::Folder,
+        log:      Arc<SessionLog>,
+        settings: exhale_core::settings::Settings,
+        note:     Option<StudyNote>,
+        ctx:      Context,
+    }
+
+    impl StudyCard {
+        fn new(tag: &str) -> Self {
+            let (folder, settings) = study_folder(tag, crate::test_support::STUDY_FILE);
+            let log = Arc::new(SessionLog::open(&folder.dir, "P07").expect("open the log"));
+            log.record("app_start", &[]);
+            Self { folder, log, settings, note: None, ctx: Context::default() }
+        }
+
+        fn frame(&mut self, raw_in: RawInput) -> Drawn {
+            run_body_cards_frame(
+                &self.ctx, raw_in, &mut self.settings, &StudyStatus::Locked,
+                &Some(Arc::clone(&self.log)), &mut self.note,
+            )
+        }
+
+        /// What an Export press leaves: the copy, and the card's note
+        fn export(&mut self) {
+            let path = self.log.export_to(std::slice::from_ref(&self.folder.dir), "P07").expect("export");
+            self.note = Some(StudyNote::Exported(path));
+        }
+
+        fn live_lines(&self) -> usize {
+            std::fs::read_to_string(self.log.path()).expect("read").lines().count()
+        }
+    }
+
+    #[test]
+    fn clear_is_offered_while_the_log_is_what_the_last_export_copied() {
+        let mut card = StudyCard::new("clear-offered");
+
+        // Before any export there's nothing to clear and nothing to say
+        let drawn = card.frame(tall_input());
+        assert_eq!(drawn.count("Export log"), 1);
+        assert_eq!(drawn.count("Clear log"), 0);
+        assert!(!drawn.says(CLEAR_WITHHELD_HINT));
+
+        // Right after one the log is exactly what was copied
+        card.export();
+        let drawn = card.frame(tall_input());
+        assert!(drawn.says("Exported to"), "{}", drawn.dump());
+        assert_eq!(drawn.count("Clear log"), 1, "{}", drawn.dump());
+        assert!(!drawn.says(CLEAR_WITHHELD_HINT));
+    }
+
+    #[test]
+    fn clear_is_withheld_once_lines_arrive_and_the_card_says_to_export_again() {
+        let mut card = StudyCard::new("clear-withheld");
+        card.export();
+        // A phase boundary: a line no export holds
+        card.log.record("phase_end", &[]);
+
+        let drawn = card.frame(tall_input());
+        assert_eq!(drawn.count("Clear log"), 0, "{}", drawn.dump());
+        assert!(drawn.says("Exported to"), "the card still says where the export went");
+        assert_eq!(
+            CLEAR_WITHHELD_HINT,
+            "New lines arrived since the export. Stop, then export again to clear the log.",
+            "the guide quotes these words",
+        );
+        // One line, at the width the card has
+        card.note = Some(StudyNote::Cleared);
+        let one_line = card.frame(tall_input()).rect("Log cleared.").height();
+        card.note = Some(StudyNote::Exported(std::path::PathBuf::from("export.jsonl")));
+        let hint = card.frame(tall_input()).rect(CLEAR_WITHHELD_HINT);
+        assert!(hint.height() < 1.5 * one_line, "the hint takes more than a line: {hint:?}");
+
+        // Exporting again covers the new line, and the card goes back
+        card.export();
+        let drawn = card.frame(tall_input());
+        assert_eq!(drawn.count("Clear log"), 1, "{}", drawn.dump());
+        assert!(!drawn.says(CLEAR_WITHHELD_HINT));
+    }
+
+    #[test]
+    fn clearing_empties_the_log_and_says_nothing_about_new_lines() {
+        let mut card = StudyCard::new("clear-click");
+        card.export();
+        let drawn = card.frame(tall_input());
+        let button = drawn.rect("Clear log");
+
+        let _ = card.frame(tall_click(button.center()));
+
+        assert_eq!(card.note, Some(StudyNote::Cleared));
+        assert_eq!(card.live_lines(), 1, "only the log_cleared header is left");
+        let drawn = card.frame(tall_input());
+        assert!(drawn.says("Log cleared."));
+        assert_eq!(drawn.count("Clear log"), 0, "the next Clear needs a new export");
+        assert!(!drawn.says(CLEAR_WITHHELD_HINT), "{}", drawn.dump());
+    }
+
+    #[test]
+    fn a_long_export_path_and_the_hint_wrap_inside_the_card() {
+        let mut card = StudyCard::new("wrap");
+        // One line of the note's own type, for scale
+        card.note = Some(StudyNote::Cleared);
+        let one_line = card.frame(tall_input()).rect("Log cleared.").height();
+
+        // A path with no spaces to break at, and the hint under it
+        let long = std::path::PathBuf::from(format!(
+            "/Users/{}/Desktop/exhale-log-P07-1700000000-12.jsonl",
+            "a-very-long-account-name".repeat(6),
+        ));
+        card.note = Some(StudyNote::Exported(long));
+        card.log.record("phase_end", &[]);
+        let drawn = card.frame(tall_input());
+
+        let left  = drawn.rect("Participant").min.x;
+        let limit = left + CARD_CONTENT_W + 0.5;
+        for (text, rect) in &drawn.0 {
+            assert!(rect.max.x <= limit, "{text:?} runs to {} in a card that ends at {limit}", rect.max.x);
+        }
+        let path = drawn.0.iter().find(|(t, _)| t.starts_with("Exported to")).expect("the path line");
+        assert!(path.1.height() >= 2.0 * one_line, "a path that long takes several lines: {:?}", path.1);
+        assert!(drawn.says(CLEAR_WITHHELD_HINT), "{}", drawn.dump());
+
+        // A failure's reason can be long as well, and has no spaces to break at
+        let reason = format!("Export failed: {}", "x".repeat(200));
+        card.note = Some(StudyNote::Failed(reason.clone()));
+        let drawn = card.frame(tall_input());
+        let failed = drawn.rect(&reason);
+        assert!(failed.max.x <= limit, "the reason runs to {} in a card that ends at {limit}", failed.max.x);
+        assert!(failed.height() >= 2.0 * one_line, "and takes several lines: {failed:?}");
+    }
+
+    // ── The window follows the Study card's status lines ──────────
+
+    /// The status lines the Study card drew in one frame
+    fn drawn_status_lines(card: &mut StudyCard) -> Vec<String> {
+        let mut lines = Vec::new();
+        let log = Some(Arc::clone(&card.log));
+        let _ = card.ctx.run(tall_input(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let _ = body_cards(
+                    ui, &mut card.settings, &StudyStatus::Locked, &log, &mut card.note, &mut lines,
+                );
+            });
+        });
+        lines
+    }
+
+    #[test]
+    fn the_status_lines_are_what_each_note_says() {
+        let path = std::path::PathBuf::from("/exports/exhale-log-P07-1.jsonl");
+        let exported = StudyNote::Exported(path);
+
+        assert!(study_status_lines(None, true).is_empty());
+        assert!(study_status_lines(None, false).is_empty(), "a log that grew says nothing before an export");
+        assert_eq!(
+            study_status_lines(Some(&exported), true),
+            ["Exported to /exports/exhale-log-P07-1.jsonl"],
+        );
+        assert_eq!(
+            study_status_lines(Some(&exported), false),
+            ["Exported to /exports/exhale-log-P07-1.jsonl".to_string(), CLEAR_WITHHELD_HINT.to_string()],
+        );
+        assert_eq!(study_status_lines(Some(&StudyNote::Cleared), false), ["Log cleared."]);
+        assert_eq!(
+            study_status_lines(Some(&StudyNote::Failed("Export failed: no folder".to_string())), true),
+            ["Export failed: no folder"],
+        );
+    }
+
+    #[test]
+    fn the_card_hands_back_the_lines_it_drew_and_they_change_with_its_height() {
+        let mut card = StudyCard::new("lines-drawn");
+
+        assert!(drawn_status_lines(&mut card).is_empty(), "before any export");
+
+        // An export adds a line, with Clear offered
+        card.export();
+        let exported = drawn_status_lines(&mut card);
+        assert_eq!(exported.len(), 1, "{exported:?}");
+        assert!(exported[0].starts_with("Exported to "));
+
+        // The log grows, which the card says in a second line
+        card.log.record("phase_end", &[]);
+        let withheld = drawn_status_lines(&mut card);
+        assert_eq!(withheld.len(), 2, "{withheld:?}");
+        assert_eq!(withheld[1], CLEAR_WITHHELD_HINT);
+        assert_ne!(withheld, exported, "so the window sees a change");
+
+        // The card draws exactly the lines it handed back
+        let drawn = card.frame(tall_input());
+        for line in &withheld {
+            assert!(drawn.says(line), "{line:?} missing: {}", drawn.dump());
+        }
+
+        // Another export takes the second line away, and nothing changes
+        // between two frames of the same state
+        card.export();
+        assert_eq!(drawn_status_lines(&mut card).len(), 1);
+        assert_eq!(drawn_status_lines(&mut card), drawn_status_lines(&mut card));
+    }
+
+    #[test]
+    fn a_card_that_is_not_drawn_hands_back_no_lines() {
+        let mut locked = locked_settings();
+        let ctx = Context::default();
+        let mut lines = vec!["left over".to_string()];
+        let mut note = Some(StudyNote::Cleared);
+        for status in [StudyStatus::Off, broken_at_load()] {
+            let _ = ctx.run(tall_input(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    let _ = body_cards(ui, &mut locked, &status, &None, &mut note, &mut lines);
+                });
+            });
+            assert!(lines.is_empty(), "{status:?}: {lines:?}");
+        }
+        // A locked study with no log draws the participant and no status
+        let _ = ctx.run(tall_input(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let _ = body_cards(ui, &mut locked, &StudyStatus::Locked, &None, &mut note, &mut lines);
+            });
+        });
+        assert!(lines.is_empty(), "{lines:?}");
+    }
+
+    #[test]
+    fn a_window_grows_to_its_content_and_only_as_far_as_the_screen_allows() {
+        // The Study card's lines made the content taller than the window
+        assert_eq!(grown_height(313, 420, None), Some(420));
+        assert_eq!(grown_height(313, 420, Some(700)), Some(420), "room to spare");
+        assert_eq!(grown_height(313, 420, Some(380)), Some(380), "the screen's limit");
+        // No room, or no gain: it stays, and never gets shorter
+        assert_eq!(grown_height(313, 420, Some(313)), None);
+        assert_eq!(grown_height(313, 420, Some(100)), None);
+        assert_eq!(grown_height(420, 420, None), None, "already as tall as its content");
+        assert_eq!(grown_height(600, 420, None), None, "taller than its content: the maximum height brings it down");
+    }
+
+    #[test]
+    fn the_room_below_a_window_stops_short_of_the_dock_and_never_goes_negative() {
+        // A 1440 by 900 point screen at 2x. The window's top edge is 76
+        // pixels down, and its title bar takes 56
+        assert_eq!(room_below(0, 1800, 76, 56, 2.0), ((1800 - 76 - 56) / 2) as u32 - SCREEN_BOTTOM_RESERVE as u32);
+        // A monitor above the primary one, at 1x: its bottom edge is y = 0
+        assert_eq!(room_below(-1080, 1080, -1000, 28, 1.0), (1000 - 28) as u32 - SCREEN_BOTTOM_RESERVE as u32);
+        // Less than the reserve is left, or the window's top is off the monitor
+        assert_eq!(room_below(0, 900, 800, 28, 1.0), 0);
+        assert_eq!(room_below(0, 900, 1000, 28, 1.0), 0);
+        assert_eq!(room_below(0, 900, 2000, 28, 1.0), 0);
+    }
+
+    #[test]
+    fn a_failed_export_shows_its_reason_and_no_hint() {
+        let mut card = StudyCard::new("failed");
+        card.note = Some(StudyNote::Failed("Export failed: no folder to export to".to_string()));
+        let drawn = card.frame(tall_input());
+        assert!(drawn.says("Export failed: no folder to export to"));
+        assert!(!drawn.says(CLEAR_WITHHELD_HINT));
+    }
+
+    // ── A study that can't run ────────────────────────────────────
+
+    #[test]
+    fn a_broken_study_file_shows_the_card_and_hides_every_pacing_surface() {
+        let (folder, mut settings) = study_folder("broken-card", crate::test_support::BROKEN_STUDY_FILE);
+        assert!(folder.manager.study_status().error().is_some());
+        let ctx = Context::default();
+
+        let drawn = run_window_frame(
+            &ctx, tall_input(), &mut settings, &folder.manager, &mut false, &None, &mut None,
+        );
+
+        // The card names the file, the line and the field
+        assert!(
+            drawn.says("Study can't start: study.toml, line 3, field inhale_duration:"),
+            "{}", drawn.dump(),
+        );
+        assert!(drawn.says("Tell whoever runs the study."));
+        // and never the value the lab typed, or the old second line
+        assert!(!drawn.says("0.0731"), "{}", drawn.dump());
+        assert!(!drawn.says("Pacing isn't locked"));
+        // The one Study card is the error card: no participant, no arm
+        assert_eq!(drawn.count("STUDY"), 1);
+        assert!(!drawn.says("Participant"));
+        assert!(!drawn.says("arm-blue-7"));
+        for hidden in ["TIMING", "RANDOMIZATION", "TIMERS"] {
+            assert_eq!(drawn.count(hidden), 0, "{hidden}");
+        }
+        assert!(super::widgets::test_hooks::take_chip_rects().is_none(), "no preset chips");
+        let readout = exhale_core::pacing::readout_lines(&settings);
+        assert!(!readout.is_empty(), "the pace in these settings has a readout to hide");
+        for line in readout {
+            assert!(!drawn.says(&line), "the rate readout {line:?} is on screen");
+        }
+    }
+
+    #[test]
+    fn a_misnamed_study_file_is_named_on_the_card_and_the_card_wraps() {
+        // What Notepad leaves when the extension is hidden, with a name long
+        // enough that the card's sentence has to wrap
+        let misnamed = format!("study ({}).toml.txt", "copy of the lab's file ".repeat(4));
+        let folder = crate::test_support::Folder::with_files("misnamed", &[(&misnamed, "x")]);
+        assert!(folder.manager.study_status().error().is_some());
+        let mut settings = folder.manager.settings.read().expect("lock").clone();
+        let ctx = Context::default();
+
+        let drawn = run_window_frame(
+            &ctx, tall_input(), &mut settings, &folder.manager, &mut false, &None, &mut None,
+        );
+
+        assert!(drawn.says(&misnamed), "the card names the file it found: {}", drawn.dump());
+        assert!(drawn.says("Rename it to study.toml"), "{}", drawn.dump());
+        assert!(drawn.says("Tell whoever runs the study."));
+        let card_right = SETTINGS_WIDTH as f32 - OUTER_PAD - CARD_PAD;
+        let line = drawn.0.iter().find(|(t, _)| t.starts_with("Study can't start")).expect("the card's sentence");
+        assert!(line.1.max.x <= card_right + 0.5, "it runs to {} in a card that ends at {card_right}", line.1.max.x);
+        let tell = drawn.rect("Tell whoever runs the study.");
+        assert!(line.1.height() >= 2.0 * tell.height(), "and it takes several lines: {:?}", line.1);
+    }
+
+    #[test]
+    fn a_log_that_will_not_open_shows_the_same_card_with_the_lock_kept() {
+        let (folder, _) = study_folder("log-card", crate::test_support::STUDY_FILE);
+        std::fs::create_dir(folder.dir.join("exhale-log-P07.jsonl")).expect("block the log");
+        assert!(crate::open_session_log(&folder.manager).is_none());
+        let mut settings = folder.manager.settings.read().expect("lock").clone();
+        assert!(settings.study.is_some(), "the lock is in force");
+        let ctx = Context::default();
+
+        let drawn = run_window_frame(
+            &ctx, tall_input(), &mut settings, &folder.manager, &mut false, &None, &mut None,
+        );
+
+        assert!(drawn.says("Study can't start: study.toml: the session log can't be written"), "{}", drawn.dump());
+        assert!(drawn.says("Tell whoever runs the study."));
+        assert_eq!(drawn.count("STUDY"), 1);
+        assert!(!drawn.says("Participant"), "{}", drawn.dump());
+        for hidden in ["TIMING", "RANDOMIZATION", "TIMERS"] {
+            assert_eq!(drawn.count(hidden), 0, "{hidden}");
+        }
+        assert!(!drawn.says("Export log"), "there's no log to export");
+    }
+
+    #[test]
+    fn start_does_nothing_while_the_study_cannot_run_and_works_when_it_can() {
+        // Broken: Start's click lands on a button that takes none. Reset
+        // is clicked first, which proves the click position is a live one
+        let (folder, mut settings) = study_folder("start-broken", crate::test_support::BROKEN_STUDY_FILE);
+        let ctx = Context::default();
+        let mut pending = false;
+        let drawn = run_window_frame(
+            &ctx, tall_input(), &mut settings, &folder.manager, &mut pending, &None, &mut None,
+        );
+        let (start, reset) = (drawn.rect("Start"), drawn.rect("Reset"));
+
+        let _ = run_window_frame(
+            &ctx, tall_click(reset.center()), &mut settings, &folder.manager, &mut pending, &None, &mut None,
+        );
+        assert!(pending, "the Reset button beside it takes the click");
+        let _ = run_window_frame(
+            &ctx, tall_click(start.center()), &mut settings, &folder.manager, &mut pending, &None, &mut None,
+        );
+        assert!(!settings.is_animating, "Start does nothing");
+
+        // Locked and stopped: the same click starts it
+        let (folder, mut settings) = study_folder("start-locked", crate::test_support::STUDY_FILE);
+        settings.is_animating = false;
+        let ctx = Context::default();
+        let drawn = run_window_frame(
+            &ctx, tall_input(), &mut settings, &folder.manager, &mut false, &None, &mut None,
+        );
+        let _ = run_window_frame(
+            &ctx, tall_click(drawn.rect("Start").center()), &mut settings, &folder.manager, &mut false, &None, &mut None,
+        );
+        assert!(settings.is_animating, "Start works in a study that can run");
+    }
+
+    #[test]
+    fn tab_goes_past_a_disabled_start_to_stop() {
+        // Tab then Enter presses the first button Tab reaches. Running
+        // settings make Stop's press visible, and stopped ones make Start's
+        for (tag, file, running_at_first) in [
+            ("tab-broken", crate::test_support::BROKEN_STUDY_FILE, true),
+            ("tab-locked", crate::test_support::STUDY_FILE,        false),
+        ] {
+            let (folder, mut settings) = study_folder(tag, file);
+            settings.is_animating = running_at_first;
+            let ctx = Context::default();
+            let mut frame = |raw_in: RawInput| {
+                run_window_frame(&ctx, raw_in, &mut settings, &folder.manager, &mut false, &None, &mut None)
+            };
+            let _ = frame(tall_input());
+            let _ = frame(tall_key(egui::Key::Tab));
+            let _ = frame(tall_key(egui::Key::Enter));
+            // Stop's press stops a running animation, and Start's starts a
+            // stopped one, so the result says which button took the press
+            if running_at_first {
+                assert!(!settings.is_animating, "{tag}: Tab reached Stop, since Start takes no focus");
+            } else {
+                assert!(settings.is_animating, "{tag}: with Start enabled it's the first stop");
+            }
+        }
+    }
+
+    #[test]
+    fn disabling_start_moves_no_button() {
+        let columns = |file: &str, tag: &str| {
+            let (folder, mut settings) = study_folder(tag, file);
+            let ctx = Context::default();
+            let _ = run_window_frame(
+                &ctx, tall_input(), &mut settings, &folder.manager, &mut false, &None, &mut None,
+            );
+            let drawn = run_window_frame(
+                &ctx, tall_input(), &mut settings, &folder.manager, &mut false, &None, &mut None,
+            );
+            ["Start", "Stop", "Reset", "Quit"].map(|b| {
+                let r = drawn.rect(b);
+                (r.min.x, r.width())
+            })
+        };
+        let enabled  = columns(crate::test_support::STUDY_FILE, "cols-enabled");
+        let disabled = columns(crate::test_support::BROKEN_STUDY_FILE, "cols-disabled");
+        for (i, (a, b)) in enabled.iter().zip(&disabled).enumerate() {
+            assert!((a.0 - b.0).abs() < 0.01 && (a.1 - b.1).abs() < 0.01, "button {i}: {a:?} vs {b:?}");
+        }
+    }
+
+    // ── Reset ─────────────────────────────────────────────────────
+
+    #[test]
+    fn outside_a_study_reset_says_what_it_always_said() {
+        let said = reset_text(&exhale_core::settings::Settings::default());
+        assert_eq!(said.help, "Reset all settings to their default values.");
+        assert_eq!(said.title, "Reset all settings to their defaults?");
+        assert_eq!(
+            said.detail,
+            "This restores every appearance, timing, and keyboard-shortcut setting. Can't be undone.",
+        );
+    }
+
+    #[test]
+    fn in_a_study_reset_says_it_restores_the_shortcuts_and_show_in_only() {
+        let said = reset_text(&locked_settings());
+        for text in [said.help, said.title, said.detail] {
+            assert!(text.contains("keyboard shortcuts") && text.contains("Show In"), "{text}");
+            for untrue in ["every appearance", "timing", "all settings"] {
+                assert!(!text.contains(untrue), "{text:?} says {untrue:?}");
+            }
+        }
+        assert!(said.detail.contains("locks the pace and the appearance"), "{}", said.detail);
+
+        // A study that fills the display hides Show In, so its Reset leaves it unsaid
+        let said = reset_text(&locked_window_settings());
+        for text in [said.help, said.title, said.detail] {
+            assert!(text.contains("keyboard shortcuts") && !text.contains("Show In"), "{text}");
+            for untrue in ["every appearance", "timing", "all settings"] {
+                assert!(!text.contains(untrue), "{text:?} says {untrue:?}");
+            }
+        }
+        assert!(said.detail.contains("locks the pace, the appearance and the display"), "{}", said.detail);
+    }
+
+    #[test]
+    fn the_confirmation_card_uses_the_words_that_are_true_for_the_settings() {
+        let window_file = crate::test_support::window_study_file();
+        let every_text  = [&RESET_TEXT, &RESET_TEXT_STUDY, &RESET_TEXT_STUDY_WINDOW];
+        for (tag, file, want) in [
+            ("reset-text-window", Some(window_file.as_str()),            &RESET_TEXT_STUDY_WINDOW),
+            ("reset-text-study",  Some(crate::test_support::STUDY_FILE), &RESET_TEXT_STUDY),
+            ("reset-text-open",   None,                                  &RESET_TEXT),
+        ] {
+            let folder   = crate::test_support::Folder::new(tag, file);
+            let mut settings = folder.manager.settings.read().expect("lock").clone();
+            assert_eq!(reset_text(&settings).title, want.title, "{tag}");
+            let ctx = Context::default();
+
+            let drawn = run_window_frame(
+                &ctx, tall_input(), &mut settings, &folder.manager, &mut true, &None, &mut None,
+            );
+
+            // The card says the words it should, and none of the others
+            for text in every_text {
+                let shown = text.title == want.title;
+                assert_eq!(drawn.says(text.title), shown, "{tag}: {}", drawn.dump());
+                assert_eq!(drawn.says(text.detail), shown, "{tag}: {}", drawn.dump());
+            }
+        }
+    }
+
+    #[test]
+    fn confirming_reset_in_a_study_logs_it_keeps_the_lock_and_restores_show_in() {
+        let folder = crate::test_support::Folder::new("reset-click", Some(crate::test_support::STUDY_FILE));
+        let log = crate::open_session_log(&folder.manager).expect("the log opens");
+        let mut settings = folder.manager.settings.read().expect("lock").clone();
+        let locked = format!("{settings:?}");
+        // The one thing a study leaves to the participant that the panel
+        // shows here
+        settings.app_visibility = AppVisibility::DockOnly;
+        let some_log = Some(Arc::clone(&log));
+        let ctx = Context::default();
+        let mut pending = true;
+
+        let drawn = run_window_frame(
+            &ctx, tall_input(), &mut settings, &folder.manager, &mut pending, &some_log, &mut None,
+        );
+        // Two "Reset" labels: the control button above and the card's own
+        // confirm button below it
+        assert_eq!(drawn.count("Reset"), 2, "{}", drawn.dump());
+        let confirm = drawn.lowest("Reset");
+        let _ = run_window_frame(
+            &ctx, tall_click(confirm.center()), &mut settings, &folder.manager, &mut pending, &some_log, &mut None,
+        );
+
+        assert!(!pending, "the card is closed");
+        assert_eq!(crate::test_support::events(&log), ["app_start", "reset"]);
+        let written = std::fs::read_to_string(log.path()).expect("read");
+        assert!(written.lines().last().expect("a line").ends_with("\"event\":\"reset\"}"), "no fields: {written}");
+        assert_eq!(
+            format!("{settings:?}"), locked,
+            "Show In is back, and the pace and the look are the file's",
+        );
     }
 
     #[test]

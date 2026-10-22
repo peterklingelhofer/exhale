@@ -10,7 +10,7 @@ Blink rate also falls at a display. In one count it went from 22 a minute at res
 
 Every claim above and below is sourced in **[docs/CITATIONS.md](docs/CITATIONS.md)**, 49 sources whose bibliographic records were checked against Crossref, Open Library or PubMed. Some of these findings are weaker than a citation alone suggests, so each link goes to the source's corpus entry, with its DOI, access level, evidence tier, caveats and, for every source that was read, the source's own words under each claim. The [gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices) collects fourteen places where exhale ships something the literature doesn't back.
 
-The overlay is a translucent window that expands on inhale and contracts on exhale, and on most setups it floats above your other windows (see [Platform notes](#platform-notes)). Inhale, post-inhale hold, exhale, and post-exhale hold durations are all configurable.
+The overlay is a translucent window that expands on inhale and contracts on exhale, and on most setups it floats above your other windows (see [Platform notes](#platform-notes)). If you'd like an ordinary window, the **Display** setting switches it to one (see [Overlay or window](#overlay-or-window)). Inhale, post-inhale hold, exhale, and post-exhale hold durations are all configurable.
 
 **The default is `5` / `0` / `5` / `0`.** Five seconds in and five out with no holds is 6 breaths per minute, the rate at which most of the direct evidence was gathered. The range tested directly runs 5 to 7 breaths per minute, and every rate in it beat spontaneous breathing ([You et al. 2023](docs/CITATIONS.md#you2023-respiratory-frequency)). Average individual resonance frequency sits near 5.5 ([Lehrer & Gevirtz 2014](docs/CITATIONS.md#lehrer2014-hrv-biofeedback)), and one study found 5.5 breaths a minute at an equal ratio beat the other combinations tested, including two at 6 ([Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv)). In a study comparing four patterns (n = 84), 6 breaths per minute raised heart rate variability more than box breathing or 4-7-8 ([Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six)). Of its two 6-a-minute ratios, only 4:6 beat the hold patterns significantly on RMSSD, a heart rate variability measure. The default 5:5's lead over them fell short of significance after Scheffé correction, and the two ratios didn't differ significantly from each other. With no holds, it's also an easy place for a beginner to start.
 
@@ -103,18 +103,21 @@ uv run --no-project scripts/generate-citations.py --check   # fail if stale
 
 `--check` also validates citekey format, enum values, every anchor link the gaps ledger makes into
 the corpus, the source counts quoted in this file, and the deep link the app itself compiles in, so a
-renamed entry or a stale number breaks the build. It also refuses a short list of claims the corpus
-doesn't support on the surfaces that assert claims: the Rust sources, the Snap description and the
-Microsoft Store listing copy. The README and the gaps ledger can still name those claims, because
-they discuss them.
+renamed entry or a stale number breaks the build. Links from this file and from
+[`docs/for-researchers.md`](docs/for-researchers.md) into the corpus have to name an entry or a
+heading that exists. It also refuses a short list of claims the corpus doesn't support on the
+surfaces that assert claims: the Rust sources, the Snap description, the Microsoft Store listing copy
+and [`CITATION.cff`](CITATION.cff). The README and the gaps ledger can still name those claims,
+because they discuss them.
 
 Every claim from a source that was read sits above the source's own words in the corpus, and each
 quote carries a receipt in [`docs/CITATIONS.receipts.json`](docs/CITATIONS.receipts.json) showing it
 was found in the source's text. `--check` fails when a quote changes after it was checked, when quote
 marks in this file or the corpus surround words that no quote of the cited source has, when a figure
 this file attributes to a source isn't printed in one of that source's quotes, and when the tested
-range the app reports stops matching the sentence it comes from. The source texts stay out of the
-repository, so receipts and the registry snapshot are written on a machine that has them:
+range the app reports stops matching the sentence it comes from. The same quote-mark and figure
+rules hold for `docs/for-researchers.md`. The source texts stay out of the repository, so receipts
+and the registry snapshot are written on a machine that has them:
 
 ```sh
 uv run --no-project scripts/check-quotes.py --write-receipts   # look up every quote, record receipts
@@ -138,6 +141,19 @@ evidence lives in this repo because a correction here takes an afternoon, and pu
 signed binary takes a store review. Four sources are flagged
 `inAppCitable: false` in the corpus for that reason, and the build fails if a shipped preset points
 at one of them.
+
+**For researchers.** [`docs/for-researchers.md`](docs/for-researchers.md) is a reference for a lab
+considering exhale as a study stimulus: parameters and defaults, study mode, the session log and
+the evidence corpus's own limits. Study mode locks a participant's pacing from a `study.toml` file
+the lab provides. The same file can also fix the appearance and the display, including a
+full-screen window on the primary display. Settings then hides the Timing, Randomization and
+Timers cards (with the presets and the rate readout), every Appearance row but Show In, and the
+*Research* item. When the file asks for that full-screen window, the whole Appearance card is
+hidden and exhale shows in both the top bar and the Dock. A file that can't be used keeps the
+animation still and shows an error card. A local session log, one file per participant, covers
+app, animation and phase timing, and the participant exports it by hand. The Mac App Store build's
+sandbox blocks Export to the Desktop, so a macOS study uses a build from source.
+[`CITATION.cff`](CITATION.cff) at the repo root has the software's own citation.
 
 Nothing in this section is medical advice. See the [disclaimer](#disclaimer) above.
 
@@ -167,6 +183,21 @@ You can also build from source (see [Build & run](#build--run)).
 ![rectangle](https://user-images.githubusercontent.com/60944077/226204986-7522cb4d-7df1-4d65-96de-e629197e9854.gif)
 <img width="447" height="981" alt="Settings panel" src="https://github.com/user-attachments/assets/32e1d10e-72e3-4acb-ae35-be186cd7cb19" />
 
+### Overlay or window
+
+The **Display** row in the Appearance card chooses how exhale shows the animation. Click either option and it takes effect at once, in both directions.
+
+- **Overlay** is the default. One translucent window per monitor floats above your other windows and lets clicks through.
+- **Window** is one regular window named "exhale" that you can move, resize or make full screen. It remembers its size and position, shows up in Alt-Tab and the taskbar or Dock, and leaves your other windows alone.
+
+In Window mode the Stop button, the Stop shortcut and the window's close button all hide the window, and Start brings it back. Wayland doesn't let an app hide its own window, so there Stop leaves the window in place, blank. Full screen comes from your system's own controls: the green button on macOS, maximize on Windows and your window manager on Linux. On macOS, Stop first leaves full screen and then hides the window, so no empty full-screen Space stays behind. On macOS, Windows and X11 the settings panel floats above the window, so you can keep adjusting while you watch.
+
+A window has nothing behind it to see through to, so it draws your colors at full strength. The Overlay Opacity row is disabled while a window is showing, and the background color is drawn solid whatever its alpha. Both settings keep their values and apply again when you switch to Overlay.
+
+On a Wayland session, or where the graphics driver can't draw a see-through overlay, exhale always shows a window. The Display row is then locked to Window, and the setting you last chose stays stored.
+
+A study file can fix the Display setting, and the Display row is then hidden. When the file sets Window, the window opens full screen and borderless on the primary display. On macOS that full screen stays in the current Space and auto-hides the menu bar and the Dock. Stop takes the window out of full screen and hides it, so the menu bar comes back, and Start returns it to full screen. [`docs/for-researchers.md`](docs/for-researchers.md) covers the study file.
+
 ### Global keyboard shortcuts
 
 Global shortcuts work in every build except on a Wayland session, where Linux gives apps no way to listen for keys globally. One shortcut is bound by default:
@@ -189,6 +220,8 @@ Press **Esc** in the capture overlay to cancel. "Reset Shortcut to Default" in t
 3. Re-open Preferences in the current workspace and adjust Opacity.
 4. Switch back.
 
+In a study, the file locks the opacity. Reset leaves it alone and the Opacity row is hidden.
+
 ## Architecture
 
 Single Rust workspace (`rust/`) producing one cross-platform binary.
@@ -202,7 +235,7 @@ Single Rust workspace (`rust/`) producing one cross-platform binary.
 
 ### Crates
 
-- `exhale-core`: settings + `SettingsDiff`, breathing controller (deadline-scheduled background thread), poison-tolerant lock helpers, easing tables. Zero GUI deps.
+- `exhale-core`: settings + `SettingsDiff`, breathing controller (deadline-scheduled background thread), poison-tolerant lock helpers, easing tables, `study` (the `study.toml` lock) and `session_log` (the JSON Lines log study builds write). Zero GUI deps.
 - `exhale-render`: `wgpu` renderer + WGSL fragment shader, headless benchmarking harness (`cargo run --example cpu_bench`).
 - `exhale-app`: winit event loop, split egui settings panel (`settings_window.rs` + `widgets.rs` + `theme.rs`), per-overlay render thread, tray, hotkeys, platform glue (`objc2` / `windows-sys` / `x11-dl`).
 
@@ -296,17 +329,19 @@ Settings are saved as TOML under the platform config dir (via the `directories` 
 | macOS (dev / standalone) | `~/Library/Application Support/com.peterklingelhofer.exhale/settings.toml` |
 | macOS (Mac App Store)    | `~/Library/Containers/peterklingelhofer.exhale/Data/Library/Application Support/com.peterklingelhofer.exhale/settings.toml` |
 | Windows  | `%APPDATA%\peterklingelhofer\exhale\config\settings.toml` |
-| Linux    | `~/.config/exhale/settings.toml` |
+| Linux    | `~/.config/exhale/settings.toml`, or `$XDG_CONFIG_HOME/exhale/settings.toml` when `XDG_CONFIG_HOME` is set |
 
 The MAS path differs because the App Store build runs sandboxed: the sandbox redirects `~/Library/Application Support` writes into the per-app container. Settings are reloaded on launch and persisted on every change via a debounced background writer thread. Corrupt TOML is logged and the file is rewritten with defaults.
 
+A `study.toml` beside `settings.toml` locks the pacing, appearance and display fields for a study, covered in [`docs/for-researchers.md`](docs/for-researchers.md).
+
 ## Platform notes
 
-- **macOS**: the overlay floats above fullscreen apps (screen-saver window level), joins every Space, and stays out of Cmd+Tab. `AppVisibility` toggles `NSApp.setActivationPolicy` between `.regular` and `.accessory`.
-- **Windows**: the overlay uses `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST`. `AppVisibility` toggles `WS_EX_APPWINDOW` / `WS_EX_TOOLWINDOW` on the settings window so "DockOnly" shows a taskbar entry and "TopBarOnly" hides it. Tested + recommended on **Windows 11**. Some Windows 10 GPU + driver combinations report only `Opaque` alpha modes to Vulkan, in which case exhale falls back to the windowed mode described below.
+- **macOS**: the overlay floats above fullscreen apps (screen-saver window level), joins every Space, and stays out of Cmd+Tab. The window of Window mode is an ordinary normal-level window that opts into native full screen (`NSWindowCollectionBehaviorFullScreenPrimary`), so the green button works. `AppVisibility` toggles `NSApp.setActivationPolicy` between `.regular` and `.accessory`.
+- **Windows**: the overlay uses `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST`. `AppVisibility` toggles `WS_EX_APPWINDOW` / `WS_EX_TOOLWINDOW` on the settings window so "DockOnly" shows a taskbar entry and "TopBarOnly" hides it. Tested + recommended on **Windows 11**. Some Windows 10 GPU + driver combinations report only `Opaque` alpha modes to Vulkan, in which case exhale falls back to the Window mode described below.
 - **Linux (X11)**: click-through via `XFixesSetWindowShapeRegion` with an empty input region, always-on-top via `_NET_WM_STATE_ABOVE`, and workspace-spanning via `_NET_WM_STATE_STICKY`. `AppVisibility` toggles `_NET_WM_STATE_SKIP_TASKBAR` / `SKIP_PAGER` on the settings window.
-- **Linux (Wayland)**: Wayland has no standard way for an app to keep an overlay on top, so on a Wayland session exhale always runs in the **windowed mode** described below. For the full topmost, click-through overlay on Linux, log out and pick an X11 session at the login screen.
-- **Windowed-mode fallback** (Wayland sessions, some Windows 10 + Vulkan combinations, WARP / Microsoft Basic Render Driver, remote-desktop sessions): the breath animation runs in a **480×360 movable, resizable "exhale" window** with normal decorations and full window-manager participation (Alt-Tab, taskbar, native close button). You can use it two ways: (1) **as a foreground window**, watching the breath animation directly the same way you'd watch any other app, or (2) **as an edge-strip overlay**, by sending the window behind your other apps (Alt-Tab past it / click on the window manager to lower it), switching exhale to **Rectangle mode**, and narrowing the windows in front so the animation shows through the side / bottom strips you've left open. The Stop button (and the global Stop hotkey, if bound) hides this window, and clicking the window's native close X does the same thing. Both halt the animation but leave the tray icon and settings panel running, so Start brings the animation window back. The settings panel is still the way to fully quit (Quit button, or close the settings window on Linux).
+- **Linux (Wayland)**: Wayland has no standard way for an app to keep an overlay on top, so on a Wayland session exhale always runs in the **Window mode** described below. For the full topmost, click-through overlay on Linux, log out and pick an X11 session at the login screen.
+- **Window mode** (the Display setting, and also what exhale falls back to on Wayland sessions, some Windows 10 + Vulkan combinations, WARP / Microsoft Basic Render Driver and remote-desktop sessions, where the Display row is locked to Window): the breath animation runs in a **movable, resizable "exhale" window** that opens at 480×360 points and has normal decorations and full window-manager participation (Alt-Tab, taskbar, native close button). It draws at full strength on an opaque surface. It stays at the normal window level, so on macOS, Windows and X11 the settings panel floats above it. You can use it two ways: (1) **as a foreground window**, watching the breath animation directly the same way you'd watch any other app, or (2) **as an edge-strip overlay**, by sending the window behind your other apps (Alt-Tab past it / click on the window manager to lower it), switching exhale to **Rectangle mode**, and narrowing the windows in front so the animation shows through the side / bottom strips you've left open. The Stop button (and the global Stop hotkey, if bound) hides this window, and clicking the window's native close X does the same thing. On Wayland the window can't be hidden, so it stays in place, blank. Both halt the animation but leave the tray icon and settings panel running, so Start brings the animation window back. The settings panel is still the way to fully quit (Quit button, or close the settings window on Linux). In a study, the file can open this window full screen and borderless on the primary display, without the 480×360 size or the decorations (see [Overlay or window](#overlay-or-window)).
 
 ## Performance vs the legacy Swift build
 

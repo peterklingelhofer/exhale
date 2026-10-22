@@ -17,7 +17,7 @@ CI in [.github/workflows/release.yml](.github/workflows/release.yml) builds ever
 
 ## Version bump
 
-The version string is pinned in eight places (`Cargo.toml`, `snapcraft.yaml`, `AppxManifest.xml`, the three bundle scripts' default fallbacks, `release.yml`, and `Cargo.lock`). [rust/scripts/release.sh](rust/scripts/release.sh) bumps all of them in lockstep:
+The version string is pinned in nine places (`Cargo.toml`, `snapcraft.yaml`, `AppxManifest.xml`, the three bundle scripts' default fallbacks, `release.yml`, `Cargo.lock` and `CITATION.cff`). [rust/scripts/release.sh](rust/scripts/release.sh) bumps all of them in lockstep and sets `date-released` in `CITATION.cff` to the day it runs:
 
 ```sh
 rust/scripts/release.sh 2.0.20 --dry-run   # show the diff, no writes

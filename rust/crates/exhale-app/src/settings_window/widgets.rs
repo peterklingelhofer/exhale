@@ -158,8 +158,11 @@ pub(super) fn control_button(
     // so the top row matches the Cancel / Reset pair height.  The
     // icon + label rendering below still fits since we paint at
     // 16-pt icon and 12-pt label, both within the 22-pt bounds
+    //
+    // In a disabled `Ui` (`ui.add_enabled_ui(false, ..)`) the button takes
+    // no clicks and Tab skips it: see [`click_sense`]
     let size     = egui::vec2(width, ROW_H);
-    let response = ui.add_sized(size, egui::Button::new(""));
+    let response = ui.add_sized(size, egui::Button::new("").sense(click_sense(ui)));
     let rect     = response.rect;
 
     scroll_into_view_on_focus(&response);
@@ -345,7 +348,8 @@ pub(super) fn control_button(
         text, font_label, content_color,
     );
 
-    response.on_hover_text(help)
+    // `help` also shows on a disabled button, where it says why
+    response.on_hover_text(help).on_disabled_hover_text(help)
 }
 
 // Layout constants mirror SwiftUI SettingsView.swift:
@@ -470,6 +474,18 @@ fn scroll_into_view_on_focus(resp: &egui::Response) {
     if resp.gained_focus() {
         resp.scroll_to_me(None);
     }
+}
+
+/// What a control that takes clicks senses: clicks, or hover only inside
+/// a disabled `Ui`
+///
+/// A click-sensing widget is focusable, and egui hands Tab focus to a
+/// disabled focusable widget and then takes it back, which strands the
+/// traversal for every control after it (see the Background Color
+/// comment in `settings_ui`).  A hover-only widget is never offered
+/// focus, so Tab skips it, and a click on it lands nowhere
+fn click_sense(ui: &egui::Ui) -> egui::Sense {
+    if ui.is_enabled() { egui::Sense::click() } else { egui::Sense::hover() }
 }
 
 /// Measure every segmented picker in a single frame and return the largest
@@ -598,6 +614,10 @@ pub(super) fn paint_label_with_width(
 /// picker in the Appearance section, so the leftmost option button lands
 /// on the same X coordinate regardless of the picker's option count or
 /// text length
+///
+/// In a disabled `Ui` (`ui.add_enabled_ui(false, ..)`) the row shows its
+/// selection dimmed and takes no input, and `help` still appears on
+/// hover.  Tab skips it: see [`click_sense`]
 pub(super) fn segmented_row<T: Copy + PartialEq>(
     ui:       &mut egui::Ui,
     label:    &str,
@@ -624,7 +644,9 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
         // `paint_label_with_width` docstring for why the row-wide
         // hover tooltip was producing the "duplicate label" artifact
         // when hovering individual options
-        paint_label_with_width(ui, label, label_w).on_hover_text(help);
+        paint_label_with_width(ui, label, label_w)
+            .on_hover_text(help)
+            .on_disabled_hover_text(help);
         // `SAFETY_PX` slack on the right: the outer rect stroke I paint
         // under the picker is 1 px centered-on-edge (so 0.5 px bleed outside),
         // and sub-pixel rounding of `per_w = (picker_w / n).floor()` plus the
@@ -674,13 +696,18 @@ pub(super) fn segmented_row<T: Copy + PartialEq>(
 
             let font_id = egui::TextStyle::Button.resolve(ui.style());
 
+            #[cfg(test)]
+            test_hooks::record_seg_selected(options.iter().position(|&(_, v)| v == *current));
+
+            let sense = click_sense(ui);
+
             for (i, (text, variant)) in options.iter().enumerate() {
                 let is_selected = *current == *variant;
                 let seg_rect    = seg_rects[i];
 
                 // Interact first: gives us hover/press/click without drawing
                 let seg_id = ui.id().with("seg").with(i).with(*text);
-                let resp = ui.interact(seg_rect, seg_id, egui::Sense::click());
+                let resp = ui.interact(seg_rect, seg_id, sense);
                 scroll_into_view_on_focus(&resp);
 
                 // Pill chrome (selected > pressed > hovered) drawn under text
@@ -1015,6 +1042,10 @@ impl ValueScale {
 /// redraw.  When the field loses focus (or the stepper nudges the value) we
 /// canonicalise the buffer via `format_num` so extraneous zeros/decimals get
 /// cleaned up, matching Swift's NumberFormatter with `maximumFractionDigits: 3`
+///
+/// In a disabled `Ui` (`ui.add_enabled_ui(false, ..)`) the row shows its
+/// value dimmed with the field and both buttons inert, and `help` still
+/// appears on hover.  Tab skips it: see [`click_sense`]
 #[allow(clippy::too_many_arguments)]
 pub(super) fn stepper_row(
     ui:     &mut egui::Ui,
@@ -1084,7 +1115,8 @@ pub(super) fn stepper_row(
             egui::vec2(STEPPER_FIELD_W, ROW_H),
             egui::TextEdit::singleline(&mut buf)
                 .id(edit_id)
-                .margin(egui::vec2(4.0, 2.0)),
+                .margin(egui::vec2(4.0, 2.0))
+                .interactive(ui.is_enabled()),
         );
         scroll_into_view_on_focus(&field_resp);
         if field_resp.changed() {
@@ -1150,7 +1182,7 @@ pub(super) fn stepper_row(
         }
         ui.data_mut(|d| d.insert_temp(edit_id, buf));
     }).response;
-    resp.on_hover_text(help);
+    resp.on_hover_text(help).on_disabled_hover_text(help);
     changed
 }
 
@@ -1213,8 +1245,9 @@ pub(super) fn stepper_buttons(
     // caused egui's click-tracking to silently drop every click because
     // it couldn't disambiguate which stepper was hit
     let row_id  = ui.id().with(row_salt);
-    let up_resp = ui.interact(top_rect, row_id.with("stepper_up"), egui::Sense::click());
-    let dn_resp = ui.interact(bot_rect, row_id.with("stepper_dn"), egui::Sense::click());
+    let sense   = click_sense(ui);
+    let up_resp = ui.interact(top_rect, row_id.with("stepper_up"), sense);
+    let dn_resp = ui.interact(bot_rect, row_id.with("stepper_dn"), sense);
     #[cfg(test)]
     test_hooks::record_stepper_rects(top_rect, bot_rect);
 
@@ -1480,6 +1513,20 @@ pub(super) mod test_hooks {
 
     pub fn take_seg_rects() -> Option<Vec<egui::Rect>> {
         SEGS.with(|c| c.borrow_mut().take())
+    }
+
+    thread_local! {
+        static SEG_SELECTED: RefCell<Option<usize>> = const { RefCell::new(None) };
+    }
+
+    /// The segment lit when the row was drawn, before any click this
+    /// frame moved it
+    pub fn record_seg_selected(index: Option<usize>) {
+        SEG_SELECTED.with(|c| *c.borrow_mut() = index);
+    }
+
+    pub fn take_seg_selected() -> Option<usize> {
+        SEG_SELECTED.with(|c| c.borrow_mut().take())
     }
 
     pub fn record_chip_rects(rects: Vec<egui::Rect>) {

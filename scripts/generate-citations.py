@@ -22,15 +22,28 @@ Beyond the shape of each record, both modes fail when
     was checked
   - a readDepth label claims more than the receipts show
   - a figure pinned in rust/crates/**/*.rs (a Pinned literal) differs from the quote it cites
-  - a quote mark in a claim, a caveat, the README or the gaps ledger surrounds words that no
-    quote of the entries it concerns has
+  - a link names an entry the ledger doesn't have. This covers the gaps ledger, the README and
+    the researchers' guide (docs/for-researchers.md)
+  - a link into CITATIONS.md names an anchor that no heading of the rendered document has. This
+    covers the README and the guide. The tray menu's deep link is held to the same headings
+  - a quote mark in a claim, a caveat, the README, the guide or the gaps ledger surrounds words
+    that no quote of the entries it concerns has
   - the registry snapshot disagrees with the ledger, shows a retraction or has no check of a
     link the ledger carries
-  - a gap count (quotes without a receipt, claims without a quote, README figures without a
-    quote, links without an archive capture, unverified entries) differs from its baseline.
-    Write mode only prints those differences. --check fails on them, and a count that fell says
-    to lower the baseline so the gain holds. A README figure from 0 to 20 counts as quoted when
-    a quote spells it as an English word
+  - a gap count (quotes without a receipt, claims without a quote, README and guide figures
+    without a quote, links without an archive capture, unverified entries) differs from its
+    baseline. Write mode only prints those differences. --check fails on them, lists the items
+    behind a count that rose, and says of a count that fell to lower the baseline so the gain
+    holds. A figure from 0 to 20 counts as quoted when a quote spells it as an English word
+  - a claim that UNSUPPORTED_PHRASES lists stands in a file of ASSERTING_SURFACES (CITATION.cff,
+    the store listings and the packaging manifests) or in a Rust source. The README and docs/
+    are exempt, because the gaps ledger has to name a claim to explain what the evidence says
+    about it
+
+Two rules cover only some of those files. The figures rule covers the README and the guide, and
+the corpus size that the README states is checked in the README alone. The baseline key
+readmeFiguresWithoutQuote counts the figures of both files and keeps its name, so the baseline
+file stays as it is. A README or guide that is missing is skipped
 
 Usage:
     uv run --no-project scripts/generate-citations.py                    # write
@@ -57,6 +70,7 @@ import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import NamedTuple
 
 import registry
 import verbatim
@@ -67,6 +81,7 @@ CORPUS = DOCS / "CITATIONS.csl.json"
 NOTES = DOCS / "citations-notes.md"
 OUT = DOCS / "CITATIONS.md"
 README = ROOT / "README.md"
+GUIDE = DOCS / "for-researchers.md"
 # Written by check-quotes.py, check-sources.py and --write-baseline. See the module docstring
 RECEIPTS = DOCS / "CITATIONS.receipts.json"
 REGISTRY = DOCS / "CITATIONS.registry.json"
@@ -137,15 +152,20 @@ VERIFIED_BY = {f"{service}-verified": service for service in registry.REGISTRY_N
 # (correction, corrigendum, erratum and the like) render under the entry and don't fail
 DISQUALIFYING_UPDATES = {"retraction", "partial_retraction", "withdrawal", "removal", "expression_of_concern"}
 
-# The README links entries as (docs/CITATIONS.md#citekey) and the gaps ledger as (#citekey)
+# The README links entries as (docs/CITATIONS.md#citekey), the guide in docs/ as
+# (CITATIONS.md#citekey) and the gaps ledger as (#citekey)
 README_LINK = re.compile(r"\[[^\]]*\]\(docs/CITATIONS\.md#([a-z0-9-]+)\)")
+GUIDE_LINK = re.compile(r"\[[^\]]*\]\(CITATIONS\.md#([a-z0-9-]+)\)")
 NOTES_LINK = re.compile(r"\[[^\]]*\]\(#([a-z0-9-]+)\)")
+# The files besides the notes that link entries, each with the pattern of its links. A file that is
+# missing is skipped
+LINKING_FILES = [(README, README_LINK), (GUIDE, GUIDE_LINK)]
 LIST_ITEM = re.compile(r"\s*(?:[-*]|\d+\.)\s")
-# A link in the README becomes a marker that carries its key, so its text (an author and a year)
-# counts as no figure of the sentence, and a year after "et al." can't open a sentence. The marker
-# opens a sentence in the split below. So does a digit, as in "4-7-8 is slower still", and so does
-# the product name, which is written lowercase. Without those two a sentence about the app's own
-# numbers would join the sentence before it and charge them to the papers that one links
+# A link in the README or the guide becomes a marker that carries its key, so its text (an author
+# and a year) counts as no figure of the sentence, and a year after "et al." can't open a sentence.
+# The marker opens a sentence in the split below. So does a digit, as in "4-7-8 is slower still",
+# and so does the product name, which is written lowercase. Without those two a sentence about the
+# app's own numbers would join the sentence before it and charge them to the papers that one links
 MARK_OPEN, MARK_CLOSE = "\u27e6", "\u27e7"
 MARKER_RE = re.compile(MARK_OPEN + r"([a-z0-9-]+)" + MARK_CLOSE)
 SENTENCE_BREAK = re.compile(r'(?<=[.!?])\s+(?=[A-Z0-9*_"(\[' + MARK_OPEN + r']|exhale\b)')
@@ -170,7 +190,8 @@ PIN_FIELDS = re.compile(
     r"\s*quote\s*:\s*(?:" + RUST_STRING + "|(" + RUST_NAME + r"))\s*,?\s*\}\s*;"
 )
 
-# The gap counts the baseline holds, in the order it lists them
+# The gap counts the baseline holds, in the order it lists them. readmeFiguresWithoutQuote counts the
+# figures of the guide too and keeps its name, so the baseline file stays as it is
 COUNT_NAMES = (
     "unverifiedEntries", "quotesWithoutReceipt", "claimsWithoutQuote", "readmeFiguresWithoutQuote", "linksWithoutArchive",
 )
@@ -192,6 +213,14 @@ class CorpusError(Exception):
         super().__init__(message + (f"\n  Fix: {fix}" if fix else ""))
 
 
+class ProseFile(NamedTuple):
+    """A markdown file that links entries: its name for messages, its text and the pattern of its links"""
+
+    name: str
+    text: str
+    link: re.Pattern
+
+
 class Failures(list):
     """The checks that failed, as (heading, CorpusError) in the order they ran"""
 
@@ -207,10 +236,10 @@ class Failures(list):
             self.append((heading, exc))
             return None
 
-    def report(self) -> bool:
-        """Prints each failed check under its heading and says whether any failed"""
+    def report(self, where: str = CORPUS.name) -> bool:
+        """Prints each failed check under its heading, led by `where`, and says whether any failed"""
         for heading, exc in self:
-            print(f"{CORPUS.name}: {heading}\n{exc}", file=sys.stderr)
+            print(f"{where}: {heading}\n{exc}", file=sys.stderr)
         return bool(self)
 
 
@@ -341,10 +370,10 @@ def check_cross_references(records: list[dict]) -> None:
 
 # Claims the corpus doesn't support, kept out of the surfaces that assert them
 #
-# Only surfaces that assert are scanned: store listings and anything compiled
-# into the binary. `docs/` and `README.md` are exempt, because the gaps ledger
-# has to be able to name a claim in order to explain what the evidence says
-# about it
+# Only surfaces that assert are scanned: store listings, the citation metadata
+# and anything compiled into the binary. `docs/` and `README.md` are exempt,
+# because the gaps ledger has to be able to name a claim in order to explain
+# what the evidence says about it
 #
 # `snapcraft.yaml` and the README have fallen out of sync on the parasympathetic
 # claim before, because a store listing is edited in a different place from a
@@ -363,6 +392,7 @@ UNSUPPORTED_PHRASES: list[tuple[str, str]] = [
 # Surfaces where one of the phrases above would be an assertion. Missing files
 # are skipped
 ASSERTING_SURFACES: list[str] = [
+    "CITATION.cff",
     "snap/snapcraft.yaml",
     "rust/packaging/macos/store-listing.md",
     "rust/packaging/windows/AppxManifest.xml",
@@ -396,22 +426,30 @@ def check_unsupported_phrases() -> None:
         raise CorpusError(problems)
 
 
-def check_note_links(records: list[dict], text: str, where: str) -> None:
+def link_anchors(text: str, link: re.Pattern) -> list[tuple[int, str]]:
+    """The (line, anchor) of each link in a file that the pattern matches, in file order"""
+    return [(text.count("\n", 0, found.start()) + 1, found.group(1)) for found in link.finditer(text)]
+
+
+def check_note_links(records: list[dict], text: str, where: str, link: re.Pattern) -> None:
     """Prose links to entries by anchor. Catch the ones that rot.
 
-    Both the gaps ledger and the README deep-link into the corpus by citekey.
-    A rename silently breaks every one of them, and the README is the project's
-    front door, so it's checked on the same footing as the notes
+    The gaps ledger, the README and the researchers' guide deep-link into the
+    corpus by citekey. A rename silently breaks every one of them, and the
+    README is the project's front door, so each is checked on the same footing
+    as the notes
     """
     known = {r["id"] for r in records}
     # Only anchors shaped like a citekey are entry references. The rest are
-    # ordinary intra-document links to headings in the notes
-    # The notes link as (#citekey), the README as (docs/CITATIONS.md#citekey)
-    anchors = re.findall(r"\]\((?:docs/CITATIONS\.md)?#([a-z0-9-]+)\)", text)
-    referenced = {a for a in anchors if ID_RE.match(a)}
-    dangling = sorted(referenced - known)
-    if dangling:
-        raise CorpusError([f"{where} links to unknown entry #{d}" for d in dangling])
+    # ordinary links to headings, which check_heading_links holds to the
+    # rendered document
+    problems = [
+        f"{where} line {line} links to unknown entry #{anchor}"
+        for line, anchor in link_anchors(text=text, link=link)
+        if ID_RE.match(anchor) and anchor not in known
+    ]
+    if problems:
+        raise CorpusError(problems)
 
 
 def check_preset_citekeys(records: list[dict]) -> None:
@@ -831,12 +869,13 @@ def block_span_problems(name: str, text: str, link: re.Pattern, texts: dict[str,
     return problems
 
 
-def check_prose_quotes(records: list[dict], readme: str | None, notes: str) -> None:
+def check_prose_quotes(records: list[dict], linked: list[ProseFile], notes: str) -> None:
     """A quote mark in prose has to surround words that a ledger quote has.
 
     In an entry's claims and caveat, a quoted span must sit inside a quote of that entry or of an
-    entry the same sentence names. In the README and the gaps ledger, a block that links entries
-    must put every double-quoted span inside a quote of one of them. Both sides are normalized
+    entry the same sentence names. In the README, the researchers' guide and the gaps ledger, a
+    block that links entries must put every double-quoted span inside a quote of one of them. Both
+    sides are normalized
     """
     texts = normalized_quotes(records=records)
     problems: list[str] = []
@@ -854,8 +893,8 @@ def check_prose_quotes(records: list[dict], readme: str | None, notes: str) -> N
                         f"{' or '.join([rid, *named])} has those words"
                     )
     problems.extend(block_span_problems(name=NOTES.name, text=notes, link=NOTES_LINK, texts=texts))
-    if readme is not None:
-        problems.extend(block_span_problems(name=README.name, text=readme, link=README_LINK, texts=texts))
+    for file in linked:
+        problems.extend(block_span_problems(name=file.name, text=file.text, link=file.link, texts=texts))
     if problems:
         raise CorpusError(
             problems=problems,
@@ -995,20 +1034,21 @@ def figure_pattern(number: str) -> re.Pattern:
     return re.compile(pattern)
 
 
-def readme_figure_gaps(records: list[dict], readme: str) -> list[str]:
-    """The (sentence, number) pairs of the README that no quote of the sentence's sources prints.
+def figure_gaps(records: list[dict], name: str, text: str, link: re.Pattern) -> list[str]:
+    """The (sentence, number) pairs of a file that no quote of the sentence's sources prints.
 
-    In each README block that links an entry, every link becomes a marker that carries its key and
-    the block splits into sentences. In a sentence with a marker, each distinct number outside the
-    markers has to appear in a normalized quote of one of the entries the sentence links. A number the
-    source doesn't print, such as a sum or a rounding, counts until the sentence says where it comes from
+    The README and the researchers' guide are read this way. In each block of the file that links
+    an entry, every link becomes a marker that carries its key and the block splits into sentences.
+    In a sentence with a marker, each distinct number outside the markers has to appear in a
+    normalized quote of one of the entries the sentence links. A number the source doesn't print,
+    such as a sum or a rounding, counts until the sentence says where it comes from
     """
     texts = normalized_quotes(records=records)
     gaps: list[str] = []
-    for line, block in prose_blocks(text=readme):
-        if not any(ID_RE.match(key) for key in README_LINK.findall(block)):
+    for line, block in prose_blocks(text=text):
+        if not any(ID_RE.match(key) for key in link.findall(block)):
             continue
-        marked = README_LINK.sub(lambda link: f"{MARK_OPEN}{link.group(1)}{MARK_CLOSE}", block)
+        marked = link.sub(lambda found: f"{MARK_OPEN}{found.group(1)}{MARK_CLOSE}", block)
         for sentence in SENTENCE_BREAK.split(strip_markup(block=marked)):
             marked_keys = dict.fromkeys(MARKER_RE.findall(sentence))
             cited = [key for key in marked_keys if ID_RE.match(key) and key in texts]
@@ -1018,8 +1058,8 @@ def readme_figure_gaps(records: list[dict], readme: str) -> list[str]:
             shown = clipped(text=MARKER_RE.sub(lambda mark: f"[{mark.group(1)}]", sentence))
             for number in sorted(set(NUMBER_RE.findall(bare)), key=lambda digits: (float(digits), digits)):
                 printed = figure_pattern(number=number)
-                if not any(printed.search(text) for key in cited for text in texts[key]):
-                    gaps.append(f'{README.name} line {line}: {number} in "{shown}"')
+                if not any(printed.search(quote) for key in cited for quote in texts[key]):
+                    gaps.append(f'{name} line {line}: {number} in "{shown}"')
     return gaps
 
 
@@ -1029,12 +1069,13 @@ def unbacked_claims(rec: dict) -> list[int]:
     return [number for number in range(len(rec["custom"]["backsClaims"])) if number not in backed]
 
 
-def gap_items(records: list[dict], receipts: dict, readme: str | None) -> dict[str, list[str]]:
+def gap_items(records: list[dict], receipts: dict, linked: list[ProseFile]) -> dict[str, list[str]]:
     """The items behind each gap count, by the count's name.
 
     quotesWithoutReceipt counts each distinct quote once. claimsWithoutQuote includes the claims of a
     catalog-record entry, since such an entry carries no quotes. linksWithoutArchive is each URL with
-    no DOI and each open copy that has no Wayback capture
+    no DOI and each open copy that has no Wayback capture. readmeFiguresWithoutQuote is each figure
+    of the README and of the researchers' guide that no quote of the entries its sentence links prints
     """
     index = receipt_index(records=records, receipts=receipts)
     items: dict[str, list[str]] = {name: [] for name in COUNT_NAMES}
@@ -1055,8 +1096,10 @@ def gap_items(records: list[dict], receipts: dict, readme: str | None) -> dict[s
         for kind, url in registry.link_targets(entry=rec).items():
             if not custom.get(registry.ARCHIVE_FIELDS[kind]):
                 items["linksWithoutArchive"].append(f"{rid} {kind}: {url}")
-    if readme is not None:
-        items["readmeFiguresWithoutQuote"] = readme_figure_gaps(records=records, readme=readme)
+    for file in linked:
+        items["readmeFiguresWithoutQuote"].extend(
+            figure_gaps(records=records, name=file.name, text=file.text, link=file.link)
+        )
     return items
 
 
@@ -1086,19 +1129,18 @@ def count_differences(counts: dict[str, int], held: dict[str, int]) -> list[tupl
     return [(name, counts[name], held[name]) for name in COUNT_NAMES if counts[name] != held[name]]
 
 
-def check_baseline(counts: dict[str, int], held: dict[str, int]) -> None:
+def check_baseline(counts: dict[str, int], held: dict[str, int], items: dict[str, list[str]]) -> None:
     """The gap counts may fall and may not rise.
 
     A count below its baseline is progress that the baseline has to record, or the next regression
-    would hide in the room it left
+    would hide in the room it left. A count over its baseline lists the items behind it, so a figure
+    of the README or the guide is reported with its file and line
     """
     problems = []
     for name, current, baseline in count_differences(counts=counts, held=held):
         if current > baseline:
-            problems.append(
-                f"{name} is {current}, over the baseline of {baseline}. Close the gap. List the items "
-                "with: uv run --no-project scripts/generate-citations.py --list-gaps"
-            )
+            listed = "".join(f"\n    - {item}" for item in items[name])
+            problems.append(f"{name} is {current}, over the baseline of {baseline}. Close the gap:{listed}")
         else:
             problems.append(
                 f"{name} is {current}, under the baseline of {baseline}. Lower the baseline so the "
@@ -1133,14 +1175,14 @@ def write_baseline(counts: dict[str, int], allow_raise: bool) -> int:
     return 0
 
 
-def list_gaps(records: list[dict], readme: str | None) -> int:
+def list_gaps(records: list[dict], linked: list[ProseFile]) -> int:
     """Prints the items behind every nonzero gap count. With no receipts file every quote counts as unreceipted"""
     try:
         receipts = load_tracked(path=RECEIPTS, fix=RECEIPTS_FIX)
     except CorpusError:
         print(f"{RECEIPTS.name} is missing or unreadable, so every quote counts as unreceipted", file=sys.stderr)
         receipts = {}
-    items = gap_items(records=records, receipts=receipts, readme=readme)
+    items = gap_items(records=records, receipts=receipts, linked=linked)
     for name in COUNT_NAMES:
         if items[name]:
             print(f"{name} ({len(items[name])})")
@@ -1161,6 +1203,11 @@ def slugify(heading: str) -> str:
     slug = heading.strip().lower()
     slug = re.sub(r"[^\w \-]", "", slug)
     return slug.replace(" ", "-")
+
+
+def heading_anchors(rendered: str) -> set[str]:
+    """The anchor of every heading in the rendered document, for the links that have to land on one"""
+    return {slugify(heading=heading) for heading in re.findall(r"^#{1,6} +(.+)$", rendered, re.M)}
 
 
 def check_binary_deep_link(rendered: str) -> None:
@@ -1194,12 +1241,28 @@ def check_binary_deep_link(rendered: str) -> None:
 
     if not fragment:
         return
-    anchors = {slugify(h) for h in re.findall(r"^#{1,6} +(.+)$", rendered, re.M)}
-    if fragment not in anchors:
+    if fragment not in heading_anchors(rendered=rendered):
         raise CorpusError(
             f"  - RESEARCH_URL anchor #{fragment} matches no heading in {OUT.name}.\n"
             f"    The tray menu would drop the reader at the top of the file instead"
         )
+
+
+def check_heading_links(rendered: str, linked: list[ProseFile]) -> None:
+    """A link from the README or the researchers' guide into this document has to land on a heading.
+
+    Entries render as headings too, so a link to an entry is held to the same anchors. A renamed or
+    removed heading leaves every link to it opening the file at the top, and nothing else notices
+    """
+    anchors = heading_anchors(rendered=rendered)
+    problems = [
+        f"{file.name} line {line} links to #{anchor}, and {OUT.name} has no heading with that anchor"
+        for file in linked
+        for line, anchor in link_anchors(text=file.text, link=file.link)
+        if anchor not in anchors
+    ]
+    if problems:
+        raise CorpusError(problems)
 
 
 def authors(rec: dict) -> str:
@@ -1315,7 +1378,7 @@ def render_entry(rec: dict, found: dict[str, dict], updates: list[dict]) -> list
         backing = [q for q in quotes if q["claim"] == number]
         lines.extend(quote_lines(quotes=backing, found=found, indent="    "))
 
-    # A quote tied to no claim backs the caveat, or a figure the README attributes to the entry
+    # A quote tied to no claim backs the caveat, or a figure the README or the guide attributes to the entry
     loose = [q for q in quotes if q["claim"] is None]
     if c.get("caveat"):
         lines.append(f'- Caveat: {c["caveat"]}')
@@ -1393,7 +1456,7 @@ def render_summary(records: list[dict], receipts: dict[str, dict[str, dict]]) ->
     )
 
 
-def check_evidence(records: list[dict], readme: str | None, notes: str) -> tuple[Failures, dict, dict | None]:
+def check_evidence(records: list[dict], linked: list[ProseFile], notes: str) -> tuple[Failures, dict, dict | None]:
     """Runs the checks that hold the ledger to its receipts, the Rust sources and the registry snapshot.
 
     Answers the failures, the receipts file and the registry snapshot. A missing file is a failure
@@ -1416,7 +1479,7 @@ def check_evidence(records: list[dict], readme: str | None, notes: str) -> tuple
     )
     failures.attempt(
         heading="quote marks around words no quote has",
-        step=check_prose_quotes, records=records, readme=readme, notes=notes,
+        step=check_prose_quotes, records=records, linked=linked, notes=notes,
     )
     snapshot = failures.attempt(heading=UNAVAILABLE, step=load_tracked, path=REGISTRY, fix=SOURCES_FIX)
     if snapshot is not None:
@@ -1447,27 +1510,31 @@ def main() -> int:
     args = parse_args(argv=sys.argv[1:])
     check = args.check
 
-    readme = None
+    linked: list[ProseFile] = []
     try:
         records = load_corpus()
         check_cross_references(records)
         check_preset_citekeys(records)
         check_unsupported_phrases()
         notes = NOTES.read_text(encoding="utf-8")
-        check_note_links(records, notes, NOTES.name)
-        if README.exists():
-            readme = README.read_text(encoding="utf-8")
-            check_note_links(records, readme, README.name)
-            check_readme_counts(records, readme)
+        check_note_links(records=records, text=notes, where=NOTES.name, link=NOTES_LINK)
+        for path, link in LINKING_FILES:
+            if not path.exists():
+                continue
+            text = path.read_text(encoding="utf-8")
+            check_note_links(records=records, text=text, where=path.name, link=link)
+            if path == README:
+                check_readme_counts(records=records, text=text)
+            linked.append(ProseFile(name=path.name, text=text, link=link))
     except CorpusError as exc:
         print(f"{CORPUS.name}: invalid corpus\n{exc}", file=sys.stderr)
         return 1
 
     if args.list_gaps:
-        return list_gaps(records=records, readme=readme)
+        return list_gaps(records=records, linked=linked)
 
-    failures, receipts, snapshot = check_evidence(records=records, readme=readme, notes=notes)
-    items = gap_items(records=records, receipts=receipts, readme=readme)
+    failures, receipts, snapshot = check_evidence(records=records, linked=linked, notes=notes)
+    items = gap_items(records=records, receipts=receipts, linked=linked)
     counts = {name: len(listed) for name, listed in items.items()}
     if args.write_baseline:
         if failures.report():
@@ -1475,7 +1542,10 @@ def main() -> int:
         return write_baseline(counts=counts, allow_raise=args.allow_raise)
     held = failures.attempt(heading=UNAVAILABLE, step=load_baseline)
     if held is not None and check:
-        failures.attempt(heading="gap counts differ from the baseline", step=check_baseline, counts=counts, held=held)
+        failures.attempt(
+            heading="gap counts differ from the baseline",
+            step=check_baseline, counts=counts, held=held, items=items,
+        )
     elif held is not None:
         # Write mode only says where the counts stand, since the baseline moves when someone decides it should
         differing = count_differences(counts=counts, held=held)
@@ -1506,10 +1576,13 @@ def main() -> int:
     if not rendered.endswith("\n"):
         rendered += "\n"
 
-    try:
-        check_binary_deep_link(rendered)
-    except CorpusError as exc:
-        print(f"{OUT.name}: broken deep link\n{exc}", file=sys.stderr)
+    broken = Failures()
+    broken.attempt(heading="broken deep link", step=check_binary_deep_link, rendered=rendered)
+    broken.attempt(
+        heading="link to a heading that doesn't exist",
+        step=check_heading_links, rendered=rendered, linked=linked,
+    )
+    if broken.report(where=OUT.name):
         return 1
 
     if check:

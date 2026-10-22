@@ -70,9 +70,9 @@ establishing that it does.
 Each claim is followed by the words in the source that back it, and by where they sit: `Abstract`,
 a section heading as the source prints it, a table, or a printed page. Quotes under a caveat back a
 statement in the caveat. `[...]` marks words left out, and nothing else inside the quote marks
-differs from the source. Where a passage in this file, the README or the gaps ledger links an entry,
-quote marks hold that entry's words, and the generator stops when they surround words that no quote
-of the linked entry has. A word discussed as a word is set in italics.
+differs from the source. Where a passage in this file, the README, the researchers' guide or the gaps
+ledger links an entry, quote marks hold that entry's words, and the generator stops when they
+surround words that no quote of the linked entry has. A word discussed as a word is set in italics.
 
 ### Receipts
 
@@ -110,9 +110,10 @@ Machine capture, so the copy that was quoted can still be read if the page moves
 ### Counts that only go down
 
 [`CITATIONS.baseline.json`](./CITATIONS.baseline.json) holds five counts: unverified entries, quotes
-without a receipt, claims without a quote, figures in the README that no quote of the cited entry
-prints, and links without an archived copy. `--check` fails when a count changes and the baseline
-doesn't change with it, and the generator raises a count only when told to with `--raise`.
+without a receipt, claims without a quote, figures in the README and the researchers' guide that no
+quote of the cited entry prints, and links without an archived copy. `--check` fails when a count
+changes and the baseline doesn't change with it, and the generator raises a count only when told to
+with `--raise`.
 
 <!-- COUNTS -->
 

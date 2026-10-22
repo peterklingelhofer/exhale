@@ -130,6 +130,19 @@ impl OverlayUniforms {
             exhale_color:          settings.exhale_color,
         }
     }
+
+    /// The same frame at full strength: Overlay Opacity as 1.0 and the
+    /// background color's alpha as 1.0
+    ///
+    /// For a window, which has nothing behind it to be translucent over.
+    /// Everything else rides through unchanged, the shape's own gradient
+    /// fade included
+    pub fn at_full_strength(mut self) -> Self {
+        self.overlay_opacity     = 1.0;
+        self.background_opacity  = 1.0;
+        self.background_color[3] = 1.0;
+        self
+    }
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -280,6 +293,45 @@ mod tests {
         s.post_inhale_hold_duration = 2.0;
         let u = OverlayUniforms::from_state(&state, &s, 1920, 1080, 1920.0_f32 / 1080.0_f32);
         assert_eq!(u.ripple_enabled, 2, "Gradient mode = 2 when hold active");
+    }
+
+    #[test]
+    fn full_strength_pins_opacity_and_background_alpha_and_nothing_else() {
+        use exhale_core::types::BreathingPhase;
+        let state = BreathingState { phase: BreathingPhase::Exhale, progress: 0.4, hold_time: 0.0 };
+        let mut s = Settings::default();
+        s.overlay_opacity  = 0.25;
+        s.background_color = [0.2, 0.4, 0.6, 0.1];
+        let set = OverlayUniforms::from_state(&state, &s, 800, 600, 4.0 / 3.0);
+        assert!((set.overlay_opacity - 0.25).abs() < 1e-6, "the fixture should start translucent");
+        assert!((set.background_opacity - 0.1).abs() < 1e-6, "background alpha, capped by opacity");
+
+        let full = set.at_full_strength();
+        assert_eq!(full.overlay_opacity, 1.0);
+        assert_eq!(full.background_opacity, 1.0);
+        assert_eq!(full.background_color, [0.2, 0.4, 0.6, 1.0], "same color, solid");
+
+        // Put those three fields back and the two frames are byte for byte
+        // the same: no shape, phase, color or size moved
+        let mut restored = full;
+        restored.overlay_opacity     = set.overlay_opacity;
+        restored.background_opacity  = set.background_opacity;
+        restored.background_color[3] = set.background_color[3];
+        assert_eq!(bytemuck::bytes_of(&restored), bytemuck::bytes_of(&set));
+    }
+
+    #[test]
+    fn full_strength_beats_zero_opacity_and_a_clear_background() {
+        use exhale_core::types::BreathingPhase;
+        let state = BreathingState { phase: BreathingPhase::Inhale, progress: 0.5, hold_time: 0.0 };
+        // A zero opacity is the shader's "draw nothing" and the default
+        // background is clear: neither may reach a window
+        let mut s = Settings::default();
+        s.overlay_opacity  = 0.0;
+        s.background_color = [0.0, 0.0, 0.0, 0.0];
+        let u = OverlayUniforms::from_state(&state, &s, 800, 600, 1.0).at_full_strength();
+        assert_eq!(u.overlay_opacity, 1.0);
+        assert_eq!(u.background_opacity, 1.0);
     }
 
     #[test]

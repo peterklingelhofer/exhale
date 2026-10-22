@@ -30,6 +30,9 @@ pub struct OverlayRenderer {
     pipeline:       wgpu::RenderPipeline,
     uniform_buffer: wgpu::Buffer,
     bind_group:     wgpu::BindGroup,
+    /// `true` when this renderer draws into a decorated window instead of
+    /// an overlay: see [`Self::new_window`] and `frame_uniforms`
+    window:         bool,
 }
 
 impl OverlayRenderer {
@@ -43,6 +46,32 @@ impl OverlayRenderer {
         width:  u32,
         height: u32,
     ) -> Result<Self> {
+        Self::build(gpu, surface, width, height, false)
+    }
+
+    /// Like [`Self::new`], but for a decorated window, which has nothing
+    /// behind it to be translucent over.  It asks for an `Opaque` swap
+    /// chain even where the surface offers per-pixel alpha, because alpha
+    /// would only blend against whatever the window system keeps behind
+    /// the window (the window background, on macOS), and it draws at full
+    /// strength (see `frame_uniforms`).  Falls back to the usual alpha
+    /// pick on a surface that can't do `Opaque`
+    pub fn new_window(
+        gpu:    Arc<GpuContext>,
+        surface: wgpu::Surface<'static>,
+        width:  u32,
+        height: u32,
+    ) -> Result<Self> {
+        Self::build(gpu, surface, width, height, true)
+    }
+
+    fn build(
+        gpu:    Arc<GpuContext>,
+        surface: wgpu::Surface<'static>,
+        width:  u32,
+        height: u32,
+        window: bool,
+    ) -> Result<Self> {
         // Mint a fresh device + queue for this window.  Independent of
         // the settings window's device, so settings repaints don't
         // block this overlay's presents on a shared queue
@@ -55,7 +84,7 @@ impl OverlayRenderer {
         let surface_caps   = surface.get_capabilities(&gpu.adapter);
 
         let surface_format = prefer_format(&surface_caps);
-        let alpha_mode     = pick_alpha_mode(&surface_caps);
+        let alpha_mode     = pick_alpha_mode(&surface_caps, window);
 
         // Diagnostic: log every alpha mode the surface advertises and
         // the one we picked.  On Windows (especially under WARP / VMs
@@ -85,7 +114,7 @@ impl OverlayRenderer {
         let (pipeline, uniform_buffer, bind_group) =
             build_pipeline(&device, surface_format)?;
 
-        Ok(Self { device, queue, surface, config, pipeline, uniform_buffer, bind_group })
+        Ok(Self { device, queue, surface, config, pipeline, uniform_buffer, bind_group, window })
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -114,8 +143,9 @@ impl OverlayRenderer {
 
         let view = output.texture.create_view(&Default::default());
 
-        let uniforms = OverlayUniforms::from_state(
-            state, settings, self.config.width, self.config.height, max_circle_scale,
+        let uniforms = frame_uniforms(
+            self.window, state, settings,
+            self.config.width, self.config.height, max_circle_scale,
         );
         self.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(&[uniforms]));
 
@@ -156,6 +186,27 @@ impl OverlayRenderer {
     pub fn alpha_capable(&self) -> bool {
         !matches!(self.config.alpha_mode, wgpu::CompositeAlphaMode::Opaque)
     }
+}
+
+// ─── Frame uniforms ───────────────────────────────────────────────────────────
+
+/// The uniforms for one frame, built in the one place every renderer
+/// goes through, whether the main thread or a render thread calls it
+///
+/// A window has nothing behind it to be translucent over, so it draws the
+/// picked colors solid: Overlay Opacity counts as 1.0 and the background
+/// color's alpha as 1.0, whatever the settings say.  An overlay's frame is
+/// exactly what the settings ask for
+fn frame_uniforms(
+    window:           bool,
+    state:            &BreathingState,
+    settings:         &Settings,
+    width:            u32,
+    height:           u32,
+    max_circle_scale: f32,
+) -> OverlayUniforms {
+    let u = OverlayUniforms::from_state(state, settings, width, height, max_circle_scale);
+    if window { u.at_full_strength() } else { u }
 }
 
 // ─── Pipeline ─────────────────────────────────────────────────────────────────
@@ -269,8 +320,14 @@ fn prefer_format(caps: &wgpu::SurfaceCapabilities) -> wgpu::TextureFormat {
     caps.formats.first().copied().unwrap_or(wgpu::TextureFormat::Bgra8Unorm)
 }
 
-fn pick_alpha_mode(caps: &wgpu::SurfaceCapabilities) -> wgpu::CompositeAlphaMode {
+fn pick_alpha_mode(
+    caps:   &wgpu::SurfaceCapabilities,
+    opaque: bool,
+) -> wgpu::CompositeAlphaMode {
     use wgpu::CompositeAlphaMode as M;
+    // A window that asked for an opaque chain gets it whenever the surface
+    // can do one, ahead of any alpha mode it also offers
+    if opaque && caps.alpha_modes.contains(&M::Opaque) { return M::Opaque; }
     for &m in &[M::PreMultiplied, M::PostMultiplied, M::Inherit] {
         if caps.alpha_modes.contains(&m) { return m; }
     }
@@ -295,5 +352,76 @@ mod tests {
         Validator::new(ValidationFlags::all(), Capabilities::empty())
             .validate(&module)
             .expect("overlay.wgsl validates");
+    }
+
+    fn caps_with(alpha_modes: &[wgpu::CompositeAlphaMode]) -> wgpu::SurfaceCapabilities {
+        wgpu::SurfaceCapabilities {
+            alpha_modes: alpha_modes.to_vec(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn an_opaque_request_wins_only_where_the_surface_can_do_opaque() {
+        use wgpu::CompositeAlphaMode as M;
+
+        // Metal's list: a normal request takes the alpha mode, an opaque one doesn't
+        let metal = caps_with(&[M::Opaque, M::PostMultiplied]);
+        assert_eq!(super::pick_alpha_mode(&metal, false), M::PostMultiplied);
+        assert_eq!(super::pick_alpha_mode(&metal, true),  M::Opaque);
+
+        // A surface with no Opaque entry falls back to the usual pick
+        let no_opaque = caps_with(&[M::PreMultiplied, M::Inherit]);
+        assert_eq!(super::pick_alpha_mode(&no_opaque, true), M::PreMultiplied);
+
+        // Opaque-only surfaces, the DX12 case, are opaque either way
+        let only = caps_with(&[M::Opaque]);
+        assert_eq!(super::pick_alpha_mode(&only, false), M::Opaque);
+        assert_eq!(super::pick_alpha_mode(&only, true),  M::Opaque);
+    }
+
+    fn frame(
+        window:   bool,
+        settings: &exhale_core::settings::Settings,
+    ) -> crate::uniforms::OverlayUniforms {
+        use exhale_core::{controller::BreathingState, types::BreathingPhase};
+        let state = BreathingState { phase: BreathingPhase::Inhale, progress: 0.5, hold_time: 0.0 };
+        super::frame_uniforms(window, &state, settings, 800, 600, 4.0 / 3.0)
+    }
+
+    #[test]
+    fn a_window_draws_at_full_strength_whatever_the_opacity_settings_say() {
+        use exhale_core::settings::Settings;
+
+        // The shipped default: 25 % opacity over a clear background
+        let mut s = Settings { background_color: [0.1, 0.2, 0.3, 0.0], ..Default::default() };
+        assert_eq!(s.overlay_opacity, 0.25);
+        let u = frame(true, &s);
+        assert_eq!(u.overlay_opacity, 1.0);
+        assert_eq!(u.background_opacity, 1.0);
+        assert_eq!(u.background_color, [0.1, 0.2, 0.3, 1.0], "the picked color, solid");
+
+        // Zero is the shader's "draw nothing", and a window still draws
+        s.overlay_opacity = 0.0;
+        assert_eq!(frame(true, &s).overlay_opacity, 1.0);
+    }
+
+    #[test]
+    fn an_overlay_frame_is_exactly_what_the_settings_ask_for() {
+        use crate::uniforms::OverlayUniforms;
+        use exhale_core::{controller::BreathingState, settings::Settings, types::BreathingPhase};
+
+        let s = Settings {
+            overlay_opacity:  0.4,
+            background_color: [0.1, 0.2, 0.3, 0.2],
+            ..Default::default()
+        };
+        let state = BreathingState { phase: BreathingPhase::Inhale, progress: 0.5, hold_time: 0.0 };
+        let asked = OverlayUniforms::from_state(&state, &s, 800, 600, 4.0 / 3.0);
+
+        let overlay = frame(false, &s);
+        assert_eq!(bytemuck::bytes_of(&overlay), bytemuck::bytes_of(&asked));
+        assert_eq!(overlay.overlay_opacity, 0.4);
+        assert_eq!(overlay.background_opacity, 0.2);
     }
 }
