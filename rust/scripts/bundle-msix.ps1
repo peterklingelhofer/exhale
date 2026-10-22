@@ -28,7 +28,7 @@
 
 [CmdletBinding()]
 param(
-    [string] $Version         = "2.0.28",
+    [string] $Version         = "2.1.0",
     [string] $CertPath        = "",
     [SecureString] $CertPassword = $null,
     [switch] $DryRun

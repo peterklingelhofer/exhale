@@ -5,8 +5,8 @@ type: software
 authors:
   - family-names: Klingelhofer
     given-names: Peter
-version: 2.0.28
-date-released: 2026-09-30
+version: 2.1.0
+date-released: 2026-10-21
 license: MIT
 # No doi line yet: Zenodo mints one when it archives a tagged release, and
 # this file gains a `doi:` line pointing at it once that happens
