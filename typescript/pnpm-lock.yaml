@@ -21,8 +21,8 @@ importers:
         specifier: ^14.0.2
         version: 14.0.2
       electron:
-        specifier: ^42.11.3
-        version: 42.11.3
+        specifier: ^42.11.16
+        version: 42.11.16
       eslint:
         specifier: ^9.38.0
         version: 9.39.2
@@ -41,8 +41,8 @@ importers:
 
 packages:
 
-  '@electron-internal/extract-zip@1.0.5':
-    resolution: {integrity: sha512-+bqFCP98pLI0Tt0XQo1TmlXtwjWchISndDOxCkEcIuUgXWpBnLyRI+2DU+mesvnMMX6L1XDqYNA0lXNDHd/yiA==}
+  '@electron-internal/extract-zip@1.0.7':
+    resolution: {integrity: sha512-+ZdkmRVBonPJwpZBFQr9y4pY8DP6lgbm+Pj5pQzSFrnDGiBAi3Pee1jivAsgK61Ct4W8SGUHVtl7FNbm5c6rgg==}
     engines: {node: '>=22.12.0'}
 
   '@electron/asar@4.0.1':
@@ -169,8 +169,8 @@ packages:
   '@types/node@24.19.2':
     resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
 
-  '@types/node@26.6.5':
-    resolution: {integrity: sha512-uMzsv9stDdofIZBx4UGh4Z9ZgXnGC9seRDscilBcTHAeOFk67MZg/k9bWVfO+bk4qZmG+l52hRnLwUiH2LnJTg==}
+  '@types/node@26.6.6':
+    resolution: {integrity: sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog==}
 
   '@types/yauzl@2.10.3':
     resolution: {integrity: sha512-oJoftv0LSuaDZE3Le4DbKX+KS9G36NzOeSap90UIK0yMA/NhKJhqlSGtNDORNRaIbQfzjXDrQa0ytJ6mNRGz/Q==}
@@ -391,8 +391,8 @@ packages:
   eastasianwidth@0.2.0:
     resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==}
 
-  electron@42.11.3:
-    resolution: {integrity: sha512-r/rC6BikQ2vEGQLhnHmFwFpvVPlWTc/rnHcYfJe4HDa5MEl00yhx72ffKw7zMf1WvAM2r2hcGJ3ZftuJRo0QaQ==}
+  electron@42.11.16:
+    resolution: {integrity: sha512-CHCEsZbWm9zspEnYsro+g8FFllh0e82A1Jtofi/XqPs/XqlrpDPdLP0OhzfhG/IkxNXQ8iHEoYms+wVepZNzZA==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -1095,7 +1095,7 @@ packages:
 
 snapshots:
 
-  '@electron-internal/extract-zip@1.0.5': {}
+  '@electron-internal/extract-zip@1.0.7': {}
 
   '@electron/asar@4.0.1':
     dependencies:
@@ -1281,14 +1281,14 @@ snapshots:
     dependencies:
       undici-types: 7.24.6
 
-  '@types/node@26.6.5':
+  '@types/node@26.6.6':
     dependencies:
       undici-types: 8.9.0
     optional: true
 
   '@types/yauzl@2.10.3':
     dependencies:
-      '@types/node': 26.6.5
+      '@types/node': 26.6.6
     optional: true
 
   '@typescript-eslint/eslint-plugin@8.52.0(@typescript-eslint/parser@8.52.0(eslint@9.39.2)(typescript@5.9.3))(eslint@9.39.2)(typescript@5.9.3)':
@@ -1516,9 +1516,9 @@ snapshots:
 
   eastasianwidth@0.2.0: {}
 
-  electron@42.11.3:
+  electron@42.11.16:
     dependencies:
-      '@electron-internal/extract-zip': 1.0.5
+      '@electron-internal/extract-zip': 1.0.7
       '@electron/get': 5.1.0
       '@types/node': 24.19.2
     transitivePeerDependencies:
