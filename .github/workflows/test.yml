@@ -96,6 +96,9 @@ jobs:
       - name: Check generated citations are current
         run: python3 scripts/generate-citations.py --check
 
+      - name: Check the README charts are current
+        run: python3 scripts/generate-charts.py --check
+
   # `exhale-core` has no wgpu, winit or GTK dependency, so it checks and tests
   # on a plain Linux runner in under a minute
   core-check:

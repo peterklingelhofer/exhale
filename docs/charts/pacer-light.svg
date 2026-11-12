@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="220" viewBox="0 0 720 220" role="img" aria-labelledby="pacer-title pacer-desc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif">
+<title id="pacer-title">Plain pacer vs sensor biofeedback</title>
+<desc id="pacer-desc">Group means before and during a 10-minute session, 14 people per group. Breathing rate, breaths a minute: Plain pacer 12.5 before, 6.1 during. Biofeedback 11.0 before, 5.2 during. HRV amplitude: Plain pacer 4.2 before, 8.0 during. Biofeedback 5.0 before, 7.0 during.</desc>
+<text x="0" y="20" fill="#1f2328" font-size="15" font-weight="600">Plain pacer vs sensor biofeedback</text>
+<text x="0" y="40" fill="#59636e" font-size="13">Group means before and during a 10-minute session, 14 people per group.</text>
+<circle cx="6.0" cy="62" r="5" fill="none" stroke="#59636e" stroke-width="2"/>
+<text x="18.0" y="66" fill="#59636e" font-size="12">Before</text>
+<circle cx="82.0" cy="62" r="5" fill="#59636e"/>
+<text x="94.0" y="66" fill="#59636e" font-size="12">During the session</text>
+<circle cx="5.0" cy="132.0" r="4" fill="#2a78d6"/>
+<text x="16" y="136.5" fill="#1f2328" font-size="13">Plain pacer</text>
+<circle cx="5.0" cy="172.0" r="4" fill="#8c959f"/>
+<text x="16" y="176.5" fill="#1f2328" font-size="13">Biofeedback</text>
+<text x="130.0" y="100" fill="#1f2328" font-size="13" font-weight="600">Breathing rate, breaths a minute</text>
+<line x1="130.5" y1="110.0" x2="130.5" y2="194.0" stroke="#c8d1da"/>
+<line x1="207.5" y1="110.0" x2="207.5" y2="194.0" stroke="#e6eaef"/>
+<line x1="284.5" y1="110.0" x2="284.5" y2="194.0" stroke="#e6eaef"/>
+<line x1="361.5" y1="110.0" x2="361.5" y2="194.0" stroke="#e6eaef"/>
+<g fill="#59636e" font-size="12" text-anchor="middle" style="font-variant-numeric: tabular-nums">
+<text x="130.0" y="211.0">0</text>
+<text x="207.1" y="211.0">4</text>
+<text x="284.3" y="211.0">8</text>
+<text x="361.4" y="211.0">12</text>
+</g>
+<line x1="366.1" y1="132.0" x2="252.6" y2="132.0" stroke="#2a78d6" stroke-width="2"/>
+<circle cx="371.1" cy="132.0" r="5.0" fill="none" stroke="#2a78d6" stroke-width="2"/>
+<circle cx="247.6" cy="132.0" r="5.0" fill="#2a78d6"/>
+<text x="381.1" y="136.0" fill="#59636e" font-size="12" text-anchor="start">12.5</text>
+<text x="237.6" y="136.5" fill="#1f2328" font-size="13" text-anchor="end">6.1</text>
+<line x1="337.1" y1="172.0" x2="235.3" y2="172.0" stroke="#8c959f" stroke-width="2"/>
+<circle cx="342.1" cy="172.0" r="5.0" fill="none" stroke="#8c959f" stroke-width="2"/>
+<circle cx="230.3" cy="172.0" r="5.0" fill="#8c959f"/>
+<text x="352.1" y="176.0" fill="#59636e" font-size="12" text-anchor="start">11.0</text>
+<text x="220.3" y="176.5" fill="#1f2328" font-size="13" text-anchor="end">5.2</text>
+<text x="440.0" y="100" fill="#1f2328" font-size="13" font-weight="600">HRV amplitude</text>
+<line x1="440.5" y1="110.0" x2="440.5" y2="194.0" stroke="#c8d1da"/>
+<line x1="530.5" y1="110.0" x2="530.5" y2="194.0" stroke="#e6eaef"/>
+<line x1="620.5" y1="110.0" x2="620.5" y2="194.0" stroke="#e6eaef"/>
+<line x1="710.5" y1="110.0" x2="710.5" y2="194.0" stroke="#e6eaef"/>
+<g fill="#59636e" font-size="12" text-anchor="middle" style="font-variant-numeric: tabular-nums">
+<text x="440.0" y="211.0">0</text>
+<text x="530.0" y="211.0">3</text>
+<text x="620.0" y="211.0">6</text>
+<text x="710.0" y="211.0">9</text>
+</g>
+<line x1="571.0" y1="132.0" x2="675.0" y2="132.0" stroke="#2a78d6" stroke-width="2"/>
+<circle cx="566.0" cy="132.0" r="5.0" fill="none" stroke="#2a78d6" stroke-width="2"/>
+<circle cx="680.0" cy="132.0" r="5.0" fill="#2a78d6"/>
+<text x="556.0" y="136.0" fill="#59636e" font-size="12" text-anchor="end">4.2</text>
+<text x="690.0" y="136.5" fill="#1f2328" font-size="13" text-anchor="start">8.0</text>
+<line x1="595.0" y1="172.0" x2="645.0" y2="172.0" stroke="#8c959f" stroke-width="2"/>
+<circle cx="590.0" cy="172.0" r="5.0" fill="none" stroke="#8c959f" stroke-width="2"/>
+<circle cx="650.0" cy="172.0" r="5.0" fill="#8c959f"/>
+<text x="580.0" y="176.0" fill="#59636e" font-size="12" text-anchor="end">5.0</text>
+<text x="660.0" y="176.5" fill="#1f2328" font-size="13" text-anchor="start">7.0</text>
+</svg>

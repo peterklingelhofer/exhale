@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="314" viewBox="0 0 720 314" role="img" aria-labelledby="cycles-title cycles-desc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif">
+<title id="cycles-title">One breath cycle, pattern by pattern</title>
+<desc id="cycles-desc">Seconds per cycle. The shaded band covers 5 to 7 breaths a minute, the range tested directly. 5/0/5/0 (default): inhale 5, hold 0, exhale 5, hold 0, 10 seconds a cycle, 6 breaths a minute. 4/0/6/0: inhale 4, hold 0, exhale 6, hold 0, 10 seconds a cycle, 6 breaths a minute. 5/0/5/2: inhale 5, hold 0, exhale 5, hold 2, 12 seconds a cycle, 5 breaths a minute. 5/0/10/0 (earlier default): inhale 5, hold 0, exhale 10, hold 0, 15 seconds a cycle, 4 breaths a minute. 4/4/4/4 (box): inhale 4, hold 4, exhale 4, hold 4, 16 seconds a cycle, 3.75 breaths a minute. 4/7/8/0 (4-7-8): inhale 4, hold 7, exhale 8, hold 0, 19 seconds a cycle, 3.16 breaths a minute.</desc>
+<text x="0" y="20" fill="#e6edf3" font-size="15" font-weight="600">One breath cycle, pattern by pattern</text>
+<text x="0" y="40" fill="#9198a1" font-size="13">Seconds per cycle. The shaded band covers 5 to 7 breaths a minute, the range tested directly.</text>
+<rect x="0.0" y="56" width="12" height="12" rx="2" fill="#e66767"/>
+<text x="18.0" y="66" fill="#9198a1" font-size="12">Inhale</text>
+<rect x="76.0" y="56" width="12" height="12" rx="2" fill="#6e7681"/>
+<text x="94.0" y="66" fill="#9198a1" font-size="12">Hold</text>
+<rect x="140.0" y="56" width="12" height="12" rx="2" fill="#3987e5"/>
+<text x="158.0" y="66" fill="#9198a1" font-size="12">Exhale</text>
+<rect x="361.4" y="106.0" width="68.6" height="182.0" fill="#199e70" fill-opacity="0.22"/>
+<text x="395.7" y="100.0" fill="#9198a1" font-size="12" text-anchor="middle">tested range</text>
+<line x1="190.5" y1="106.0" x2="190.5" y2="288.0" stroke="#3d444d"/>
+<line x1="290.5" y1="106.0" x2="290.5" y2="288.0" stroke="#21262d"/>
+<line x1="390.5" y1="106.0" x2="390.5" y2="288.0" stroke="#21262d"/>
+<line x1="490.5" y1="106.0" x2="490.5" y2="288.0" stroke="#21262d"/>
+<line x1="590.5" y1="106.0" x2="590.5" y2="288.0" stroke="#21262d"/>
+<g fill="#9198a1" font-size="12" text-anchor="middle" style="font-variant-numeric: tabular-nums">
+<text x="190.0" y="305.0">0</text>
+<text x="290.0" y="305.0">5</text>
+<text x="390.0" y="305.0">10</text>
+<text x="490.0" y="305.0">15</text>
+<text x="590.0" y="305.0">20 s</text>
+</g>
+<text x="0" y="126.5" fill="#e6edf3" font-size="13">5/0/5/0</text>
+<text x="70" y="126.5" fill="#9198a1" font-size="13">default</text>
+<path d="M190.0 113.0H288.0V131.0H190.0Z" fill="#e66767"/>
+<path d="M290.0 113.0H386.0A4 4 0 0 1 390.0 117.0V127.0A4 4 0 0 1 386.0 131.0H290.0Z" fill="#3987e5"/>
+<text x="438.0" y="126.0" fill="#9198a1" font-size="12">10 s, 6 a minute</text>
+<text x="0" y="156.5" fill="#e6edf3" font-size="13">4/0/6/0</text>
+<path d="M190.0 143.0H268.0V161.0H190.0Z" fill="#e66767"/>
+<path d="M270.0 143.0H386.0A4 4 0 0 1 390.0 147.0V157.0A4 4 0 0 1 386.0 161.0H270.0Z" fill="#3987e5"/>
+<text x="438.0" y="156.0" fill="#9198a1" font-size="12">10 s, 6 a minute</text>
+<text x="0" y="186.5" fill="#e6edf3" font-size="13">5/0/5/2</text>
+<path d="M190.0 173.0H288.0V191.0H190.0Z" fill="#e66767"/>
+<path d="M290.0 173.0H388.0V191.0H290.0Z" fill="#3987e5"/>
+<path d="M390.0 173.0H426.0A4 4 0 0 1 430.0 177.0V187.0A4 4 0 0 1 426.0 191.0H390.0Z" fill="#6e7681"/>
+<text x="438.0" y="186.0" fill="#9198a1" font-size="12">12 s, 5 a minute</text>
+<text x="0" y="216.5" fill="#e6edf3" font-size="13">5/0/10/0</text>
+<text x="70" y="216.5" fill="#9198a1" font-size="13">earlier default</text>
+<path d="M190.0 203.0H288.0V221.0H190.0Z" fill="#e66767"/>
+<path d="M290.0 203.0H486.0A4 4 0 0 1 490.0 207.0V217.0A4 4 0 0 1 486.0 221.0H290.0Z" fill="#3987e5"/>
+<text x="498.0" y="216.0" fill="#9198a1" font-size="12">15 s, 4 a minute</text>
+<text x="0" y="246.5" fill="#e6edf3" font-size="13">4/4/4/4</text>
+<text x="70" y="246.5" fill="#9198a1" font-size="13">box</text>
+<path d="M190.0 233.0H268.0V251.0H190.0Z" fill="#e66767"/>
+<path d="M270.0 233.0H348.0V251.0H270.0Z" fill="#6e7681"/>
+<path d="M350.0 233.0H428.0V251.0H350.0Z" fill="#3987e5"/>
+<path d="M430.0 233.0H506.0A4 4 0 0 1 510.0 237.0V247.0A4 4 0 0 1 506.0 251.0H430.0Z" fill="#6e7681"/>
+<text x="518.0" y="246.0" fill="#9198a1" font-size="12">16 s, 3.75 a minute</text>
+<text x="0" y="276.5" fill="#e6edf3" font-size="13">4/7/8/0</text>
+<text x="70" y="276.5" fill="#9198a1" font-size="13">4-7-8</text>
+<path d="M190.0 263.0H268.0V281.0H190.0Z" fill="#e66767"/>
+<path d="M270.0 263.0H408.0V281.0H270.0Z" fill="#6e7681"/>
+<path d="M410.0 263.0H566.0A4 4 0 0 1 570.0 267.0V277.0A4 4 0 0 1 566.0 281.0H410.0Z" fill="#3987e5"/>
+<text x="578.0" y="276.0" fill="#9198a1" font-size="12">19 s, 3.16 a minute</text>
+</svg>

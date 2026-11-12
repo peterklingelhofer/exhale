@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="260" viewBox="0 0 720 260" role="img" aria-labelledby="patterns-title patterns-desc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif">
+<title id="patterns-title">Heart rate variability rise by breathing pattern</title>
+<desc id="patterns-desc">RMSSD above each person's baseline, in standard deviations. 84 college students, one session each. 4/0/6/0 (6 a minute): 0.65. 5/0/5/0 (6 a minute, default): 0.45. 4/7/8/0 (3.16 a minute, 4-7-8): 0.27. 4/4/4/4 (3.75 a minute, box): 0.25.</desc>
+<text x="0" y="20" fill="#e6edf3" font-size="15" font-weight="600">Heart rate variability rise by breathing pattern</text>
+<text x="0" y="40" fill="#9198a1" font-size="13">RMSSD above each person's baseline, in standard deviations. 84 college students, one session each.</text>
+<rect x="0.0" y="56" width="12" height="12" rx="2" fill="#3987e5"/>
+<text x="18.0" y="66" fill="#9198a1" font-size="12">6 a minute, no holds</text>
+<rect x="160.0" y="56" width="12" height="12" rx="2" fill="#6e7681"/>
+<text x="178.0" y="66" fill="#9198a1" font-size="12">With holds, under 4 a minute</text>
+<line x1="220.5" y1="98.0" x2="220.5" y2="234.0" stroke="#3d444d"/>
+<line x1="354.5" y1="98.0" x2="354.5" y2="234.0" stroke="#21262d"/>
+<line x1="488.5" y1="98.0" x2="488.5" y2="234.0" stroke="#21262d"/>
+<line x1="622.5" y1="98.0" x2="622.5" y2="234.0" stroke="#21262d"/>
+<g fill="#9198a1" font-size="12" text-anchor="middle" style="font-variant-numeric: tabular-nums">
+<text x="220.0" y="251.0">0</text>
+<text x="354.3" y="251.0">0.2</text>
+<text x="488.6" y="251.0">0.4</text>
+<text x="622.9" y="251.0">0.6</text>
+</g>
+<text x="0" y="116.5" fill="#e6edf3" font-size="13">4/0/6/0</text>
+<text x="70" y="116.5" fill="#9198a1" font-size="13">6 a minute</text>
+<path d="M220.0 102.0H652.4A4 4 0 0 1 656.4 106.0V118.0A4 4 0 0 1 652.4 122.0H220.0Z" fill="#3987e5"/>
+<text x="662.4" y="116.5" fill="#e6edf3" font-size="13">0.65</text>
+<text x="0" y="152.5" fill="#e6edf3" font-size="13">5/0/5/0</text>
+<text x="70" y="152.5" fill="#9198a1" font-size="13">6 a minute, default</text>
+<path d="M220.0 138.0H518.1A4 4 0 0 1 522.1 142.0V154.0A4 4 0 0 1 518.1 158.0H220.0Z" fill="#3987e5"/>
+<text x="528.1" y="152.5" fill="#e6edf3" font-size="13">0.45</text>
+<text x="0" y="188.5" fill="#e6edf3" font-size="13">4/7/8/0</text>
+<text x="70" y="188.5" fill="#9198a1" font-size="13">3.16 a minute, 4-7-8</text>
+<path d="M220.0 174.0H397.3A4 4 0 0 1 401.3 178.0V190.0A4 4 0 0 1 397.3 194.0H220.0Z" fill="#6e7681"/>
+<text x="407.3" y="188.5" fill="#e6edf3" font-size="13">0.27</text>
+<text x="0" y="224.5" fill="#e6edf3" font-size="13">4/4/4/4</text>
+<text x="70" y="224.5" fill="#9198a1" font-size="13">3.75 a minute, box</text>
+<path d="M220.0 210.0H383.9A4 4 0 0 1 387.9 214.0V226.0A4 4 0 0 1 383.9 230.0H220.0Z" fill="#6e7681"/>
+<text x="393.9" y="224.5" fill="#e6edf3" font-size="13">0.25</text>
+</svg>
