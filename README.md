@@ -6,21 +6,42 @@ Demanding work at a keyboard measurably changes how you breathe. Data-entry oper
 
 Slow paced breathing is the breathing practice with the most published evidence behind it ([Laborde et al. 2022](docs/CITATIONS.md#laborde2022-vsb-meta) with 223 studies, [Fincham et al. 2023](docs/CITATIONS.md#fincham2023-breathwork-meta) with g = -0.35 for self-reported stress, and [Zaccaro et al. 2018](docs/CITATIONS.md#zaccaro2018-slow-breathing-review)). Whether it counters the over-breathing above is untested, and one study found it can add to it (gap 5 in the [gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices)). exhale paces it for you, with no sensor, account or telemetry. In two single-session comparisons, a plain visual pacer at 6 breaths per minute (an expanding circle in the first, a rising and falling ball in the second) raised heart rate variability at least as much as sensor-driven biofeedback ([Tabor et al. 2022](docs/CITATIONS.md#tabor2022-guided-breathing-design), [Laborde et al. 2021](docs/CITATIONS.md#laborde2021-spb-6cpm-biofeedback)). People in the second study rated biofeedback slightly more pleasant, and finding your personal resonance frequency still takes a sensor. For one session's physiological effect, though, the sensor added nothing.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charts/pacer-dark.svg">
+  <img src="docs/charts/pacer-light.svg" width="720" alt="Two dumbbell charts. With a plain pacer, breathing rate fell from 12.5 to 6.1 breaths a minute and HRV amplitude rose from 4.2 to 8.0. With sensor biofeedback, breathing rate fell from 11.0 to 5.2 and HRV amplitude rose from 5.0 to 7.0.">
+</picture>
+
+<sub>Source: [Tabor et al. 2022](docs/CITATIONS.md#tabor2022-guided-breathing-design)</sub>
+
 Blink rate also falls at a display. In one count it went from 22 a minute at rest to 7 at a screen ([Tsubota & Nakamori 1993](docs/CITATIONS.md#tsubota1993-vdt-blink), [Rosenfield 2011](docs/CITATIONS.md#rosenfield2011-computer-vision-syndrome)), though a later review reports that reading on paper lowers it about as much ([Sheppard & Wolffsohn 2018](docs/CITATIONS.md#sheppard2018-digital-eye-strain)). exhale only paces breathing, so it doesn't help with that.
 
-Every claim above and below is sourced in **[docs/CITATIONS.md](docs/CITATIONS.md)**, 49 sources whose bibliographic records were checked against Crossref, Open Library or PubMed. Some of these findings are weaker than a citation alone suggests, so each link goes to the source's corpus entry, with its DOI, access level, evidence tier, caveats and, for every source that was read, the source's own words under each claim. The [gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices) collects fourteen places where exhale ships something the literature doesn't back.
+Each link goes to the source's entry in **[docs/CITATIONS.md](docs/CITATIONS.md)**, with its caveats and, for sources that were read, the passage behind each claim. The [gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices) lists fourteen places where exhale ships something the literature doesn't back.
 
 The overlay is a translucent window that expands on inhale and contracts on exhale, and on most setups it floats above your other windows (see [Platform notes](#platform-notes)). If you'd like an ordinary window, the **Display** setting switches it to one (see [Overlay or window](#overlay-or-window)). Inhale, post-inhale hold, exhale, and post-exhale hold durations are all configurable.
 
 **The default is `5` / `0` / `5` / `0`.** Five seconds in and five out with no holds is 6 breaths per minute, the rate at which most of the direct evidence was gathered. The range tested directly runs 5 to 7 breaths per minute, and every rate in it beat spontaneous breathing ([You et al. 2023](docs/CITATIONS.md#you2023-respiratory-frequency)). Average individual resonance frequency sits near 5.5 ([Lehrer & Gevirtz 2014](docs/CITATIONS.md#lehrer2014-hrv-biofeedback)), and one study found 5.5 breaths a minute at an equal ratio beat the other combinations tested, including two at 6 ([Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv)). In a study comparing four patterns (n = 84), 6 breaths per minute raised heart rate variability more than box breathing or 4-7-8 ([Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six)). Of its two 6-a-minute ratios, only 4:6 beat the hold patterns significantly on RMSSD, a heart rate variability measure. The default 5:5's lead over them fell short of significance after Scheffé correction, and the two ratios didn't differ significantly from each other. With no holds, it's also an easy place for a beginner to start.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charts/patterns-dark.svg">
+  <img src="docs/charts/patterns-light.svg" width="720" alt="Bar chart of the rise in RMSSD over baseline, in standard deviations: 4/0/6/0 at 6 a minute 0.65, 5/0/5/0 at 6 a minute 0.45, 4-7-8 at 3.16 a minute 0.27, box 4/4/4/4 at 3.75 a minute 0.25.">
+</picture>
+
+<sub>Source: [Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six), Table 4</sub>
+
 Box breathing is `4` / `4` / `4` / `4` and exhale supports it. The holds make it a 16-second cycle, or 3.75 breaths per minute, so it's slower than it looks. It lost that comparison ([Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six), whose authors note square and 4-7-8 breathing "have little empirical support"). In a month-long randomized trial, its effect on mood didn't differ significantly from the control's, while cyclic sighing, which stretches the exhale, did ([Balban et al. 2023](docs/CITATIONS.md#balban2023-cyclic-sighing), where the box arm had 21 people and the paper reports no test of one pattern against the other). 4-7-8 is slower still, a 19-second cycle or about 3.2 breaths per minute, and it lost the same comparison.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/charts/cycles-dark.svg">
+  <img src="docs/charts/cycles-light.svg" width="720" alt="Stacked bars showing one breath cycle per pattern. 5/0/5/0 and 4/0/6/0 take 10 seconds, 6 a minute. 5/0/5/2 takes 12 seconds, 5 a minute. 5/0/10/0 takes 15 seconds, 4 a minute. Box, 4/4/4/4, takes 16 seconds, 3.75 a minute. 4-7-8 takes 19 seconds, 3.16 a minute. Only the first three fall inside the tested range of 5 to 7 breaths a minute.">
+</picture>
+
+<sub>Tested range from [You et al. 2023](docs/CITATIONS.md#you2023-respiratory-frequency), 4-7-8 timing from [Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six), the rest from exhale's presets</sub>
 
 **On making the exhale longer than the inhale:** treat it as a preference. Studies split on whether a longer exhale raises heart rate variability more than an equal or shorter one. Three found an effect ([Bae et al. 2021](docs/CITATIONS.md#bae2021-exhalation-inhalation-ratio), [Van Diest et al. 2014](docs/CITATIONS.md#vandiest2014-ie-ratio-relaxation), [Laborde et al. 2021](docs/CITATIONS.md#laborde2021-ie-ratio-pauses)), one found the equal ratio better ([Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv)), and two found no significant difference. Of those two, one compared 4:6 with 5:5 at 6 breaths per minute ([Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six)) and the other ran an experiment plus its own replication ([Meehan & Shaffer 2024](docs/CITATIONS.md#meehan2024-longer-exhalations)). Meehan & Shaffer's review of older work adds three more nulls (one didn't measure heart rate variability), one more result favoring a longer exhale and one favoring a longer inhale. With results this mixed, exhale doesn't claim any mechanism behind it.
 
 The evidence on how a longer exhale feels is thin and mixed. One study of 23 people found a longer exhale produced more reported relaxation, stress reduction, mindfulness and positive energy than a longer inhale, while slowing the rate alone moved only one of those four ([Van Diest et al. 2014](docs/CITATIONS.md#vandiest2014-ie-ratio-relaxation)). A larger one, 84 people, measured mood across both ratios at 6 breaths per minute and found no change at either ratio ([Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six)), and a third found *every* slow pattern beat baseline on relaxation ([Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv)). A month-long trial favors an exhale-heavy pattern for mood ([Balban et al. 2023](docs/CITATIONS.md#balban2023-cyclic-sighing)), though its cyclic-sighing arm also adds a double inhale, and its inhale-heavy arm had a slightly larger raw gain that didn't separate from the control's. Prefer a longer exhale if it feels better to you.
 
-The tested range only tells you which rates were studied. Resonance frequency varies from person to person ([Lehrer & Gevirtz 2014](docs/CITATIONS.md#lehrer2014-hrv-biofeedback)), so no single default suits everyone. Treat 6 a minute as a starting point and adjust from there. exhale's earlier default, `5` in / `10` out at 4 breaths per minute, is still one click away as a preset. No primary study in this corpus has measured 4 a minute. The one report is secondhand: [Lehrer 2022](docs/CITATIONS.md#lehrer2022-my-life-hrvb) recalls a 2003 pacing study from his own group that found heart rate variability amplitude highest at 4 and 6 a minute. All of this, including the arithmetic, is laid out in [the gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices).
+The tested range only tells you which rates were studied. Resonance frequency varies from person to person, and taller people and men tend to have lower ones ([Lehrer & Gevirtz 2014](docs/CITATIONS.md#lehrer2014-hrv-biofeedback)), so no single default suits everyone. Treat 6 a minute as a starting point and adjust from there. exhale's earlier default, `5` in / `10` out at 4 breaths per minute, is still one click away as a preset. No primary study in this corpus has measured 4 a minute. The one report is secondhand: [Lehrer 2022](docs/CITATIONS.md#lehrer2022-my-life-hrvb) recalls a 2003 pacing study from his own group that found heart rate variability amplitude highest at 4 and 6 a minute. All of this, including the arithmetic, is laid out in [the gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices).
 
 A review of 223 studies of slow breathing remarks that "very few adverse effects are reported" in them, though it didn't collect adverse-event data ([Laborde et al. 2022](docs/CITATIONS.md#laborde2022-vsb-meta)). The timing controls also reach fast, hold-heavy patterns. In a trial of fast breathing with long holds, light-headedness came up in both the fast arm and its slower comparison arm, and tetany, tingling with loss of finger control, in the fast arm only ([Fincham et al. 2024](docs/CITATIONS.md#fincham2024-high-ventilation-rct)). Slow down or stop if you feel either.
 
@@ -49,10 +70,6 @@ from epilepsy patients, nasal breathing entrained oscillations in piriform corte
 timed to each inhale in the amygdala and hippocampus, and the effects diminished when breathing moved
 to the mouth ([Zelano et al. 2016](docs/CITATIONS.md#zelano2016-nasal-respiration-limbic)).
 
-**Tune the numbers to yourself.** Resonance frequency is individual, and taller people and men tend
-to have lower ones ([Lehrer & Gevirtz 2014](docs/CITATIONS.md#lehrer2014-hrv-biofeedback)). That's why
-every timing in exhale is adjustable.
-
 **Why breathing might affect how you feel.** Heart rate rises on inhalation and falls on
 exhalation ([Yasuma & Hayano 2004](docs/CITATIONS.md#yasuma2004-rsa)), which is the coupling every HRV claim here
 rests on. Separately, a small population of neurons in the mouse breathing rhythm generator projects
@@ -63,99 +80,11 @@ one in people.
 
 ## Research and evidence
 
-**[docs/CITATIONS.md](docs/CITATIONS.md)** traces exhale's design to 49 sources:
-46 verified against the Crossref REST API, 2 against Open Library and 1 against PubMed. Each entry
-lists the source's evidence tier, access level and the claims it can back.
+[docs/CITATIONS.md](docs/CITATIONS.md) traces exhale's design to 49 sources: 46 verified against the Crossref REST API, 2 against Open Library and 1 against PubMed. It keeps the published dissent next to the support. On blood pressure, a meta-analysis finds sustained slow breathing lowers systolic pressure by 5.62 mmHg ([Chaddha et al. 2019](docs/CITATIONS.md#chaddha2019-slow-breathing-bp)), while a letter in a hypertension journal argues the case for device-guided slow breathing should be considered closed ([van Dijk et al. 2018](docs/CITATIONS.md#vandijk2018-close-the-book)). In one trial, 20-second breaks from a screen task, the kind of nudge exhale gives, produced no significant effect on symptoms, reading speed or accuracy ([Johnson & Rosenfield 2023](docs/CITATIONS.md#johnson2023-20-20-20)). In one small comparison, audio pacing was rated more calming than visual, and the visual guide's larger change in breathing was only a trend ([Wongsuphasawat et al. 2012](docs/CITATIONS.md#wongsuphasawat2012-cant-force-calm)). exhale is visual-only so it can sit silently on a working screen, and that may make it less calming.
 
-The corpus carries the published dissent next to the support. On blood pressure, a meta-analysis
-finds sustained slow breathing lowers systolic pressure by 5.62 mmHg
-([Chaddha et al. 2019](docs/CITATIONS.md#chaddha2019-slow-breathing-bp)), while a letter in a hypertension
-journal argues the case for device-guided slow breathing should be considered closed
-([van Dijk et al. 2018](docs/CITATIONS.md#vandijk2018-close-the-book)). It also carries the null results: one
-that held up in its own replication
-([Meehan & Shaffer 2024](docs/CITATIONS.md#meehan2024-longer-exhalations)), and one against scheduled screen
-breaks, the kind of nudge exhale gives ([Johnson & Rosenfield 2023](docs/CITATIONS.md#johnson2023-20-20-20),
-where 20-second breaks from a screen task produced no significant effect on symptoms, reading speed
-or accuracy). The [gaps ledger](docs/CITATIONS.md#gaps-and-unsupported-choices) lists fourteen places
-where exhale ships something the literature doesn't settle. Four highlights:
+exhale's four-phase inhale / hold / exhale / hold structure comes from pranayama ([Satyananda Saraswati 1999](docs/CITATIONS.md#satyananda1999-apmb), [Muktibodhananda 1998](docs/CITATIONS.md#muktibodhananda1998-hatha-yoga-pradipika)) and is centuries older than any heart rate variability study. Breathing apps got the longer-exhale idea from pranayama too, long before any lab tested it.
 
-- The **tested range is only 5 to 7 breaths per minute wide** ([You et al. 2023](docs/CITATIONS.md#you2023-respiratory-frequency)), and individual resonance frequency varies from person to person ([Lehrer & Gevirtz 2014](docs/CITATIONS.md#lehrer2014-hrv-biofeedback)). exhale's default of 6 sits inside it, and box breathing, at 3.75, falls outside it.
-- Six studies split three ways on whether a **longer exhale** beats an equal or shorter one on heart rate variability ([Bae et al. 2021](docs/CITATIONS.md#bae2021-exhalation-inhalation-ratio), [Van Diest et al. 2014](docs/CITATIONS.md#vandiest2014-ie-ratio-relaxation), [Laborde et al. 2021](docs/CITATIONS.md#laborde2021-ie-ratio-pauses), [Lin et al. 2014](docs/CITATIONS.md#lin2014-equal-ratio-hrv), [Meehan & Shaffer 2024](docs/CITATIONS.md#meehan2024-longer-exhalations), [Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six)). On how people report *feeling*, one study favors it ([Van Diest et al. 2014](docs/CITATIONS.md#vandiest2014-ie-ratio-relaxation)) and a larger one found no mood difference ([Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six)), which is why exhale offers the ratio as a preference.
-- The closest published analogue to exhale, an ambient on-screen pacer running during real information work, lowered breathing rate **only while it was running** ([Moraveji et al. 2011](docs/CITATIONS.md#moraveji2011-peripheral-paced-respiration)). So expect an always-on overlay's effect to last only while it's on. In one small comparison, audio pacing was rated more calming than visual, and the visual guide's larger change in breathing was only a trend ([Wongsuphasawat et al. 2012](docs/CITATIONS.md#wongsuphasawat2012-cant-force-calm)). exhale is visual-only by design so it can sit silently on a working screen, and that may make it less calming.
-- In one study, slow pacing itself mildly increased over-breathing ([Marchant et al. 2025](docs/CITATIONS.md#marchant2025-square-478-six)). Screen workers already run end-tidal CO2 a little lower than at rest ([Schleifer & Ley 1994](docs/CITATIONS.md#schleifer1994-vdt-petco2)), and lower again as mental workload rises ([Schleifer et al. 2008](docs/CITATIONS.md#schleifer2008-emg-gaps-computer-work)). Nobody has tested a slow pacer on screen workers, the people exhale is for.
-
-exhale's four-phase inhale / hold / exhale / hold structure comes from pranayama
-([Satyananda Saraswati 1999](docs/CITATIONS.md#satyananda1999-apmb),
-[Muktibodhananda 1998](docs/CITATIONS.md#muktibodhananda1998-hatha-yoga-pradipika)). Both references are
-catalog records at evidence tier **E**, checked against Open Library and not read, so they back
-lineage claims only. The structure is centuries older than any HRV study, and crediting it to 2020s
-research would rewrite the app's own history. Breathing apps got the longer-exhale idea from
-pranayama too, long before any lab tested it.
-
-The corpus is generated. [`docs/CITATIONS.csl.json`](docs/CITATIONS.csl.json) holds
-the records, [`docs/citations-notes.md`](docs/citations-notes.md) holds the prose, and
-[`scripts/generate-citations.py`](scripts/generate-citations.py) renders the two into `CITATIONS.md`:
-
-```sh
-uv run --no-project scripts/generate-citations.py           # regenerate
-uv run --no-project scripts/generate-citations.py --check   # fail if stale
-```
-
-`--check` also validates citekey format, enum values, every anchor link the gaps ledger makes into
-the corpus, the source counts quoted in this file, and the deep link the app itself compiles in, so a
-renamed entry or a stale number breaks the build. Links from this file and from
-[`docs/for-researchers.md`](docs/for-researchers.md) into the corpus have to name an entry or a
-heading that exists. It also refuses a short list of claims the corpus doesn't support on the
-surfaces that assert claims: the Rust sources, the Snap description, the Microsoft Store listing copy
-and [`CITATION.cff`](CITATION.cff). The README and the gaps ledger can still name those claims,
-because they discuss them.
-
-Every claim from a source that was read sits above the source's own words in the corpus, and each
-quote carries a receipt in [`docs/CITATIONS.receipts.json`](docs/CITATIONS.receipts.json) showing it
-was found in the source's text. `--check` fails when a quote changes after it was checked, when quote
-marks in this file or the corpus surround words that no quote of the cited source has, when a figure
-this file attributes to a source isn't printed in one of that source's quotes, and when the tested
-range the app reports stops matching the sentence it comes from. The same quote-mark and figure
-rules hold for `docs/for-researchers.md`. The source texts stay out of the repository, so receipts
-and the registry snapshot are written on a machine that has them:
-
-```sh
-uv run --no-project scripts/check-quotes.py --write-receipts   # look up every quote, record receipts
-uv run --no-project scripts/check-sources.py --write           # ask Crossref, Open Library and PubMed again
-```
-
-A weekly workflow repeats the registry check and checks the quotes found in Europe PMC against its
-current copy.
-
-**In the app.** There's a *Research* item in the macOS app menu, directly under About, and the same
-item in the system-tray menu on every platform. Both open the corpus page, which fetches the current
-`CITATIONS.md` from `main` at load, so an installed build always shows the evidence as it stands.
-The Timing panel has five one-click presets and shows the current breathing rate next to the tested
-range, so a setting outside that range is flagged while you choose it. Pick box breathing and the
-panel says it's 3.8 breaths a minute, slower than anything tested directly. Presets carry no badges
-or rankings. The numbers under them are computed live for whichever one is selected, so they can't
-go stale.
-
-The app itself shows only the computed rate and the tested range, and makes no health claims. The
-evidence lives in this repo because a correction here takes an afternoon, and pulling a claim from a
-signed binary takes a store review. Four sources are flagged
-`inAppCitable: false` in the corpus for that reason, and the build fails if a shipped preset points
-at one of them.
-
-**For researchers.** [`docs/for-researchers.md`](docs/for-researchers.md) is a reference for a lab
-considering exhale as a study stimulus: parameters and defaults, study mode, the session log and
-the evidence corpus's own limits. Study mode locks a participant's pacing from a `study.toml` file
-the lab provides. The same file can also fix the appearance and the display, including a
-full-screen window on the primary display. Settings then hides the Timing, Randomization and
-Timers cards (with the presets and the rate readout), every Appearance row but Show In, and the
-*Research* item. When the file asks for that full-screen window, the whole Appearance card is
-hidden and exhale shows in both the top bar and the Dock. A file that can't be used keeps the
-animation still and shows an error card. A local session log, one file per participant, covers
-app, animation and phase timing, and the participant exports it by hand. The Mac App Store build's
-sandbox blocks Export to the Desktop, so a macOS study uses a build from source.
-[`CITATION.cff`](CITATION.cff) at the repo root has the software's own citation.
-
-Nothing in this section is medical advice. See the [disclaimer](#disclaimer) above.
+[`docs/for-researchers.md`](docs/for-researchers.md) is a reference for a lab considering exhale as a study stimulus. It covers the parameters and defaults, study mode, which locks a participant's pacing from a `study.toml` file, the session log and the limits of the evidence. [`CITATION.cff`](CITATION.cff) has the software's own citation.
 
 ## Download
 
@@ -183,20 +112,16 @@ You can also build from source (see [Build & run](#build--run)).
 ![rectangle](https://user-images.githubusercontent.com/60944077/226204986-7522cb4d-7df1-4d65-96de-e629197e9854.gif)
 <img width="447" height="981" alt="Settings panel" src="https://github.com/user-attachments/assets/32e1d10e-72e3-4acb-ae35-be186cd7cb19" />
 
+The Timing card has five one-click presets and shows the breathing rate of the current timing next to the range tested directly, so a timing outside that range is flagged as you choose it. **Research**, in the tray menu and in the macOS app menu under About, opens the [sources page](https://peterklingelhofer.github.io/exhale/citations.html), which always shows the latest `docs/CITATIONS.md`.
+
 ### Overlay or window
 
-The **Display** row in the Appearance card chooses how exhale shows the animation. Click either option and it takes effect at once, in both directions.
+The **Display** row in the Appearance card picks one of two modes, and a change takes effect at once.
 
 - **Overlay** is the default. One translucent window per monitor floats above your other windows and lets clicks through.
 - **Window** is one regular window named "exhale" that you can move, resize or make full screen. It remembers its size and position, shows up in Alt-Tab and the taskbar or Dock, and leaves your other windows alone.
 
-In Window mode the Stop button, the Stop shortcut and the window's close button all hide the window, and Start brings it back. Wayland doesn't let an app hide its own window, so there Stop leaves the window in place, blank. Full screen comes from your system's own controls: the green button on macOS, maximize on Windows and your window manager on Linux. On macOS, Stop first leaves full screen and then hides the window, so no empty full-screen Space stays behind. On macOS, Windows and X11 the settings panel floats above the window, so you can keep adjusting while you watch.
-
-A window has nothing behind it to see through to, so it draws your colors at full strength. The Overlay Opacity row is disabled while a window is showing, and the background color is drawn solid whatever its alpha. Both settings keep their values and apply again when you switch to Overlay.
-
-On a Wayland session, or where the graphics driver can't draw a see-through overlay, exhale always shows a window. The Display row is then locked to Window, and the setting you last chose stays stored.
-
-A study file can fix the Display setting, and the Display row is then hidden. When the file sets Window, the window opens full screen and borderless on the primary display. On macOS that full screen stays in the current Space and auto-hides the menu bar and the Dock. Stop takes the window out of full screen and hides it, so the menu bar comes back, and Start returns it to full screen. [`docs/for-researchers.md`](docs/for-researchers.md) covers the study file.
+In Window mode, Stop and the window's close button hide the window, and Start brings it back. To quit, use **Quit** in the settings panel or **Quit exhale** in the tray menu. The window draws your colors at full strength, so the Overlay Opacity row is disabled while it shows. Where exhale can't draw a see-through overlay, the Display row is locked to Window (see [Platform notes](#platform-notes)).
 
 ### Global keyboard shortcuts
 
@@ -220,74 +145,17 @@ Press **Esc** in the capture overlay to cancel. "Reset Shortcut to Default" in t
 3. Re-open Preferences in the current workspace and adjust Opacity.
 4. Switch back.
 
-In a study, the file locks the opacity. Reset leaves it alone and the Opacity row is hidden.
-
-## Architecture
-
-Single Rust workspace (`rust/`) producing one cross-platform binary.
-
-- **Renderer**: `wgpu` + a single WGSL fragment shader (`crates/exhale-render`)
-- **Window system**: `winit`
-- **Settings UI**: `egui` (hand-rolled stepper, segmented picker, control buttons painted directly via `egui::Painter` to match `NSSegmentedControl` / `NSStepper` look)
-- **AppKit interop**: typed FFI via `objc2` for the menu-bar, status-bar level, and `NSApplicationActivationPolicy` paths. `platform/mac.rs` and `timers.rs` still use raw `msg_send!` in places (window-level juggling in `mac.rs`, the `UNUserNotificationCenter` reminder in `timers.rs`)
-- **Threading model**: per-overlay-window render thread + per-window `wgpu::Device` so overlay frame delivery isn't gated by the main thread's message queue or the settings window's GPU submissions
-- **Animation cadence**: 24 fps while the breath animation is running (matches the legacy Swift `MetalBreathingController`), dropping to 1 fps when the controller has nothing dynamic to draw (paused, fullscreen-with-matching-colors tint, or all-zero durations). It's hardcoded: per-frame CPU runs ≤ 2 % on every scene tested, so the earlier user-tunable preset was removed
-
-### Crates
-
-- `exhale-core`: settings + `SettingsDiff`, breathing controller (deadline-scheduled background thread), poison-tolerant lock helpers, easing tables, `study` (the `study.toml` lock) and `session_log` (the JSON Lines log study builds write). Zero GUI deps.
-- `exhale-render`: `wgpu` renderer + WGSL fragment shader, headless benchmarking harness (`cargo run --example cpu_bench`).
-- `exhale-app`: winit event loop, split egui settings panel (`settings_window.rs` + `widgets.rs` + `theme.rs`), per-overlay render thread, tray, hotkeys, platform glue (`objc2` / `windows-sys` / `x11-dl`).
-
 ## Build & run
 
-`cargo run` builds and launches in one step, and `cargo build` only compiles.
-
-| Command                  | Builds | Runs | Build profile               |
-|--------------------------|:------:|:----:|-----------------------------|
-| `cargo run`              |  Yes   | Yes  | Dev (debug, fast compile)   |
-| `cargo run --release`    |  Yes   | Yes  | Release (optimized)         |
-| `cargo build`            |  Yes   | No   | Dev                         |
-| `cargo build --release`  |  Yes   | No   | Release                     |
-
-All commands run from `rust/`. Use dev builds while iterating (compile is ~10× faster), release for the real binary you'd ship or benchmark. Binaries land at:
-
-- Dev:     `rust/target/debug/exhale` (or `.exe` on Windows)
-- Release: `rust/target/release/exhale` (or `.exe` on Windows)
-
-### Browsing the type-level docs
+From `rust/`, with Rust installed:
 
 ```sh
-cargo doc --no-deps --workspace --open
+cargo run --release
 ```
 
-Generates HTML docs for the three local crates and opens them in your browser. `--no-deps` skips the ~200 dependency crates so you only see exhale's own types. See [LEARNING.md](LEARNING.md) for a beginner's tour of the codebase.
+The binary lands in `rust/target/release/exhale` (`exhale.exe` on Windows). Drop `--release` for a faster debug build while you work on the code. [LEARNING.md](LEARNING.md) is a beginner's tour of the codebase, and [DEPLOYMENT.md](DEPLOYMENT.md) covers signing, packaging and the store uploads.
 
-### Running an already-built binary
-
-After `cargo build`, run the binary directly without going through cargo:
-
-**macOS / Linux**
-
-```sh
-./target/release/exhale          # release
-./target/debug/exhale            # dev
-```
-
-**Windows (PowerShell or cmd)**
-
-```sh
-.\target\release\exhale.exe      # release
-.\target\debug\exhale.exe        # dev
-```
-
-### Platform prerequisites
-
-**macOS**: no extra prerequisites beyond Rust.
-
-**Windows**: no extra prerequisites. Works with both the MSVC and GNU toolchains.
-
-**Linux**: exhale dynamically loads several system libraries at run time. To build and run on Debian/Ubuntu:
+macOS and Windows need nothing beyond Rust, and Windows works with both the MSVC and GNU toolchains. Linux needs a few system libraries. On Debian or Ubuntu:
 
 ```sh
 sudo apt install \
@@ -296,7 +164,7 @@ sudo apt install \
     libssl-dev pkg-config
 ```
 
-On Fedora/RHEL:
+On Fedora or RHEL:
 
 ```sh
 sudo dnf install \
@@ -305,24 +173,15 @@ sudo dnf install \
     openssl-devel pkgconf-pkg-config
 ```
 
-If you're only **running** a pre-built binary, the bare runtime packages without the `-dev` suffixes are enough:
+To only run a prebuilt binary, the runtime packages without the `-dev` suffixes are enough:
 
 ```sh
 sudo apt install libgtk-3-0 libayatana-appindicator3-1 libwayland-client0 libxkbcommon0 libxdo3 libssl3
 ```
 
-X11 and Xfixes are loaded via `x11-dl` at run time using whatever's already installed by the X11 desktop, so they're not in the list.
-
-What each one is for:
-- `libgtk-3` + `libayatana-appindicator3`: system-tray icon backend
-- `libwayland-client` + `libxkbcommon`: winit's Wayland + keyboard input
-- `libxdo`: `global-hotkey` crate's X11 keyboard binding (`libxdo.so.3` at runtime)
-- `libssl`: TLS for crates that fetch over HTTPS
-- `pkg-config`: build-time library discovery (compile-only)
-
 ## Settings
 
-Settings are saved as TOML under the platform config dir (via the `directories` crate's `ProjectDirs::from("com", "peterklingelhofer", "exhale")`):
+Settings save as you change them, to a TOML file:
 
 | Platform | Path |
 |----------|------|
@@ -331,44 +190,16 @@ Settings are saved as TOML under the platform config dir (via the `directories` 
 | Windows  | `%APPDATA%\peterklingelhofer\exhale\config\settings.toml` |
 | Linux    | `~/.config/exhale/settings.toml`, or `$XDG_CONFIG_HOME/exhale/settings.toml` when `XDG_CONFIG_HOME` is set |
 
-The MAS path differs because the App Store build runs sandboxed: the sandbox redirects `~/Library/Application Support` writes into the per-app container. Settings are reloaded on launch and persisted on every change via a debounced background writer thread. Corrupt TOML is logged and the file is rewritten with defaults.
-
-A `study.toml` beside `settings.toml` locks the pacing, appearance and display fields for a study, covered in [`docs/for-researchers.md`](docs/for-researchers.md).
+The Mac App Store build runs sandboxed, so its file lives in the app's container. A file that can't be parsed is rewritten with the defaults. A `study.toml` beside `settings.toml` locks the pacing, appearance and display fields for a study, covered in [`docs/for-researchers.md`](docs/for-researchers.md).
 
 ## Platform notes
 
-- **macOS**: the overlay floats above fullscreen apps (screen-saver window level), joins every Space, and stays out of Cmd+Tab. The window of Window mode is an ordinary normal-level window that opts into native full screen (`NSWindowCollectionBehaviorFullScreenPrimary`), so the green button works. `AppVisibility` toggles `NSApp.setActivationPolicy` between `.regular` and `.accessory`.
-- **Windows**: the overlay uses `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST`. `AppVisibility` toggles `WS_EX_APPWINDOW` / `WS_EX_TOOLWINDOW` on the settings window so "DockOnly" shows a taskbar entry and "TopBarOnly" hides it. Tested + recommended on **Windows 11**. Some Windows 10 GPU + driver combinations report only `Opaque` alpha modes to Vulkan, in which case exhale falls back to the Window mode described below.
-- **Linux (X11)**: click-through via `XFixesSetWindowShapeRegion` with an empty input region, always-on-top via `_NET_WM_STATE_ABOVE`, and workspace-spanning via `_NET_WM_STATE_STICKY`. `AppVisibility` toggles `_NET_WM_STATE_SKIP_TASKBAR` / `SKIP_PAGER` on the settings window.
-- **Linux (Wayland)**: Wayland has no standard way for an app to keep an overlay on top, so on a Wayland session exhale always runs in the **Window mode** described below. For the full topmost, click-through overlay on Linux, log out and pick an X11 session at the login screen.
-- **Window mode** (the Display setting, and also what exhale falls back to on Wayland sessions, some Windows 10 + Vulkan combinations, WARP / Microsoft Basic Render Driver and remote-desktop sessions, where the Display row is locked to Window): the breath animation runs in a **movable, resizable "exhale" window** that opens at 480×360 points and has normal decorations and full window-manager participation (Alt-Tab, taskbar, native close button). It draws at full strength on an opaque surface. It stays at the normal window level, so on macOS, Windows and X11 the settings panel floats above it. You can use it two ways: (1) **as a foreground window**, watching the breath animation directly the same way you'd watch any other app, or (2) **as an edge-strip overlay**, by sending the window behind your other apps (Alt-Tab past it / click on the window manager to lower it), switching exhale to **Rectangle mode**, and narrowing the windows in front so the animation shows through the side / bottom strips you've left open. The Stop button (and the global Stop hotkey, if bound) hides this window, and clicking the window's native close X does the same thing. On Wayland the window can't be hidden, so it stays in place, blank. Both halt the animation but leave the tray icon and settings panel running, so Start brings the animation window back. The settings panel is still the way to fully quit (Quit button, or close the settings window on Linux). In a study, the file can open this window full screen and borderless on the primary display, without the 480×360 size or the decorations (see [Overlay or window](#overlay-or-window)).
+- **macOS**: the overlay floats above full-screen apps, shows on every Space and stays out of Cmd+Tab.
+- **Windows**: tested on and recommended for Windows 11. Some Windows 10 graphics drivers can't draw a see-through overlay, and exhale shows a window there instead.
+- **Linux (X11)**: the overlay stays on top, lets clicks through and shows on every workspace.
+- **Linux (Wayland)**: Wayland has no standard way for an app to keep an overlay on top, so exhale always shows a window. Stop leaves that window in place, blank, because Wayland doesn't let an app hide its own window. For the full overlay, pick an X11 session at the login screen.
 
-## Performance vs the legacy Swift build
-
-Live A/B on macOS (M3 Max, default settings, single monitor, settings window closed). 30 s window, 15 samples via `ps -o %cpu`, both numbers normalized to one CPU core:
-
-| Build           | avg CPU |      range |
-|-----------------|--------:|-----------:|
-| Swift (Release) |  4.95 % | 3.2 to 6.6 |
-| Rust  (Release) |  3.19 % | 1.5 to 4.3 |
-
-Rust runs about **36 % lower CPU in steady state**. The delta is statistically clear (means ~5σ apart) but small in absolute terms (~1.8 percentage points). Opening the settings window adds roughly 1 to 2 pp on both builds. Each additional monitor adds another ~0.2 to 0.4 pp on Rust (one render thread per overlay).
-
-Reproduce via `cargo run --release --example cpu_bench -p exhale-render` for the headless per-frame number, or by running both binaries side-by-side under `ps -o %cpu` for the live-process number above.
-
-## Ship & distribute
-
-Per-release build, sign, package, and store-upload instructions for every supported target live in [DEPLOYMENT.md](DEPLOYMENT.md). Quick summary:
-
-| Target                       | Script                          |
-|------------------------------|---------------------------------|
-| Mac App Store                | `rust/scripts/bundle-mas.sh`    |
-| Microsoft Store              | `rust\scripts\bundle-msix.ps1`  |
-| Snap Store                   | CI builds, manual upload from a Docker `snapcore/snapcraft` container |
-| Linux `.deb` / AppImage      | `cargo deb` + `rust/scripts/bundle-appimage.sh` |
-| Windows standalone `.exe`    | `cargo build --release`         |
-
-CI in [.github/workflows/release.yml](.github/workflows/release.yml) builds every artifact on a `v*` tag.
+exhale also shows a window under the Microsoft Basic Render Driver (WARP) and over remote desktop. To use the window as an edge strip, send it behind your other apps, set **Shape** to Rectangle, and narrow the windows in front so the animation shows around them.
 
 ## Minimal Python script fallback
 
@@ -384,7 +215,7 @@ python main.py
 
 Modify the constants at the top of [`python/main.py`](python/main.py) for inhale/exhale duration in seconds, shape mode, and full-screen toggle.
 
-**The Rust binary is the recommended path on every supported OS, including Wayland.** On Wayland it opens as a regular movable window, which you can watch directly or send behind your other apps so the animation peeks through the edges, the same trick this script's bars mode uses (see [Platform notes](#platform-notes)). The Python script is here for hacking on.
+**The Rust binary is the recommended path on every supported OS, including Wayland** (see [Platform notes](#platform-notes)). The Python script is here for hacking on.
 
 ## Companion repository
 
@@ -394,11 +225,12 @@ A Perl version of this exists at <https://github.com/franco3445/Breathing>.
 
 ## Deprecated implementations
 
-The implementations below are superseded by the Rust port above and are kept in the repo for historical reference only. They won't receive new features or fixes. Use the Rust binary on every supported OS.
+<details>
+<summary>The original Swift app and the Electron app, kept for reference only</summary>
 
-### Swift macOS app (`swift/`)
+The Rust port supersedes both, and they won't receive new features or fixes.
 
-The original macOS-only implementation, written in SwiftUI + Metal. The Rust port has the same overlay and settings, adds Windows and Linux, and uses less CPU (see the performance table above). The Mac App Store now ships the Rust build, and the Swift source stays for reference.
+**Swift macOS app (`swift/`).** The original macOS-only implementation, written in SwiftUI + Metal. The Rust port has the same overlay and settings, adds Windows and Linux, and uses less CPU. The Mac App Store now ships the Rust build.
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
@@ -406,9 +238,7 @@ cd exhale/swift
 xed .
 ```
 
-### TypeScript / Electron app (`typescript/`)
-
-Cross-platform Electron build that predates the Rust port. The Rust binary covers macOS, Windows and Linux from a single ~10 MB native executable, without the Chromium runtime Electron bundles. The Electron app's settings live in `localStorage` and have to be edited via DevTools, while the Rust port has a settings panel.
+**TypeScript / Electron app (`typescript/`).** Cross-platform Electron build that predates the Rust port. The Rust binary covers macOS, Windows and Linux from a single ~10 MB native executable, without the Chromium runtime Electron bundles. The Electron app's settings live in `localStorage` and have to be edited via DevTools, while the Rust port has a settings panel.
 
 ```sh
 git clone https://github.com/peterklingelhofer/exhale.git
@@ -422,3 +252,5 @@ To recompile automatically with [electron-reload](https://github.com/yan-foto/el
 ```sh
 pnpm watch
 ```
+
+</details>
