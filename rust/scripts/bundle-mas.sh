@@ -124,6 +124,14 @@ BIN_X86="$RUST_ROOT/target/x86_64-apple-darwin/release/$EXECUTABLE"
 [[ -x "$BIN_ARM" ]] || die "arm64 binary missing: $BIN_ARM"
 [[ -x "$BIN_X86" ]] || die "x86_64 binary missing: $BIN_X86"
 
+# App Store review rejects the private QuartzCore classes behind the opt-in
+# `private-multiply-tint` feature, so no binary that names one gets packaged
+for b in "$BIN_ARM" "$BIN_X86"; do
+    if grep -q CABackdropLayer "$b"; then
+        die "$b has the private-multiply-tint feature built in, which App Store review rejects"
+    fi
+done
+
 # ── 3. Build .icns from the 1024 master ──────────────────────────────────────
 log "building AppIcon.icns from 1024 master..."
 rm -rf "$BUILD_DIR"

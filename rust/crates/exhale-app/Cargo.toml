@@ -44,6 +44,19 @@ path = "src/main.rs"
 default        = ["global-hotkeys"]
 global-hotkeys = ["dep:global-hotkey"]
 
+# `private-multiply-tint` makes the still tint (Fullscreen shape with
+# matching inhale and exhale colors) multiply the screen behind the
+# overlay the way f.lux scales the display, so black stays black.  The
+# plain tint alpha-blends its color on top, which lifts black toward
+# that color.  macOS only, a no-op on every other platform.  It hangs
+# a `CABackdropLayer` and a `CAFilter` on the overlay's layer, private
+# QuartzCore classes that App Store review rejects (the "vendor/winit"
+# section of DEPLOYMENT.md has the same story for `set_blur`).  So it's
+# off by default, and `rust/scripts/bundle-mas.sh` builds with default
+# features and never includes it.  Try it with
+# `cargo run -p exhale-app --features private-multiply-tint`
+private-multiply-tint = []
+
 [dependencies]
 exhale-core   = { workspace = true }
 exhale-render = { workspace = true }

@@ -88,6 +88,8 @@ pub use mac::{
     setup_overlay_window, setup_settings_window,
     hide_animation_window, is_full_screen, show_animation_window,
 };
+#[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+pub use mac::{multiply_tint_supported, set_multiply_tint};
 
 #[cfg(target_os = "windows")]
 mod win;

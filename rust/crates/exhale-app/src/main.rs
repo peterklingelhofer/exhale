@@ -1662,6 +1662,18 @@ impl ApplicationHandler<AppEvent> for App {
             }
         }
 
+        // Multiply tint: the main-thread spot every settings change and
+        // overlay rebuild passes through, placed after the rescan and the
+        // timers so an auto-stop in this pass takes the tint down in the same
+        // pass.  A handle skips the call when its gains haven't changed
+        #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+        {
+            let s = self.settings.read_or_recover();
+            for h in self.overlays.values() {
+                h.sync_multiply_tint(&s);
+            }
+        }
+
         // Compute the earliest deadline we need the event loop to wake for: an
         // egui-requested repaint or an auto-stop/reminder firing.  With
         // `ControlFlow::Wait` alone the loop would sleep indefinitely and

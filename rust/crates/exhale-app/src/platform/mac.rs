@@ -114,6 +114,215 @@ use super::*;
         ns_win.setHasShadow(false);
     }
 
+    /// `name` of the backdrop layer [`set_multiply_tint`] adds, which is how
+    /// a later call finds the layer it made
+    #[cfg(feature = "private-multiply-tint")]
+    const MULTIPLY_TINT_LAYER_NAME:      &str = "exhale.multiplyTint";
+    /// `CAAutoresizingMask` `kCALayerWidthSizable | kCALayerHeightSizable`
+    /// = 2 | 16 = 18, so the backdrop fills its superlayer as that resizes
+    #[cfg(feature = "private-multiply-tint")]
+    const CA_LAYER_WIDTH_HEIGHT_SIZABLE: u32  = 18;
+
+    /// Whether this macOS has the private classes and selectors
+    /// [`set_multiply_tint`] sends, so a macOS without them keeps the blended
+    /// tint and no message goes to a selector nothing answers
+    ///
+    /// Answered once, from the runtime's method tables, and kept.  A false
+    /// answer logs one warning
+    #[cfg(feature = "private-multiply-tint")]
+    pub fn multiply_tint_supported() -> bool {
+        use objc2::runtime::AnyClass;
+        use objc2::sel;
+        use std::sync::OnceLock;
+
+        static SUPPORTED: OnceLock<bool> = OnceLock::new();
+        *SUPPORTED.get_or_init(|| {
+            // `filterWithType:` is a factory on the class itself, which is
+            // what its metaclass answers for
+            let backdrop = AnyClass::get(c"CABackdropLayer")
+                .is_some_and(|cls| cls.responds_to(sel!(setWindowServerAware:)));
+            let filter = AnyClass::get(c"CAFilter")
+                .is_some_and(|cls| cls.metaclass().responds_to(sel!(filterWithType:)));
+            let supported = backdrop && filter;
+            if !supported {
+                log::warn!(
+                    "multiply tint: this macOS lacks the private API it needs \
+                     (CABackdropLayer setWindowServerAware: {backdrop}, \
+                     CAFilter filterWithType: {filter}), so the tint stays blended"
+                );
+            }
+            supported
+        })
+    }
+
+    /// Multiply the screen behind `window` by `gains` per channel, or take
+    /// that off again with `None`.  Main thread only
+    ///
+    /// A `CABackdropLayer` with `windowServerAware` set samples everything
+    /// WindowServer composites behind the window, and one `CAFilter` of type
+    /// `colorMatrix` scales red, green and blue by the gains, so black stays
+    /// black.  With wgpu 22 the view's layer is the `CAMetalLayer`, so the
+    /// backdrop is a sublayer of it, drawn above the overlay's own Metal
+    /// frame, which the render thread keeps clear while the tint is on.  It
+    /// stays there hidden while `gains` is `None`.  The gains apply to the
+    /// display's own color values, the way f.lux scales its gamma tables, so
+    /// on a wide-gamut display the hue sits slightly off the blended tint's
+    ///
+    /// Private QuartzCore API that App Store review rejects, so this exists
+    /// only behind the `private-multiply-tint` feature.  Both classes are
+    /// looked up by name at runtime, and callers ask
+    /// [`multiply_tint_supported`] first
+    #[cfg(feature = "private-multiply-tint")]
+    pub fn set_multiply_tint(window: &Window, gains: Option<[f32; 3]>) {
+        use objc2::msg_send;
+        use objc2::runtime::AnyObject;
+        use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+        let Ok(handle) = window.window_handle() else { return; };
+        let RawWindowHandle::AppKit(h) = handle.as_raw() else { return; };
+        // SAFETY: winit keeps the NSView valid for the lifetime of `window`,
+        // and callers run on the main thread, where Core Animation wants
+        // its layer-tree edits
+        unsafe {
+            let ns_view = h.ns_view.as_ptr() as *mut AnyObject;
+            let root: *mut AnyObject = msg_send![ns_view, layer];
+            if !root.is_null() {
+                apply_multiply_tint(root, gains);
+            }
+        }
+    }
+
+    /// The layer half of [`set_multiply_tint`]: find or add the backdrop
+    /// among the sublayers of `root`, and set its filter, frame and
+    /// visibility
+    ///
+    /// SAFETY: `root` must point at a live `CALayer`, and the call must run
+    /// on the main thread
+    #[cfg(feature = "private-multiply-tint")]
+    unsafe fn apply_multiply_tint(root: *mut objc2::runtime::AnyObject, gains: Option<[f32; 3]>) {
+        use objc2::msg_send;
+        use objc2::rc::Retained;
+        use objc2::runtime::{AnyClass, AnyObject, Bool};
+        use objc2_foundation::{NSRect, NSString};
+
+        let name = NSString::from_str(MULTIPLY_TINT_LAYER_NAME);
+
+        // The backdrop an earlier call added, found by its name
+        let mut found: Option<Retained<AnyObject>> = None;
+        let sublayers: *mut AnyObject = msg_send![root, sublayers];
+        let count: usize = if sublayers.is_null() { 0 } else { msg_send![sublayers, count] };
+        for i in 0..count {
+            let sub: *mut AnyObject = msg_send![sublayers, objectAtIndex: i];
+            let sub_name: *mut AnyObject = msg_send![sub, name];
+            if sub_name.is_null() { continue; }
+            let named: bool = msg_send![sub_name, isEqualToString: &*name];
+            if named {
+                found = Retained::retain(sub);
+                break;
+            }
+        }
+
+        // No tint only hides a backdrop that exists, and never makes one
+        let Some(gains) = gains else {
+            if let Some(layer) = found {
+                without_animation(|| {
+                    let _: () = msg_send![&*layer, setHidden: Bool::YES];
+                });
+            }
+            return;
+        };
+
+        // Everything that can fail comes before the transaction opens
+        let Some(filters) = color_matrix_filters(gains) else { return; };
+        let is_new = found.is_none();
+        let layer = match found {
+            Some(layer) => layer,
+            None => {
+                let Some(cls) = AnyClass::get(c"CABackdropLayer") else {
+                    log::warn!("multiply tint: the CABackdropLayer class is missing");
+                    return;
+                };
+                let made: Option<Retained<AnyObject>> = msg_send![cls, new];
+                let Some(layer) = made else { return; };
+                let _: () = msg_send![&*layer, setName: &*name];
+                // `windowServerAware` has WindowServer feed the layer
+                // everything composited behind the window
+                let _: () = msg_send![&*layer, setWindowServerAware: Bool::YES];
+                let _: () = msg_send![&*layer, setAutoresizingMask: CA_LAYER_WIDTH_HEIGHT_SIZABLE];
+                layer
+            }
+        };
+
+        without_animation(|| {
+            if is_new {
+                // A sublayer draws above the CAMetalLayer's own frame
+                let _: () = msg_send![root, insertSublayer: &*layer, atIndex: 0_u32];
+            }
+            let bounds: NSRect = msg_send![root, bounds];
+            let _: () = msg_send![&*layer, setFrame: bounds];
+            let _: () = msg_send![&*layer, setFilters: &*filters];
+            let _: () = msg_send![&*layer, setHidden: Bool::NO];
+        });
+    }
+
+    /// A one-element `NSArray` holding a `CAFilter` of type `colorMatrix`
+    /// that scales red, green and blue by `gains`, or `None` after a warning
+    /// when this macOS has no such class
+    ///
+    /// SAFETY: the call must run on the main thread
+    #[cfg(feature = "private-multiply-tint")]
+    unsafe fn color_matrix_filters(
+        gains: [f32; 3],
+    ) -> Option<objc2::rc::Retained<objc2::runtime::AnyObject>> {
+        use objc2::rc::Retained;
+        use objc2::runtime::{AnyClass, AnyObject};
+        use objc2::{class, msg_send};
+        use objc2_foundation::NSString;
+        use std::ffi::c_void;
+
+        let Some(cls) = AnyClass::get(c"CAFilter") else {
+            log::warn!("multiply tint: the CAFilter class is missing");
+            return None;
+        };
+        // `CAColorMatrix`: 4 rows by 5 columns, row by row.  A row is the
+        // weights of red, green, blue, alpha and a constant for one output
+        // channel, so the gains sit on the diagonal and alpha passes through
+        let matrix: [f32; 20] = [
+            gains[0], 0.0,      0.0,      0.0, 0.0,
+            0.0,      gains[1], 0.0,      0.0, 0.0,
+            0.0,      0.0,      gains[2], 0.0, 0.0,
+            0.0,      0.0,      0.0,      1.0, 0.0,
+        ];
+        let value: *mut AnyObject = msg_send![
+            class!(NSValue),
+            valueWithBytes: matrix.as_ptr() as *const c_void,
+            objCType:       c"{CAColorMatrix=ffffffffffffffffffff}".as_ptr(),
+        ];
+        let kind = NSString::from_str("colorMatrix");
+        let filter: Option<Retained<AnyObject>> = msg_send![cls, filterWithType: &*kind];
+        let filter = filter?;
+        let key = NSString::from_str("inputColorMatrix");
+        let _: () = msg_send![&*filter, setValue: value, forKey: &*key];
+        msg_send![class!(NSArray), arrayWithObject: &*filter]
+    }
+
+    /// Run `edit` as one Core Animation transaction with implicit
+    /// animations off, so a hide or a new filter takes effect at once, with
+    /// none of the default 0.25 s fade
+    ///
+    /// SAFETY: the call must run on the main thread
+    #[cfg(feature = "private-multiply-tint")]
+    unsafe fn without_animation(edit: impl FnOnce()) {
+        use objc2::runtime::Bool;
+        use objc2::{class, msg_send};
+
+        let transaction = class!(CATransaction);
+        let _: () = msg_send![transaction, begin];
+        let _: () = msg_send![transaction, setDisableActions: Bool::YES];
+        edit();
+        let _: () = msg_send![transaction, commit];
+    }
+
     /// The collection behavior of the window of Window mode
     ///
     /// `FullScreenPrimary` for a window the user places: `NSWindow.h` says
@@ -2494,5 +2703,54 @@ use super::*;
             // guard that stops `currentNotificationCenter` from raising
             // `NSInternalInconsistencyException` and aborting the process
             request_notification_permission();
+        }
+
+        /// The layer half of the multiply tint, on a bare `CALayer` that
+        /// belongs to no window, so nothing reaches the screen
+        #[cfg(feature = "private-multiply-tint")]
+        #[test]
+        fn multiply_tint_adds_one_backdrop_and_hides_it_when_the_tint_goes() {
+            use objc2::runtime::AnyObject;
+            use objc2::{class, msg_send};
+            use objc2_foundation::NSString;
+            use std::ffi::c_void;
+
+            assert!(multiply_tint_supported());
+            unsafe {
+                let root: *mut AnyObject = msg_send![class!(CALayer), new];
+                let count = || -> usize {
+                    let subs: *mut AnyObject = msg_send![root, sublayers];
+                    if subs.is_null() { 0 } else { msg_send![subs, count] }
+                };
+                let backdrop = || -> *mut AnyObject {
+                    let subs: *mut AnyObject = msg_send![root, sublayers];
+                    msg_send![subs, objectAtIndex: 0_usize]
+                };
+                let hidden = || -> bool { msg_send![backdrop(), isHidden] };
+
+                apply_multiply_tint(root, None);
+                assert_eq!(count(), 0, "no tint adds nothing");
+
+                apply_multiply_tint(root, Some([0.5, 0.25, 0.125]));
+                assert_eq!(count(), 1);
+                assert!(!hidden());
+                let filters: *mut AnyObject = msg_send![backdrop(), filters];
+                let filter: *mut AnyObject = msg_send![filters, objectAtIndex: 0_usize];
+                let key = NSString::from_str("inputColorMatrix");
+                let value: *mut AnyObject = msg_send![filter, valueForKey: &*key];
+                let mut m = [0f32; 20];
+                let _: () = msg_send![value, getValue: m.as_mut_ptr() as *mut c_void, size: 80_usize];
+                assert_eq!((m[0], m[6], m[12], m[18]), (0.5, 0.25, 0.125, 1.0));
+                assert_eq!(m.iter().filter(|v| **v != 0.0).count(), 4, "only those four are set: {m:?}");
+
+                apply_multiply_tint(root, None);
+                assert_eq!(count(), 1);
+                assert!(hidden());
+
+                apply_multiply_tint(root, Some([0.5, 0.25, 0.125]));
+                assert_eq!(count(), 1, "the same layer comes back");
+                assert!(!hidden());
+                let _: () = msg_send![root, release];
+            }
         }
     }
