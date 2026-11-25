@@ -55,7 +55,11 @@ global-hotkeys = ["dep:global-hotkey"]
 # off by default, and `rust/scripts/bundle-mas.sh` builds with default
 # features and never includes it.  Try it with
 # `cargo run -p exhale-app --features private-multiply-tint`
-private-multiply-tint = []
+#
+# It also colors the pointer to match, through the private calls System
+# Settings makes for its pointer colors, and puts the user's colors back
+# when the tint goes or exhale quits
+private-multiply-tint = ["dep:serde", "dep:toml"]
 
 [dependencies]
 exhale-core   = { workspace = true }
@@ -71,6 +75,9 @@ egui-wgpu     = { workspace = true }
 tray-icon     = { workspace = true }
 global-hotkey = { workspace = true, optional = true }
 directories   = { workspace = true }
+# The private tint build saves the user's pointer colors as TOML
+serde         = { workspace = true, optional = true }
+toml          = { workspace = true, optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # macOS uses native `UNUserNotifications` via objc2.  `notify-rust` is only

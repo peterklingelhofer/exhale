@@ -651,7 +651,9 @@ impl Settings {
             return None;
         }
         let [r, g, b, _] = self.inhale_color;
-        Some([r, g, b].map(|c| 1.0 - a * (1.0 - c.clamp(0.0, 1.0))))
+        let gains = [r, g, b].map(|c| 1.0 - a * (1.0 - c.clamp(0.0, 1.0)));
+        // A hand-edited `nan` gets past the opacity check above
+        gains.iter().all(|gain| gain.is_finite()).then_some(gains)
     }
 
     /// The alpha component of background_color, clamped to overlay_opacity
@@ -959,6 +961,10 @@ mod tests {
         let mut clear = s.clone();
         clear.overlay_opacity = 0.0;
         assert_eq!(clear.multiply_tint_gains(), None, "the shader draws zero opacity as clear");
+
+        let mut not_a_number = s.clone();
+        not_a_number.overlay_opacity = f32::NAN;
+        assert_eq!(not_a_number.multiply_tint_gains(), None, "a nan opacity is no tint");
     }
 
     #[test]

@@ -401,6 +401,12 @@ impl OverlayHandle {
         self.multiply_tint.set(gains);
     }
 
+    /// The gains of the multiply tint this overlay shows, `None` for none
+    #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+    pub fn multiply_tint(&self) -> Option<[f32; 3]> {
+        self.multiply_tint.get()
+    }
+
     /// Wake the renderer to draw one frame against the latest shared
     /// controller state.  Used by main-thread code paths that mutate
     /// settings outside of a controller tick (Start/Stop, theme

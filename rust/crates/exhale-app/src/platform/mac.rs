@@ -327,6 +327,453 @@ use super::*;
         let _: () = msg_send![transaction, commit];
     }
 
+    // ─── The pointer's colors and size ────────────────────────────────────────
+    //
+    // The pointer half of the multiply tint reads and sets the colors under
+    // System Settings > Accessibility > Display > Pointer through the private
+    // calls that pane makes, and the pointer size through WindowServer's.
+    // Like the classes above, they're found by name at runtime, so nothing
+    // private is linked
+
+    #[cfg(feature = "private-multiply-tint")]
+    use std::ffi::{c_char, c_int, c_void};
+
+    /// `dlopen` mode `RTLD_NOW`: bind every symbol as the library loads
+    #[cfg(feature = "private-multiply-tint")]
+    const RTLD_NOW:     c_int      = 2;
+    /// `signal` disposition `SIG_DFL`: the default action
+    #[cfg(feature = "private-multiply-tint")]
+    const SIG_DFL:      usize      = 0;
+    /// `signal` disposition `SIG_IGN`: drop the signal
+    #[cfg(feature = "private-multiply-tint")]
+    const SIG_IGN:      usize      = 1;
+    /// `SIGHUP`, which a closed terminal sends
+    #[cfg(feature = "private-multiply-tint")]
+    const SIGHUP:       c_int      = 1;
+    /// `SIGINT`, from Ctrl+C
+    #[cfg(feature = "private-multiply-tint")]
+    const SIGINT:       c_int      = 2;
+    /// `SIGTERM`, from `kill`
+    #[cfg(feature = "private-multiply-tint")]
+    const SIGTERM:      c_int      = 15;
+    /// The signals [`quit_on_signals`] turns into a quit
+    #[cfg(feature = "private-multiply-tint")]
+    const QUIT_SIGNALS: [c_int; 3] = [SIGHUP, SIGINT, SIGTERM];
+    /// The preferences domain that holds the pointer colors
+    #[cfg(feature = "private-multiply-tint")]
+    const UNIVERSAL_ACCESS_DOMAIN: &str = "com.apple.universalaccess";
+
+    // libSystem holds the loader, `signal` and libdispatch
+    #[cfg(feature = "private-multiply-tint")]
+    extern "C" {
+        fn dlopen(path: *const c_char, mode: c_int) -> *mut c_void;
+        fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
+        fn signal(signum: c_int, disposition: usize) -> usize;
+        fn dispatch_source_create(
+            kind:   *const c_void,
+            handle: usize,
+            mask:   usize,
+            queue:  *const c_void,
+        ) -> *mut c_void;
+        fn dispatch_source_set_event_handler_f(
+            source:  *mut c_void,
+            handler: extern "C" fn(*mut c_void),
+        );
+        fn dispatch_resume(object: *mut c_void);
+        /// `DISPATCH_SOURCE_TYPE_SIGNAL` is the address of this
+        static _dispatch_source_type_signal: c_void;
+        /// `dispatch_get_main_queue()` is the address of this
+        static _dispatch_main_q: c_void;
+    }
+
+    #[cfg(feature = "private-multiply-tint")]
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        fn CFRelease(object: *const c_void);
+        fn CFPreferencesAppSynchronize(application_id: *const c_void) -> u8;
+        fn CFNotificationCenterGetDistributedCenter() -> *const c_void;
+        fn CFNotificationCenterPostNotification(
+            center:              *const c_void,
+            name:                *const c_void,
+            object:              *const c_void,
+            user_info:           *const c_void,
+            deliver_immediately: u8,
+        );
+    }
+
+    #[cfg(feature = "private-multiply-tint")]
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGColorCreateSRGB(red: f64, green: f64, blue: f64, alpha: f64) -> *const c_void;
+        fn CGColorGetNumberOfComponents(color: *const c_void) -> usize;
+        fn CGColorGetComponents(color: *const c_void) -> *const f64;
+    }
+
+    /// The private calls the Pointer pane of System Settings makes, and
+    /// WindowServer's for the pointer size, as [`pointer_api`] found them
+    #[cfg(feature = "private-multiply-tint")]
+    struct PointerApi {
+        /// `_AXInterfaceCursorIsOverridden`: the "customized" flag
+        is_customized:    unsafe extern "C" fn() -> u8,
+        /// `_AXInterfaceSetCursorIsOverridden`: sets the flag, and posts a
+        /// notification only when its value changes
+        set_customized:   unsafe extern "C" fn(u8),
+        /// `_AXInterfaceCopyCursorColorFill`: a `CGColorRef` the caller
+        /// releases, or null for a key that's unset
+        copy_fill:        unsafe extern "C" fn() -> *const c_void,
+        /// `_AXInterfaceCopyCursorColorOutline`: the same for the outline
+        copy_outline:     unsafe extern "C" fn() -> *const c_void,
+        /// `_AXInterfaceSetCursorColorFill`: stores the color in sRGB and
+        /// removes the key for null.  It doesn't synchronize
+        set_fill:         unsafe extern "C" fn(*const c_void),
+        /// `_AXInterfaceSetCursorColorOutline`: the same for the outline
+        set_outline:      unsafe extern "C" fn(*const c_void),
+        /// `AXFCursorRegisterAll`: draws every system cursor in the stored
+        /// colors
+        register_all:     unsafe extern "C" fn() -> u8,
+        /// `AXFCursorUnregisterAll`: brings the stock cursors back
+        unregister_all:   unsafe extern "C" fn(),
+        /// `CGSMainConnectionID`: this process's connection to WindowServer
+        main_connection:  unsafe extern "C" fn() -> i32,
+        /// `CGSGetCursorScale`: writes the pointer size through its second
+        /// argument, and returns nonzero for an error
+        get_cursor_scale: unsafe extern "C" fn(i32, *mut f32) -> i32,
+        /// `CGSSetCursorScale`: sets the pointer size, and returns nonzero
+        /// for an error
+        set_cursor_scale: unsafe extern "C" fn(i32, f32) -> i32,
+    }
+
+    /// The calls of [`PointerApi`], or `None` when this macOS lacks any of
+    /// them
+    ///
+    /// Looked up once, with `dlopen` and `dlsym`, and kept.  A `None` logs one
+    /// warning
+    #[cfg(feature = "private-multiply-tint")]
+    fn pointer_api() -> Option<&'static PointerApi> {
+        use std::sync::OnceLock;
+
+        static API: OnceLock<Option<PointerApi>> = OnceLock::new();
+        API.get_or_init(|| {
+            // SAFETY: the libraries and symbols are looked up by name, and
+            // every field of `PointerApi` has the signature its call has
+            let api = unsafe { load_pointer_api() };
+            if api.is_none() {
+                log::warn!(
+                    "pointer tint: this macOS lacks the private API behind the pointer \
+                     colors and size, so the pointer keeps its own"
+                );
+            }
+            api
+        })
+        .as_ref()
+    }
+
+    /// The `dlopen` and `dlsym` half of [`pointer_api`]
+    ///
+    /// SAFETY: the signature of every field of `PointerApi` has to be the one
+    /// its symbol has
+    #[cfg(feature = "private-multiply-tint")]
+    unsafe fn load_pointer_api() -> Option<PointerApi> {
+        let services = dlopen(
+            c"/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices".as_ptr(),
+            RTLD_NOW,
+        );
+        let support = dlopen(
+            c"/System/Library/PrivateFrameworks/AccessibilitySupport.framework/AccessibilitySupport"
+                .as_ptr(),
+            RTLD_NOW,
+        );
+        let graphics = dlopen(
+            c"/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics".as_ptr(),
+            RTLD_NOW,
+        );
+        if services.is_null() || support.is_null() || graphics.is_null() {
+            return None;
+        }
+        Some(PointerApi {
+            is_customized:    symbol(services, c"_AXInterfaceCursorIsOverridden")?,
+            set_customized:   symbol(services, c"_AXInterfaceSetCursorIsOverridden")?,
+            copy_fill:        symbol(services, c"_AXInterfaceCopyCursorColorFill")?,
+            copy_outline:     symbol(services, c"_AXInterfaceCopyCursorColorOutline")?,
+            set_fill:         symbol(services, c"_AXInterfaceSetCursorColorFill")?,
+            set_outline:      symbol(services, c"_AXInterfaceSetCursorColorOutline")?,
+            register_all:     symbol(support, c"AXFCursorRegisterAll")?,
+            unregister_all:   symbol(support, c"AXFCursorUnregisterAll")?,
+            main_connection:  symbol(graphics, c"CGSMainConnectionID")?,
+            get_cursor_scale: symbol(graphics, c"CGSGetCursorScale")?,
+            set_cursor_scale: symbol(graphics, c"CGSSetCursorScale")?,
+        })
+    }
+
+    /// The symbol `name` of `library` as a function pointer of type `F`, or
+    /// `None` when the library has no such symbol
+    ///
+    /// SAFETY: `library` is a handle `dlopen` returned, and `F` is the
+    /// function pointer type that matches the symbol
+    #[cfg(feature = "private-multiply-tint")]
+    unsafe fn symbol<F: Copy>(library: *mut c_void, name: &std::ffi::CStr) -> Option<F> {
+        // A function pointer has the size of a data pointer on every Apple
+        // target, and the copy below reads exactly that much
+        const { assert!(std::mem::size_of::<F>() == std::mem::size_of::<*mut c_void>()) };
+        let address = dlsym(library, name.as_ptr());
+        if address.is_null() {
+            return None;
+        }
+        Some(std::mem::transmute_copy(&address))
+    }
+
+    /// The colors under System Settings > Accessibility > Display > Pointer,
+    /// or `None` when this macOS lacks the private calls that read them.  Main
+    /// thread only
+    ///
+    /// A color that isn't four sRGB components reads as unset
+    #[cfg(feature = "private-multiply-tint")]
+    pub fn pointer_colors() -> Option<crate::pointer_tint::PointerColors> {
+        let api = pointer_api()?;
+        // SAFETY: `pointer_api` found these calls, and each copy hands
+        // `read_color` the color it releases
+        unsafe {
+            Some(crate::pointer_tint::PointerColors {
+                customized: (api.is_customized)() != 0,
+                fill:       read_color(api.copy_fill),
+                outline:    read_color(api.copy_outline),
+            })
+        }
+    }
+
+    /// The red, green, blue and alpha of the color `copy` returns, or `None`
+    /// for a key that's unset or a color of another shape.  Releases the color
+    ///
+    /// SAFETY: `copy` returns a retained `CGColorRef` or null
+    #[cfg(feature = "private-multiply-tint")]
+    unsafe fn read_color(copy: unsafe extern "C" fn() -> *const c_void) -> Option<[f64; 4]> {
+        let color = copy();
+        if color.is_null() {
+            return None;
+        }
+        let count = CGColorGetNumberOfComponents(color);
+        let components = CGColorGetComponents(color);
+        let read = if count == 4 && !components.is_null() {
+            <[f64; 4]>::try_from(std::slice::from_raw_parts(components, 4)).ok()
+        } else {
+            None
+        };
+        CFRelease(color);
+        read
+    }
+
+    /// `s` as the `CFStringRef` it is, an `NSString` being a `CFString` as
+    /// well
+    #[cfg(feature = "private-multiply-tint")]
+    fn cf_string(s: &objc2_foundation::NSString) -> *const c_void {
+        s as *const objc2_foundation::NSString as *const c_void
+    }
+
+    /// Set the pointer's colors to `colors` with the calls the Pointer pane of
+    /// System Settings makes, in the pane's order plus one synchronize after
+    /// the colors, and return `true`.  Returns `false`, with nothing changed,
+    /// when this macOS lacks the private calls.  Main thread only
+    ///
+    /// A color that's `None` removes its key.  After the change the system
+    /// cursors are registered again, as the stock ones first unless the
+    /// pointer was customized before and stays so, and then in the stored
+    /// colors when it's customized.  The last step posts the notification
+    /// that other processes watch
+    ///
+    /// macOS refuses these preference writes from a process without access to
+    /// that store, which System Settings has through a private entitlement.
+    /// The drawing changes anyway, because the cursors are drawn from the
+    /// colors this process holds
+    #[cfg(feature = "private-multiply-tint")]
+    pub fn set_pointer_colors(colors: &crate::pointer_tint::PointerColors) -> bool {
+        use objc2_foundation::NSString;
+
+        let Some(api) = pointer_api() else { return false; };
+        let domain       = NSString::from_str(UNIVERSAL_ACCESS_DOMAIN);
+        let notification = NSString::from_str("AXInterfaceCursorStatusDidChangeNotification");
+        // SAFETY: `pointer_api` found these calls, and the strings outlive
+        // the calls that take them
+        unsafe {
+            let was_customized = (api.is_customized)() != 0;
+            (api.set_customized)(u8::from(colors.customized));
+            write_color(api.set_fill, colors.fill);
+            write_color(api.set_outline, colors.outline);
+            CFPreferencesAppSynchronize(cf_string(&domain));
+            if !(colors.customized && was_customized) {
+                (api.unregister_all)();
+            }
+            if (api.is_customized)() != 0 {
+                (api.register_all)();
+            }
+            // The pane posts to the center it got, if it got one
+            let center = CFNotificationCenterGetDistributedCenter();
+            if !center.is_null() {
+                CFNotificationCenterPostNotification(
+                    center,
+                    cf_string(&notification),
+                    std::ptr::null(),
+                    std::ptr::null(),
+                    1,
+                );
+            }
+        }
+        true
+    }
+
+    /// Store the fill and outline of `colors` in the preferences and do
+    /// nothing else.  Main thread only
+    ///
+    /// The "customized" flag stays as it is, no cursor is registered again
+    /// and no notification goes out.  The cursors keep what was last
+    /// registered, and keeping the flag means the next change still counts as
+    /// one between two customized pointers, so it skips the one-off resize of
+    /// a first registration
+    #[cfg(feature = "private-multiply-tint")]
+    pub fn store_pointer_colors(colors: &crate::pointer_tint::PointerColors) {
+        use objc2_foundation::NSString;
+
+        let Some(api) = pointer_api() else { return; };
+        let domain = NSString::from_str(UNIVERSAL_ACCESS_DOMAIN);
+        // SAFETY: `pointer_api` found these calls, and the string outlives
+        // the call that takes it
+        unsafe {
+            write_color(api.set_fill, colors.fill);
+            write_color(api.set_outline, colors.outline);
+            CFPreferencesAppSynchronize(cf_string(&domain));
+        }
+    }
+
+    /// The pointer size, a multiple of the stock one, or `None` when this
+    /// macOS lacks the private calls that read it or the read fails.  Main
+    /// thread only
+    #[cfg(feature = "private-multiply-tint")]
+    pub fn pointer_scale() -> Option<f32> {
+        let api = pointer_api()?;
+        let mut scale = 0.0_f32;
+        // SAFETY: `pointer_api` found these calls, and `scale` is the float
+        // the second one writes
+        let status = unsafe { (api.get_cursor_scale)((api.main_connection)(), &mut scale) };
+        (status == 0).then_some(scale)
+    }
+
+    /// Set the pointer size to `scale`, as [`pointer_scale`] reads it.  A
+    /// failure logs a warning.  Main thread only
+    #[cfg(feature = "private-multiply-tint")]
+    pub fn set_pointer_scale(scale: f32) {
+        let Some(api) = pointer_api() else { return; };
+        // SAFETY: `pointer_api` found these calls
+        let status = unsafe { (api.set_cursor_scale)((api.main_connection)(), scale) };
+        if status != 0 {
+            log::warn!("pointer tint: setting the pointer size failed with status {status}");
+        }
+    }
+
+    /// Store `color` through `set`, or remove the key with `None`
+    ///
+    /// SAFETY: `set` takes a `CGColorRef` and treats null as no color
+    #[cfg(feature = "private-multiply-tint")]
+    unsafe fn write_color(set: unsafe extern "C" fn(*const c_void), color: Option<[f64; 4]>) {
+        let Some([red, green, blue, alpha]) = color else {
+            set(std::ptr::null());
+            return;
+        };
+        let made = CGColorCreateSRGB(red, green, blue, alpha);
+        // No color to hand over leaves the key as it is
+        if !made.is_null() {
+            set(made);
+            CFRelease(made);
+        }
+    }
+
+    /// What [`quit_on_signals`] was given, which the event handler of its
+    /// signal sources calls
+    #[cfg(feature = "private-multiply-tint")]
+    static QUIT_ON_SIGNAL: std::sync::Mutex<Option<Box<dyn Fn() + Send>>> =
+        std::sync::Mutex::new(None);
+
+    /// Whether [`quit_on_signals`] took SIGINT over, which [`quit_signalled`]
+    /// then gives back.  A SIGINT that was ignored at launch stays so
+    #[cfg(feature = "private-multiply-tint")]
+    static SIGINT_TAKEN: std::sync::atomic::AtomicBool =
+        std::sync::atomic::AtomicBool::new(false);
+
+    /// Make SIGHUP, SIGINT and SIGTERM call `quit` on the main thread instead
+    /// of killing the process, so a closed terminal, Ctrl+C and `kill` end the
+    /// run the way a Quit button does, which puts the pointer's colors back
+    ///
+    /// libdispatch delivers each signal on the main queue, which the app's
+    /// run loop drains.  A signal that was already ignored at launch, under
+    /// `nohup` or in a background job, stays ignored.  Once a quit has begun,
+    /// SIGINT has its default action back, so a second Ctrl+C ends a quit that
+    /// hangs.  SIGHUP and SIGTERM keep quitting the normal way, because a
+    /// closed terminal can deliver SIGHUP twice and the second must not cut
+    /// the restore short.  A hung process still ends with `kill -9`.  Sources
+    /// are never released.  Call it once
+    #[cfg(feature = "private-multiply-tint")]
+    pub fn quit_on_signals(quit: impl Fn() + Send + 'static) {
+        use exhale_core::poison::MutexPoisonExt;
+        use std::sync::atomic::Ordering;
+
+        *QUIT_ON_SIGNAL.lock_or_recover() = Some(Box::new(quit));
+        for signum in QUIT_SIGNALS {
+            // SAFETY: `signal` and libdispatch take these arguments by value,
+            // and the two statics are only addressed, which is all
+            // libdispatch's own macros do with them
+            unsafe {
+                // Ignored, so the default action doesn't end the process
+                // while the source below still sees the signal.  A signal
+                // that was ignored already, under `nohup` or in a background
+                // job, was meant to be, and stays so
+                let previous = signal(signum, SIG_IGN);
+                if previous == SIG_IGN {
+                    continue;
+                }
+                let source = dispatch_source_create(
+                    std::ptr::addr_of!(_dispatch_source_type_signal),
+                    signum as usize,
+                    0,
+                    std::ptr::addr_of!(_dispatch_main_q),
+                );
+                if source.is_null() {
+                    log::warn!(
+                        "pointer tint: no dispatch source for signal {signum}, so it keeps \
+                         what it had"
+                    );
+                    signal(signum, previous);
+                    continue;
+                }
+                dispatch_source_set_event_handler_f(source, quit_signalled);
+                dispatch_resume(source);
+                if signum == SIGINT {
+                    SIGINT_TAKEN.store(true, Ordering::SeqCst);
+                }
+            }
+        }
+    }
+
+    /// The event handler of the signal sources [`quit_on_signals`] makes, run
+    /// on the main queue
+    ///
+    /// Calls `quit`, and gives SIGINT its default action back if that
+    /// function took it over
+    #[cfg(feature = "private-multiply-tint")]
+    extern "C" fn quit_signalled(_context: *mut c_void) {
+        use exhale_core::poison::MutexPoisonExt;
+        use std::sync::atomic::Ordering;
+
+        if let Some(quit) = QUIT_ON_SIGNAL.lock_or_recover().as_ref() {
+            quit();
+        }
+        // A second Ctrl+C ends a quit that hangs.  SIGHUP and SIGTERM stay
+        // caught, because a closed terminal can deliver SIGHUP twice and the
+        // second must not cut the restore short.  A repeat of either calls
+        // `quit` again, which does no harm
+        if SIGINT_TAKEN.load(Ordering::SeqCst) {
+            // SAFETY: `signal` takes these arguments by value
+            unsafe { signal(SIGINT, SIG_DFL); }
+        }
+    }
+
     /// The collection behavior of the window of Window mode
     ///
     /// `FullScreenPrimary` for a window the user places: `NSWindow.h` says
