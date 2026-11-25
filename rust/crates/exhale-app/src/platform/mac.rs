@@ -95,10 +95,14 @@ use super::*;
         use objc2_app_kit::NSWindowCollectionBehavior;
 
         let Some(ns_win) = get_ns_window(window) else { return; };
-        // Float above fullscreen apps, join every Space, stay out of Cmd+Tab
+        // Float above fullscreen apps, join every Space, stay out of Cmd+Tab.
+        // Stationary also keeps the overlay on screen over Mission Control,
+        // App Exposé and Show Desktop, which hide or move every window
+        // without it
         let behavior = NSWindowCollectionBehavior::CanJoinAllSpaces
             | NSWindowCollectionBehavior::IgnoresCycle
-            | NSWindowCollectionBehavior::FullScreenAuxiliary;
+            | NSWindowCollectionBehavior::FullScreenAuxiliary
+            | NSWindowCollectionBehavior::Stationary;
         ns_win.setIgnoresMouseEvents(true);
         ns_win.setCollectionBehavior(behavior);
         ns_win.setLevel(NS_WINDOW_LEVEL_SCREEN_SAVER);
