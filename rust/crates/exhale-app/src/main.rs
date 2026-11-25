@@ -15,6 +15,8 @@ mod hotkeys;
 mod keymap;
 mod overlay;
 mod platform;
+#[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+mod pointer_tint;
 mod settings_window;
 mod timers;
 mod tray;
@@ -339,6 +341,11 @@ struct App {
     // Timers
     timers: Timers,
 
+    // The pointer's colors, which the private tint build multiplies by the
+    // tint's gains and puts back
+    #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+    pointer_tint: pointer_tint::PointerTint,
+
     // Study builds only: the append-only session log the participant
     // hands back to the lab.  `None` in every ordinary build, and in a
     // study that can't run, which opens no log (see `open_session_log`)
@@ -356,6 +363,8 @@ impl App {
         session_log:      Option<Arc<SessionLog>>,
     ) -> Self {
         let settings = Arc::clone(&settings_manager.settings);
+        #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+        let pointer_tint = pointer_tint::PointerTint::new(settings_manager.config_dir());
         Self {
             proxy,
             settings,
@@ -380,6 +389,8 @@ impl App {
             #[cfg(feature = "global-hotkeys")]
             hotkey_ids:       None,
             timers:           Timers::new(),
+            #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+            pointer_tint,
             session_log,
             shut_down:        false,
         }
@@ -1537,6 +1548,8 @@ impl ApplicationHandler<AppEvent> for App {
     /// Dock's get an `app_stop` line and a settings flush.  The flag keeps a
     /// second call from writing a second line
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+        self.pointer_tint.restore();
         shut_down(
             &mut self.shut_down,
             self.session_log.as_deref(),
@@ -1662,6 +1675,22 @@ impl ApplicationHandler<AppEvent> for App {
             }
         }
 
+        // Multiply tint: the main-thread spot every settings change and
+        // overlay rebuild passes through, placed after the rescan and the
+        // timers so an auto-stop in this pass takes the tint down in the same
+        // pass.  A handle skips the call when its gains haven't changed
+        #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+        {
+            let s = self.settings.read_or_recover();
+            for h in self.overlays.values() {
+                h.sync_multiply_tint(&s);
+            }
+            // The pointer takes the gains the screen shows, so it's tinted
+            // only while an overlay's multiply tint is up
+            let gains = self.overlays.values().find_map(|h| h.multiply_tint());
+            self.pointer_tint.sync(gains, Instant::now());
+        }
+
         // Compute the earliest deadline we need the event loop to wake for: an
         // egui-requested repaint or an auto-stop/reminder firing.  With
         // `ControlFlow::Wait` alone the loop would sleep indefinitely and
@@ -1677,10 +1706,17 @@ impl ApplicationHandler<AppEvent> for App {
         let topmost_deadline = self.next_topmost_reassert;
         #[cfg(not(target_os = "windows"))]
         let topmost_deadline: Option<Instant> = None;
+        // The private tint build: a changed tint reaches the pointer once it
+        // has settled, which no event announces
+        #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+        let pointer_deadline = self.pointer_tint.next_deadline();
+        #[cfg(not(all(target_os = "macos", feature = "private-multiply-tint")))]
+        let pointer_deadline: Option<Instant> = None;
         let next = [
             self.next_settings_repaint,
             timer_deadline,
             topmost_deadline,
+            pointer_deadline,
             self.next_monitor_scan,
         ]
             .into_iter()
@@ -1826,6 +1862,14 @@ fn main() -> Result<()> {
 
     let event_loop = EventLoop::<AppEvent>::with_user_event().build()?;
     let proxy      = event_loop.create_proxy();
+
+    // Ctrl+C, kill and a closed terminal quit the private tint build the way
+    // its Quit button does, so the pointer gets its colors back
+    #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+    {
+        let proxy = proxy.clone();
+        platform::quit_on_signals(move || { let _ = proxy.send_event(AppEvent::Quit); });
+    }
 
     let mut app = App::new(proxy, settings_manager, session_log);
     event_loop.run_app(&mut app)?;

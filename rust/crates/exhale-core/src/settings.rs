@@ -628,6 +628,34 @@ impl Settings {
             .all(|(a, b)| (a - b).abs() < 0.001)
     }
 
+    /// Per-channel gains that multiply the screen behind the overlay in
+    /// place of the still tint's alpha blend, or `None` when there's no
+    /// still tint to draw
+    ///
+    /// The still tint is the Fullscreen shape with matching inhale and
+    /// exhale colors while the animation runs.  Blending `inhale_color`
+    /// over the screen lifts black toward that color.  A multiply at the
+    /// same opacity `a` scales each channel by `1 - a * (1 - c)`, so black
+    /// stays black.  An opacity the shader draws as clear gives `None`
+    pub fn multiply_tint_gains(&self) -> Option<[f32; 3]> {
+        if !self.is_animating
+            || self.is_paused
+            || self.shape != AnimationShape::Fullscreen
+            || !self.inhale_exhale_colors_match()
+        {
+            return None;
+        }
+        let a = (self.inhale_color[3] * self.overlay_opacity).clamp(0.0, 1.0);
+        // The shader draws nothing at or below this opacity
+        if a <= 0.0001 {
+            return None;
+        }
+        let [r, g, b, _] = self.inhale_color;
+        let gains = [r, g, b].map(|c| 1.0 - a * (1.0 - c.clamp(0.0, 1.0)));
+        // A hand-edited `nan` gets past the opacity check above
+        gains.iter().all(|gain| gain.is_finite()).then_some(gains)
+    }
+
     /// The alpha component of background_color, clamped to overlay_opacity
     pub fn background_opacity(&self) -> f32 {
         self.background_color[3].min(self.overlay_opacity)
@@ -895,6 +923,48 @@ mod tests {
         s.background_color = [0.0, 0.0, 0.0, 0.8];
         s.overlay_opacity = 0.25;
         assert!((s.background_opacity() - 0.25).abs() < 1e-6);
+    }
+
+    #[test]
+    fn multiply_tint_gains_scale_each_channel_at_the_tint_opacity() {
+        let mut s = Settings::default();
+        s.is_animating    = true;
+        s.is_paused       = false;
+        s.shape           = AnimationShape::Fullscreen;
+        s.inhale_color    = [1.0, 0.6, 0.2, 0.8];
+        s.exhale_color    = s.inhale_color;
+        s.overlay_opacity = 0.625;
+
+        // 1 - a * (1 - c) per channel, where a = 0.8 * 0.625 = 0.5
+        let gains = s.multiply_tint_gains().expect("a still tint has gains");
+        for (got, want) in gains.iter().zip([1.0, 0.8, 0.6]) {
+            assert!((got - want).abs() < 1e-6, "{gains:?}");
+        }
+
+        // Every case below leaves the overlay to draw its own frame
+        let mut differing = s.clone();
+        differing.exhale_color = [0.0, 0.0, 1.0, 1.0];
+        assert_eq!(differing.multiply_tint_gains(), None, "inhale and exhale colors differ");
+
+        let mut paused = s.clone();
+        paused.is_paused = true;
+        assert_eq!(paused.multiply_tint_gains(), None, "paused");
+
+        let mut stopped = s.clone();
+        stopped.is_animating = false;
+        assert_eq!(stopped.multiply_tint_gains(), None, "stopped");
+
+        let mut circle = s.clone();
+        circle.shape = AnimationShape::Circle;
+        assert_eq!(circle.multiply_tint_gains(), None, "not the Fullscreen shape");
+
+        let mut clear = s.clone();
+        clear.overlay_opacity = 0.0;
+        assert_eq!(clear.multiply_tint_gains(), None, "the shader draws zero opacity as clear");
+
+        let mut not_a_number = s.clone();
+        not_a_number.overlay_opacity = f32::NAN;
+        assert_eq!(not_a_number.multiply_tint_gains(), None, "a nan opacity is no tint");
     }
 
     #[test]

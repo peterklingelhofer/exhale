@@ -139,6 +139,11 @@ pub struct OverlayHandle {
     /// Render dispatch: per-window thread (macOS / Windows / Linux
     /// X11) or main-thread synchronous rendering (Wayland)
     mode:        HandleMode,
+    /// The gains the last sync handed to the platform layer, `None` for no
+    /// tint.  A handle that was never synced and one synced with no tint both
+    /// have no visible backdrop, so one value covers the two
+    #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+    multiply_tint: std::cell::Cell<Option<[f32; 3]>>,
 }
 
 /// How this overlay's renderer is driven
@@ -311,6 +316,8 @@ impl OverlayHandle {
                     settings,
                     max_circle_scale,
                 })),
+                #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+                multiply_tint: std::cell::Cell::new(None),
             });
         }
 
@@ -351,6 +358,8 @@ impl OverlayHandle {
             window_only: !window_mode && !alpha_capable,
             fills_display,
             mode: HandleMode::Threaded { msg_tx, thread: Some(thread) },
+            #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+            multiply_tint: std::cell::Cell::new(None),
         })
     }
 
@@ -375,6 +384,27 @@ impl OverlayHandle {
                 state.renderer.lock_or_recover().resize(size.width, size.height);
             }
         }
+    }
+
+    /// Bring the multiply tint behind this overlay in line with `settings`
+    ///
+    /// The platform layer is only called when the gains differ from the ones
+    /// it was last given, so a caller can run this on every pass of the event
+    /// loop.  Main thread only: it edits the window's layer tree
+    #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+    pub fn sync_multiply_tint(&self, settings: &Settings) {
+        let gains = multiply_tint_gains(settings, self.alpha_capable);
+        if self.multiply_tint.get() == gains {
+            return;
+        }
+        platform::set_multiply_tint(&self.window, gains);
+        self.multiply_tint.set(gains);
+    }
+
+    /// The gains of the multiply tint this overlay shows, `None` for none
+    #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+    pub fn multiply_tint(&self) -> Option<[f32; 3]> {
+        self.multiply_tint.get()
     }
 
     /// Wake the renderer to draw one frame against the latest shared
@@ -568,6 +598,25 @@ pub(crate) fn study_fills_display(settings: &Settings) -> bool {
     settings.study.is_some() && settings.display_mode == DisplayMode::Window
 }
 
+/// Gains for the multiply tint, or `None` when the overlay draws its own
+/// frame
+///
+/// Only a true overlay on macOS, in a build with the `private-multiply-tint`
+/// feature and on a macOS that has the private API (see
+/// `platform::multiply_tint_supported`), gets them.  The render thread leaves
+/// its frame clear when this is `Some`, and
+/// `OverlayHandle::sync_multiply_tint` hands the gains to WindowServer, so
+/// both read the one answer here and the tint is drawn exactly once
+pub(crate) fn multiply_tint_gains(settings: &Settings, alpha_capable: bool) -> Option<[f32; 3]> {
+    #[cfg(all(target_os = "macos", feature = "private-multiply-tint"))]
+    if alpha_capable && platform::multiply_tint_supported() {
+        return settings.multiply_tint_gains();
+    }
+    #[cfg(not(all(target_os = "macos", feature = "private-multiply-tint")))]
+    let _ = (settings, alpha_capable);
+    None
+}
+
 /// Try the platform-specific fullscreen overlay path (click-through,
 /// always-on-top, all-Spaces).  Builds the borderless transparent
 /// overlay window, probes the swap chain alpha modes, and either
@@ -753,7 +802,13 @@ fn render_thread_loop(
                     hold_time: 0.0,
                 }
             });
-            let settings_snap = settings.read_or_recover().clone();
+            let mut settings_snap = settings.read_or_recover().clone();
+            // WindowServer draws the multiply tint (see
+            // `OverlayHandle::sync_multiply_tint`), so this frame stays
+            // clear: zero opacity is the case the shader draws as clear
+            if multiply_tint_gains(&settings_snap, renderer.alpha_capable()).is_some() {
+                settings_snap.overlay_opacity = 0.0;
+            }
             if let Err(e) = renderer.render(&state_snap, &settings_snap, max_circle_scale) {
                 log::error!("overlay render: {e}");
             }

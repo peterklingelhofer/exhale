@@ -122,7 +122,9 @@ jobs:
   # The other two crates need a windowing stack to compile, and macOS is the
   # one runner that has it without system packages. This is the only place
   # `exhale-app`'s tests run in CI. The `--no-default-features` check covers
-  # builds without global hotkeys
+  # builds without global hotkeys. The `private-multiply-tint` steps keep that
+  # opt-in feature, which no packaged build turns on, compiling and passing its
+  # layer test
   app-check:
     runs-on: macos-15
     steps:
@@ -144,3 +146,11 @@ jobs:
       - name: cargo check (no global hotkeys)
         working-directory: rust
         run: cargo check --locked -p exhale-app --no-default-features
+
+      - name: cargo clippy (private-multiply-tint)
+        working-directory: rust
+        run: cargo clippy --locked -p exhale-app --all-targets --features private-multiply-tint -- -D warnings
+
+      - name: cargo test (private-multiply-tint)
+        working-directory: rust
+        run: cargo test --locked -p exhale-app --features private-multiply-tint
